@@ -20,7 +20,8 @@ let state = {
     tab: 'overview', // overview, ftl
     months: ['all'],
     weeks: ['all'],
-    entities: ['all']
+    projects: ['all'],
+    vehicles: ['all']
 };
 
 // Store active chart instances to destroy them
@@ -34,8 +35,10 @@ const els = {
     ddMonth: document.getElementById('dd-month'),
     msWeek: document.getElementById('ms-week'),
     ddWeek: document.getElementById('dd-week'),
-    msEntity: document.getElementById('ms-entity'),
-    ddEntity: document.getElementById('dd-entity'),
+    msProject: document.getElementById('ms-project'),
+    ddProject: document.getElementById('dd-project'),
+    msVehicle: document.getElementById('ms-vehicle'),
+    ddVehicle: document.getElementById('dd-vehicle'),
     clock: document.getElementById('live-clock')
 };
 
@@ -54,7 +57,14 @@ function init() {
             // reset state
             state.months = ['all'];
             state.weeks = ['all'];
-            state.entities = ['all'];
+            state.projects = ['all'];
+            state.vehicles = ['all'];
+            
+            if (state.tab === 'ftl') {
+                els.msVehicle.style.display = 'block';
+            } else {
+                els.msVehicle.style.display = 'none';
+            }
             
             populateMonthFilter();
             renderDashboard();
@@ -145,21 +155,27 @@ function populateWeekFilter() {
     }
     let wks = [...new Set(filtered_ds.map(r => r.w))].sort((a,b) => a-b).map(w => ({value: w, label: `Tuần ${w}`}));
     renderDropdown(els.ddWeek, wks, 'weeks', els.msWeek, "Tất cả Tuần");
-    populateEntityFilter();
+    populateProjectFilter();
 }
 
-function populateEntityFilter() {
+function populateProjectFilter() {
     let ds = state.tab === 'ftl' ? FLAT_FTL : FLAT_LTL;
     let set = new Set();
+    ds.forEach(r => set.add(r.c));
+    let items = Array.from(set).sort().map(v => ({value: v, label: v}));
+    renderDropdown(els.ddProject, items, 'projects', els.msProject, "Tất cả Dự án");
     
     if (state.tab === 'ftl') {
-        ds.forEach(r => set.add(r.veh));
-    } else {
-        ds.forEach(r => set.add(r.c));
+        populateVehicleFilter();
     }
+}
 
+function populateVehicleFilter() {
+    let ds = FLAT_FTL;
+    let set = new Set();
+    ds.forEach(r => set.add(r.veh));
     let items = Array.from(set).sort().map(v => ({value: v, label: v}));
-    renderDropdown(els.ddEntity, items, 'entities', els.msEntity, state.tab === 'ftl' ? "Tất cả Loại Xe" : "Tất cả Dự án");
+    renderDropdown(els.ddVehicle, items, 'vehicles', els.msVehicle, "Tất cả Loại Xe");
 }
 
 // Helper to format numbers
@@ -270,7 +286,7 @@ function getLTLData() {
     let filtered = FLAT_LTL.filter(r => {
         if (!state.months.includes('all') && !state.months.includes(r.m.toString())) return false;
         if (!state.weeks.includes('all') && !state.weeks.includes(r.w.toString())) return false;
-        if (!state.entities.includes('all') && !state.entities.includes(r.c)) return false;
+        if (!state.projects.includes('all') && !state.projects.includes(r.c)) return false;
         return true;
     });
 
@@ -565,7 +581,8 @@ function getFTLData() {
     let filtered = baseData;
     if (!state.months.includes('all')) filtered = filtered.filter(r => state.months.includes(r.m.toString()));
     if (!state.weeks.includes('all')) filtered = filtered.filter(r => state.weeks.includes(r.w.toString()));
-    if (!state.entities.includes('all')) filtered = filtered.filter(r => state.entities.includes(r.c));
+    if (!state.projects.includes('all')) filtered = filtered.filter(r => state.projects.includes(r.c));
+    if (!state.vehicles.includes('all')) filtered = filtered.filter(r => state.vehicles.includes(r.veh));
 
     let res = {
         trips: 0,
