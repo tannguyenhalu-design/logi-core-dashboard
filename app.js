@@ -158,11 +158,19 @@ function populateWeekFilter() {
     populateProjectFilter();
 }
 
+const vehName = (v) => {
+    let sv = String(v);
+    if(sv.includes('1900')) return 'Xe 1T9';
+    if(sv.includes('5000')) return 'Xe 5T';
+    if(sv.includes('8000')) return 'Xe 8T';
+    return v + ' kg';
+};
+
 function populateProjectFilter() {
     let ds = state.tab === 'ftl' ? FLAT_FTL : FLAT_LTL;
     let set = new Set();
     ds.forEach(r => set.add(r.c));
-    let items = Array.from(set).sort().map(v => ({value: v, label: v}));
+    let items = Array.from(set).sort().map(v => ({value: v, label: vehName(v)}));
     renderDropdown(els.ddProject, items, 'projects', els.msProject, "Tất cả Dự án");
     
     if (state.tab === 'ftl') {
@@ -681,6 +689,57 @@ function getFTLData() {
         }
     });
 
+    // Calculate previous period for AI and charts
+    let prevMonths = ['all'];
+    let prevWeeks = ['all'];
+    let hasPrev = false;
+    let curPeriodName = '';
+    let prevPeriodName = '';
+
+    if (!state.weeks.includes('all') && state.weeks.length === 1) {
+        let cw = parseInt(state.weeks[0]);
+        prevWeeks = [(cw - 1).toString()];
+        hasPrev = true;
+        curPeriodName = `Tuần ${cw}`;
+        prevPeriodName = `Tuần ${cw - 1}`;
+    } else if (!state.months.includes('all') && state.months.length === 1) {
+        let cm = parseInt(state.months[0]);
+        prevMonths = [(cm - 1).toString()];
+        hasPrev = true;
+        curPeriodName = `Tháng ${cm}`;
+        prevPeriodName = `Tháng ${cm - 1}`;
+    }
+
+    let prevFiltered = baseData;
+    if (!prevMonths.includes('all')) prevFiltered = prevFiltered.filter(r => prevMonths.includes(r.m.toString()));
+    if (!prevWeeks.includes('all')) prevFiltered = prevFiltered.filter(r => prevWeeks.includes(r.w.toString()));
+    if (!state.projects.includes('all')) prevFiltered = prevFiltered.filter(r => state.projects.includes(r.c));
+    if (!state.vehicles.includes('all')) prevFiltered = prevFiltered.filter(r => state.vehicles.includes(r.veh));
+
+    let prev_veh_by_proj = {};
+    let prev_veh_by_loc = {};
+    
+    prevFiltered.forEach(r => {
+        let rawStatus = (r.status || 'Unknown').toLowerCase();
+        if (rawStatus.includes('completed') || rawStatus.includes('hoàn thành') || rawStatus.includes('delivered') || rawStatus.includes('thành công') || rawStatus.includes('done')) {
+            let client = r.c;
+            if (!prev_veh_by_proj[client]) prev_veh_by_proj[client] = 0;
+            prev_veh_by_proj[client]++;
+
+            let loc = r.prov;
+            if (loc && String(loc).toLowerCase() !== 'nan') {
+                if (!prev_veh_by_loc[loc]) prev_veh_by_loc[loc] = {};
+                prev_veh_by_loc[loc][r.veh] = (prev_veh_by_loc[loc][r.veh] || 0) + 1;
+            }
+        }
+    });
+
+    res.prev_veh_by_proj = prev_veh_by_proj;
+    res.prev_veh_by_loc = prev_veh_by_loc;
+    res.hasPrev = hasPrev;
+    res.curPeriodName = curPeriodName;
+    res.prevPeriodName = prevPeriodName;
+
     return res;
 }
 
@@ -724,10 +783,10 @@ function renderFTL() {
                 <div class="kpi-value" style="color: ${utilColor}"><span class="count-up" data-val="${utilPct}">0</span>%</div>
                 <div style="font-size:12px; color:var(--text-secondary); margin-top:5px;">Sử dụng <span class="count-up" data-val="${Math.round(d.total_weight)}">0</span>kg / <span class="count-up" data-val="${d.total_capacity}">0</span>kg</div>
             </div>
-            <div class="kpi-card ${pulseClass}" style="animation: fadeIn 0.5s ease 0.3s both; border-left: 3px solid ${cAmber}">
-                <div class="kpi-title"><i class="ri-robot-2-line"></i> Cảnh báo AI (FTL)</div>
-                <div style="font-size:12px; color:var(--text-secondary); margin-top: 5px; line-height:1.4;">
-                    ${utilPct < 50 ? '<span style="color:' + cRed + '">⚠️ Hiệu suất tải trọng thấp (<50%), lãng phí chi phí thuê xe. Cần ghép tải.</span>' : '<span style="color:' + cGreen + '">✅ Tối ưu tải trọng xe tốt. Duy trì điều phối hiện tại.</span>'}
+            <div class="kpi-card" style="animation: fadeIn 0.5s ease 0.3s both; border-left: 3px solid var(--purple);">
+                <div class="kpi-title"><i class="ri-robot-2-line"></i> Phân tích AI (FTL)</div>
+                <div id="ai-insights-ftl" style="font-size:12px; color:var(--text-secondary); margin-top: 5px; line-height:1.4;">
+                    <!-- AI text will go here -->
                 </div>
             </div>
         </div>
@@ -762,17 +821,11 @@ function renderFTL() {
             </div>
         </div>
         
-        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 24px;">
+        <div style="display: grid; grid-template-columns: 1fr; gap: 24px; margin-bottom: 24px;">
             <div class="chart-panel" style="animation: slideUp 0.5s ease 0.4s both;">
                 <div class="panel-title"><i class="ri-calendar-todo-line"></i> Số xe sử dụng theo Ngày (Heatmap)</div>
                 <div class="chart-container" style="height: 250px;">
                     <canvas id="c-ftl-days"></canvas>
-                </div>
-            </div>
-            <div class="chart-panel" style="animation: slideUp 0.5s ease 0.5s both;">
-                <div class="panel-title"><i class="ri-donut-chart-fill"></i> Tỷ lệ Giao Hàng (Tất cả chuyến)</div>
-                <div class="chart-container" style="height: 250px;">
-                    <canvas id="c-ftl-status"></canvas>
                 </div>
             </div>
         </div>
@@ -819,7 +872,7 @@ function renderFTL() {
     let projLabels = Object.keys(d.veh_by_proj);
     let dsProj = vehTypes.map((v, i) => {
         return {
-            label: v + ' kg',
+            label: vehName(v),
             data: projLabels.map(p => d.veh_by_proj[p][v] || 0),
             backgroundColor: vehColors[i % vehColors.length],
             borderRadius: 4
@@ -829,15 +882,42 @@ function renderFTL() {
         type: 'bar',
         data: { labels: projLabels, datasets: dsProj },
         options: {
-            indexAxis: 'y',
             maintainAspectRatio: false,
             plugins: { 
                 legend: { position: 'top', labels: { color: '#ffffff', font: {size: 11} } }, 
-                datalabels: { display: false } 
+                datalabels: {
+                    display: function(context) {
+                        return context.datasetIndex === context.chart.data.datasets.length - 1;
+                    },
+                    formatter: function(value, context) {
+                        let total = 0;
+                        context.chart.data.datasets.forEach(ds => {
+                            total += ds.data[context.dataIndex] || 0;
+                        });
+                        if(total === 0) return '';
+                        
+                        let client = context.chart.data.labels[context.dataIndex];
+                        let text = total;
+                        
+                        if (d.hasPrev) {
+                            let prevTotal = d.prev_veh_by_proj[client] || 0;
+                            if (prevTotal > 0) {
+                                let pct = ((total - prevTotal) / prevTotal) * 100;
+                                let sign = pct >= 0 ? '▲' : '▼';
+                                text += `\n${sign} ${Math.abs(pct).toFixed(1)}%`;
+                            } else if (total > 0) {
+                                text += `\n▲ 100%`;
+                            }
+                        }
+                        return text;
+                    },
+                    color: '#fff', align: 'top', anchor: 'end',
+                    font: { size: 10, weight: 'bold' }, textAlign: 'center'
+                } 
             },
             scales: {
-                x: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#ffffff' } },
-                y: { stacked: true, grid: { display: false }, ticks: { color: '#ffffff', font: {size: 12} } }
+                y: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#ffffff' } },
+                x: { stacked: true, grid: { display: false }, ticks: { color: '#ffffff', font: {size: 12} } }
             }
         }
     });
@@ -852,7 +932,7 @@ function renderFTL() {
     
     let dsLoc = vehTypes.map((v, i) => {
         return {
-            label: v + ' kg',
+            label: vehName(v),
             data: locLabels.map(loc => d.veh_by_loc[loc][v] || 0),
             backgroundColor: vehColors[i % vehColors.length],
             borderRadius: 4
@@ -880,7 +960,7 @@ function renderFTL() {
     let dayLabels = Array.from({length: 31}, (_, i) => i + 1);
     let datasetsDays = vehTypes.map((v, i) => {
         return {
-            label: v + ' kg',
+            label: vehName(v),
             data: dayLabels.map(day => (d.days[day] && d.days[day][v]) ? d.days[day][v] : 0),
             backgroundColor: vehColors[i % vehColors.length],
             borderRadius: 2
@@ -899,31 +979,46 @@ function renderFTL() {
         }
     });
 
-    // 6. Trip Status Doughnut
-    let statusLabels = Object.keys(d.trip_status);
-    let statusData = statusLabels.map(k => d.trip_status[k]);
-    let statusColors = statusLabels.map(k => k === 'Hoàn Thành' ? cGreen : (k === 'Đã Hủy' ? cRed : cAmber));
-    activeCharts.c_ftl_status = new Chart(document.getElementById('c-ftl-status'), {
-        type: 'doughnut',
-        data: {
-            labels: statusLabels,
-            datasets: [{ data: statusData, backgroundColor: statusColors, borderWidth: 2, borderColor: cBg }]
-        },
-        options: {
-            maintainAspectRatio: false, cutout: '70%',
-            plugins: {
-                legend: { position: 'right', labels: { color: '#ffffff', font: {size: 13} } },
-                datalabels: {
-                    color: '#ffffff',
-                    formatter: (v, ctx) => {
-                        let sum = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
-                        return sum > 0 ? (v * 100 / sum).toFixed(1) + "%" : "0%";
-                    },
-                    font: { weight: 'bold', size: 14 }
+    // Generate AI Insights
+    let aiBox = document.getElementById('ai-insights-ftl');
+    if (aiBox) {
+        if (!d.hasPrev) {
+            aiBox.innerHTML = `Vui lòng chọn 1 Tháng cụ thể hoặc 1 Tuần cụ thể để AI phân tích biến động.`;
+        } else {
+            let locDiffs = [];
+            Object.keys(d.veh_by_loc).forEach(loc => {
+                vehTypes.forEach(v => {
+                    let cur = d.veh_by_loc[loc][v] || 0;
+                    let prev = (d.prev_veh_by_loc[loc] && d.prev_veh_by_loc[loc][v]) ? d.prev_veh_by_loc[loc][v] : 0;
+                    let diff = cur - prev;
+                    if (diff !== 0) {
+                        locDiffs.push({ loc, v, diff });
+                    }
+                });
+            });
+            
+            locDiffs.sort((a,b) => b.diff - a.diff);
+            
+            let insightText = '';
+            if (locDiffs.length > 0) {
+                let topPos = locDiffs[0];
+                let topNeg = locDiffs[locDiffs.length - 1];
+                
+                if (topPos.diff > 0) {
+                    insightText += `<div style="margin-bottom: 4px;"><span style="color:${cGreen}">📈</span> Tuyến <strong>${topPos.loc}</strong> ${d.curPeriodName} tăng thêm <strong>${topPos.diff} chuyến ${vehName(topPos.v)}</strong> so với ${d.prevPeriodName}.</div>`;
+                }
+                if (topNeg.diff < 0) {
+                    insightText += `<div><span style="color:${cRed}">📉</span> Tuyến <strong>${topNeg.loc}</strong> sụt giảm <strong>${Math.abs(topNeg.diff)} chuyến ${vehName(topNeg.v)}</strong>. Cần lưu ý tối ưu.</div>`;
                 }
             }
+            
+            if (insightText === '') {
+                insightText = `✅ Dữ liệu ${d.curPeriodName} ổn định, không có biến động bất thường so với ${d.prevPeriodName}.`;
+            }
+            
+            aiBox.innerHTML = insightText;
         }
-    });
+    }
 
     // Run Count-Up Animations
     document.querySelectorAll('.count-up').forEach(el => {
