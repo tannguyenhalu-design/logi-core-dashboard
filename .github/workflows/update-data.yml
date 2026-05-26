@@ -1,0 +1,37 @@
+name: Tự động cập nhật dữ liệu LOGI-CORE
+
+on:
+  schedule:
+    # 03:00 UTC = 10:00 sáng (GMT+7)
+    - cron: '0 3 * * *'
+  # Cho phép chạy thủ công bằng nút bấm trên GitHub
+  workflow_dispatch: 
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kéo mã nguồn về máy chủ (Checkout)
+        uses: actions/checkout@v4
+        
+      - name: Cài đặt Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip' # Tăng tốc cài đặt thư viện
+          
+      - name: Cài đặt thư viện cần thiết
+        run: pip install -r requirements.txt
+        
+      - name: Tải Excel và cập nhật data.js
+        run: python aggregate.py
+        
+      - name: Đóng gói và lưu (Commit & Push) lên GitHub
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add data.js
+          
+          # Kiểm tra xem có gì thay đổi không. Nếu có thì mới commit và push.
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Bot: Tự động cập nhật data.js" && git push)
