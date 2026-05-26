@@ -600,6 +600,7 @@ function getFTLData() {
         veh_by_proj: {},
         veh_by_time: {},
         veh_by_loc: {},
+        veh_by_proj_loc: {},
         total_weight: 0,
         total_capacity: 0,
         trip_status: {},
@@ -655,8 +656,10 @@ function getFTLData() {
                 res.trips++;
                 res.vehicles[r.veh] = (res.vehicles[r.veh] || 0) + 1;
                 
-                if (!res.days[r.d]) res.days[r.d] = {};
-                res.days[r.d][r.veh] = (res.days[r.d][r.veh] || 0) + 1;
+                if (r.m === targetMonth || state.months.length > 0) {
+                    if (!res.days[r.d]) res.days[r.d] = {};
+                    res.days[r.d][r.veh] = (res.days[r.d][r.veh] || 0) + 1;
+                }
                 
                 let client = r.c;
                 if (!res.veh_by_proj[client]) res.veh_by_proj[client] = {};
@@ -685,6 +688,10 @@ function getFTLData() {
             if (loc && String(loc).toLowerCase() !== 'nan') {
                 if (!res.veh_by_loc[loc]) res.veh_by_loc[loc] = {};
                 res.veh_by_loc[loc][r.veh] = (res.veh_by_loc[loc][r.veh] || 0) + 1;
+                
+                let aiKey = `${client}|${loc}`;
+                if (!res.veh_by_proj_loc[aiKey]) res.veh_by_proj_loc[aiKey] = {};
+                res.veh_by_proj_loc[aiKey][r.veh] = (res.veh_by_proj_loc[aiKey][r.veh] || 0) + 1;
             }
         }
     });
@@ -718,6 +725,7 @@ function getFTLData() {
 
     let prev_veh_by_proj = {};
     let prev_veh_by_loc = {};
+    let prev_veh_by_proj_loc = {};
     
     prevFiltered.forEach(r => {
         let rawStatus = (r.status || 'Unknown').toLowerCase();
@@ -730,15 +738,22 @@ function getFTLData() {
             if (loc && String(loc).toLowerCase() !== 'nan') {
                 if (!prev_veh_by_loc[loc]) prev_veh_by_loc[loc] = {};
                 prev_veh_by_loc[loc][r.veh] = (prev_veh_by_loc[loc][r.veh] || 0) + 1;
+                
+                let aiKey = `${client}|${loc}`;
+                if (!prev_veh_by_proj_loc[aiKey]) prev_veh_by_proj_loc[aiKey] = {};
+                prev_veh_by_proj_loc[aiKey][r.veh] = (prev_veh_by_proj_loc[aiKey][r.veh] || 0) + 1;
             }
         }
     });
 
     res.prev_veh_by_proj = prev_veh_by_proj;
     res.prev_veh_by_loc = prev_veh_by_loc;
+    res.veh_by_proj_loc = res.veh_by_proj_loc || {};
+    res.prev_veh_by_proj_loc = prev_veh_by_proj_loc;
     res.hasPrev = hasPrev;
     res.curPeriodName = curPeriodName;
     res.prevPeriodName = prevPeriodName;
+    res.targetMonth = targetMonth;
 
     return res;
 }
@@ -823,7 +838,7 @@ function renderFTL() {
         
         <div style="display: grid; grid-template-columns: 1fr; gap: 24px; margin-bottom: 24px;">
             <div class="chart-panel" style="animation: slideUp 0.5s ease 0.4s both;">
-                <div class="panel-title"><i class="ri-calendar-todo-line"></i> Số xe sử dụng theo Ngày (Heatmap)</div>
+                <div class="panel-title"><i class="ri-calendar-todo-line"></i> Số xe sử dụng theo Ngày (Tháng ${d.targetMonth})</div>
                 <div class="chart-container" style="height: 250px;">
                     <canvas id="c-ftl-days"></canvas>
                 </div>
@@ -986,13 +1001,14 @@ function renderFTL() {
             aiBox.innerHTML = `Vui lòng chọn 1 Tháng cụ thể hoặc 1 Tuần cụ thể để AI phân tích biến động.`;
         } else {
             let locDiffs = [];
-            Object.keys(d.veh_by_loc).forEach(loc => {
+            Object.keys(d.veh_by_proj_loc || {}).forEach(key => {
+                let [client, loc] = key.split('|');
                 vehTypes.forEach(v => {
-                    let cur = d.veh_by_loc[loc][v] || 0;
-                    let prev = (d.prev_veh_by_loc[loc] && d.prev_veh_by_loc[loc][v]) ? d.prev_veh_by_loc[loc][v] : 0;
+                    let cur = d.veh_by_proj_loc[key][v] || 0;
+                    let prev = (d.prev_veh_by_proj_loc[key] && d.prev_veh_by_proj_loc[key][v]) ? d.prev_veh_by_proj_loc[key][v] : 0;
                     let diff = cur - prev;
                     if (diff !== 0) {
-                        locDiffs.push({ loc, v, diff });
+                        locDiffs.push({ client, loc, v, diff });
                     }
                 });
             });
@@ -1005,10 +1021,14 @@ function renderFTL() {
                 let topNeg = locDiffs[locDiffs.length - 1];
                 
                 if (topPos.diff > 0) {
-                    insightText += `<div style="margin-bottom: 4px;"><span style="color:${cGreen}">📈</span> Tuyến <strong>${topPos.loc}</strong> ${d.curPeriodName} tăng thêm <strong>${topPos.diff} chuyến ${vehName(topPos.v)}</strong> so với ${d.prevPeriodName}.</div>`;
+                    insightText += `<div style="margin-bottom: 8px; padding: 10px; background: rgba(0, 229, 160, 0.1); border-left: 3px solid ${cGreen}; border-radius: 4px;">
+                        <span style="color:${cGreen}; font-size:16px;">📈</span> Dự án <strong style="color:${cCyan}">${topPos.client}</strong> Tuyến <strong style="color:${cAmber}">${topPos.loc}</strong> ${d.curPeriodName} tăng thêm <strong style="color:${cGreen}; font-size: 14px;">${topPos.diff} chuyến ${vehName(topPos.v)}</strong> so với ${d.prevPeriodName}.
+                    </div>`;
                 }
                 if (topNeg.diff < 0) {
-                    insightText += `<div><span style="color:${cRed}">📉</span> Tuyến <strong>${topNeg.loc}</strong> sụt giảm <strong>${Math.abs(topNeg.diff)} chuyến ${vehName(topNeg.v)}</strong>. Cần lưu ý tối ưu.</div>`;
+                    insightText += `<div style="padding: 10px; background: rgba(255, 8, 68, 0.1); border-left: 3px solid ${cRed}; border-radius: 4px;">
+                        <span style="color:${cRed}; font-size:16px;">📉</span> Dự án <strong style="color:${cCyan}">${topNeg.client}</strong> Tuyến <strong style="color:${cAmber}">${topNeg.loc}</strong> sụt giảm <strong style="color:${cRed}; font-size: 14px;">${Math.abs(topNeg.diff)} chuyến ${vehName(topNeg.v)}</strong> so với kỳ trước. Cần lưu ý tối ưu.
+                    </div>`;
                 }
             }
             
