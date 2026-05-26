@@ -154,7 +154,8 @@
                         });
                     }
                 }).catch((error) => {
-                    showError('Lỗi đăng nhập: Bị hủy hoặc gián đoạn.');
+                    console.error("Firebase Login Error:", error);
+                    showError('Lỗi đăng nhập: ' + error.message);
                 });
         });
 
