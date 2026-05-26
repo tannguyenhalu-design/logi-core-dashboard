@@ -170,7 +170,7 @@ function populateProjectFilter() {
     let ds = state.tab === 'ftl' ? FLAT_FTL : FLAT_LTL;
     let set = new Set();
     ds.forEach(r => set.add(r.c));
-    let items = Array.from(set).sort().map(v => ({value: v, label: vehName(v)}));
+    let items = Array.from(set).sort().map(v => ({value: v, label: v}));
     renderDropdown(els.ddProject, items, 'projects', els.msProject, "Tất cả Dự án");
     
     if (state.tab === 'ftl') {
@@ -182,7 +182,7 @@ function populateVehicleFilter() {
     let ds = FLAT_FTL;
     let set = new Set();
     ds.forEach(r => set.add(r.veh));
-    let items = Array.from(set).sort().map(v => ({value: v, label: v}));
+    let items = Array.from(set).sort().map(v => ({value: v, label: vehName(v)}));
     renderDropdown(els.ddVehicle, items, 'vehicles', els.msVehicle, "Tất cả Loại Xe");
 }
 
@@ -656,7 +656,15 @@ function getFTLData() {
                 res.trips++;
                 res.vehicles[r.veh] = (res.vehicles[r.veh] || 0) + 1;
                 
-                if (r.m === targetMonth || state.months.length > 0) {
+                // Nếu state.months là 'all', chỉ vẽ ngày của targetMonth
+                let shouldAddDay = false;
+                if (state.months.includes('all')) {
+                    if (r.m === targetMonth) shouldAddDay = true;
+                } else {
+                    shouldAddDay = true;
+                }
+                
+                if (shouldAddDay) {
                     if (!res.days[r.d]) res.days[r.d] = {};
                     res.days[r.d][r.veh] = (res.days[r.d][r.veh] || 0) + 1;
                 }
@@ -689,6 +697,7 @@ function getFTLData() {
                 if (!res.veh_by_loc[loc]) res.veh_by_loc[loc] = {};
                 res.veh_by_loc[loc][r.veh] = (res.veh_by_loc[loc][r.veh] || 0) + 1;
                 
+                let client = r.c;
                 let aiKey = `${client}|${loc}`;
                 if (!res.veh_by_proj_loc[aiKey]) res.veh_by_proj_loc[aiKey] = {};
                 res.veh_by_proj_loc[aiKey][r.veh] = (res.veh_by_proj_loc[aiKey][r.veh] || 0) + 1;
