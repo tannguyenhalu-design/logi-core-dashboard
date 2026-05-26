@@ -16,6 +16,49 @@
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
     
     <link rel="stylesheet" href="style.css">
+    
+    <!-- Đoạn mã chặn và kiểm tra đăng nhập -->
+    <style>
+        /* Ẩn toàn bộ web lúc mới vào để chờ kiểm tra đăng nhập, tránh nháy giao diện */
+        body { display: none; }
+    </style>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCo4OPIgOfktdyUAZsDH6dtbWpsG35oQT8",
+            authDomain: "dashboard-dienmay.firebaseapp.com",
+            projectId: "dashboard-dienmay",
+            storageBucket: "dashboard-dienmay.firebasestorage.app",
+            messagingSenderId: "428787799746",
+            appId: "1:428787799746:web:e5d7ab504f0190e04dcd5b"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        onAuthStateChanged(auth, (user) => {
+            if (user && user.email && user.email.endsWith("@ghn.vn")) {
+                // Hợp lệ, hiện web lên
+                document.body.style.display = "block";
+                
+                // Hiển thị email người dùng lên góc phải (nếu có id user-email)
+                const userEmailSpan = document.getElementById("user-email");
+                if(userEmailSpan) userEmailSpan.innerText = user.email;
+            } else {
+                // Không hợp lệ hoặc chưa đăng nhập -> đuổi về trang login
+                window.location.href = "login.html";
+            }
+        });
+
+        // Cung cấp hàm Đăng xuất cho nút bấm (cần gán vào window để thẻ html gọi được)
+        window.handleLogout = function() {
+            signOut(auth).then(() => {
+                window.location.href = "login.html";
+            });
+        };
+    </script>
 </head>
 <body>
     <div class="app-wrapper">
@@ -43,6 +86,12 @@
             </div>
             
             <div class="header-right">
+                <div class="user-profile" style="display: flex; align-items: center; gap: 15px; margin-right: 25px; border-right: 1px solid rgba(102, 252, 241, 0.2); padding-right: 25px;">
+                    <span id="user-email" style="font-size: 14px; color: #66fcf1; font-weight: 500;"></span>
+                    <button onclick="handleLogout()" style="background: rgba(255, 77, 77, 0.1); border: 1px solid #ff4d4d; color: #ff4d4d; padding: 6px 12px; border-radius: 6px; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; gap: 5px; font-family: 'Outfit', sans-serif; font-size: 13px;" onmouseover="this.style.background='#ff4d4d'; this.style.color='#fff';" onmouseout="this.style.background='rgba(255, 77, 77, 0.1)'; this.style.color='#ff4d4d';">
+                        <i class="ri-logout-box-r-line"></i> Thoát
+                    </button>
+                </div>
                 <div class="live-status">
                     <span class="pulse-badge"></span>
                     <span>LIVE SYSTEM</span>

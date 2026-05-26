@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập - LOGI-CORE</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #0b0c10;
+            color: #ffffff;
+            font-family: 'Outfit', sans-serif;
+            background-image: radial-gradient(circle at 50% 50%, #1f2833 0%, #0b0c10 100%);
+        }
+        .login-card {
+            background: rgba(31, 40, 51, 0.6);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(102, 252, 241, 0.2);
+            padding: 50px 40px;
+            border-radius: 20px;
+            text-align: center;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+            animation: slideUp 0.5s ease-out;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .login-card h1 {
+            color: #66fcf1;
+            margin-bottom: 5px;
+            font-size: 32px;
+            letter-spacing: 2px;
+        }
+        .login-card p {
+            color: #c5c6c7;
+            margin-bottom: 35px;
+            font-size: 15px;
+            line-height: 1.5;
+        }
+        .google-btn {
+            background: #ffffff;
+            color: #333333;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-family: 'Outfit', sans-serif;
+            box-shadow: 0 4px 15px rgba(255, 255, 255, 0.1);
+        }
+        .google-btn:hover {
+            background: #f8f9fa;
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(255, 255, 255, 0.15);
+        }
+        .google-btn:active {
+            transform: translateY(0);
+        }
+        .google-btn img {
+            width: 22px;
+        }
+        #error-message {
+            color: #ff4d4d;
+            background: rgba(255, 77, 77, 0.1);
+            border: 1px solid rgba(255, 77, 77, 0.3);
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 14px;
+            display: none;
+            animation: fadeIn 0.3s;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .shield-icon {
+            font-size: 56px;
+            background: -webkit-linear-gradient(#66fcf1, #45a29e);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <i class="ri-shield-user-fill shield-icon"></i>
+        <h1>LOGI-CORE</h1>
+        <p>Hệ thống nội bộ phân tích Logistics.<br>Vui lòng đăng nhập bằng tài khoản @ghn.vn</p>
+        
+        <button id="login-btn" class="google-btn">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google Logo">
+            Đăng nhập bằng Email GHN
+        </button>
+        
+        <div id="error-message"></div>
+    </div>
+
+    <!-- Firebase SDK dạng Module -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+        // Cấu hình Firebase mà người dùng vừa cung cấp
+        const firebaseConfig = {
+            apiKey: "AIzaSyCo4OPIgOfktdyUAZsDH6dtbWpsG35oQT8",
+            authDomain: "dashboard-dienmay.firebaseapp.com",
+            projectId: "dashboard-dienmay",
+            storageBucket: "dashboard-dienmay.firebasestorage.app",
+            messagingSenderId: "428787799746",
+            appId: "1:428787799746:web:e5d7ab504f0190e04dcd5b"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const provider = new GoogleAuthProvider();
+
+        const loginBtn = document.getElementById('login-btn');
+        const errorMessage = document.getElementById('error-message');
+
+        loginBtn.addEventListener('click', () => {
+            errorMessage.style.display = 'none';
+            loginBtn.innerHTML = '<i class="ri-loader-4-line ri-spin"></i> Đang xử lý...';
+            loginBtn.disabled = true;
+
+            signInWithPopup(auth, provider)
+                .then((result) => {
+                    const user = result.user;
+                    // Kiểm tra đuôi email
+                    if (user.email && user.email.endsWith('@ghn.vn')) {
+                        window.location.href = 'index.html'; // Chuyển vào Dashboard
+                    } else {
+                        // Chặn và Đăng xuất lập tức nếu không phải @ghn.vn
+                        signOut(auth).then(() => {
+                            showError('Truy cập bị từ chối!<br>Chỉ cho phép nhân viên có email @ghn.vn');
+                        });
+                    }
+                }).catch((error) => {
+                    showError('Lỗi đăng nhập: Bị hủy hoặc gián đoạn.');
+                });
+        });
+
+        function showError(msg) {
+            errorMessage.innerHTML = msg;
+            errorMessage.style.display = 'block';
+            loginBtn.innerHTML = '<img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google Logo"> Đăng nhập lại bằng Email GHN';
+            loginBtn.disabled = false;
+        }
+    </script>
+</body>
+</html>
