@@ -336,13 +336,8 @@ function renderOverview() {
     let projectRows = sortedClients.map(c => {
         let color = c.pct >= 90 ? 'var(--green)' : (c.pct >= 80 ? 'var(--amber)' : 'var(--red)');
         let icon = c.pct >= 90 ? '<i class="ri-check-line rank-icon good"></i>' : '<i class="ri-close-line rank-icon bad"></i>';
-        // Random PIC name since data doesn't have it
-        let pics = ['Tú', 'Điện', 'Linh', '-', 'Minh'];
-        let pic = pics[c.name.length % pics.length];
-        
         return `<tr>
             <td style="font-family:'Outfit',sans-serif; font-weight:600; font-size:14px; color:#fff">${icon} ${c.name}</td>
-            <td style="color:var(--cyan)">${pic}</td>
             <td>${fmt(c.orders)}</td>
             <td style="color:var(--green)">${fmt(c.ontime)}</td>
             <td style="color:var(--amber)">${fmt(c.late)}</td>
@@ -369,7 +364,7 @@ function renderOverview() {
             <div class="panel-title">On-time theo Dự án</div>
             <div class="table-container" style="height: auto; max-height: 400px">
                 <table class="cyber-table">
-                    <thead><tr><th>Dự án</th><th>PIC</th><th>Tổng</th><th>On-time</th><th>Trễ</th><th>Bể vỡ</th><th>Tỷ lệ OT</th></tr></thead>
+                    <thead><tr><th>Dự án</th><th>Tổng</th><th>On-time</th><th>Trễ</th><th>Bể vỡ</th><th>Tỷ lệ OT</th></tr></thead>
                     <tbody>${projectRows}</tbody>
                 </table>
             </div>
@@ -720,13 +715,7 @@ function renderFTL() {
             </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 24px;">
-            <div class="chart-panel" style="animation: slideUp 0.5s ease;">
-                <div class="panel-title"><i class="ri-bar-chart-2-line"></i> Số lượng xe theo Thời gian (1900kg, 5000kg, 8000+kg)</div>
-                <div class="chart-container" style="height: 250px;">
-                    <canvas id="c-ftl-time"></canvas>
-                </div>
-            </div>
+        <div style="display: grid; grid-template-columns: 1fr; gap: 24px; margin-bottom: 24px;">
             <div class="chart-panel" style="animation: slideUp 0.5s ease 0.1s both;">
                 <div class="panel-title" style="color: ${cCyan}; border-bottom: 1px solid rgba(0, 194, 255, 0.2); padding-bottom: 10px; margin-bottom: 15px;">
                     <i class="ri-pie-chart-fill"></i> Tỷ trọng Khối lượng (AQUA vs Pantos)
@@ -778,35 +767,7 @@ function renderFTL() {
     let vehTypes = Array.from(allVehs).sort((a,b) => parseInt(a) - parseInt(b));
     let vehColors = [cGreen, cCyan, cPurple, cAmber, cRed, '#ffffff'];
 
-    // 1. Vehicle by Time (Month/Week)
-    let timeLabels = Object.keys(d.veh_by_time).sort((a,b) => {
-        let numA = parseInt(a.replace(/[^\d]/g, '')) || 0;
-        let numB = parseInt(b.replace(/[^\d]/g, '')) || 0;
-        return numA - numB;
-    });
-    let dsTime = vehTypes.map((v, i) => {
-        return {
-            label: v + ' kg',
-            data: timeLabels.map(t => d.veh_by_time[t][v] || 0),
-            backgroundColor: vehColors[i % vehColors.length],
-            borderRadius: 2
-        };
-    });
-    activeCharts.c_ftl_time = new Chart(document.getElementById('c-ftl-time'), {
-        type: 'bar',
-        data: { labels: timeLabels, datasets: dsTime },
-        options: {
-            maintainAspectRatio: false,
-            plugins: { 
-                legend: { position: 'top', labels: { color: '#ffffff', font: {size: 11} } }, 
-                datalabels: { display: false } 
-            },
-            scales: {
-                y: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#ffffff' } },
-                x: { stacked: true, grid: { display: false }, ticks: { color: '#ffffff' } }
-            }
-        }
-    });
+
 
     // 2. Client Weight (Doughnut)
     let cwLabels = Object.keys(d.clients);
