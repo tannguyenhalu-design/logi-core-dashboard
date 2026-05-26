@@ -712,14 +712,14 @@ function getFTLData() {
     let curPeriodName = '';
     let prevPeriodName = '';
 
-    if (!state.weeks.includes('all') && state.weeks.length === 1) {
-        let cw = parseInt(state.weeks[0]);
+    if (!state.weeks.includes('all') && state.weeks.length > 0) {
+        let cw = Math.max(...state.weeks.map(Number)); // Lấy tuần mới nhất nếu chọn nhiều
         prevWeeks = [(cw - 1).toString()];
         hasPrev = true;
         curPeriodName = `Tuần ${cw}`;
         prevPeriodName = `Tuần ${cw - 1}`;
-    } else if (!state.months.includes('all') && state.months.length === 1) {
-        let cm = parseInt(state.months[0]);
+    } else if (!state.months.includes('all') && state.months.length > 0) {
+        let cm = Math.max(...state.months.map(Number)); // Lấy tháng mới nhất nếu chọn nhiều
         prevMonths = [(cm - 1).toString()];
         hasPrev = true;
         curPeriodName = `Tháng ${cm}`;
@@ -1031,18 +1031,18 @@ function renderFTL() {
                 
                 if (topPos.diff > 0) {
                     insightText += `<div style="margin-bottom: 8px; padding: 10px; background: rgba(0, 229, 160, 0.1); border-left: 3px solid ${cGreen}; border-radius: 4px;">
-                        <span style="color:${cGreen}; font-size:16px;">📈</span> Dự án <strong style="color:${cCyan}">${topPos.client}</strong> Tuyến <strong style="color:${cAmber}">${topPos.loc}</strong> ${d.curPeriodName} tăng thêm <strong style="color:${cGreen}; font-size: 14px;">${topPos.diff} chuyến ${vehName(topPos.v)}</strong> so với ${d.prevPeriodName}.
+                        <span style="color:${cGreen}; font-size:16px;">📈</span> Dự án <strong style="color:${cCyan}">${topPos.client}</strong> tuyến <strong style="color:${cAmber}">${topPos.loc}</strong> ${d.curPeriodName} có sự tăng thêm <strong style="color:${cGreen}; font-size: 14px;">${topPos.diff} chuyến ${vehName(topPos.v)}</strong> so với ${d.prevPeriodName}.
                     </div>`;
                 }
                 if (topNeg.diff < 0) {
                     insightText += `<div style="padding: 10px; background: rgba(255, 8, 68, 0.1); border-left: 3px solid ${cRed}; border-radius: 4px;">
-                        <span style="color:${cRed}; font-size:16px;">📉</span> Dự án <strong style="color:${cCyan}">${topNeg.client}</strong> Tuyến <strong style="color:${cAmber}">${topNeg.loc}</strong> sụt giảm <strong style="color:${cRed}; font-size: 14px;">${Math.abs(topNeg.diff)} chuyến ${vehName(topNeg.v)}</strong> so với kỳ trước. Cần lưu ý tối ưu.
+                        <span style="color:${cRed}; font-size:16px;">📉</span> Dự án <strong style="color:${cCyan}">${topNeg.client}</strong> tuyến <strong style="color:${cAmber}">${topNeg.loc}</strong> ${d.curPeriodName} giảm <strong style="color:${cRed}; font-size: 14px;">${Math.abs(topNeg.diff)} chuyến ${vehName(topNeg.v)}</strong> so với ${d.prevPeriodName}. Cần lưu ý tối ưu.
                     </div>`;
                 }
             }
             
             if (insightText === '') {
-                insightText = `✅ Dữ liệu ${d.curPeriodName} ổn định, không có biến động bất thường so với ${d.prevPeriodName}.`;
+                insightText = `<div style="padding: 10px; background: rgba(255,255,255, 0.05); border-left: 3px solid #ccc; border-radius: 4px;">✅ Dữ liệu ${d.curPeriodName} ổn định, không có biến động bất thường so với ${d.prevPeriodName}.</div>`;
             }
             
             aiBox.innerHTML = insightText;
