@@ -37,7 +37,7 @@ def main():
         df_ltl = pd.read_excel(io.BytesIO(data), sheet_name='Raw')
         df_ltl.columns = [str(c).strip() for c in df_ltl.columns]
         
-        col_month = 'created_time' if 'created_time' in df_ltl.columns else 'Month'
+        col_month = 'delivered_time' if 'delivered_time' in df_ltl.columns else ('created_time' if 'created_time' in df_ltl.columns else 'Month')
         col_client = 'client_name' if 'client_name' in df_ltl.columns else 'client_name'
         col_weight = 'weight' if 'weight' in df_ltl.columns else 'weight'
         col_status = 'status' if 'status' in df_ltl.columns else 'status'
@@ -50,12 +50,15 @@ def main():
                 df_ltl['parsed_date'] = pd.to_datetime(df_ltl[col_month], errors='coerce')
                 df_ltl['Month'] = df_ltl['parsed_date'].dt.month.fillna(df_ltl.get('Month', 1)).astype(int)
                 df_ltl['week'] = df_ltl['parsed_date'].dt.isocalendar().week.fillna(1).astype(int)
+                df_ltl['day'] = df_ltl['parsed_date'].dt.day.fillna(1).astype(int)
             except:
                 df_ltl['Month'] = 1
                 df_ltl['week'] = 1
+                df_ltl['day'] = 1
         else:
             df_ltl['Month'] = 1
             df_ltl['week'] = 1
+            df_ltl['day'] = 1
         
         if col_weight not in df_ltl.columns: df_ltl[col_weight] = 50
         if col_odr_success not in df_ltl.columns: df_ltl[col_odr_success] = 'ontime'
@@ -72,6 +75,7 @@ def main():
             flat_ltl.append({
                 'm': int(row['Month']),
                 'w': int(row['week']),
+                'd': int(row['day']),
                 'c': str(row[col_client]),
                 'wt': float(row[col_weight]),
                 'ot': is_ontime,
@@ -87,7 +91,8 @@ def main():
 
     # Read FTL (Raw FTL)
     try:
-        df_ftl = pd.read_excel(io.BytesIO(data), sheet_name='Raw FTL')
+        sheet_name_ftl = 'Raw_FTL' if 'Raw_FTL' in pd.ExcelFile(io.BytesIO(data)).sheet_names else 'Raw FTL'
+        df_ftl = pd.read_excel(io.BytesIO(data), sheet_name=sheet_name_ftl)
         df_ftl.columns = [str(c).strip() for c in df_ftl.columns]
         
         col_month = 'created_at' if 'created_at' in df_ftl.columns else df_ftl.columns[0]

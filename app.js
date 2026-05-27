@@ -17,11 +17,13 @@ Chart.register(ChartDataLabels);
 
 // State
 let state = {
-    tab: 'overview', // overview, ftl
+    tab: 'ltl', // ltl or ftl
     months: ['all'],
     weeks: ['all'],
+    days: ['all'],
     projects: ['all'],
-    vehicles: ['all']
+    vehicles: ['all'],
+    types: ['all'] // FTL vehicle type filter
 };
 
 // Store active chart instances to destroy them
@@ -31,14 +33,19 @@ let activeCharts = {};
 const els = {
     content: document.getElementById('dashboard-content'),
     navTabs: document.querySelectorAll('.nav-tab'),
+    tabLTL: document.getElementById('tab-ltl'),
+    tabFTL: document.getElementById('tab-ftl'),
     msMonth: document.getElementById('ms-month'),
     ddMonth: document.getElementById('dd-month'),
     msWeek: document.getElementById('ms-week'),
     ddWeek: document.getElementById('dd-week'),
+    msDay: document.getElementById('ms-day'),
+    ddDay: document.getElementById('dd-day'),
     msProject: document.getElementById('ms-project'),
     ddProject: document.getElementById('dd-project'),
     msVehicle: document.getElementById('ms-vehicle'),
     ddVehicle: document.getElementById('dd-vehicle'),
+    filterType: document.getElementById('filter-type'),
     clock: document.getElementById('live-clock')
 };
 
@@ -57,16 +64,22 @@ function init() {
             // reset state
             state.months = ['all'];
             state.weeks = ['all'];
+            state.days = ['all'];
             state.projects = ['all'];
             state.vehicles = ['all'];
             
             if (state.tab === 'ftl') {
                 els.msVehicle.style.display = 'block';
+                els.filterType.style.display = 'flex';
             } else {
                 els.msVehicle.style.display = 'none';
+                els.filterType.style.display = 'none';
             }
             
             populateMonthFilter();
+            populateWeekFilter();
+            populateDayFilter();
+            populateProjectFilter();
             renderDashboard();
         });
     });
@@ -89,6 +102,9 @@ function init() {
     });
 
     populateMonthFilter();
+    populateWeekFilter();
+    populateDayFilter();
+    populateProjectFilter();
     renderDashboard();
 }
 
@@ -97,6 +113,11 @@ function startClock() {
         const clockEl = document.getElementById('live-clock');
         if (clockEl) clockEl.innerText = new Date().toLocaleTimeString('en-GB', { hour12: false });
     }, 1000);
+}
+
+// Helper for UI text update
+function updateMsText(parentEl, text) {
+    parentEl.querySelector('.ms-header span').textContent = text;
 }
 
 // Generate checkboxes for a dropdown
@@ -111,7 +132,7 @@ function renderDropdown(dropdownEl, items, stateKey, parentEl, placeholder) {
     // Update Header Text
     let headerText = state[stateKey].includes('all') ? placeholder : state[stateKey].map(v => items.find(i => i.value.toString() === v)?.label).join(', ');
     if(state[stateKey].length > 2 && !state[stateKey].includes('all')) headerText = state[stateKey].length + ' mục đã chọn';
-    parentEl.querySelector('.ms-header span').textContent = headerText;
+    updateMsText(parentEl, headerText);
 
     // Attach listeners
     dropdownEl.querySelectorAll('input[type="checkbox"]').forEach(chk => {
@@ -120,7 +141,7 @@ function renderDropdown(dropdownEl, items, stateKey, parentEl, placeholder) {
             let checked = e.target.checked;
             
             if(val === 'all') {
-                state[stateKey] = checked ? ['all'] : ['all']; // If unchecking "all" without checking others, it defaults back to 'all'
+                state[stateKey] = checked ? ['all'] : ['all']; 
             } else {
                 let current = state[stateKey].filter(v => v !== 'all');
                 if(checked) current.push(val);
@@ -130,10 +151,16 @@ function renderDropdown(dropdownEl, items, stateKey, parentEl, placeholder) {
                 else state[stateKey] = current;
             }
 
-            // Cascading reset
-            if(stateKey === 'months') { state.weeks = ['all']; }
+            // Cascading reset logic
+            if (stateKey === 'months') {
+                populateWeekFilter();
+                populateDayFilter();
+            }
+            if (stateKey === 'weeks') {
+                populateDayFilter();
+            }
 
-            populateMonthFilter(); // Re-render dropdowns to update UI state
+            populateMonthFilter();
             renderDashboard();
         });
     });
@@ -143,19 +170,47 @@ function populateMonthFilter() {
     let ds = state.tab === 'ftl' ? FLAT_FTL : FLAT_LTL;
     let months = [...new Set(ds.map(r => r.m))].sort((a,b) => a-b).map(m => ({value: m, label: `Tháng ${m}`}));
     renderDropdown(els.ddMonth, months, 'months', els.msMonth, "Tất cả Tháng");
-    populateWeekFilter();
 }
 
 function populateWeekFilter() {
     let ds = state.tab === 'ftl' ? FLAT_FTL : FLAT_LTL;
-    els.msWeek.classList.remove('disabled');
-    let filtered_ds = ds;
     if (!state.months.includes('all')) {
-        filtered_ds = ds.filter(r => state.months.includes(r.m.toString()));
+        ds = ds.filter(r => state.months.includes(r.m.toString()));
     }
-    let wks = [...new Set(filtered_ds.map(r => r.w))].sort((a,b) => a-b).map(w => ({value: w, label: `Tuần ${w}`}));
-    renderDropdown(els.ddWeek, wks, 'weeks', els.msWeek, "Tất cả Tuần");
-    populateProjectFilter();
+    let set = new Set();
+    ds.forEach(r => set.add(r.w));
+    let items = Array.from(set).sort((a,b)=>a-b).map(w => ({value: w, label: "Tuần " + w}));
+    renderDropdown(els.ddWeek, items, 'weeks', els.msWeek, "Tất cả Tuần");
+    
+    if (state.months.includes('all')) {
+        els.msWeek.classList.add('disabled');
+        state.weeks = ['all'];
+        updateMsText(els.msWeek, "Tất cả Tuần");
+    } else {
+        els.msWeek.classList.remove('disabled');
+    }
+}
+
+function populateDayFilter() {
+    let ds = state.tab === 'ftl' ? FLAT_FTL : FLAT_LTL;
+    if (!state.months.includes('all')) {
+        ds = ds.filter(r => state.months.includes(r.m.toString()));
+    }
+    if (!state.weeks.includes('all')) {
+        ds = ds.filter(r => state.weeks.includes(r.w.toString()));
+    }
+    let set = new Set();
+    ds.forEach(r => set.add(r.d));
+    let items = Array.from(set).filter(d => d).sort((a,b)=>a-b).map(d => ({value: d, label: "Ngày " + d}));
+    renderDropdown(els.ddDay, items, 'days', els.msDay, "Tất cả Ngày");
+    
+    if (state.months.includes('all') && state.weeks.includes('all')) {
+        els.msDay.classList.add('disabled');
+        state.days = ['all'];
+        updateMsText(els.msDay, "Tất cả Ngày");
+    } else {
+        els.msDay.classList.remove('disabled');
+    }
 }
 
 const vehName = (v) => {
@@ -172,10 +227,6 @@ function populateProjectFilter() {
     ds.forEach(r => set.add(r.c));
     let items = Array.from(set).sort().map(v => ({value: v, label: v}));
     renderDropdown(els.ddProject, items, 'projects', els.msProject, "Tất cả Dự án");
-    
-    if (state.tab === 'ftl') {
-        populateVehicleFilter();
-    }
 }
 
 function populateVehicleFilter() {
@@ -294,6 +345,7 @@ function getLTLData() {
     let filtered = FLAT_LTL.filter(r => {
         if (!state.months.includes('all') && !state.months.includes(r.m.toString())) return false;
         if (!state.weeks.includes('all') && !state.weeks.includes(r.w.toString())) return false;
+        if (!state.days.includes('all') && !state.days.includes(r.d.toString())) return false;
         if (!state.projects.includes('all') && !state.projects.includes(r.c)) return false;
         return true;
     });
@@ -557,26 +609,6 @@ function renderOverview() {
             </tr>`;
         }
     });
-
-    // Run Count-Up Animations
-    document.querySelectorAll('.count-up').forEach(el => {
-        let end = parseFloat(el.getAttribute('data-val'));
-        if (isNaN(end)) return;
-        let start = 0;
-        let duration = 1500;
-        let startTime = null;
-        let isInt = end % 1 === 0;
-        function step(timestamp) {
-            if (!startTime) startTime = timestamp;
-            let progress = Math.min((timestamp - startTime) / duration, 1);
-            let ease = 1 - Math.pow(1 - progress, 4); // Quartic ease out
-            let val = start + (end - start) * ease;
-            el.innerHTML = isInt ? fmt(Math.round(val)) : fmt(val.toFixed(1));
-            if (progress < 1) window.requestAnimationFrame(step);
-            else el.innerHTML = isInt ? fmt(Math.round(end)) : fmt(end.toFixed(1));
-        }
-        window.requestAnimationFrame(step);
-    });
 }
 
 function getFTLData() {
@@ -589,6 +621,7 @@ function getFTLData() {
     let filtered = baseData;
     if (!state.months.includes('all')) filtered = filtered.filter(r => state.months.includes(r.m.toString()));
     if (!state.weeks.includes('all')) filtered = filtered.filter(r => state.weeks.includes(r.w.toString()));
+    if (!state.days.includes('all')) filtered = filtered.filter(r => state.days.includes(r.d.toString()));
     if (!state.projects.includes('all')) filtered = filtered.filter(r => state.projects.includes(r.c));
     if (!state.vehicles.includes('all')) filtered = filtered.filter(r => state.vehicles.includes(r.veh));
 
@@ -708,11 +741,18 @@ function getFTLData() {
     // Calculate previous period for AI and charts
     let prevMonths = ['all'];
     let prevWeeks = ['all'];
+    let prevDays = ['all'];
     let hasPrev = false;
     let curPeriodName = '';
     let prevPeriodName = '';
 
-    if (!state.weeks.includes('all') && state.weeks.length > 0) {
+    if (!state.days.includes('all') && state.days.length > 0) {
+        let cd = Math.max(...state.days.map(Number));
+        prevDays = [(cd - 1).toString()];
+        hasPrev = true;
+        curPeriodName = `Ngày ${cd}`;
+        prevPeriodName = `Ngày ${cd - 1}`;
+    } else if (!state.weeks.includes('all') && state.weeks.length > 0) {
         let cw = Math.max(...state.weeks.map(Number)); // Lấy tuần mới nhất nếu chọn nhiều
         prevWeeks = [(cw - 1).toString()];
         hasPrev = true;
@@ -729,6 +769,7 @@ function getFTLData() {
     let prevFiltered = baseData;
     if (!prevMonths.includes('all')) prevFiltered = prevFiltered.filter(r => prevMonths.includes(r.m.toString()));
     if (!prevWeeks.includes('all')) prevFiltered = prevFiltered.filter(r => prevWeeks.includes(r.w.toString()));
+    if (!prevDays.includes('all')) prevFiltered = prevFiltered.filter(r => prevDays.includes(r.d.toString()));
     if (!state.projects.includes('all')) prevFiltered = prevFiltered.filter(r => state.projects.includes(r.c));
     if (!state.vehicles.includes('all')) prevFiltered = prevFiltered.filter(r => state.vehicles.includes(r.veh));
 
