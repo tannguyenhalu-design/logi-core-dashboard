@@ -151,16 +151,19 @@ function renderDropdown(dropdownEl, items, stateKey, parentEl, placeholder) {
                 else state[stateKey] = current;
             }
 
+            // Update Header Text immediately
+            let headerText = state[stateKey].includes('all') ? placeholder : state[stateKey].map(v => items.find(i => i.value.toString() === v)?.label).join(', ');
+            if(state[stateKey].length > 2 && !state[stateKey].includes('all')) headerText = state[stateKey].length + ' mục đã chọn';
+            updateMsText(parentEl, headerText);
+
             // Cascading reset logic
             if (stateKey === 'months') {
                 populateWeekFilter();
                 populateDayFilter();
-            }
-            if (stateKey === 'weeks') {
+            } else if (stateKey === 'weeks') {
                 populateDayFilter();
             }
 
-            populateMonthFilter();
             renderDashboard();
         });
     });
