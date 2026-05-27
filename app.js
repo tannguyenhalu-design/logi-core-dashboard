@@ -901,7 +901,7 @@ function renderFTL() {
     `;
 
     // Helpers
-    let allVehs = new Set();
+    let allVehs = new Set(['1900', '5000', '8000']);
     Object.values(d.days).forEach(obj => Object.keys(obj).forEach(v => allVehs.add(v)));
     let vehTypes = Array.from(allVehs).sort((a,b) => parseInt(a) - parseInt(b));
     let vehColors = [cGreen, cCyan, cPurple, cAmber, cRed, '#ffffff'];
