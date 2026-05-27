@@ -69,11 +69,11 @@ function init() {
             state.vehicles = ['all'];
             
             if (state.tab === 'ftl') {
-                els.msVehicle.style.display = 'block';
-                els.filterType.style.display = 'flex';
+                if (els.msVehicle) els.msVehicle.style.display = 'block';
+                if (els.filterType) els.filterType.style.display = 'flex';
             } else {
-                els.msVehicle.style.display = 'none';
-                els.filterType.style.display = 'none';
+                if (els.msVehicle) els.msVehicle.style.display = 'none';
+                if (els.filterType) els.filterType.style.display = 'none';
             }
             
             populateMonthFilter();
@@ -192,6 +192,7 @@ function populateWeekFilter() {
 }
 
 function populateDayFilter() {
+    if (!els.msDay || !els.ddDay) return;
     let ds = state.tab === 'ftl' ? FLAT_FTL : FLAT_LTL;
     if (!state.months.includes('all')) {
         ds = ds.filter(r => state.months.includes(r.m.toString()));
