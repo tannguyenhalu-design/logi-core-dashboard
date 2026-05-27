@@ -95,7 +95,7 @@ def main():
         df_ftl = pd.read_excel(io.BytesIO(data), sheet_name=sheet_name_ftl)
         df_ftl.columns = [str(c).strip() for c in df_ftl.columns]
         
-        col_month = 'created_at' if 'created_at' in df_ftl.columns else df_ftl.columns[0]
+        col_month = 'updated_at' if 'updated_at' in df_ftl.columns else ('created_at' if 'created_at' in df_ftl.columns else df_ftl.columns[0])
         col_client = 'client_name' if 'client_name' in df_ftl.columns else 'client_name'
         col_trip = 'order_number' if 'order_number' in df_ftl.columns else 'trip_code'
         col_veh_cap = 'xe_ghn_cung_cap' if 'xe_ghn_cung_cap' in df_ftl.columns else 'vehicle_capacity_value'
@@ -107,8 +107,8 @@ def main():
         if col_month in df_ftl.columns:
             try:
                 df_ftl['parsed_date'] = pd.to_datetime(df_ftl[col_month], errors='coerce')
-                if 'updated_at' in df_ftl.columns:
-                    df_ftl['parsed_date'] = df_ftl['parsed_date'].fillna(pd.to_datetime(df_ftl['updated_at'], errors='coerce'))
+                if 'created_at' in df_ftl.columns:
+                    df_ftl['parsed_date'] = df_ftl['parsed_date'].fillna(pd.to_datetime(df_ftl['created_at'], errors='coerce'))
                 df_ftl['Month'] = df_ftl['parsed_date'].dt.month.fillna(4).astype(int)
                 df_ftl['week'] = df_ftl['parsed_date'].dt.isocalendar().week.fillna(14).astype(int)
                 df_ftl['day'] = df_ftl['parsed_date'].dt.day.fillna(1).astype(int)
