@@ -1015,7 +1015,12 @@ function renderFTL() {
             maintainAspectRatio: false,
             plugins: { 
                 legend: { position: 'top', labels: { color: '#ffffff', font: {size: 11} } }, 
-                datalabels: { display: false },
+                datalabels: { 
+                    display: function(context) { return context.dataset.data[context.dataIndex] > 0; },
+                    color: '#ffffff',
+                    font: { weight: 'bold', size: 10 },
+                    formatter: Math.round
+                },
                 tooltip: { callbacks: { title: (items) => locLabels[items[0].dataIndex] } }
             },
             scales: {
@@ -1025,22 +1030,56 @@ function renderFTL() {
         }
     });
 
-    // 5. Days Stacked Bar Chart (Heatmap)
     let dayLabels = Array.from({length: 31}, (_, i) => i + 1);
+    let lineDataDays = dayLabels.map(day => {
+        let total = 0;
+        vehTypes.forEach(v => {
+            total += (d.days[day] && d.days[day][v]) ? d.days[day][v] : 0;
+        });
+        return total;
+    });
+    
     let datasetsDays = vehTypes.map((v, i) => {
         return {
+            type: 'bar',
             label: vehName(v),
             data: dayLabels.map(day => (d.days[day] && d.days[day][v]) ? d.days[day][v] : 0),
             backgroundColor: vehColors[i % vehColors.length],
-            borderRadius: 2
+            borderRadius: 2,
+            datalabels: { display: false }
         };
     });
+    
+    datasetsDays.push({
+        type: 'line',
+        label: 'Tổng Xe',
+        data: lineDataDays,
+        borderColor: '#ffffff',
+        backgroundColor: '#ffffff',
+        borderWidth: 2,
+        pointBackgroundColor: '#ffffff',
+        pointBorderColor: '#ffffff',
+        pointRadius: 3,
+        tension: 0.2,
+        fill: false,
+        datalabels: {
+            display: function(context) { return context.dataset.data[context.dataIndex] > 0; },
+            color: '#ffffff',
+            align: 'top',
+            anchor: 'end',
+            font: { weight: 'bold', size: 12 },
+            formatter: Math.round
+        }
+    });
+
     activeCharts.c_ftl_days = new Chart(document.getElementById('c-ftl-days'), {
-        type: 'bar',
         data: { labels: dayLabels, datasets: datasetsDays },
         options: {
             maintainAspectRatio: false,
-            plugins: { legend: { position: 'top', labels: { color: '#ffffff', font: {size: 11} } }, datalabels: { display: false } },
+            plugins: { 
+                legend: { position: 'top', labels: { color: '#ffffff', font: {size: 11} } }, 
+                datalabels: {} 
+            },
             scales: {
                 y: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#ffffff' } },
                 x: { stacked: true, grid: { display: false }, ticks: { color: '#ffffff' } }
