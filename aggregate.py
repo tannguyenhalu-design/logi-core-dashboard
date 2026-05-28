@@ -32,10 +32,29 @@ def main():
     flat_ltl = []
     flat_ftl = []
 
+    os.makedirs('data', exist_ok=True)
+    
     # Read LTL (Raw)
     try:
         df_ltl = pd.read_excel(io.BytesIO(data), sheet_name='Raw')
         df_ltl.columns = [str(c).strip() for c in df_ltl.columns]
+        
+        # Merge with historical LTL data
+        if os.path.exists('data/ltl_historical.csv'):
+            try:
+                df_ltl_hist = pd.read_csv('data/ltl_historical.csv', low_memory=False)
+                df_ltl_hist.columns = [str(c).strip() for c in df_ltl_hist.columns]
+                if 'order_code' in df_ltl.columns and 'order_code' in df_ltl_hist.columns:
+                    df_ltl = pd.concat([df_ltl_hist, df_ltl], ignore_index=True)
+                    df_ltl.drop_duplicates(subset=['order_code'], keep='last', inplace=True)
+            except Exception as e:
+                print("Error loading ltl_historical.csv:", e)
+        
+        # Save updated historical LTL data
+        try:
+            df_ltl.to_csv('data/ltl_historical.csv', index=False)
+        except Exception as e:
+            print("Error saving ltl_historical.csv:", e)
         
         col_month = 'delivered_time' if 'delivered_time' in df_ltl.columns else ('created_time' if 'created_time' in df_ltl.columns else 'Month')
         col_client = 'client_name' if 'client_name' in df_ltl.columns else 'client_name'
@@ -95,6 +114,28 @@ def main():
         df_ftl = pd.read_excel(io.BytesIO(data), sheet_name=sheet_name_ftl)
         df_ftl.columns = [str(c).strip() for c in df_ftl.columns]
         
+        # Merge with historical FTL data
+        col_trip = 'order_number' if 'order_number' in df_ftl.columns else 'trip_code'
+        col_loc = 'location_name' if 'location_name' in df_ftl.columns else 'location_name'
+        if os.path.exists('data/ftl_historical.csv'):
+            try:
+                df_ftl_hist = pd.read_csv('data/ftl_historical.csv', low_memory=False)
+                df_ftl_hist.columns = [str(c).strip() for c in df_ftl_hist.columns]
+                if col_trip in df_ftl.columns and col_trip in df_ftl_hist.columns:
+                    df_ftl = pd.concat([df_ftl_hist, df_ftl], ignore_index=True)
+                    subset_cols = [col_trip]
+                    if col_loc in df_ftl.columns:
+                        subset_cols.append(col_loc)
+                    df_ftl.drop_duplicates(subset=subset_cols, keep='last', inplace=True)
+            except Exception as e:
+                print("Error loading ftl_historical.csv:", e)
+                
+        # Save updated historical FTL data
+        try:
+            df_ftl.to_csv('data/ftl_historical.csv', index=False)
+        except Exception as e:
+            print("Error saving ftl_historical.csv:", e)
+            
         col_month = 'actual_departure_datetime' if 'actual_departure_datetime' in df_ftl.columns else ('created_at' if 'created_at' in df_ftl.columns else df_ftl.columns[0])
         col_client = 'client_name' if 'client_name' in df_ftl.columns else 'client_name'
         col_trip = 'order_number' if 'order_number' in df_ftl.columns else 'trip_code'
