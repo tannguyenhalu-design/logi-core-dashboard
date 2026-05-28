@@ -104,24 +104,23 @@ def main():
         col_weight = 'total_weight_value' if 'total_weight_value' in df_ftl.columns else 'total_weight_value'
         col_status = 'order_status' if 'order_status' in df_ftl.columns else ('trip_status' if 'trip_status' in df_ftl.columns else 'status')
 
-        if col_month in df_ftl.columns:
-            try:
-                df_ftl['parsed_date'] = pd.to_datetime(df_ftl[col_month], errors='coerce')
-                if 'created_at' in df_ftl.columns:
-                    df_ftl['parsed_date'] = df_ftl['parsed_date'].fillna(pd.to_datetime(df_ftl['created_at'], errors='coerce'))
-                if 'actual_arrival_datetime' in df_ftl.columns:
-                    df_ftl['parsed_date'] = df_ftl['parsed_date'].fillna(pd.to_datetime(df_ftl['actual_arrival_datetime'], errors='coerce'))
-                df_ftl['Month'] = df_ftl['parsed_date'].dt.month.fillna(4).astype(int)
-                df_ftl['week'] = df_ftl['parsed_date'].dt.isocalendar().week.fillna(14).astype(int)
-                df_ftl['day'] = df_ftl['parsed_date'].dt.day.fillna(1).astype(int)
-            except:
-                df_ftl['Month'] = 4
-                df_ftl['week'] = 14
-                df_ftl['day'] = 1
-        else:
+        # Date parsing for full dataset (used for locations)
+        try:
+            df_ftl['parsed_date'] = pd.to_datetime(df_ftl[col_month], errors='coerce')
+            if 'created_at' in df_ftl.columns:
+                df_ftl['parsed_date'] = df_ftl['parsed_date'].fillna(pd.to_datetime(df_ftl['created_at'], errors='coerce'))
+            if 'actual_arrival_datetime' in df_ftl.columns:
+                df_ftl['parsed_date'] = df_ftl['parsed_date'].fillna(pd.to_datetime(df_ftl['actual_arrival_datetime'], errors='coerce'))
+            df_ftl['Month'] = df_ftl['parsed_date'].dt.month.fillna(4).astype(int)
+            df_ftl['week'] = df_ftl['parsed_date'].dt.isocalendar().week.fillna(14).astype(int)
+            df_ftl['day'] = df_ftl['parsed_date'].dt.day.fillna(1).astype(int)
+        except:
             df_ftl['Month'] = 4
             df_ftl['week'] = 14
             df_ftl['day'] = 1
+            
+        # Deduplicate trips for KPIs, days, and projects
+        df_ftl_unique = df_ftl.drop_duplicates(subset=[col_trip]).copy()
 
         if col_veh_cap not in df_ftl.columns: df_ftl[col_veh_cap] = 5000
         if col_client not in df_ftl.columns: df_ftl[col_client] = 'Unknown'
