@@ -387,6 +387,48 @@ function getLTLData() {
     return res;
 }
 
+function getLTLDataPreviousPeriod() {
+    let res = { orders: 0, weight: 0, ontime: 0, broken: 0, clients: {}, by_time: {}, wh: {} };
+    
+    // Determine offset
+    let m_shift = 0;
+    let w_shift = 0;
+    let d_shift = 0;
+    
+    if (!state.days.includes('all')) {
+        d_shift = state.days.length;
+    } else if (!state.weeks.includes('all')) {
+        w_shift = state.weeks.length;
+    } else if (!state.months.includes('all')) {
+        m_shift = state.months.length;
+    } else {
+        return null;
+    }
+
+    let prev_months = state.months.includes('all') ? ['all'] : state.months.map(x => (parseInt(x) - m_shift).toString());
+    let prev_weeks = state.weeks.includes('all') ? ['all'] : state.weeks.map(x => (parseInt(x) - w_shift).toString());
+    let prev_days = state.days.includes('all') ? ['all'] : state.days.map(x => (parseInt(x) - d_shift).toString());
+
+    let filtered = FLAT_LTL.filter(r => {
+        if (!prev_months.includes('all') && !prev_months.includes(r.m.toString())) return false;
+        if (!prev_weeks.includes('all') && !prev_weeks.includes(r.w.toString())) return false;
+        if (!prev_days.includes('all') && !prev_days.includes(r.d.toString())) return false;
+        if (!state.projects.includes('all') && !state.projects.includes(r.c)) return false;
+        return true;
+    });
+
+    if (filtered.length === 0) return null;
+
+    filtered.forEach(r => {
+        res.orders++;
+        res.weight += r.wt;
+        res.ontime += r.ot;
+        res.broken += r.br;
+    });
+
+    return res;
+}
+
 function renderOverview() {
     let d = getLTLData();
     let ontimePct = d.orders ? (d.ontime / d.orders) * 100 : 0;
@@ -431,6 +473,65 @@ function renderOverview() {
         </tr>`;
     }).join('');
 
+    // Build AI Insight Sector
+    let aiHtml = '';
+    let dPrev = getLTLDataPreviousPeriod();
+    if (dPrev) {
+        let prevOntimePct = dPrev.orders ? (dPrev.ontime / dPrev.orders) * 100 : 0;
+        let dOrders = d.orders - dPrev.orders;
+        let pOrders = dPrev.orders ? (dOrders / dPrev.orders * 100) : 0;
+        let dOntime = ontimePct - prevOntimePct;
+        let pBroken = dPrev.orders ? (dPrev.broken / dPrev.orders) : 0;
+        let currBroken = d.orders ? (d.broken / d.orders) : 0;
+        let dBroken = (currBroken - pBroken) * 100;
+        
+        let orderColor = dOrders >= 0 ? 'var(--green)' : 'var(--red)';
+        let orderText = dOrders >= 0 ? `Tăng ${pOrders.toFixed(1)}%` : `Giảm ${Math.abs(pOrders).toFixed(1)}%`;
+        
+        let ontimeColor = dOntime >= 0 ? 'var(--green)' : 'var(--red)';
+        let ontimeText = dOntime >= 0 ? `Cải thiện ${dOntime.toFixed(1)}%` : `Giảm ${Math.abs(dOntime).toFixed(1)}%`;
+        
+        let brokenColor = dBroken <= 0 ? 'var(--green)' : 'var(--red)';
+        let brokenText = dBroken <= 0 ? `Giảm ${Math.abs(dBroken).toFixed(1)}%` : `Tăng ${dBroken.toFixed(1)}%`;
+
+        let summaryText = '';
+        if (dOntime < 0) summaryText += `<span style="color:var(--red)">CẢNH BÁO: Tỷ lệ đúng hạn đang giảm sút!</span> `;
+        else summaryText += `<span style="color:var(--green)">Tốt: Hiệu suất đúng hạn được duy trì/cải thiện.</span> `;
+
+        if (dBroken > 0) summaryText += `<span style="color:var(--amber)">Chú ý: Tỷ lệ đơn bể vỡ có dấu hiệu tăng, cần kiểm tra lại quy trình đóng gói.</span>`;
+        else summaryText += `Tỷ lệ bể vỡ đang trong tầm kiểm soát.`;
+
+        let contextFilter = !state.days.includes('all') ? 'Hôm qua/Kỳ trước' : (!state.weeks.includes('all') ? 'Tuần trước' : 'Tháng trước');
+
+        aiHtml = `
+        <div class="ai-insight-panel" style="animation: fadeIn 0.5s ease; margin-bottom: 20px; background: rgba(10, 14, 23, 0.7); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 12px; padding: 20px; box-shadow: 0 0 15px rgba(0, 255, 204, 0.1); position: relative; overflow: hidden;">
+            <div style="position: absolute; top: -20px; right: -20px; width: 100px; height: 100px; background: var(--cyan); filter: blur(50px); opacity: 0.2; pointer-events: none;"></div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px;">
+                <i class="ri-robot-2-line" style="font-size: 24px; color: var(--cyan); text-shadow: 0 0 10px var(--cyan);"></i>
+                <h3 style="margin: 0; color: #fff; font-size: 16px; font-weight: 600;">AI LTL Insight <span style="font-size: 12px; color: var(--text-secondary); font-weight: normal;">(So sánh với ${contextFilter})</span></h3>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px;">
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 5px;">Sản lượng đơn</div>
+                    <div style="font-size: 16px; font-weight: bold; color: ${orderColor};"><i class="ri-${dOrders >= 0 ? 'arrow-up' : 'arrow-down'}-line"></i> ${orderText}</div>
+                </div>
+                <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px;">
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 5px;">Tỷ lệ Ontime</div>
+                    <div style="font-size: 16px; font-weight: bold; color: ${ontimeColor};"><i class="ri-${dOntime >= 0 ? 'arrow-up' : 'arrow-down'}-line"></i> ${ontimeText}</div>
+                </div>
+                <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px;">
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 5px;">Tỷ lệ Bể vỡ</div>
+                    <div style="font-size: 16px; font-weight: bold; color: ${brokenColor};"><i class="ri-${dBroken <= 0 ? 'arrow-down' : 'arrow-up'}-line"></i> ${brokenText}</div>
+                </div>
+            </div>
+            
+            <div style="font-size: 14px; color: #e2e8f0; line-height: 1.5; padding: 12px; background: rgba(0, 255, 204, 0.05); border-left: 3px solid var(--cyan); border-radius: 4px;">
+                <strong>Phân tích:</strong> ${summaryText}
+            </div>
+        </div>`;
+    }
+
     els.content.innerHTML = `
         <div class="kpi-grid">
             <div class="kpi-card kpi-cyan"><div class="kpi-title">Tổng Đơn Hàng</div><div class="kpi-value text-cyan">${fmt(d.orders)}</div></div>
@@ -439,6 +540,8 @@ function renderOverview() {
             <div class="kpi-card kpi-amber"><div class="kpi-title">Ca Bể Vỡ</div><div class="kpi-value text-amber">${fmt(d.broken)}</div></div>
             <div class="kpi-card kpi-purple"><div class="kpi-title">Khối Lượng (KG)</div><div class="kpi-value text-purple">${fmt(d.weight)}</div></div>
         </div>
+        
+        ${aiHtml}
         
         <div class="chart-panel" style="margin-bottom: 16px;">
             <div class="panel-title">On-time theo Dự án</div>
