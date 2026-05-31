@@ -747,6 +747,7 @@ function getFTLData() {
         total_capacity: 0,
         trip_status: {},
         clients: {},
+        live_fleet: { total: 0, by_project: {} },
         kpi: { currentMonth: 0, prevMonth: 0, curName: '', prevName: '' }
     };
 
