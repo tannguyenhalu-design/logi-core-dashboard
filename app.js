@@ -222,6 +222,7 @@ const vehName = (v) => {
     if(sv.includes('1900')) return 'Xe 1T9';
     if(sv.includes('5000')) return 'Xe 5T';
     if(sv.includes('8000')) return 'Xe 8T';
+    if(sv === '0' || sv === '') return 'Xe Khác (Chưa XĐ)';
     return v + ' kg';
 };
 
