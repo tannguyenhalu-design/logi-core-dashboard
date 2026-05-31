@@ -740,6 +740,7 @@ function getFTLData() {
         veh_by_proj: {},
         veh_by_time: {},
         veh_by_loc: {},
+        veh_by_point: {},
         veh_by_proj_loc: {},
         total_weight: 0,
         total_capacity: 0,
@@ -841,6 +842,11 @@ function getFTLData() {
                 let aiKey = `${client}|${loc}`;
                 if (!res.veh_by_proj_loc[aiKey]) res.veh_by_proj_loc[aiKey] = {};
                 res.veh_by_proj_loc[aiKey][r.veh] = (res.veh_by_proj_loc[aiKey][r.veh] || 0) + 1;
+            }
+            let point = r.loc;
+            if (point && String(point).toLowerCase() !== 'nan') {
+                if (!res.veh_by_point[point]) res.veh_by_point[point] = {};
+                res.veh_by_point[point][r.veh] = (res.veh_by_point[point][r.veh] || 0) + 1;
             }
         }
     });
@@ -994,6 +1000,17 @@ function renderFTL() {
         </div>
         
         <div style="display: grid; grid-template-columns: 1fr; gap: 24px; margin-bottom: 24px;">
+            <div class="chart-panel" style="animation: slideUp 0.5s ease 0.35s both;">
+                <div class="panel-title" style="color: ${cGreen}; border-bottom: 1px solid rgba(0, 229, 160, 0.2); padding-bottom: 10px; margin-bottom: 15px;">
+                    <i class="ri-map-pin-2-line"></i> Phân tích chi tiết theo Điểm giao
+                </div>
+                <div class="chart-container" style="height: 300px;">
+                    <canvas id="c-ftl-point"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr; gap: 24px; margin-bottom: 24px;">
             <div class="chart-panel" style="animation: slideUp 0.5s ease 0.4s both;">
                 <div class="panel-title"><i class="ri-calendar-todo-line"></i> Số xe sử dụng theo Ngày (Tháng ${d.targetMonth})</div>
                 <div class="chart-container" style="height: 250px;">
@@ -1125,6 +1142,45 @@ function renderFTL() {
                     formatter: Math.round
                 },
                 tooltip: { callbacks: { title: (items) => locLabels[items[0].dataIndex] } }
+            },
+            scales: {
+                x: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#ffffff' } },
+                y: { stacked: true, grid: { display: false }, ticks: { color: '#ffffff', font: {size: 11} } }
+            }
+        }
+    });
+
+    // 5. Top 10 Delivery Points by Vehicle
+    let pointTotal = {};
+    Object.keys(d.veh_by_point).forEach(pt => {
+        pointTotal[pt] = Object.values(d.veh_by_point[pt]).reduce((a,b)=>a+b,0);
+    });
+    let pointLabels = Object.keys(pointTotal).sort((a,b) => pointTotal[b] - pointTotal[a]).slice(0, 10);
+    let shortPointLabels = pointLabels.map(l => l.length > 25 ? l.substring(0, 25) + '...' : l);
+    
+    let dsPoint = vehTypes.map((v, i) => {
+        return {
+            label: vehName(v),
+            data: pointLabels.map(pt => d.veh_by_point[pt][v] || 0),
+            backgroundColor: vehColors[i % vehColors.length],
+            borderRadius: 4
+        };
+    });
+    activeCharts.c_ftl_point = new Chart(document.getElementById('c-ftl-point'), {
+        type: 'bar',
+        data: { labels: shortPointLabels, datasets: dsPoint },
+        options: {
+            indexAxis: 'y',
+            maintainAspectRatio: false,
+            plugins: { 
+                legend: { position: 'top', labels: { color: '#ffffff', font: {size: 11} } }, 
+                datalabels: { 
+                    display: function(context) { return context.dataset.data[context.dataIndex] > 0; },
+                    color: '#ffffff',
+                    font: { weight: 'bold', size: 10 },
+                    formatter: Math.round
+                },
+                tooltip: { callbacks: { title: (items) => pointLabels[items[0].dataIndex] } }
             },
             scales: {
                 x: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#ffffff' } },

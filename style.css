@@ -77,7 +77,6 @@ body {
 .filter-bar {
     display: flex;
     gap: 16px;
-    margin-bottom: 24px;
     flex-wrap: wrap;
 }
 
