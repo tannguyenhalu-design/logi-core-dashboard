@@ -800,7 +800,7 @@ function getFTLData() {
                 res.clients[client].cancel++;
             }
             
-            if (status === 'Hoàn Thành') {
+            if (status === 'Hoàn Thành' || status === 'Đang Xử Lý') {
                 res.trips++;
                 res.vehicles[r.veh] = (res.vehicles[r.veh] || 0) + 1;
                 
@@ -840,7 +840,7 @@ function getFTLData() {
             }
         }
         
-        if (status === 'Hoàn Thành' && r.stop === 'DELIVERY') {
+        if ((status === 'Hoàn Thành' || status === 'Đang Xử Lý') && r.stop === 'DELIVERY') {
             let loc = r.prov; // Switch back to Province as requested
             if (loc && String(loc).toLowerCase() !== 'nan') {
                 let tripProv = r.trip + '|' + loc;
