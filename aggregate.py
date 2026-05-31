@@ -145,6 +145,7 @@ def main():
         col_loc = 'location_name' if 'location_name' in df_ftl.columns else 'location_name'
         col_weight = 'total_weight_value' if 'total_weight_value' in df_ftl.columns else 'total_weight_value'
         col_status = 'order_status' if 'order_status' in df_ftl.columns else ('trip_status' if 'trip_status' in df_ftl.columns else 'status')
+        col_stop = 'stop_type' if 'stop_type' in df_ftl.columns else 'stop_type'
 
         # Date parsing for full dataset (used for locations)
         try:
@@ -171,6 +172,7 @@ def main():
         if col_loc not in df_ftl.columns: df_ftl[col_loc] = 'Loc'
         if col_weight not in df_ftl.columns: df_ftl[col_weight] = 0
         if col_status not in df_ftl.columns: df_ftl[col_status] = 'Completed'
+        if col_stop not in df_ftl.columns: df_ftl[col_stop] = 'DELIVERY'
 
         df_ftl[col_client].fillna('Unknown', inplace=True)
         
@@ -194,7 +196,8 @@ def main():
                 'wt': wt,
                 'status': st,
                 'prov': str(row[col_prov]),
-                'loc': str(row[col_loc])
+                'loc': str(row[col_loc]),
+                'stop': str(row[col_stop]).upper()
             })
 
         print("FTL logic OK.")

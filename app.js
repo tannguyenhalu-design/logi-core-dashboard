@@ -779,6 +779,8 @@ function getFTLData() {
     }
 
     let seenTrips = new Set();
+    let seenTripProv = new Set();
+    let seenTripLoc = new Set();
     filtered.forEach(r => {
         let rawStatus = (r.status || 'Unknown').toLowerCase();
         let status = 'Đang Xử Lý';
@@ -832,21 +834,29 @@ function getFTLData() {
             }
         }
         
-        if (status === 'Hoàn Thành') {
+        if (status === 'Hoàn Thành' && r.stop === 'DELIVERY') {
             let loc = r.prov; // Switch back to Province as requested
             if (loc && String(loc).toLowerCase() !== 'nan') {
-                if (!res.veh_by_loc[loc]) res.veh_by_loc[loc] = {};
-                res.veh_by_loc[loc][r.veh] = (res.veh_by_loc[loc][r.veh] || 0) + 1;
-                
-                let client = r.c;
-                let aiKey = `${client}|${loc}`;
-                if (!res.veh_by_proj_loc[aiKey]) res.veh_by_proj_loc[aiKey] = {};
-                res.veh_by_proj_loc[aiKey][r.veh] = (res.veh_by_proj_loc[aiKey][r.veh] || 0) + 1;
+                let tripProv = r.trip + '|' + loc;
+                if (!seenTripProv.has(tripProv)) {
+                    seenTripProv.add(tripProv);
+                    if (!res.veh_by_loc[loc]) res.veh_by_loc[loc] = {};
+                    res.veh_by_loc[loc][r.veh] = (res.veh_by_loc[loc][r.veh] || 0) + 1;
+                    
+                    let client = r.c;
+                    let aiKey = `${client}|${loc}`;
+                    if (!res.veh_by_proj_loc[aiKey]) res.veh_by_proj_loc[aiKey] = {};
+                    res.veh_by_proj_loc[aiKey][r.veh] = (res.veh_by_proj_loc[aiKey][r.veh] || 0) + 1;
+                }
             }
             let point = r.loc;
             if (point && String(point).toLowerCase() !== 'nan') {
-                if (!res.veh_by_point[point]) res.veh_by_point[point] = {};
-                res.veh_by_point[point][r.veh] = (res.veh_by_point[point][r.veh] || 0) + 1;
+                let tripLoc = r.trip + '|' + point;
+                if (!seenTripLoc.has(tripLoc)) {
+                    seenTripLoc.add(tripLoc);
+                    if (!res.veh_by_point[point]) res.veh_by_point[point] = {};
+                    res.veh_by_point[point][r.veh] = (res.veh_by_point[point][r.veh] || 0) + 1;
+                }
             }
         }
     });
