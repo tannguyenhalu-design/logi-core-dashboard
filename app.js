@@ -1,15 +1,15 @@
 // Global Chart Defaults
 Chart.defaults.color = '#94a3b8';
 Chart.defaults.font.family = "'JetBrains Mono', monospace";
-Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(10, 14, 23, 0.9)';
+Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(30, 41, 59, 0.9)';
 Chart.defaults.plugins.tooltip.titleColor = '#ffffff';
-Chart.defaults.plugins.tooltip.borderColor = 'rgba(0, 194, 255, 0.2)';
+Chart.defaults.plugins.tooltip.borderColor = 'rgba(59, 130, 246, 0.3)';
 Chart.defaults.plugins.tooltip.borderWidth = 1;
 
 // Colors
 const COLORS = {
-    cyan: '#00c2ff', green: '#00e5a0', red: '#ff4757', amber: '#ffb340', purple: '#9d4edd',
-    bgPanel: '#0a0e17'
+    cyan: '#3b82f6', green: '#10b981', red: '#f43f5e', amber: '#f59e0b', purple: '#8b5cf6',
+    bgPanel: '#1e293b'
 };
 
 // Register Datalabels Plugin
@@ -935,11 +935,11 @@ function renderFTL() {
     let d = getFTLData();
     
     // Exact hex colors to fix rendering issues
-    const cGreen = '#00e5a0';
-    const cRed = '#ff0844';
-    const cAmber = '#ffb340';
-    const cCyan = '#00f2fe';
-    const cPurple = '#b026ff';
+    const cGreen = '#10b981';
+    const cRed = '#f43f5e';
+    const cAmber = '#f59e0b';
+    const cCyan = '#3b82f6';
+    const cPurple = '#8b5cf6';
     const cBg = 'transparent';
 
     // KPI logic
@@ -981,7 +981,7 @@ function renderFTL() {
 
         <div style="display: grid; grid-template-columns: 1fr; gap: 24px; margin-bottom: 24px;">
             <div class="chart-panel" style="animation: slideUp 0.5s ease 0.1s both;">
-                <div class="panel-title" style="color: ${cCyan}; border-bottom: 1px solid rgba(0, 194, 255, 0.2); padding-bottom: 10px; margin-bottom: 15px;">
+                <div class="panel-title" style="color: ${cCyan}; border-bottom: 1px solid rgba(59, 130, 246, 0.3); padding-bottom: 10px; margin-bottom: 15px;">
                     <i class="ri-pie-chart-fill"></i> Tỷ trọng Khối lượng (AQUA vs Pantos)
                 </div>
                 <div class="chart-container" style="height: 250px;">
@@ -992,7 +992,7 @@ function renderFTL() {
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
             <div class="chart-panel" style="animation: slideUp 0.5s ease 0.2s both;">
-                <div class="panel-title" style="color: ${cPurple}; border-bottom: 1px solid rgba(157, 78, 221, 0.2); padding-bottom: 10px; margin-bottom: 15px;">
+                <div class="panel-title" style="color: ${cPurple}; border-bottom: 1px solid rgba(139, 92, 246, 0.3); padding-bottom: 10px; margin-bottom: 15px;">
                     <i class="ri-building-4-line"></i> Tình trạng sử dụng xe của từng Dự án
                 </div>
                 <div class="chart-container" style="height: 300px;">
@@ -1000,7 +1000,7 @@ function renderFTL() {
                 </div>
             </div>
             <div class="chart-panel" style="animation: slideUp 0.5s ease 0.3s both;">
-                <div class="panel-title" style="color: ${cAmber}; border-bottom: 1px solid rgba(255, 179, 64, 0.2); padding-bottom: 10px; margin-bottom: 15px;">
+                <div class="panel-title" style="color: ${cAmber}; border-bottom: 1px solid rgba(245, 158, 11, 0.3); padding-bottom: 10px; margin-bottom: 15px;">
                     <i class="ri-map-pin-line"></i> Top 10 Tỉnh Giao Hàng theo Xe
                 </div>
                 <div class="chart-container" style="height: 300px;">
@@ -1011,7 +1011,7 @@ function renderFTL() {
         
         <div style="display: grid; grid-template-columns: 1fr; gap: 24px; margin-bottom: 24px;">
             <div class="chart-panel" style="animation: slideUp 0.5s ease 0.35s both;">
-                <div class="panel-title" style="color: ${cGreen}; border-bottom: 1px solid rgba(0, 229, 160, 0.2); padding-bottom: 10px; margin-bottom: 15px;">
+                <div class="panel-title" style="color: ${cGreen}; border-bottom: 1px solid rgba(16, 185, 129, 0.3); padding-bottom: 10px; margin-bottom: 15px;">
                     <i class="ri-map-pin-2-line"></i> Phân tích chi tiết theo Điểm giao
                 </div>
                 <div class="chart-container" style="height: 300px;">
@@ -1115,7 +1115,7 @@ function renderFTL() {
                 } 
             },
             scales: {
-                y: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#ffffff' } },
+                y: { stacked: true, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#ffffff' } },
                 x: { stacked: true, grid: { display: false }, ticks: { color: '#ffffff', font: {size: 12} } }
             }
         }
@@ -1154,7 +1154,7 @@ function renderFTL() {
                 tooltip: { callbacks: { title: (items) => locLabels[items[0].dataIndex] } }
             },
             scales: {
-                x: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#ffffff' } },
+                x: { stacked: true, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#ffffff' } },
                 y: { stacked: true, grid: { display: false }, ticks: { color: '#ffffff', font: {size: 11} } }
             }
         }
@@ -1193,7 +1193,7 @@ function renderFTL() {
                 tooltip: { callbacks: { title: (items) => pointLabels[items[0].dataIndex] } }
             },
             scales: {
-                x: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#ffffff' } },
+                x: { stacked: true, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#ffffff' } },
                 y: { stacked: true, grid: { display: false }, ticks: { color: '#ffffff', font: {size: 11} } }
             }
         }
@@ -1250,7 +1250,7 @@ function renderFTL() {
                 datalabels: {} 
             },
             scales: {
-                y: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#ffffff' } },
+                y: { stacked: true, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#ffffff' } },
                 x: { stacked: true, grid: { display: false }, ticks: { color: '#ffffff' } }
             }
         }
