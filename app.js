@@ -794,6 +794,11 @@ function getFTLData() {
             seenTrips.add(r.trip);
             
             res.trip_status[status] = (res.trip_status[status] || 0) + 1;
+            if (status === 'Đã Hủy') {
+                let client = r.c;
+                if (!res.clients[client]) res.clients[client] = {trips: 0, weight: 0, capacity: 0, cancel: 0};
+                res.clients[client].cancel++;
+            }
             
             if (status === 'Hoàn Thành') {
                 res.trips++;
@@ -828,9 +833,10 @@ function getFTLData() {
                 res.total_capacity += (r.cap || 0);
                 res.total_weight += (r.wt || 0);
                 
-                if (!res.clients[client]) res.clients[client] = {trips: 0, weight: 0};
+                if (!res.clients[client]) res.clients[client] = {trips: 0, weight: 0, capacity: 0, cancel: 0};
                 res.clients[client].trips++;
                 res.clients[client].weight += (r.wt || 0);
+                res.clients[client].capacity += (r.cap || 0);
             }
         }
         
@@ -1261,40 +1267,75 @@ function renderFTL() {
         if (!d.hasPrev) {
             aiBox.innerHTML = `Vui lòng chọn 1 Tháng cụ thể hoặc 1 Tuần cụ thể để AI phân tích biến động.`;
         } else {
+            let insights = [];
+            
+            // 1. Góc nhìn: Đột biến xe (Volatility)
             let locDiffs = [];
             Object.keys(d.veh_by_proj_loc || {}).forEach(key => {
-                let [client, loc] = key.split(':::');
+                let parts = key.split(':::');
+                let client = parts[0];
+                let loc = parts.length > 1 ? parts[1] : '';
                 vehTypes.forEach(v => {
                     let cur = d.veh_by_proj_loc[key][v] || 0;
                     let prev = (d.prev_veh_by_proj_loc[key] && d.prev_veh_by_proj_loc[key][v]) ? d.prev_veh_by_proj_loc[key][v] : 0;
                     let diff = cur - prev;
-                    if (diff !== 0) {
-                        locDiffs.push({ client, loc, v, diff });
+                    if (prev > 0) {
+                        let pct = (diff / prev) * 100;
+                        if (pct >= 100) {
+                            insights.push({ score: pct, html: `<div style="margin-bottom: 8px; padding: 10px; background: rgba(245, 158, 11, 0.1); border-left: 3px solid ${cAmber}; border-radius: 4px;">
+                                <span style="font-size:16px;">📈</span> <strong style="color:${cAmber}">Đột biến Lượng xe:</strong> Dự án <strong style="color:${cCyan}">${client}</strong> tại tuyến <strong style="color:${cCyan}">${loc}</strong> ${d.curPeriodName} có lượng sử dụng xe ${vehName(v)} tăng vọt <strong style="color:${cAmber}">${Math.round(pct)}%</strong> (tăng thêm ${diff} chuyến) so với ${d.prevPeriodName}. Cần kiểm tra lại kế hoạch phân bổ đội xe để tránh thiếu hụt.
+                            </div>`});
+                        } else if (pct <= -50) {
+                            insights.push({ score: Math.abs(pct), html: `<div style="margin-bottom: 8px; padding: 10px; background: rgba(59, 130, 246, 0.1); border-left: 3px solid ${cCyan}; border-radius: 4px;">
+                                <span style="font-size:16px;">📉</span> <strong style="color:${cCyan}">Sụt giảm Yêu cầu:</strong> Dự án <strong style="color:${cCyan}">${client}</strong> tuyến <strong style="color:${cCyan}">${loc}</strong> ${d.curPeriodName} giảm <strong style="color:${cCyan}">${Math.abs(Math.round(pct))}%</strong> số chuyến xe ${vehName(v)} so với ${d.prevPeriodName}.
+                            </div>`});
+                        }
+                    } else if (cur >= 5 && prev === 0) { // New route with high volume
+                         insights.push({ score: 100, html: `<div style="margin-bottom: 8px; padding: 10px; background: rgba(245, 158, 11, 0.1); border-left: 3px solid ${cAmber}; border-radius: 4px;">
+                                <span style="font-size:16px;">🚀</span> <strong style="color:${cAmber}">Tuyến mới bùng nổ:</strong> Dự án <strong style="color:${cCyan}">${client}</strong> bắt đầu phát sinh <strong style="color:${cAmber}">${cur} chuyến xe ${vehName(v)}</strong> đi <strong style="color:${cCyan}">${loc}</strong> trong ${d.curPeriodName}.
+                            </div>`});
                     }
                 });
             });
             
-            locDiffs.sort((a,b) => b.diff - a.diff);
-            
-            let insightText = '';
-            if (locDiffs.length > 0) {
-                let topPos = locDiffs[0];
-                let topNeg = locDiffs[locDiffs.length - 1];
+            // 2. Góc nhìn: Tối ưu Tải trọng & Hủy chuyến
+            Object.keys(d.clients).forEach(client => {
+                let c = d.clients[client];
+                if (c.trips > 0 && c.capacity > 0) {
+                    let fillRate = (c.weight / c.capacity) * 100;
+                    if (fillRate < 40) {
+                        insights.push({ score: 200, html: `<div style="margin-bottom: 8px; padding: 10px; background: rgba(244, 63, 94, 0.1); border-left: 3px solid ${cRed}; border-radius: 4px;">
+                            <span style="font-size:16px;">🚨</span> <strong style="color:${cRed}">Lãng phí Tải trọng (Báo động Đỏ):</strong> Dự án <strong style="color:${cCyan}">${client}</strong> có hiệu suất lấp đầy tải trọng chỉ đạt <strong style="color:${cRed}">${Math.round(fillRate)}%</strong>. Khách hàng đang điều xe tải lớn nhưng chở rất ít hàng. Đề xuất khẩn cấp chuyển đổi sang cơ cấu xe nhỏ hơn (1.9T/5T) hoặc ghép chuyến để tối ưu chi phí!
+                        </div>`});
+                    } else if (fillRate < 60) {
+                         insights.push({ score: 150, html: `<div style="margin-bottom: 8px; padding: 10px; background: rgba(245, 158, 11, 0.1); border-left: 3px solid ${cAmber}; border-radius: 4px;">
+                            <span style="font-size:16px;">⚠️</span> <strong style="color:${cAmber}">Lãng phí Tải trọng (Cảnh báo Vàng):</strong> Hiệu suất lấp đầy tải trọng của dự án <strong style="color:${cCyan}">${client}</strong> đang ở mức <strong style="color:${cAmber}">${Math.round(fillRate)}%</strong>. Cần lưu ý theo dõi để tránh xe chạy rỗng nhiều.
+                        </div>`});
+                    } else if (fillRate >= 90) {
+                         insights.push({ score: 50, html: `<div style="margin-bottom: 8px; padding: 10px; background: rgba(16, 185, 129, 0.1); border-left: 3px solid ${cGreen}; border-radius: 4px;">
+                            <span style="font-size:16px;">✅</span> <strong style="color:${cGreen}">Tối ưu Tải trọng Xuất sắc:</strong> Dự án <strong style="color:${cCyan}">${client}</strong> đạt hiệu suất lấp đầy <strong style="color:${cGreen}">${Math.round(fillRate)}%</strong>. Kế hoạch điều xe cực kỳ hiệu quả!
+                        </div>`});
+                    }
+                }
                 
-                if (topPos.diff > 0) {
-                    insightText += `<div style="margin-bottom: 8px; padding: 10px; background: rgba(0, 229, 160, 0.1); border-left: 3px solid ${cGreen}; border-radius: 4px;">
-                        <span style="color:${cGreen}; font-size:16px;">📈</span> Dự án <strong style="color:${cCyan}">${topPos.client}</strong> tuyến <strong style="color:${cAmber}">${topPos.loc}</strong> ${d.curPeriodName} có sự tăng thêm <strong style="color:${cGreen}; font-size: 14px;">${topPos.diff} chuyến ${vehName(topPos.v)}</strong> so với ${d.prevPeriodName}.
-                    </div>`;
+                let totalOrders = c.trips + c.cancel;
+                if (totalOrders >= 5 && c.cancel > 0) {
+                    let cancelRate = (c.cancel / totalOrders) * 100;
+                    if (cancelRate >= 10) {
+                        insights.push({ score: 180, html: `<div style="margin-bottom: 8px; padding: 10px; background: rgba(244, 63, 94, 0.1); border-left: 3px solid ${cRed}; border-radius: 4px;">
+                            <span style="font-size:16px;">📉</span> <strong style="color:${cRed}">Rủi ro Vận hành:</strong> Tỷ lệ Hủy chuyến của dự án <strong style="color:${cCyan}">${client}</strong> lên tới <strong style="color:${cRed}">${Math.round(cancelRate)}%</strong> (${c.cancel} xe hủy). Cần làm việc gấp với đội xe hoặc khách hàng để làm rõ nguyên nhân hủy sát giờ.
+                        </div>`});
+                    }
                 }
-                if (topNeg.diff < 0) {
-                    insightText += `<div style="padding: 10px; background: rgba(255, 8, 68, 0.1); border-left: 3px solid ${cRed}; border-radius: 4px;">
-                        <span style="color:${cRed}; font-size:16px;">📉</span> Dự án <strong style="color:${cCyan}">${topNeg.client}</strong> tuyến <strong style="color:${cAmber}">${topNeg.loc}</strong> ${d.curPeriodName} giảm <strong style="color:${cRed}; font-size: 14px;">${Math.abs(topNeg.diff)} chuyến ${vehName(topNeg.v)}</strong> so với ${d.prevPeriodName}. Cần lưu ý tối ưu.
-                    </div>`;
-                }
-            }
+            });
+            
+            insights.sort((a,b) => b.score - a.score);
+            let topInsights = insights.slice(0, 4);
+            
+            let insightText = topInsights.map(i => i.html).join('');
             
             if (insightText === '') {
-                insightText = `<div style="padding: 10px; background: rgba(255,255,255, 0.05); border-left: 3px solid #ccc; border-radius: 4px;">✅ Dữ liệu ${d.curPeriodName} ổn định, không có biến động bất thường so với ${d.prevPeriodName}.</div>`;
+                insightText = `<div style="padding: 10px; background: rgba(255,255,255, 0.05); border-left: 3px solid #ccc; border-radius: 4px;">✅ Vận hành FTL trong ${d.curPeriodName} đang duy trì trạng thái cực kỳ ổn định, không ghi nhận các biến động bất thường, tỷ lệ hủy thấp và hiệu suất tải trọng duy trì ở mức an toàn.</div>`;
             }
             
             aiBox.innerHTML = insightText;
