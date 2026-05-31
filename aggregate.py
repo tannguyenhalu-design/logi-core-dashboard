@@ -66,7 +66,8 @@ def main():
 
         if col_month in df_ltl.columns:
             try:
-                df_ltl['parsed_date'] = pd.to_datetime(df_ltl[col_month], errors='coerce')
+                df_ltl['parsed_date'] = pd.to_datetime(df_ltl[col_month], errors='coerce', utc=True)
+                df_ltl['parsed_date'] = df_ltl['parsed_date'].dt.tz_convert('Asia/Ho_Chi_Minh')
                 df_ltl['Month'] = df_ltl['parsed_date'].dt.month.fillna(df_ltl.get('Month', 1)).astype(int)
                 df_ltl['week'] = df_ltl['parsed_date'].dt.isocalendar().week.fillna(1).astype(int)
                 df_ltl['day'] = df_ltl['parsed_date'].dt.day.fillna(1).astype(int)
@@ -147,11 +148,12 @@ def main():
 
         # Date parsing for full dataset (used for locations)
         try:
-            df_ftl['parsed_date'] = pd.to_datetime(df_ftl[col_month], errors='coerce')
+            df_ftl['parsed_date'] = pd.to_datetime(df_ftl[col_month], errors='coerce', utc=True)
             if 'created_at' in df_ftl.columns:
-                df_ftl['parsed_date'] = df_ftl['parsed_date'].fillna(pd.to_datetime(df_ftl['created_at'], errors='coerce'))
+                df_ftl['parsed_date'] = df_ftl['parsed_date'].fillna(pd.to_datetime(df_ftl['created_at'], errors='coerce', utc=True))
             if 'actual_arrival_datetime' in df_ftl.columns:
-                df_ftl['parsed_date'] = df_ftl['parsed_date'].fillna(pd.to_datetime(df_ftl['actual_arrival_datetime'], errors='coerce'))
+                df_ftl['parsed_date'] = df_ftl['parsed_date'].fillna(pd.to_datetime(df_ftl['actual_arrival_datetime'], errors='coerce', utc=True))
+            df_ftl['parsed_date'] = df_ftl['parsed_date'].dt.tz_convert('Asia/Ho_Chi_Minh')
             df_ftl['Month'] = df_ftl['parsed_date'].dt.month.fillna(4).astype(int)
             df_ftl['week'] = df_ftl['parsed_date'].dt.isocalendar().week.fillna(14).astype(int)
             df_ftl['day'] = df_ftl['parsed_date'].dt.day.fillna(1).astype(int)
