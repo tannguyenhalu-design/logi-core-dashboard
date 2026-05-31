@@ -795,10 +795,18 @@ function getFTLData() {
             seenTrips.add(r.trip);
             
             res.trip_status[status] = (res.trip_status[status] || 0) + 1;
+            
+            let client = r.c;
+            
             if (status === 'Đã Hủy') {
-                let client = r.c;
                 if (!res.clients[client]) res.clients[client] = {trips: 0, weight: 0, capacity: 0, cancel: 0};
                 res.clients[client].cancel++;
+            }
+            
+            if (status === 'Đang Xử Lý') {
+                res.live_fleet.total++;
+                if (!res.live_fleet.by_project[client]) res.live_fleet.by_project[client] = {};
+                res.live_fleet.by_project[client][r.veh] = (res.live_fleet.by_project[client][r.veh] || 0) + 1;
             }
             
             if (status === 'Hoàn Thành' || status === 'Đang Xử Lý') {
@@ -961,8 +969,45 @@ function renderFTL() {
     let utilPct = d.total_capacity > 0 ? (d.total_weight / d.total_capacity * 100).toFixed(1) : 0;
     let utilColor = utilPct >= 70 ? cGreen : (utilPct >= 50 ? cAmber : cRed);
     let pulseClass = utilPct < 50 ? 'pulse-glow' : '';
+    
+    // Build Live Fleet HTML
+    let liveFleetHtml = '';
+    if (d.live_fleet.total > 0) {
+        let projectCards = '';
+        Object.keys(d.live_fleet.by_project).forEach(client => {
+            let vehCounts = d.live_fleet.by_project[client];
+            let vehDetails = Object.keys(vehCounts).map(v => `<span style="display:inline-block; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius: 4px; font-size: 11px; margin-right: 5px; margin-top: 5px;">${vehCounts[v]} ${vehName(v)}</span>`).join('');
+            let totalProjVeh = Object.values(vehCounts).reduce((a,b)=>a+b,0);
+            
+            projectCards += `
+                <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(244, 63, 94, 0.3); border-radius: 8px; padding: 12px; display: flex; flex-direction: column;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div style="font-weight: 600; color: #fff; font-size: 14px;">${client}</div>
+                        <div style="font-size: 16px; font-weight: bold; color: var(--red);"><span class="live-pulse-dot" style="display:inline-block; width:8px; height:8px; background:var(--red); border-radius:50%; margin-right:5px; animation: pulse 1.5s infinite;"></span>${totalProjVeh} xe</div>
+                    </div>
+                    <div>${vehDetails}</div>
+                </div>
+            `;
+        });
+        
+        liveFleetHtml = `
+            <div class="live-fleet-panel" style="margin-bottom: 24px; animation: fadeIn 0.5s ease;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(244, 63, 94, 0.2);">
+                    <i class="ri-radar-line" style="font-size: 20px; color: var(--red); animation: pulse 2s infinite;"></i>
+                    <h3 style="margin: 0; color: var(--red); font-size: 16px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Live Fleet Status <span style="color:var(--text-secondary); font-size: 12px; font-weight: normal; text-transform: none;">(Đang hoạt động trên đường)</span></h3>
+                    <div style="margin-left: auto; background: rgba(244, 63, 94, 0.1); color: var(--red); padding: 4px 10px; border-radius: 20px; font-size: 13px; font-weight: 600; border: 1px solid rgba(244, 63, 94, 0.3);">
+                        Tổng cộng: ${d.live_fleet.total} xe
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
+                    ${projectCards}
+                </div>
+            </div>
+        `;
+    }
 
     els.content.innerHTML = `
+        ${liveFleetHtml}
         <div class="kpi-board" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
             <div class="kpi-card" style="animation: fadeIn 0.5s ease;">
                 <div class="kpi-title"><i class="ri-truck-fill"></i> Chuyến Giao Thành Công</div>
