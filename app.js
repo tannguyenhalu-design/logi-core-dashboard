@@ -844,7 +844,7 @@ function getFTLData() {
                     res.veh_by_loc[loc][r.veh] = (res.veh_by_loc[loc][r.veh] || 0) + 1;
                     
                     let client = r.c;
-                    let aiKey = `${client}|${loc}`;
+                    let aiKey = `${client}:::${loc}`;
                     if (!res.veh_by_proj_loc[aiKey]) res.veh_by_proj_loc[aiKey] = {};
                     res.veh_by_proj_loc[aiKey][r.veh] = (res.veh_by_proj_loc[aiKey][r.veh] || 0) + 1;
                 }
@@ -1058,8 +1058,7 @@ function renderFTL() {
                 datalabels: {
                     color: '#ffffff',
                     formatter: (value, ctx) => {
-                        let sum = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
-                        return sum > 0 ? (value * 100 / sum).toFixed(1) + "%" : "0%";
+                        return (value / 1000).toLocaleString('en-US', {maximumFractionDigits: 1}) + " Tấn";
                     },
                     font: { weight: 'bold', size: 14 }
                 }
@@ -1264,7 +1263,7 @@ function renderFTL() {
         } else {
             let locDiffs = [];
             Object.keys(d.veh_by_proj_loc || {}).forEach(key => {
-                let [client, loc] = key.split('|');
+                let [client, loc] = key.split(':::');
                 vehTypes.forEach(v => {
                     let cur = d.veh_by_proj_loc[key][v] || 0;
                     let prev = (d.prev_veh_by_proj_loc[key] && d.prev_veh_by_proj_loc[key][v]) ? d.prev_veh_by_proj_loc[key][v] : 0;
