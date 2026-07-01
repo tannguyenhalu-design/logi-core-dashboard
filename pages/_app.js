@@ -2,6 +2,7 @@
  * pages/_app.js — Load global CSS
  */
 import React from "react";
+import { SessionProvider } from "next-auth/react";
 import "../styles/globals.css";
 
 class ErrorBoundary extends React.Component {
@@ -44,10 +45,12 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-export default function App({ Component, pageProps }) {
+export default function App({ Component, pageProps: { session, ...pageProps } }) {
   return (
-    <ErrorBoundary>
-      <Component {...pageProps} />
-    </ErrorBoundary>
+    <SessionProvider session={session}>
+      <ErrorBoundary>
+        <Component {...pageProps} />
+      </ErrorBoundary>
+    </SessionProvider>
   );
 }

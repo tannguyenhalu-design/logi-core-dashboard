@@ -6,7 +6,8 @@
  * Fetches Google Sheets, transforms data, returns JSON.
  * If role='client', automatically filters to user's assigned project.
  */
-import { getSession } from "../../lib/auth";
+import { getServerSession } from "next-auth";
+import { authOptions } from "./auth/[...nextauth]";
 import { fetchSheet } from "../../lib/sheets";
 import { transformLTL } from "../../lib/transform-ltl";
 import { transformFTL } from "../../lib/transform-ftl";
@@ -17,13 +18,14 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // ── Auth check ──
-  const session = await getSession(req, res);
+  // ── Auth check (NextAuth) ──
+  const session = await getServerSession(req, res, authOptions);
   if (!session?.user) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  const { role, project: userProject } = session.user;
+  const role = session.user.role || "manager";
+  const userProject = session.user.project || null;
 
   // ── Parse query filters ──
   let months = null;

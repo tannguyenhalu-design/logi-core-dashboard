@@ -4,6 +4,7 @@
  * Filter state managed here and passed down to all tabs for sync.
  */
 import { useState, useEffect, useCallback } from "react";
+import { useSession, signOut } from "next-auth/react";
 import Head from "next/head";
 import FilterBar from "../components/FilterBar";
 import dynamic from "next/dynamic";
@@ -59,12 +60,12 @@ const TABS = [
   },
 ];
 
-export default function DashboardPage({ user }) {
+export default function DashboardPage() {
+  const { data: session } = useSession();
+  const user = session?.user || {};
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedMonths, setSelectedMonths] = useState([]);
-  const [selectedProjects, setSelectedProjects] = useState(
-    user.project ? [user.project] : []
-  );
+  const [selectedProjects, setSelectedProjects] = useState([]);
   const [dashData, setDashData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -150,27 +151,30 @@ export default function DashboardPage({ user }) {
           {/* User info + Logout */}
           <div style={{ marginTop: "auto", borderTop: "1px solid var(--border)", paddingTop: 16 }}>
             <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>
-              {user.role === "manager" ? "👑 Quản lý" : "👤 Khách hàng"}
+              👑 Quản lý
             </div>
-            <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 12 }}>
-              {user.username}
+            <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 2 }}>
+              {user.name || ""}
             </div>
-            <a
-              href="/api/logout"
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 12, opacity: 0.7 }}>
+              {user.email || ""}
+            </div>
+            <button
+              onClick={() => signOut({ callbackUrl: "/login" })}
               style={{
                 display: "flex", alignItems: "center", gap: 8,
-                fontSize: 13, color: "var(--text-muted)", textDecoration: "none",
-                padding: "8px 8px", borderRadius: 6, transition: "all 0.2s",
+                fontSize: 13, color: "var(--text-muted)", background: "none",
+                border: "none", cursor: "pointer", fontFamily: "inherit",
+                padding: "8px 8px", borderRadius: 6, transition: "all 0.2s", width: "100%",
               }}
               onMouseOver={(e) => e.currentTarget.style.color = "var(--red)"}
-              onMouseOut={(e) => e.currentTarget.style.color = "var(--text-muted)"}
-            >
+              onMouseOut={(e)  => e.currentTarget.style.color = "var(--text-muted)"}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
                 <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
               </svg>
               Đăng xuất
-            </a>
+            </button>
           </div>
         </aside>
 
@@ -244,11 +248,12 @@ export default function DashboardPage({ user }) {
   );
 }
 
-export async function getServerSideProps({ req, res }) {
-  const { getSession } = await import("../lib/auth");
-  const session = await getSession(req, res);
-  if (!session?.user) {
+export async function getServerSideProps(context) {
+  const { getServerSession } = await import("next-auth");
+  const { authOptions } = await import("./api/auth/[...nextauth]");
+  const session = await getServerSession(context.req, context.res, authOptions);
+  if (!session) {
     return { redirect: { destination: "/login", permanent: false } };
   }
-  return { props: { user: session.user } };
+  return { props: {} };
 }
