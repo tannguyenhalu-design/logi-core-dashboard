@@ -7,7 +7,7 @@ import Head from "next/head";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -15,12 +15,19 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
+    // Validate @ghn.vn domain
+    if (!email.toLowerCase().endsWith("@ghn.vn")) {
+      setError("Chỉ chấp nhận email có đuôi @ghn.vn");
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: email.toLowerCase().trim(), password }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -61,13 +68,13 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit}>
             <div className="form-group">
-              <label>Tên đăng nhập</label>
+              <label>Email GHN</label>
               <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Nhập tên đăng nhập"
-                autoComplete="username"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="ten@ghn.vn"
+                autoComplete="email"
                 required
               />
             </div>

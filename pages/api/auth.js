@@ -15,9 +15,14 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Missing credentials" });
   }
 
+  // Chỉ cho phép email @ghn.vn
+  if (!username.toLowerCase().endsWith("@ghn.vn")) {
+    return res.status(403).json({ error: "Chỉ chấp nhận tài khoản @ghn.vn" });
+  }
+
   const user = authenticate(username, password);
   if (!user) {
-    return res.status(401).json({ error: "Invalid username or password" });
+    return res.status(401).json({ error: "Email hoặc mật khẩu không đúng" });
   }
 
   // Create session
