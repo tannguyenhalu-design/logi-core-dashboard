@@ -3,17 +3,11 @@
  * All charts re-render when `data` prop changes (driven by filter state).
  */
 import { useEffect, useRef } from "react";
-import {
-  Chart, BarElement, LineElement, PointElement, ArcElement,
-  CategoryScale, LinearScale, Tooltip, Legend,
-} from "chart.js";
+import Chart from "chart.js/auto";
 import ChartDataLabels from "chartjs-plugin-datalabels";
 import KpiCard from "./KpiCard";
 
-Chart.register(
-  BarElement, LineElement, PointElement, ArcElement,
-  CategoryScale, LinearScale, Tooltip, Legend, ChartDataLabels
-);
+Chart.register(ChartDataLabels);
 
 Chart.defaults.color = "#94a3b8";
 Chart.defaults.font.family = "'Inter', sans-serif";
@@ -44,24 +38,51 @@ function useChart(canvasRef, config, deps) {
 }
 
 // ── Chart: Ontime/Late by Month (stacked bar + line % ontime) ──
-function OntimeMonthChart({ ontimeByMonth }) {
+function OntimeMonthChart({ ontimeByMonth, isWeekly }) {
   const ref = useRef(null);
   const months = Object.keys(ontimeByMonth).sort((a, b) => a - b);
 
   useChart(ref, () => ({
     type: "bar",
     data: {
-      labels: months.map((m) => `T${m}`),
+      labels: months.map((m, idx) => {
+        const info = ontimeByMonth[m];
+        const total = (info?.ontime || 0) + (info?.late || 0);
+        const shortTotal = total >= 1000 ? (total / 1000).toFixed(1).replace(".0", "") + "K" : total;
+        const labelPrefix = isWeekly ? `Tuần ${m}` : `T${m}`;
+        if (idx === 0) {
+          return [labelPrefix, `${shortTotal} đơn`];
+        } else {
+          const prevM = months[idx - 1];
+          const prevInfo = ontimeByMonth[prevM];
+          const prevTotal = (prevInfo?.ontime || 0) + (prevInfo?.late || 0);
+          const diffPct = prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : 0;
+          const sign = diffPct >= 0 ? "+" : "";
+          return [labelPrefix, `${shortTotal} đơn (${sign}${diffPct}%)`];
+        }
+      }),
       datasets: [
         {
           label: "Ontime",
           data: months.map((m) => ontimeByMonth[m]?.ontime || 0),
           backgroundColor: COLORS.green, stack: "s",
+          datalabels: {
+            display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 400,
+            color: "#fff",
+            font: { weight: "bold", size: 10 },
+            formatter: (v) => v.toLocaleString("vi-VN"),
+          }
         },
         {
           label: "Late",
           data: months.map((m) => ontimeByMonth[m]?.late || 0),
           backgroundColor: COLORS.red, stack: "s",
+          datalabels: {
+            display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 400,
+            color: "#fff",
+            font: { weight: "bold", size: 10 },
+            formatter: (v) => v.toLocaleString("vi-VN"),
+          }
         },
         {
           label: "% Ontime",
@@ -92,7 +113,7 @@ function OntimeMonthChart({ ontimeByMonth }) {
       },
       plugins: {
         legend: { position: "bottom", labels: { color: "#94a3b8", boxWidth: 12 } },
-        datalabels: { display: false },
+        datalabels: { display: false }, // defaults to false, overridden in datasets
       },
     },
   }), [ontimeByMonth]);
@@ -167,7 +188,36 @@ function WeightProjChart({ weightByProject }) {
       responsive: true, maintainAspectRatio: false, cutout: "68%",
       plugins: {
         legend: { position: "right", labels: { color: "#94a3b8", boxWidth: 12, font: { size: 12 } } },
-        datalabels: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (item) => {
+              const val = item.raw;
+              const sum = item.dataset.data.reduce((a, b) => a + b, 0);
+              const pct = sum > 0 ? Math.round((val / sum) * 100) : 0;
+              let weightText = "";
+              if (val >= 1000) {
+                weightText = `${(val / 1000).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} Tấn`;
+              } else {
+                weightText = `${val.toLocaleString("vi-VN")} KG`;
+              }
+              const projName = item.label.split(" (")[0];
+              return ` ${projName}: ${weightText} (${pct}%)`;
+            }
+          }
+        },
+        datalabels: {
+          display: (ctx) => {
+            const val = ctx.dataset.data[ctx.dataIndex];
+            const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
+            return sum > 0 ? (val / sum) * 100 > 4 : false; // Only show if > 4% to prevent overlay
+          },
+          color: "#fff",
+          font: { weight: "bold", size: 10 },
+          formatter: (v, ctx) => {
+            const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
+            return sum > 0 ? Math.round((v / sum) * 100) + "%" : "";
+          }
+        },
       },
     },
   }), [weightByProject]);
@@ -184,19 +234,29 @@ function WarehouseRiskChart({ warehouseAlerts }) {
     data: {
       labels: warehouseAlerts.map((w) => w.warehouse),
       datasets: [
-        { label: "Late", data: warehouseAlerts.map((w) => w.late), backgroundColor: COLORS.red, stack: "s" },
-        { label: "Hư hỏng", data: warehouseAlerts.map((w) => w.broken), backgroundColor: COLORS.amber, stack: "s" },
+        {
+          label: "Số ca bể vỡ / hư hỏng",
+          data: warehouseAlerts.map((w) => w.broken),
+          backgroundColor: COLORS.amber,
+          borderRadius: 4,
+          datalabels: {
+            display: true,
+            color: "#fff",
+            anchor: "end",
+            align: "right",
+            font: { weight: "bold", size: 10 }
+          }
+        },
       ],
     },
     options: {
       indexAxis: "y", responsive: true, maintainAspectRatio: false,
       plugins: {
-        legend: { position: "bottom", labels: { color: "#94a3b8", boxWidth: 12 } },
-        datalabels: { display: false },
+        legend: { display: false },
       },
       scales: {
-        x: { stacked: true, grid: { color: "rgba(255,255,255,0.05)" } },
-        y: { stacked: true, grid: { display: false } },
+        x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { precision: 0 } },
+        y: { grid: { display: false } },
       },
     },
   }), [warehouseAlerts]);
@@ -288,10 +348,10 @@ export default function TabLTL({ data }) {
         <div className="chart-panel">
           <div className="chart-panel-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            Xu hướng Ontime / Late theo tháng
+            Xu hướng Ontime / Late theo {data.isWeekly ? "tuần" : "tháng"}
           </div>
           <div style={{ height: 280 }}>
-            <OntimeMonthChart ontimeByMonth={data.ontimeByMonth} />
+            <OntimeMonthChart ontimeByMonth={data.ontimeByMonth} isWeekly={data.isWeekly} />
           </div>
         </div>
         <div className="chart-panel">

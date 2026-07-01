@@ -1,19 +1,12 @@
 /**
  * components/TabFTL.js — FTL Dashboard Tab
  */
-import { useRef } from "react";
-import {
-  Chart, BarElement, LineElement, PointElement, ArcElement,
-  CategoryScale, LinearScale, Tooltip, Legend,
-} from "chart.js";
+import { useRef, useEffect } from "react";
+import Chart from "chart.js/auto";
 import ChartDataLabels from "chartjs-plugin-datalabels";
 import KpiCard from "./KpiCard";
-import { useEffect } from "react";
 
-Chart.register(
-  BarElement, LineElement, PointElement, ArcElement,
-  CategoryScale, LinearScale, Tooltip, Legend, ChartDataLabels
-);
+Chart.register(ChartDataLabels);
 
 const COLORS = {
   cyan: "#3b82f6", green: "#10b981", red: "#f43f5e",
@@ -70,8 +63,8 @@ function TripsByDayChart({ tripsByDay }) {
   return <canvas ref={ref} />;
 }
 
-// ── Trips by month with MoM % ──
-function TripsByMonthChart({ tripsByMonth }) {
+// ── Trips by month/week with MoM % ──
+function TripsByMonthChart({ tripsByMonth, isWeekly }) {
   const ref = useRef(null);
   const months = Object.keys(tripsByMonth).sort((a, b) => a - b);
   const values = months.map((m) => tripsByMonth[m] || 0);
@@ -85,7 +78,7 @@ function TripsByMonthChart({ tripsByMonth }) {
   useChart(ref, () => ({
     type: "bar",
     data: {
-      labels: months.map((m) => `T${m}`),
+      labels: months.map((m) => isWeekly ? `Tuần ${m}` : `T${m}`),
       datasets: [{
         label: "Số chuyến",
         data: values,
@@ -155,6 +148,59 @@ function VehicleDonut({ vehicleTypeDist }) {
       },
     },
   }), [vehicleTypeDist]);
+
+  return <canvas ref={ref} />;
+}
+
+// ── Top 10 Delivery Locations (horizontal bar chart) ──
+function TopLocationsChart({ top10Locations }) {
+  const ref = useRef(null);
+
+  const labels = top10Locations.map((item) => {
+    const loc = item.location;
+    return loc.length > 25 ? loc.slice(0, 25) + "..." : loc;
+  });
+  const counts = top10Locations.map((item) => item.count);
+
+  useChart(ref, () => ({
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "Số chuyến",
+        data: counts,
+        backgroundColor: COLORS.cyan,
+        borderRadius: 4,
+        datalabels: {
+          display: true,
+          color: "#fff",
+          anchor: "end",
+          align: "right",
+          font: { weight: "bold", size: 10 }
+        }
+      }],
+    },
+    options: {
+      indexAxis: "y", // horizontal bar
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: (items) => {
+              const idx = items[0].dataIndex;
+              return top10Locations[idx].location;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { precision: 0 } },
+        y: { grid: { display: false } },
+      },
+    },
+  }), [top10Locations]);
 
   return <canvas ref={ref} />;
 }
@@ -238,10 +284,10 @@ export default function TabFTL({ data }) {
         <div className="chart-panel">
           <div className="chart-panel-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
-            Tăng Trưởng Số Chuyến theo Tháng (MoM)
+            Tăng Trưởng Số Chuyến theo {data.isWeekly ? "Tuần" : "Tháng"} (MoM)
           </div>
           <div style={{ height: 250 }}>
-            <TripsByMonthChart tripsByMonth={data.tripsByMonth || {}} />
+            <TripsByMonthChart tripsByMonth={data.tripsByMonth || {}} isWeekly={data.isWeekly} />
           </div>
         </div>
       </div>
@@ -263,6 +309,17 @@ export default function TabFTL({ data }) {
             Cảnh Báo Tỉnh Tăng Đột Biến (7 ngày)
           </div>
           <ProvinceAlerts provinceAlerts={data.provinceAlerts} />
+        </div>
+      </div>
+
+      {/* Top 10 Delivery Locations */}
+      <div className="chart-panel">
+        <div className="chart-panel-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          Top 10 Điểm Giao Có Số Chuyến Nhiều Nhất
+        </div>
+        <div style={{ height: 350 }}>
+          <TopLocationsChart top10Locations={data.top10Locations || []} />
         </div>
       </div>
     </div>

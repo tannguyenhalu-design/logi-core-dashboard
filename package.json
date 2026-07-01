@@ -15,6 +15,7 @@
     "googleapis": "^173.0.0",
     "iron-session": "^8.0.4",
     "next": "16.2.9",
+    "puppeteer": "^25.2.1",
     "react": "19.2.4",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "19.2.4"

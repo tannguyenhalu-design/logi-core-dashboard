@@ -64,8 +64,7 @@ body {
 
 /* ── KPI Card ── */
 .kpi-card {
-  background: var(--bg-panel);
-  backdrop-filter: blur(12px);
+  background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 20px 24px;
@@ -109,8 +108,7 @@ body {
 
 /* ── Chart Panel ── */
 .chart-panel {
-  background: var(--bg-panel);
-  backdrop-filter: blur(12px);
+  background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 20px 24px;
