@@ -591,13 +591,14 @@ export default function TabTachTrip({ tcData }) {
     { value: "lens2", label: "Góc nhìn 3 — Thành phố, gộp đa điểm" },
   ];
 
-  // Lane table data
+  // Lane table data — live từ GSheet (tcData.laneData)
+  const liveLanes = tcData.laneData || [];
   const laneRows = useMemo(() => {
-    let rows = LANE_DATA;
+    let rows = liveLanes;
     if (lanePriorityFilter !== "__ALL__") rows = rows.filter((r) => r.priority === lanePriorityFilter);
     const order = { "Pilot FTL thường xuyên": 0, "Lên lịch gom chuyến": 1, "Theo dõi ngày cao điểm": 2 };
     return [...rows].sort((a, b) => (order[a.priority] - order[b.priority]) || (b.kg30d - a.kg30d));
-  }, [lanePriorityFilter]);
+  }, [liveLanes, lanePriorityFilter]);
 
   // TC filtered indices (live from GSheet)
   const idxs = useMemo(() => tcFilteredIdx(tcData, windowDays, hub), [tcData, windowDays, hub]);
@@ -615,33 +616,34 @@ export default function TabTachTrip({ tcData }) {
       {/* ── Tầng 1: Tuyến cố định ── */}
       <div style={{ ...panelStyle, borderLeft: "3px solid #5B8CFF" }}>
         <h3 style={{ fontSize: 14, margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif" }}>
-          🛣️ Tầng 1 — Tuyến cố định (theo SQL pivot thật, kho lấy → kho giao)
+          🛣️ Tầng 1 — Tấn cụ́ć theo tựng lane (kho lấy → kho giao) — 30 ngày gần nhất
         </h3>
-        <p style={{ fontSize: 12, color: "#8C99AE", margin: "0 0 14px" }}>
-          Nguồn: file <code>CI | Tân adhoc.xlsx</code> · LTL thuần, status=delivered, ngành DM/STTP/NHC · 2026-03-01 → 2026-06-16 · <b>81 lane</b>
+        <p style={{ fontSize: 12, color: "#8C99AE", margin: "0 0 6px" }}>
+          Nguồn: <b style={{ color: "#33D6C0" }}>Google Sheets Raw (live)</b> · chỉ tính đơn status=delivered · đã loại Aqua B2B + LG Pantos
+          · tổng <b>{liveLanes.length} lane</b> · cập nhật tự động theo data GSheet
         </p>
-        <p style={{ fontSize: 13, lineHeight: 1.7, color: "#EAF0F8", marginBottom: 14 }}>
-          Đây là bảng <b>tĩnh</b> (snapshot SQL). Phân loại:{" "}
-          <b style={{ color: "#33D6C0" }}>Pilot FTL thường xuyên</b> (TB30 ≥1.000kg, active ≥20/30) —{" "}
-          <b style={{ color: "#FFB23E" }}>Lên lịch gom chuyến</b> (TB30 ≥500kg) —{" "}
-          <b style={{ color: "#8C99AE" }}>Theo dõi ngày cao điểm</b>.
+        <p style={{ fontSize: 12, color: "#8C99AE", margin: "0 0 14px", lineHeight: 1.6 }}>
+          <span style={{ color: "#33D6C0", fontWeight: 600 }}>Pilot FTL</span>: TB30 ≥1.000 kg/ngày và ≥20 ngày active —{" "}
+          <span style={{ color: "#FFB23E", fontWeight: 600 }}>Gom chuyến</span>: TB30 ≥500 kg/ngày —{" "}
+          <span style={{ color: "#8C99AE" }}>Theo dõi</span>: còn lại
         </p>
         <div style={{ marginBottom: 12 }}>
           <label style={{ fontSize: 11, color: "#8C99AE", textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 5 }}>Lọc theo mức ưu tiên</label>
           <select value={lanePriorityFilter} onChange={(e) => setLanePriorityFilter(e.target.value)}
             style={{ background: "#0E1420", border: "1px solid #293345", color: "#EAF0F8", borderRadius: 6, padding: "7px 10px", fontSize: 13, fontFamily: "inherit" }}>
-            <option value="__ALL__">Tất cả (81 lane)</option>
-            <option value="Pilot FTL thường xuyên">🟢 Pilot FTL thường xuyên (4)</option>
-            <option value="Lên lịch gom chuyến">🟡 Lên lịch gom chuyến (16)</option>
-            <option value="Theo dõi ngày cao điểm">⚪ Theo dõi ngày cao điểm (61)</option>
+            <option value="__ALL__">Tất cả ({liveLanes.length} lane)</option>
+            <option value="Pilot FTL thường xuyên">🟢 Pilot FTL thường xuyên ({liveLanes.filter(r=>r.priority==="Pilot FTL thường xuyên").length})</option>
+            <option value="Lên lịch gom chuyến">🟡 Lên lịch gom chuyến ({liveLanes.filter(r=>r.priority==="Lên lịch gom chuyến").length})</option>
+            <option value="Theo dõi ngày cao điểm">⚪ Theo dõi ngày cao điểm ({liveLanes.filter(r=>r.priority==="Theo dõi ngày cao điểm").length})</option>
           </select>
         </div>
         <div style={{ maxHeight: 420, overflowY: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
             <thead>
               <tr>
-                {["Mức ưu tiên", "Kho lấy", "Kho giao", "Kg/30 ngày", "Ngày FTL ≥1.000kg", "Ngày gom ≥500kg", "Ngày active", "Peak kg/ngày", "Đơn/30d", "Ngành hàng", "Khách hàng chính"].map((h) => (
-                  <th key={h} style={{ textAlign: "left", color: "#8C99AE", fontWeight: 500, padding: "8px 10px", borderBottom: "1px solid #293345", textTransform: "uppercase", fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>
+                {["Mức ưu tiên","Kho lấy","Kho giao","Tổng kg/30 ngày","TB kg/ngày","Đỉnh 1 ngày (kg)","Ngày FTL ≥1.000kg","Ngày gom ≥500kg","Ngày active","Đơn/30d","Khách hàng chính"].map((h) => (
+                  <th key={h} style={{ textAlign:"left", color:"#8C99AE", fontWeight:500, padding:"8px 10px",
+                    borderBottom:"1px solid #293345", textTransform:"uppercase", fontSize:11, whiteSpace:"nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -651,21 +653,25 @@ export default function TabTachTrip({ tcData }) {
                   onMouseEnter={(e) => e.currentTarget.style.background = "#1B2436"}
                   onMouseLeave={(e) => e.currentTarget.style.background = ""}
                   style={{ transition: "background 0.15s" }}>
-                  <td style={{ padding: "9px 10px", borderBottom: "1px solid #293345" }}><PriorityBadge priority={r.priority} /></td>
-                  <td style={{ padding: "9px 10px", borderBottom: "1px solid #293345", maxWidth: 200, fontSize: 12 }}>{r.pick_wh}</td>
-                  <td style={{ padding: "9px 10px", borderBottom: "1px solid #293345", maxWidth: 200, fontSize: 12 }}>{r.deliver_wh}</td>
-                  <td style={{ padding: "9px 10px", borderBottom: "1px solid #293345", fontFamily: "monospace" }}>{fmt(r.kg30d)}</td>
-                  <td style={{ padding: "9px 10px", borderBottom: "1px solid #293345", fontFamily: "monospace" }}>{r.days_ftl1000}</td>
-                  <td style={{ padding: "9px 10px", borderBottom: "1px solid #293345", fontFamily: "monospace" }}>{r.days_gom500}</td>
-                  <td style={{ padding: "9px 10px", borderBottom: "1px solid #293345", fontFamily: "monospace" }}>{r.days_active}</td>
-                  <td style={{ padding: "9px 10px", borderBottom: "1px solid #293345", fontFamily: "monospace" }}>{fmt(r.peak_kg_day)}</td>
-                  <td style={{ padding: "9px 10px", borderBottom: "1px solid #293345", fontFamily: "monospace" }}>{r.orders30d}</td>
-                  <td style={{ padding: "9px 10px", borderBottom: "1px solid #293345", fontSize: 11.5 }}>{r.industries}</td>
-                  <td style={{ padding: "9px 10px", borderBottom: "1px solid #293345", fontSize: 11.5, maxWidth: 220 }}>{r.top_clients}</td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345" }}><PriorityBadge priority={r.priority} /></td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345", maxWidth:200, fontSize:12 }}>{r.pick_wh}</td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345", maxWidth:200, fontSize:12 }}>{r.deliver_wh}</td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345", fontFamily:"monospace" }}>{fmt(r.kg30d)}</td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345", fontFamily:"monospace",
+                    color: r.avg_kg_day >= 1000 ? "#33D6C0" : r.avg_kg_day >= 500 ? "#FFB23E" : "#8C99AE",
+                    fontWeight: r.avg_kg_day >= 500 ? 600 : 400 }}>
+                    {fmt(r.avg_kg_day)}
+                  </td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345", fontFamily:"monospace", color:"#8C99AE", fontSize:11.5 }}>{fmt(r.peak_kg_day)}</td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345", fontFamily:"monospace" }}>{r.days_ftl1000}</td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345", fontFamily:"monospace" }}>{r.days_gom500}</td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345", fontFamily:"monospace" }}>{r.days_active}</td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345", fontFamily:"monospace" }}>{r.orders30d}</td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345", fontSize:11.5, maxWidth:260 }}>{r.top_clients}</td>
                 </tr>
               ))}
               {!laneRows.length && (
-                <tr><td colSpan="11" style={{ padding: 16, color: "#5A6478", textAlign: "center" }}>Không có lane nào trong mức ưu tiên đang lọc.</td></tr>
+                <tr><td colSpan="11" style={{ padding:16, color:"#5A6478", textAlign:"center" }}>Không có lane nào trong mức ưu tiên đang lọc.</td></tr>
               )}
             </tbody>
           </table>
