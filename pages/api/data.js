@@ -7,7 +7,7 @@
  * If role='client', automatically filters to user's assigned project.
  */
 import { getServerSession } from "next-auth";
-import { authOptions } from "./auth/[...nextauth]";
+import { authOptions } from "../../lib/auth-options";
 import { fetchSheet } from "../../lib/sheets";
 import { transformLTL } from "../../lib/transform-ltl";
 import { transformFTL } from "../../lib/transform-ftl";

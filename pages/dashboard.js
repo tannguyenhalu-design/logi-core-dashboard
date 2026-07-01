@@ -250,7 +250,7 @@ export default function DashboardPage() {
 
 export async function getServerSideProps(context) {
   const { getServerSession } = await import("next-auth");
-  const { authOptions } = await import("./api/auth/[...nextauth]");
+  const { authOptions } = await import("../lib/auth-options");
   const session = await getServerSession(context.req, context.res, authOptions);
   if (!session) {
     return { redirect: { destination: "/login", permanent: false } };
