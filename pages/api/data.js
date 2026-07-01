@@ -10,6 +10,7 @@ import { getSession } from "../../lib/auth";
 import { fetchSheet } from "../../lib/sheets";
 import { transformLTL } from "../../lib/transform-ltl";
 import { transformFTL } from "../../lib/transform-ftl";
+import { transformTachTrip } from "../../lib/transform-tach-trip";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
@@ -57,6 +58,7 @@ export default async function handler(req, res) {
     // ── Transform ──
     const ltlData = transformLTL(rawLTL, { months, projects });
     const ftlData = transformFTL(rawFTL, masterVehicle, { months, projects });
+    const tachTripData = transformTachTrip(rawLTL);
 
     // ── Overview: all-time totals (no filter) ──
     const overviewLTL = transformLTL(rawLTL, {});
@@ -68,6 +70,7 @@ export default async function handler(req, res) {
       filters: { months, projects },
       ltl: ltlData,
       ftl: ftlData,
+      tachTrip: tachTripData,
       overview: {
         ltl: {
           totalOrders: overviewLTL.totalOrders,

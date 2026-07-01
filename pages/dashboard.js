@@ -234,7 +234,7 @@ export default function DashboardPage({ user }) {
                 {activeTab === "overview" && <TabOverview overview={dashData.overview} />}
                 {activeTab === "ltl" && <TabLTL data={dashData.ltl} />}
                 {activeTab === "ftl" && <TabFTL data={dashData.ftl} />}
-                {activeTab === "tachtrip" && <TabTachTrip data={dashData.ltl} />}
+                {activeTab === "tachtrip" && <TabTachTrip tcData={dashData.tachTrip} />}
               </>
             )}
           </main>

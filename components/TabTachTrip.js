@@ -9,11 +9,11 @@
  */
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
-// ── Static data (extracted from dashboard_31.html) ──────────────────────────
+// ── Static data (map paths — still static, not from GSheet) ─────────────────
 import LANE_DATA from "../lib/lane-data.json";
 import PROV_PATHS from "../lib/prov-paths.json";
 import CENTROIDS from "../lib/centroids.json";
-import TC_RAW from "../lib/tc-data.json";
+// NOTE: tc-data.json removed — now using live GSheet data via tcData prop
 
 // ── Constants (from dashboard_31.html) ──────────────────────────────────────
 const TRUCK_5T = 5000000;
@@ -42,43 +42,40 @@ const HUB_TO_CITY = {
 const fmt = (n) => Math.round(n).toLocaleString("vi-VN");
 const fmtKg = (n) => (n / 1000000).toLocaleString("vi-VN", { maximumFractionDigits: 2 }) + " tấn";
 
-// ── TC Data helpers (port from dashboard_31.html) ────────────────────────────
-const TC_EPOCH = new Date(TC_RAW.epoch + "T00:00:00");
-
-function dayToDate(day) {
-  const d = new Date(TC_EPOCH);
-  d.setDate(d.getDate() + day);
-  return d;
+// ── TC Data helpers — nhận tcData làm tham số ────────────────────────────────
+function tcEpoch(tcData) {
+  return new Date(tcData.epoch + "T00:00:00");
 }
 
-function tcMaxDay() {
-  return Math.max(...TC_RAW.rows.day);
+function tcMaxDay(tcData) {
+  if (!tcData?.rows?.day?.length) return 0;
+  return Math.max(...tcData.rows.day);
 }
 
-function tcFilteredIdx(windowDays, hubFilter) {
-  const maxDay = tcMaxDay();
+function tcFilteredIdx(tcData, windowDays, hubFilter) {
+  if (!tcData?.rows?.day) return [];
+  const maxDay = tcMaxDay(tcData);
   const start = maxDay - (windowDays - 1);
-  const { day, hub } = TC_RAW.rows;
+  const { day, hub } = tcData.rows;
   const idxs = [];
   for (let i = 0; i < day.length; i++) {
     if (day[i] < start || day[i] > maxDay) continue;
-    if (hubFilter !== "__ALL__" && TC_RAW.hubs[hub[i]] !== hubFilter) continue;
+    if (hubFilter !== "__ALL__" && tcData.hubs[hub[i]] !== hubFilter) continue;
     idxs.push(i);
   }
   return idxs;
 }
 
-function tcAvgByProvince(idxs, windowDays, hubFilter = null) {
-  const rows = TC_RAW.rows;
+function tcAvgByProvince(tcData, idxs, windowDays) {
+  const rows = tcData.rows;
   const sumByProv = {}, clientByProv = {}, pickByProv = {};
   idxs.forEach((i) => {
-    if (hubFilter && TC_RAW.hubs[rows.hub[i]] !== hubFilter) return;
-    const pv = TC_RAW.provinces[rows.pv[i]];
+    const pv = tcData.provinces[rows.pv[i]];
     sumByProv[pv] = (sumByProv[pv] || 0) + rows.w[i];
-    const cl = TC_RAW.clients[rows.c[i]];
+    const cl = tcData.clients[rows.c[i]];
     clientByProv[pv] = clientByProv[pv] || {};
     clientByProv[pv][cl] = (clientByProv[pv][cl] || 0) + rows.w[i];
-    const fp = TC_RAW.fprovinces[rows.fp[i]];
+    const fp = tcData.fprovinces[rows.fp[i]];
     pickByProv[pv] = pickByProv[pv] || {};
     pickByProv[pv][fp] = (pickByProv[pv][fp] || 0) + rows.w[i];
   });
@@ -96,15 +93,15 @@ function tcAvgByProvince(idxs, windowDays, hubFilter = null) {
   return { avg, clients, picks, clientKg };
 }
 
-function tcAvgByWarehouse(idxs, province, windowDays) {
-  const rows = TC_RAW.rows;
+function tcAvgByWarehouse(tcData, idxs, province, windowDays) {
+  const rows = tcData.rows;
   const excludeWh = new Set(["Key Account Warehouse Ho Chi Minh", "Key Account Warehouse Ha Noi"]);
   const sumByWh = {}, daysSeenByWh = {};
   idxs.forEach((i) => {
-    const pv = TC_RAW.provinces[rows.pv[i]];
+    const pv = tcData.provinces[rows.pv[i]];
     if (pv !== province) return;
-    const wh = TC_RAW.warehouses[rows.wh[i]];
-    if (excludeWh.has(wh) || wh.includes("TESTING")) return;
+    const wh = tcData.warehouses[rows.wh[i]];
+    if (!wh || excludeWh.has(wh) || wh.includes("TESTING")) return;
     sumByWh[wh] = (sumByWh[wh] || 0) + rows.w[i];
     daysSeenByWh[wh] = daysSeenByWh[wh] || new Set();
     daysSeenByWh[wh].add(rows.day[i]);
@@ -267,12 +264,12 @@ function MultidropGroup({ group, idx, label = "Xe multi-drop" }) {
 }
 
 // ── LENS 4: Tỉnh giao & đề xuất gom 2 ngày ───────────────────────────────────
-function Lens4({ idxs, windowDays, hub }) {
+function Lens4({ tcData, idxs, windowDays, hub }) {
   const [filterVal, setFilterVal] = useState("__ALL__");
   const [highlightProv, setHighlightProv] = useState(null);
   const tableRef = useRef(null);
 
-  const provStats = useMemo(() => tcAvgByProvince(idxs, windowDays), [idxs, windowDays]);
+  const provStats = useMemo(() => tcAvgByProvince(tcData, idxs, windowDays), [tcData, idxs, windowDays]);
 
   const rows = useMemo(() => {
     let r = Object.entries(provStats.avg).map(([p, avgW]) => {
@@ -394,11 +391,11 @@ function Lens4({ idxs, windowDays, hub }) {
 }
 
 // ── LENS 3: Trục tuyến đường ──────────────────────────────────────────────────
-function Lens3({ idxs, windowDays, hub }) {
+function Lens3({ tcData, idxs, windowDays, hub }) {
   const [corridorFilter, setCorridorFilter] = useState("__ALL__");
   const [hoveredCorridor, setHoveredCorridor] = useState(null);
 
-  const provStats = useMemo(() => tcAvgByProvince(idxs, windowDays, null), [idxs, windowDays]);
+  const provStats = useMemo(() => tcAvgByProvince(tcData, idxs, windowDays, null), [tcData, idxs, windowDays]);
 
   const corridorResults = useMemo(() => {
     const results = {};
@@ -505,7 +502,7 @@ function Lens3({ idxs, windowDays, hub }) {
 }
 
 // ── LENS 2: Thành phố, gộp đa điểm ───────────────────────────────────────────
-function Lens2({ idxs, windowDays, hub }) {
+function Lens2({ tcData, idxs, windowDays, hub }) {
   const [cityFilter, setCityFilter] = useState("__ALL__");
   const cities = ["Hồ Chí Minh", "Hà Nội", "Đà Nẵng"];
 
@@ -515,7 +512,7 @@ function Lens2({ idxs, windowDays, hub }) {
     return cities;
   }, [cityFilter, hub]);
 
-  const provStats = useMemo(() => tcAvgByProvince(idxs, windowDays), [idxs, windowDays]);
+  const provStats = useMemo(() => tcAvgByProvince(tcData, idxs, windowDays), [tcData, idxs, windowDays]);
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 18, alignItems: "start" }}>
@@ -535,7 +532,7 @@ function Lens2({ idxs, windowDays, hub }) {
           Kho sort: <b style={{ color: "#33D6C0" }}>{hub === "__ALL__" ? "Tất cả 3 kho" : hub}</b> · TB kg/ngày <b>{windowDays} ngày</b> · kho ≥80% tải đi thẳng riêng, còn lại ghép multi-drop tối đa 3 điểm.
         </p>
         {visibleCities.map((city) => {
-          const items = tcAvgByWarehouse(idxs, city, windowDays);
+          const items = tcAvgByWarehouse(tcData, idxs, city, windowDays);
           const { direct, groups } = multidrop(items, MAX_STOPS);
           const cityClients = provStats.clients[city] || [];
           return (
@@ -567,7 +564,15 @@ function Lens2({ idxs, windowDays, hub }) {
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
-export default function TabTachTrip() {
+export default function TabTachTrip({ tcData }) {
+  if (!tcData || !tcData.rows?.day?.length) {
+    return (
+      <div style={{ padding: 40, textAlign: "center", color: "#5A6478" }}>
+        <div style={{ fontSize: 32, marginBottom: 12 }}>🗺️</div>
+        <div style={{ fontSize: 14 }}>Đang tải dữ liệu Tách chuyến từ Google Sheets...</div>
+      </div>
+    );
+  }
   const [lanePriorityFilter, setLanePriorityFilter] = useState("__ALL__");
   const [hub, setHub] = useState("__ALL__");
   const [lens, setLens] = useState("lens4");
@@ -594,8 +599,8 @@ export default function TabTachTrip() {
     return [...rows].sort((a, b) => (order[a.priority] - order[b.priority]) || (b.kg30d - a.kg30d));
   }, [lanePriorityFilter]);
 
-  // TC filtered indices
-  const idxs = useMemo(() => tcFilteredIdx(windowDays, hub), [windowDays, hub]);
+  // TC filtered indices (live from GSheet)
+  const idxs = useMemo(() => tcFilteredIdx(tcData, windowDays, hub), [tcData, windowDays, hub]);
 
   const panelStyle = {
     background: "#141C2B",
@@ -673,7 +678,7 @@ export default function TabTachTrip() {
           🧭 Góc nhìn gom tuyến — chọn cách nhìn phù hợp với cách bạn muốn vận hành
         </h3>
         <p style={{ fontSize: 12, color: "#8C99AE", margin: "0 0 14px" }}>
-          Dữ liệu tĩnh tính từ file Excel Raw · chỉ tính đơn GTC (status=delivered) · đã loại Aqua B2B + LG Pantos · mỗi chuyến multi-drop tối đa 3 điểm dừng · không phụ thuộc filter tháng/dự án phía trên
+          Dữ liệu <b>live từ Google Sheets</b> (sheet Raw) · chỉ tính đơn status=delivered · đã loại Aqua B2B + LG Pantos · mỗi chuyến multi-drop tối đa 3 điểm dừng · tự động cập nhật khi data mới được đẩy vào GSheet
         </p>
 
         {/* Controls */}
@@ -720,9 +725,9 @@ export default function TabTachTrip() {
 
         {/* Lens content */}
         <div style={{ minHeight: 300 }}>
-          {lens === "lens4" && <Lens4 idxs={idxs} windowDays={windowDays} hub={hub} />}
-          {lens === "lens3" && <Lens3 idxs={idxs} windowDays={windowDays} hub={hub} />}
-          {lens === "lens2" && <Lens2 idxs={idxs} windowDays={windowDays} hub={hub} />}
+          {lens === "lens4" && <Lens4 tcData={tcData} idxs={idxs} windowDays={windowDays} hub={hub} />}
+          {lens === "lens3" && <Lens3 tcData={tcData} idxs={idxs} windowDays={windowDays} hub={hub} />}
+          {lens === "lens2" && <Lens2 tcData={tcData} idxs={idxs} windowDays={windowDays} hub={hub} />}
         </div>
       </div>
     </div>
