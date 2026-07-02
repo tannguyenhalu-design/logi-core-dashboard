@@ -82,6 +82,7 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [selectedProjects, setSelectedProjects] = useState([]);
+  const [filterMode, setFilterMode] = useState("pickup"); // 'pickup' | 'delivered'
   const [dashData, setDashData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filtering, setFiltering] = useState(false);
@@ -107,7 +108,7 @@ export default function DashboardPage() {
   }, []);
 
   // ── Apply all transforms client-side (instant, no API call) ──
-  const applyTransforms = useCallback((raw, months, projects) => {
+  const applyTransforms = useCallback((raw, months, projects, fMode) => {
     if (!raw) return;
     setFiltering(true);
     setTimeout(() => {
@@ -116,7 +117,7 @@ export default function DashboardPage() {
         const pFilter  = user.role === "client" && user.project
           ? [user.project]
           : projects.length > 0 ? projects : null;
-        const filters  = { months: mFilter, projects: pFilter };
+        const filters  = { months: mFilter, projects: pFilter, filterMode: fMode || "pickup" };
 
         const ltlData      = transformLTL(raw.ltl, filters);
         const ftlData      = transformFTL(raw.ftl, raw.masterVehicle, filters);
@@ -152,10 +153,11 @@ export default function DashboardPage() {
   }, []);
 
   // Filter change: re-transform client-side (no API call, instant)
+  // Filter/mode change: re-transform client-side (no API call, instant)
   useEffect(() => {
-    if (rawCache) applyTransforms(rawCache, selectedMonths, selectedProjects);
+    if (rawCache) applyTransforms(rawCache, selectedMonths, selectedProjects, filterMode);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonths, selectedProjects]);
+  }, [selectedMonths, selectedProjects, filterMode]);
 
   const allProjects = dashData
     ? [...new Set([
@@ -267,6 +269,8 @@ export default function DashboardPage() {
               availableProjects={allProjects}
               userRole={user.role}
               userProject={user.project}
+              filterMode={filterMode}
+              onFilterModeChange={setFilterMode}
             />
 
             {/* Live indicator */}

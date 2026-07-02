@@ -110,12 +110,43 @@ export default function FilterBar({
   selectedMonths, onMonthsChange,
   selectedProjects, onProjectsChange,
   availableProjects, userRole, userProject,
+  filterMode, onFilterModeChange,
 }) {
   const projectOptions = availableProjects.map((p) => ({ value: p, label: p }));
   const isClientLocked = userRole === "client";
 
   return (
     <div className="filter-bar">
+      {/* Filter mode toggle */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 0,
+        background: "rgba(255,255,255,0.05)", borderRadius: 8,
+        border: "1px solid var(--border)", overflow: "hidden", flexShrink: 0,
+      }}>
+        {[
+          { value: "pickup",    label: "Ngày lấy hàng" },
+          { value: "delivered", label: "Ngày giao" },
+        ].map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => onFilterModeChange(opt.value)}
+            style={{
+              padding: "6px 12px", fontSize: 12, border: "none", cursor: "pointer",
+              fontFamily: "inherit", fontWeight: filterMode === opt.value ? 600 : 400,
+              background: filterMode === opt.value
+                ? (opt.value === "delivered" ? "rgba(16,185,129,0.2)" : "rgba(59,130,246,0.2)")
+                : "transparent",
+              color: filterMode === opt.value
+                ? (opt.value === "delivered" ? "var(--green)" : "var(--blue)")
+                : "var(--text-muted)",
+              transition: "all 0.15s",
+            }}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
       <MultiSelect
         label="Tháng"
         options={MONTHS}
