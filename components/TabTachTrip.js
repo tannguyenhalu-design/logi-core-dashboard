@@ -200,7 +200,15 @@ function VietnamMap({ highlightProvinces = [], colorMap = {}, onProvinceClick, h
       {highlightProvinces.map((name) => {
         const pt = CENTROIDS[name];
         if (!pt) return null;
-        return <circle key={`dot-${name}`} cx={pt[0]} cy={pt[1]} r="5" fill="#fff" stroke="#33D6C0" strokeWidth="2" />;
+        return (
+          <g key={`dot-${name}`}>
+            <circle cx={pt[0]} cy={pt[1]} r="7" fill="rgba(51, 214, 192, 0.4)">
+              <animate attributeName="r" values="4;11;4" dur="2.4s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.8;0.2;0.8" dur="2.4s" repeatCount="indefinite" />
+            </circle>
+            <circle cx={pt[0]} cy={pt[1]} r="4" fill="#ffffff" stroke="#33D6C0" strokeWidth="1.5" />
+          </g>
+        );
       })}
       {/* Corridor route lines */}
       {Object.entries(corridorGroups).map(([corridorName, { direct, groups, hub, color }]) => {
@@ -267,6 +275,7 @@ function MultidropGroup({ group, idx, label = "Xe multi-drop" }) {
 function Lens4({ tcData, idxs, windowDays, hub }) {
   const [filterVal, setFilterVal] = useState("__ALL__");
   const [highlightProv, setHighlightProv] = useState(null);
+  const [hoveredProv, setHoveredProv] = useState(null);
   const tableRef = useRef(null);
 
   const provStats = useMemo(() => tcAvgByProvince(tcData, idxs, windowDays), [tcData, idxs, windowDays]);
@@ -291,12 +300,20 @@ function Lens4({ tcData, idxs, windowDays, hub }) {
   const colorMap = useMemo(() => {
     const m = {};
     rows.forEach((r) => {
-      if (r.recommend === "Nên gom 2 ngày & tách") m[r.province] = "#33D6C0";
-      else if (r.recommend === "Đã đủ tải mỗi ngày") m[r.province] = "#5B8CFF";
-      else m[r.province] = "#3A4458";
+      if (r.province === hoveredProv) {
+        m[r.province] = "var(--cyan)"; // Glow cyan on hover
+      } else if (r.province === highlightProv) {
+        m[r.province] = "#ffffff"; // Highlight selected in white
+      } else if (r.recommend === "Nên gom 2 ngày & tách") {
+        m[r.province] = "#33D6C0";
+      } else if (r.recommend === "Đã đủ tải mỗi ngày") {
+        m[r.province] = "#5B8CFF";
+      } else {
+        m[r.province] = "#3A4458";
+      }
     });
     return m;
-  }, [rows]);
+  }, [rows, hoveredProv, highlightProv]);
 
   const hubLabel = hub === "__ALL__" ? "Tất cả 3 kho" : hub;
 
@@ -305,7 +322,7 @@ function Lens4({ tcData, idxs, windowDays, hub }) {
     const el = tableRef.current?.querySelector(`[data-prov="${name}"]`);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.style.background = "rgba(51,214,192,.08)";
+      el.style.background = "rgba(51,214,192,.18)";
       setTimeout(() => { el.style.background = ""; }, 1500);
     }
   };
@@ -363,10 +380,21 @@ function Lens4({ tcData, idxs, windowDays, hub }) {
                 const show2day = r.recommend === "Đã đủ tải mỗi ngày"
                   ? <span style={{ color: "#5A6478" }}>— đã đủ tải</span>
                   : `${r.pct2.toFixed(0)}%`;
+                const isHovered = hoveredProv === r.province;
+                const isSelected = highlightProv === r.province;
                 return (
-                  <tr key={r.province} data-prov={r.province} style={{ transition: "background 0.3s", cursor: "default" }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = "#1B2436"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = ""}
+                  <tr
+                    key={r.province}
+                    data-prov={r.province}
+                    style={{
+                      transition: "background 0.2s, color 0.2s",
+                      cursor: "pointer",
+                      background: isHovered ? "rgba(6, 182, 212, 0.08)" : isSelected ? "rgba(255,255,255,0.04)" : "",
+                      borderLeft: isHovered ? "2px solid var(--cyan)" : isSelected ? "2px solid #ffffff" : "2px solid transparent",
+                    }}
+                    onMouseEnter={() => setHoveredProv(r.province)}
+                    onMouseLeave={() => setHoveredProv(null)}
+                    onClick={() => handleProvinceClick(r.province)}
                   >
                     <td style={{ padding: "9px 10px", borderBottom: "1px solid #293345", fontSize: 11.5, color: "#8C99AE" }}>{originText}</td>
                     <td style={{ padding: "9px 10px", borderBottom: "1px solid #293345" }}><b>{r.province}</b></td>
@@ -577,6 +605,7 @@ export default function TabTachTrip({ tcData }) {
   const [hub, setHub] = useState("__ALL__");
   const [lens, setLens] = useState("lens4");
   const [windowDays, setWindowDays] = useState(30);
+  const [volumeMultiplier, setVolumeMultiplier] = useState(1.0);
 
   const HUBS = [
     { value: "__ALL__", label: "🏭 Tất cả 3 kho" },
@@ -591,8 +620,54 @@ export default function TabTachTrip({ tcData }) {
     { value: "lens2", label: "Góc nhìn 3 — Thành phố, gộp đa điểm" },
   ];
 
-  // Lane table data — live từ GSheet (tcData.laneData)
-  const liveLanes = tcData.laneData || [];
+  // Giả lập dữ liệu dựa trên hệ số sản lượng (What-If Simulation)
+  const activeTcData = useMemo(() => {
+    if (!tcData) return null;
+    if (volumeMultiplier === 1.0) return tcData;
+
+    // Nhân khối lượng đơn hàng thô
+    const simulatedRows = {
+      ...tcData.rows,
+      w: tcData.rows.w.map((weight) => weight * volumeMultiplier),
+    };
+
+    // Recalculate lane metrics (avg_kg_day, peak_kg_day, priorities)
+    const THRESHOLD_FTL = 1000000;
+    const THRESHOLD_GOM = 500000;
+    const MIN_ACTIVE_DAYS = 20;
+
+    const simulatedLaneData = (tcData.laneData || []).map((lane) => {
+      const avg_kg_day = Math.round(lane.avg_kg_day * volumeMultiplier);
+      const peak_kg_day = Math.round(lane.peak_kg_day * volumeMultiplier);
+      const kg30d = Math.round(lane.kg30d * volumeMultiplier);
+
+      let priority;
+      if (avg_kg_day >= 1000 && lane.days_active >= MIN_ACTIVE_DAYS) {
+        priority = "Pilot FTL thường xuyên";
+      } else if (avg_kg_day >= 500) {
+        priority = "Lên lịch gom chuyến";
+      } else {
+        priority = "Theo dõi ngày cao điểm";
+      }
+
+      return {
+        ...lane,
+        kg30d,
+        avg_kg_day,
+        peak_kg_day,
+        priority,
+      };
+    });
+
+    return {
+      ...tcData,
+      laneData: simulatedLaneData,
+      rows: simulatedRows,
+    };
+  }, [tcData, volumeMultiplier]);
+
+  // Lane table data — live hoặc simulated
+  const liveLanes = activeTcData?.laneData || [];
   const laneRows = useMemo(() => {
     let rows = liveLanes;
     if (lanePriorityFilter !== "__ALL__") rows = rows.filter((r) => r.priority === lanePriorityFilter);
@@ -600,8 +675,8 @@ export default function TabTachTrip({ tcData }) {
     return [...rows].sort((a, b) => (order[a.priority] - order[b.priority]) || (b.kg30d - a.kg30d));
   }, [liveLanes, lanePriorityFilter]);
 
-  // TC filtered indices (live from GSheet)
-  const idxs = useMemo(() => tcFilteredIdx(tcData, windowDays, hub), [tcData, windowDays, hub]);
+  // TC filtered indices (live từ GSheet hoặc simulated)
+  const idxs = useMemo(() => tcFilteredIdx(activeTcData, windowDays, hub), [activeTcData, windowDays, hub]);
 
   const panelStyle = {
     background: "#141C2B",
@@ -613,6 +688,61 @@ export default function TabTachTrip({ tcData }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+      {/* ── What-If Simulation Control Panel ── */}
+      <div style={{
+        ...panelStyle,
+        borderLeft: "3px solid var(--cyan)",
+        background: "linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, rgba(59, 130, 246, 0.02) 100%)",
+        boxShadow: "0 8px 32px 0 rgba(6, 182, 212, 0.05)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+          <div>
+            <h3 style={{ fontSize: 14, margin: "0 0 4px", color: "var(--cyan)", display: "flex", alignItems: "center", gap: 8, fontWeight: 700 }}>
+              <span>🔮</span> Giả lập Sản lượng Vận hành (What-If Simulation)
+            </h3>
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: 0 }}>
+              Kéo thanh trượt để tăng/giảm khối lượng hàng LTL. Hệ thống tự động tính toán lại mức gom và điểm hòa vốn FTL.
+            </p>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, background: "rgba(0,0,0,0.2)", padding: "8px 16px", borderRadius: 8, border: "1px solid var(--border)" }}>
+            <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 500 }}>Sản lượng LTL:</span>
+            <input
+              type="range"
+              min="0.5"
+              max="2.0"
+              step="0.05"
+              value={volumeMultiplier}
+              onChange={(e) => setVolumeMultiplier(parseFloat(e.target.value))}
+              style={{ width: 140, cursor: "pointer", accentColor: "var(--cyan)" }}
+            />
+            <span style={{
+              fontSize: 13,
+              fontFamily: "monospace",
+              fontWeight: 700,
+              color: volumeMultiplier === 1.0 ? "var(--text-primary)" : volumeMultiplier > 1.0 ? "var(--green)" : "var(--red)"
+            }}>
+              {Math.round(volumeMultiplier * 100)}% {volumeMultiplier === 1.0 ? "" : volumeMultiplier > 1.0 ? "📈" : "📉"}
+            </span>
+            {volumeMultiplier !== 1.0 && (
+              <button
+                onClick={() => setVolumeMultiplier(1.0)}
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "none",
+                  borderRadius: 4,
+                  color: "var(--text-secondary)",
+                  fontSize: 11,
+                  padding: "4px 8px",
+                  cursor: "pointer",
+                  transition: "all 0.2s"
+                }}
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
       {/* ── Tầng 1: Tuyến cố định ── */}
       <div style={{ ...panelStyle, borderLeft: "3px solid #5B8CFF" }}>
         <h3 style={{ fontSize: 14, margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif" }}>
