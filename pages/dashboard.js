@@ -316,7 +316,7 @@ export default function DashboardPage() {
             {!loading && !error && dashData && (
 
               <>
-                {activeTab === "overview"  && <TabOverview    overview={dashData.overview} />}
+                {activeTab === "overview"  && <TabOverview    overview={dashData.overview} ltlFiltered={dashData.ltl} />}
                 {activeTab === "ltl"       && <TabLTL         data={dashData.ltl} />}
                 {activeTab === "ftl"       && <TabFTL         data={dashData.ftl} />}
                 {activeTab === "tachtrip"  && <TabTachTrip    tcData={dashData.tachTrip} />}

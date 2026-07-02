@@ -8,7 +8,7 @@ function fmt(n, d = 0) {
   return Number(n).toLocaleString("vi-VN", { maximumFractionDigits: d });
 }
 
-export default function TabOverview({ overview }) {
+export default function TabOverview({ overview, ltlFiltered }) {
   if (!overview) return <div className="spinner" />;
   const { ltl, ftl } = overview;
 
@@ -26,6 +26,15 @@ export default function TabOverview({ overview }) {
             sub={`${fmt(ltl?.totalWeight)} KG`}
             colorClass="text-cyan"
           />
+          {ltlFiltered?.deliveredThisMonthCount !== undefined && (
+            <KpiCard
+              icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>}
+              label="GTC (theo ngày giao)"
+              value={fmt(ltlFiltered.deliveredThisMonthCount)}
+              sub="Tính theo delivered_time"
+              colorClass="text-green"
+            />
+          )}
           <KpiCard
             icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/></svg>}
             label="Ontime Overall"

@@ -312,14 +312,74 @@ export default function TabFTL({ data }) {
         </div>
       </div>
 
-      {/* Top 10 Delivery Locations */}
+      {/* Trip detail table */}
       <div className="chart-panel">
         <div className="chart-panel-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-          Top 10 Điểm Giao Có Số Chuyến Nhiều Nhất
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+          Chi Tiết Từng Chuyến — {fmt(data.totalTrips)} chuyến / {(data.trips || []).reduce((s, t) => s + (t.locations?.length || 0), 0)} điểm giao
         </div>
-        <div style={{ height: 350 }}>
-          <TopLocationsChart top10Locations={data.top10Locations || []} />
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--border)", color: "var(--text-muted)", textAlign: "left" }}>
+                <th style={{ padding: "8px 10px", fontWeight: 600 }}>Mã chuyến</th>
+                <th style={{ padding: "8px 10px", fontWeight: 600 }}>Dự án</th>
+                <th style={{ padding: "8px 10px", fontWeight: 600 }}>Ngày xuất</th>
+                <th style={{ padding: "8px 10px", fontWeight: 600 }}>Loại xe</th>
+                <th style={{ padding: "8px 10px", fontWeight: 600 }}>Biển số</th>
+                <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "center" }}>Đơn hàng</th>
+                <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "center" }}>Điểm giao</th>
+                <th style={{ padding: "8px 10px", fontWeight: 600 }}>Tỉnh/Thành</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(data.trips || []).sort((a, b) => (b.date || "").localeCompare(a.date || "")).map((t, i) => (
+                <tr key={i} style={{
+                  borderBottom: "1px solid rgba(255,255,255,0.04)",
+                  background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)",
+                }}>
+                  <td style={{ padding: "8px 10px", color: "var(--blue)", fontWeight: 600, fontFamily: "monospace" }}>
+                    {t.trip_code}
+                  </td>
+                  <td style={{ padding: "8px 10px", color: "var(--text-primary)" }}>
+                    <span style={{
+                      fontSize: 11, padding: "2px 7px", borderRadius: 10,
+                      background: "rgba(139,92,246,0.15)", color: "#a78bfa", border: "1px solid rgba(139,92,246,0.2)",
+                    }}>{t.client || "—"}</span>
+                  </td>
+                  <td style={{ padding: "8px 10px", color: "var(--text-secondary)" }}>
+                    {t.date ? t.date.split("-").reverse().join("/") : "—"}
+                  </td>
+                  <td style={{ padding: "8px 10px", color: "var(--text-secondary)" }}>{t.loai_xe}</td>
+                  <td style={{ padding: "8px 10px", color: "var(--text-muted)", fontFamily: "monospace", fontSize: 11 }}>
+                    {t.plate}
+                    {t.plateReason && (
+                      <span title={t.plateReason} style={{ marginLeft: 4, color: "var(--amber)", cursor: "help" }}>⚠️</span>
+                    )}
+                  </td>
+                  <td style={{ padding: "8px 10px", textAlign: "center", color: "var(--text-secondary)" }}>
+                    {t.order_count}
+                  </td>
+                  <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                    <span style={{
+                      fontWeight: 700, fontSize: 13,
+                      color: (t.locations?.length || 0) > 2 ? "var(--amber)" : "var(--text-secondary)",
+                    }}>
+                      {t.locations?.length || 0}
+                    </span>
+                  </td>
+                  <td style={{ padding: "8px 10px", color: "var(--text-muted)", fontSize: 11 }}>
+                    {(t.provinces || []).join(", ") || "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {(!data.trips || data.trips.length === 0) && (
+            <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>
+              Không có chuyến nào trong kỳ này
+            </div>
+          )}
         </div>
       </div>
     </div>
