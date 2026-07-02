@@ -233,6 +233,71 @@ function ProvinceAlerts({ provinceAlerts }) {
   );
 }
 
+// ── Project Comparison Chart (trips side-by-side) ──
+function ProjectCompareChart({ projectStats }) {
+  const ref = useRef(null);
+  const projs = Object.keys(projectStats || {}).sort((a, b) => (projectStats[b]?.trips || 0) - (projectStats[a]?.trips || 0));
+  const palette = [
+    COLORS.cyan, COLORS.purple, COLORS.green, COLORS.amber, COLORS.red,
+    "#ec4899", "#06b6d4", "#84cc16", "#f97316",
+  ];
+
+  useChart(ref, () => ({
+    type: "bar",
+    data: {
+      labels: projs,
+      datasets: [
+        {
+          label: "Số chuyến",
+          data: projs.map(p => projectStats[p]?.trips || 0),
+          backgroundColor: projs.map((_, i) => palette[i % palette.length]),
+          borderRadius: 5,
+          yAxisID: "y",
+          datalabels: {
+            display: true, color: "#fff",
+            font: { weight: "bold", size: 11 },
+            anchor: "end", align: "start", offset: 4,
+            formatter: v => v + " ch.",
+          },
+        },
+        {
+          label: "TB điểm giao/chuyến",
+          data: projs.map(p => projectStats[p]?.avgLocationsPerTrip || 0),
+          backgroundColor: "transparent",
+          borderColor: COLORS.amber,
+          borderWidth: 2,
+          type: "line",
+          yAxisID: "y2",
+          pointBackgroundColor: COLORS.amber,
+          pointRadius: 5,
+          tension: 0.3,
+          datalabels: {
+            display: true, color: COLORS.amber,
+            font: { weight: "bold", size: 10 },
+            anchor: "end", align: "top",
+            formatter: v => v.toFixed(1),
+          },
+        },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: 20 } },
+      plugins: {
+        legend: { position: "bottom", labels: { color: "#94a3b8", boxWidth: 12 } },
+        datalabels: { display: true },
+      },
+      scales: {
+        y:  { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#94a3b8" }, title: { display: true, text: "Số chuyến", color: "#94a3b8", font: { size: 10 } } },
+        y2: { position: "right", grid: { display: false }, min: 0, title: { display: true, text: "TB điểm/chuyến", color: COLORS.amber, font: { size: 10 } }, ticks: { color: COLORS.amber } },
+        x:  { grid: { display: false } },
+      },
+    },
+  }), [projectStats]);
+
+  return <canvas ref={ref} />;
+}
+
 export default function TabFTL({ data }) {
   if (!data) return <div className="spinner" />;
 
@@ -262,10 +327,10 @@ export default function TabFTL({ data }) {
           colorClass="text-green"
         />
         <KpiCard
-          icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>}
-          label="TB Chuyến / Ngày"
-          value={data.avgTripsPerDay}
-          sub={`Dựa trên ${Object.keys(data.tripsByDay || {}).length} ngày`}
+          icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>}
+          label="TB Điểm Giao / Chuyến"
+          value={data.avgLocationsPerTrip ?? "—"}
+          sub={`Trên tổng ${(data.trips||[]).reduce((s,t)=>s+(t.locations?.length||0),0)} điểm`}
           colorClass="text-amber"
         />
       </div>
@@ -292,23 +357,25 @@ export default function TabFTL({ data }) {
         </div>
       </div>
 
-      {/* Vehicle donut + province alerts */}
+      {/* Project comparison + vehicle */}
       <div className="grid-2">
         <div className="chart-panel">
           <div className="chart-panel-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/></svg>
-            Tỷ trọng Loại Xe Sử Dụng
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+            So Sánh Số Chuyến theo Dự Án + TB Điểm Giao
           </div>
-          <div style={{ height: 250 }}>
-            <VehicleDonut vehicleTypeDist={data.vehicleTypeDist || {}} />
+          <div style={{ height: 280 }}>
+            <ProjectCompareChart projectStats={data.projectStats || {}} />
           </div>
         </div>
         <div className="chart-panel">
           <div className="chart-panel-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
-            Cảnh Báo Tỉnh Tăng Đột Biến (7 ngày)
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/></svg>
+            Tỷ Trọng Loại Xe Sử Dụng
           </div>
-          <ProvinceAlerts provinceAlerts={data.provinceAlerts} />
+          <div style={{ height: 280 }}>
+            <VehicleDonut vehicleTypeDist={data.vehicleTypeDist || {}} />
+          </div>
         </div>
       </div>
 

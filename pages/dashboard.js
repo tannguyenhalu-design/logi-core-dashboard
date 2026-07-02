@@ -8,6 +8,10 @@ import { useSession, signOut } from "next-auth/react";
 import Head from "next/head";
 import FilterBar from "../components/FilterBar";
 import dynamic from "next/dynamic";
+import { transformLTL } from "../lib/transform-ltl";
+import { transformFTL } from "../lib/transform-ftl";
+import { transformTachTrip } from "../lib/transform-tach-trip";
+import { transformAIInsights } from "../lib/transform-ai-insights";
 
 const TabOverview   = dynamic(() => import("../components/TabOverview"),   { ssr: false });
 const TabLTL        = dynamic(() => import("../components/TabLTL"),        { ssr: false });
@@ -108,11 +112,6 @@ export default function DashboardPage() {
     setFiltering(true);
     setTimeout(() => {
       try {
-        const { transformLTL }       = require("../lib/transform-ltl");
-        const { transformFTL }       = require("../lib/transform-ftl");
-        const { transformTachTrip }  = require("../lib/transform-tach-trip");
-        const { transformAIInsights }= require("../lib/transform-ai-insights");
-
         const mFilter  = months.length > 0 ? months : null;
         const pFilter  = user.role === "client" && user.project
           ? [user.project]

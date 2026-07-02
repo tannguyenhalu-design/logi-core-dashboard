@@ -145,17 +145,22 @@ function OntimeProjChart({ ontimeByProject }) {
     },
     options: {
       responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: 8 } },
       plugins: {
         legend: { display: false },
         datalabels: {
-          display: true, color: "#fff",
-          font: { weight: "bold", size: 11 },
+          display: true,
+          color: (ctx) => ctx.dataset.data[ctx.dataIndex] > 50 ? "#fff" : "#fff",
+          font: { weight: "bold", size: 10 },
           formatter: (v) => v + "%",
-          anchor: "end", align: "top",
+          anchor: "end",
+          align: "start",   // inside top of bar (no overflow)
+          offset: 4,
+          clamp: true,
         },
       },
       scales: {
-        y: { min: 0, max: 100, grid: { color: "rgba(255,255,255,0.05)" }, ticks: { callback: (v) => v + "%" } },
+        y: { min: 0, max: 105, grid: { color: "rgba(255,255,255,0.05)" }, ticks: { callback: (v) => v <= 100 ? v + "%" : "" } },
         x: { grid: { display: false } },
       },
     },
