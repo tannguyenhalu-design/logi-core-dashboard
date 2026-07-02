@@ -80,35 +80,88 @@ export default function DashboardPage() {
   const [selectedProjects, setSelectedProjects] = useState([]);
   const [dashData, setDashData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [filtering, setFiltering] = useState(false);
   const [error, setError] = useState(null);
+  const [rawCache, setRawCache] = useState(null);
 
-  const fetchData = useCallback(async () => {
+  // ── Fetch raw data ONCE on mount (or manual refresh) ──
+  const fetchRaw = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams();
-      if (selectedMonths.length > 0) params.set("months", selectedMonths.join(","));
-      if (selectedProjects.length > 0) params.set("projects", selectedProjects.join(","));
-      const res = await fetch(`/api/data?${params.toString()}`);
+      const res = await fetch("/api/rawdata");
       if (!res.ok) throw new Error(`API error ${res.status}`);
-      const data = await res.json();
-      setDashData(data);
+      const raw = await res.json();
+      setRawCache(raw);
+      return raw;
     } catch (e) {
       setError(e.message);
+      return null;
     } finally {
       setLoading(false);
     }
-  }, [selectedMonths, selectedProjects]);
+  }, []);
 
-  // Re-fetch whenever filters change
+  // ── Apply all transforms client-side (instant, no API call) ──
+  const applyTransforms = useCallback((raw, months, projects) => {
+    if (!raw) return;
+    setFiltering(true);
+    setTimeout(() => {
+      try {
+        const { transformLTL }       = require("../lib/transform-ltl");
+        const { transformFTL }       = require("../lib/transform-ftl");
+        const { transformTachTrip }  = require("../lib/transform-tach-trip");
+        const { transformAIInsights }= require("../lib/transform-ai-insights");
+
+        const mFilter  = months.length > 0 ? months : null;
+        const pFilter  = user.role === "client" && user.project
+          ? [user.project]
+          : projects.length > 0 ? projects : null;
+        const filters  = { months: mFilter, projects: pFilter };
+
+        const ltlData      = transformLTL(raw.ltl, filters);
+        const ftlData      = transformFTL(raw.ftl, raw.masterVehicle, filters);
+        const tachTripData = transformTachTrip(raw.ltl);
+        const aiInsights   = transformAIInsights(raw.ltl);
+        const overviewLTL  = transformLTL(raw.ltl, {});
+        const overviewFTL  = transformFTL(raw.ftl, raw.masterVehicle, {});
+
+        setDashData({
+          ok: true,
+          user:    { role: user.role || "manager", project: user.project || null },
+          filters,
+          ltl:     ltlData,
+          ftl:     ftlData,
+          tachTrip:   tachTripData,
+          aiInsights,
+          overview: {
+            ltl: { totalOrders: overviewLTL.totalOrders, totalWeight: overviewLTL.totalWeight, ontimePct: overviewLTL.ontimePct, totalBroken: overviewLTL.totalBroken },
+            ftl: { totalTrips:  overviewFTL.totalTrips,  totalOrders: overviewFTL.totalOrders,  totalWeight: overviewFTL.totalWeight },
+            allProjectsLTL: ltlData.allProjects || [],
+            allProjectsFTL: ftlData.allProjects || [],
+          },
+        });
+      } catch(e) { setError(e.message); }
+      finally    { setFiltering(false); }
+    }, 0);
+  }, [user]);
+
+  // Mount: fetch raw once
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchRaw().then(raw => { if (raw) applyTransforms(raw, [], []); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Filter change: re-transform client-side (no API call, instant)
+  useEffect(() => {
+    if (rawCache) applyTransforms(rawCache, selectedMonths, selectedProjects);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMonths, selectedProjects]);
 
   const allProjects = dashData
     ? [...new Set([
-        ...(dashData.ltl?.allProjects || []),
-        ...(dashData.ftl?.allProjects || []),
+        ...(dashData.overview?.allProjectsLTL || []),
+        ...(dashData.overview?.allProjectsFTL || []),
       ])].sort()
     : user.project ? [user.project] : [];
 
@@ -229,10 +282,25 @@ export default function DashboardPage() {
           </header>
 
           {/* Dashboard body */}
-          <main style={{ flex: 1, overflowY: "auto", padding: 24 }}>
+          <main style={{ flex: 1, overflowY: "auto", padding: 24, position: "relative" }}>
+            {/* Full-page spinner: first load only */}
             {loading && (
               <div style={{ display: "flex", justifyContent: "center", paddingTop: 60 }}>
                 <div className="spinner" />
+              </div>
+            )}
+
+            {/* Lightweight filter indicator (data still visible) */}
+            {filtering && !loading && (
+              <div style={{
+                position: "absolute", top: 12, right: 24, zIndex: 10,
+                display: "flex", alignItems: "center", gap: 6,
+                fontSize: 11, color: "var(--blue)",
+                background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.2)",
+                borderRadius: 20, padding: "4px 10px",
+              }}>
+                <div className="spinner" style={{ width: 10, height: 10 }} />
+                Đang lọc...
               </div>
             )}
 
@@ -246,6 +314,7 @@ export default function DashboardPage() {
             )}
 
             {!loading && !error && dashData && (
+
               <>
                 {activeTab === "overview"  && <TabOverview    overview={dashData.overview} />}
                 {activeTab === "ltl"       && <TabLTL         data={dashData.ltl} />}
