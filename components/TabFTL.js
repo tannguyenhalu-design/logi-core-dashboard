@@ -1,7 +1,7 @@
 /**
  * components/TabFTL.js — FTL Dashboard Tab
  */
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
 import Chart from "chart.js/auto";
 import ChartDataLabels from "chartjs-plugin-datalabels";
 import KpiCard from "./KpiCard";
@@ -285,10 +285,6 @@ function ProjectCompareChart({ projectStats }) {
       layout: { padding: { top: 20 } },
       plugins: {
         legend: { position: "bottom", labels: { color: "#94a3b8", boxWidth: 12 } },
-        datalabels: { display: true },
-      },
-      scales: {
-        y:  { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#94a3b8" }, title: { display: true, text: "Số chuyến", color: "#94a3b8", font: { size: 10 } } },
         y2: { position: "right", grid: { display: false }, min: 0, title: { display: true, text: "TB điểm/chuyến", color: COLORS.amber, font: { size: 10 } }, ticks: { color: COLORS.amber } },
         x:  { grid: { display: false } },
       },
@@ -299,38 +295,118 @@ function ProjectCompareChart({ projectStats }) {
 }
 
 export default function TabFTL({ data }) {
+  const [selVehicles, setSelVehicles] = useState([]);
   if (!data) return <div className="spinner" />;
+
+  // ── Vehicle filter: derived from xe_ghn_cap on trips ──
+  const allVehicleTypes = data.allVehicleTypes || [];
+
+  const filteredTrips = useMemo(() => {
+    if (!selVehicles.length) return data.trips || [];
+    return (data.trips || []).filter(t => selVehicles.includes(t.xe_ghn_cap));
+  }, [data.trips, selVehicles]);
+
+  // Recompute stats from filteredTrips
+  const fTotalTrips = filteredTrips.length;
+  const fTotalLocations = filteredTrips.reduce((s, t) => s + (t.locations?.length || 0), 0);
+  const fAvgLoc = fTotalTrips > 0 ? Math.round((fTotalLocations / fTotalTrips) * 10) / 10 : 0;
+  const fProjectStats = useMemo(() => {
+    const ps = {};
+    filteredTrips.forEach(t => {
+      if (!ps[t.client]) ps[t.client] = { trips: 0, totalLocations: 0 };
+      ps[t.client].trips++;
+      ps[t.client].totalLocations += (t.locations?.length || 0);
+    });
+    Object.keys(ps).forEach(p => {
+      const s = ps[p];
+      s.avgLocationsPerTrip = s.trips > 0 ? Math.round((s.totalLocations / s.trips) * 10) / 10 : 0;
+    });
+    return ps;
+  }, [filteredTrips]);
+
+  const toggleVehicle = (v) =>
+    setSelVehicles(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]);
+
+  const vehicleColor = { "1T9":"#06b6d4", "2.5T":"#a78bfa", "3.5T":"#f59e0b", "5T":"#3b82f6", "7T":"#10b981", "8T":"#8b5cf6", "10T":"#f43f5e", "15T":"#ec4899" };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* ── Vehicle type filter strip ── */}
+      {allVehicleTypes.length > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
+          padding: "10px 14px", borderRadius: 10,
+          background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)",
+        }}>
+          <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase" }}>
+            Loại xe:
+          </span>
+          <button
+            onClick={() => setSelVehicles([])}
+            style={{
+              padding: "4px 12px", borderRadius: 20, fontSize: 12, cursor: "pointer",
+              border: "1px solid var(--border)", fontFamily: "inherit",
+              background: selVehicles.length === 0 ? "rgba(59,130,246,0.2)" : "transparent",
+              color: selVehicles.length === 0 ? "var(--blue)" : "var(--text-muted)",
+              fontWeight: selVehicles.length === 0 ? 600 : 400,
+              transition: "all 0.15s",
+            }}
+          >
+            Tất cả ({fmt(data.totalTrips)} chuyến)
+          </button>
+          {allVehicleTypes.map(v => {
+            const count = (data.trips || []).filter(t => t.xe_ghn_cap === v).length;
+            const active = selVehicles.includes(v);
+            const col = vehicleColor[v] || "#94a3b8";
+            return (
+              <button key={v} onClick={() => toggleVehicle(v)} style={{
+                padding: "4px 12px", borderRadius: 20, fontSize: 12, cursor: "pointer",
+                fontFamily: "inherit", fontWeight: active ? 600 : 400,
+                border: `1px solid ${active ? col : "var(--border)"}`,
+                background: active ? `${col}22` : "transparent",
+                color: active ? col : "var(--text-muted)",
+                transition: "all 0.15s",
+              }}>
+                🚛 {v} <span style={{ opacity: 0.7 }}>({count})</span>
+              </button>
+            );
+          })}
+          {selVehicles.length > 0 && (
+            <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 4 }}>
+              → Lọc: {fmt(fTotalTrips)} chuyến
+            </span>
+          )}
+        </div>
+      )}
+
       {/* KPI */}
       <div className="grid-4">
         <KpiCard
           icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>}
-          label="Tổng Chuyến (FTL)"
-          value={fmt(data.totalTrips)}
-          sub={`TB ${data.avgTripsPerDay} chuyến/ngày`}
+          label={selVehicles.length ? `Chuyến ${selVehicles.join(" / ")}` : "Tổng Chuyến (FTL)"}
+          value={fmt(fTotalTrips)}
+          sub={`/ ${fmt(data.totalTrips)} tổng chuyến`}
           colorClass="text-purple"
         />
         <KpiCard
           icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>}
           label="Tổng Đơn Hàng"
-          value={fmt(data.totalOrders)}
+          value={fmt(filteredTrips.reduce((s,t) => s + (t.order_count || 0), 0))}
           sub="Dedupe theo order_number"
           colorClass="text-cyan"
         />
         <KpiCard
           icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>}
           label="Khối Lượng"
-          value={fmt(data.totalWeight)}
+          value={fmt(filteredTrips.reduce((s,t) => s + (t.weight || 0), 0))}
           sub="KG (dedupe order)"
           colorClass="text-green"
         />
         <KpiCard
           icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>}
           label="TB Điểm Giao / Chuyến"
-          value={data.avgLocationsPerTrip ?? "—"}
-          sub={`Trên tổng ${(data.trips||[]).reduce((s,t)=>s+(t.locations?.length||0),0)} điểm`}
+          value={fAvgLoc}
+          sub={`Trên tổng ${fmt(fTotalLocations)} điểm`}
           colorClass="text-amber"
         />
       </div>
@@ -365,7 +441,7 @@ export default function TabFTL({ data }) {
             So Sánh Số Chuyến theo Dự Án + TB Điểm Giao
           </div>
           <div style={{ height: 280 }}>
-            <ProjectCompareChart projectStats={data.projectStats || {}} />
+            <ProjectCompareChart projectStats={fProjectStats} />
           </div>
         </div>
         <div className="chart-panel">
@@ -383,7 +459,7 @@ export default function TabFTL({ data }) {
       <div className="chart-panel">
         <div className="chart-panel-title">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
-          Chi Tiết Từng Chuyến — {fmt(data.totalTrips)} chuyến / {(data.trips || []).reduce((s, t) => s + (t.locations?.length || 0), 0)} điểm giao
+          Chi Tiết Từng Chuyến — {fmt(fTotalTrips)} chuyến / {fmt(fTotalLocations)} điểm giao
         </div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
@@ -392,7 +468,7 @@ export default function TabFTL({ data }) {
                 <th style={{ padding: "8px 10px", fontWeight: 600 }}>Mã chuyến</th>
                 <th style={{ padding: "8px 10px", fontWeight: 600 }}>Dự án</th>
                 <th style={{ padding: "8px 10px", fontWeight: 600 }}>Ngày xuất</th>
-                <th style={{ padding: "8px 10px", fontWeight: 600 }}>Loại xe</th>
+                <th style={{ padding: "8px 10px", fontWeight: 600 }}>Xe GHN</th>
                 <th style={{ padding: "8px 10px", fontWeight: 600 }}>Biển số</th>
                 <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "center" }}>Đơn hàng</th>
                 <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "center" }}>Điểm giao</th>
@@ -400,7 +476,7 @@ export default function TabFTL({ data }) {
               </tr>
             </thead>
             <tbody>
-              {(data.trips || []).sort((a, b) => (b.date || "").localeCompare(a.date || "")).map((t, i) => (
+              {[...filteredTrips].sort((a, b) => (b.date || "").localeCompare(a.date || "")).map((t, i) => (
                 <tr key={i} style={{
                   borderBottom: "1px solid rgba(255,255,255,0.04)",
                   background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)",
@@ -417,7 +493,14 @@ export default function TabFTL({ data }) {
                   <td style={{ padding: "8px 10px", color: "var(--text-secondary)" }}>
                     {t.date ? t.date.split("-").reverse().join("/") : "—"}
                   </td>
-                  <td style={{ padding: "8px 10px", color: "var(--text-secondary)" }}>{t.loai_xe}</td>
+                  <td style={{ padding: "8px 10px" }}>
+                    <span style={{
+                      fontSize: 11, padding: "2px 8px", borderRadius: 10, fontWeight: 600,
+                      background: `${vehicleColor[t.xe_ghn_cap] || "#94a3b8"}22`,
+                      color: vehicleColor[t.xe_ghn_cap] || "#94a3b8",
+                      border: `1px solid ${vehicleColor[t.xe_ghn_cap] || "#94a3b8"}44`,
+                    }}>{t.xe_ghn_cap || "—"}</span>
+                  </td>
                   <td style={{ padding: "8px 10px", color: "var(--text-muted)", fontFamily: "monospace", fontSize: 11 }}>
                     {t.plate}
                     {t.plateReason && (
