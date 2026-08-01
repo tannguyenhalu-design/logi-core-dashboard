@@ -45,6 +45,7 @@ export default function TabOperations({ rawData }) {
   const [addJob, setAddJob] = useState("");
   const [addSopLink, setAddSopLink] = useState("");
   const [addNotes, setAddNotes] = useState("");
+  const [addVolume, setAddVolume] = useState("");
 
   // Edit project buffer states
   const [editPic, setEditPic] = useState("");
@@ -59,6 +60,7 @@ export default function TabOperations({ rawData }) {
   const [editSopStatus, setEditSopStatus] = useState("");
   const [editKickoffStatus, setEditKickoffStatus] = useState("");
   const [editNotes, setEditNotes] = useState("");
+  const [editVolume, setEditVolume] = useState("");
 
   const fetchProjects = async () => {
     setLoading(true);
@@ -104,6 +106,7 @@ export default function TabOperations({ rawData }) {
     setEditSopStatus(p.sopStatus || "Chưa thực hiện");
     setEditKickoffStatus(p.kickoffStatus || "Chưa thực hiện");
     setEditNotes(p.notes || "");
+    setEditVolume(p.volume || "");
   };
 
   // Submit project creation (Manager only)
@@ -126,6 +129,7 @@ export default function TabOperations({ rawData }) {
           job: addJob.trim() || "Recap onsite",
           sopLink: addSopLink.trim(),
           notes: addNotes.trim(),
+          volume: addVolume.trim(),
         }),
       });
       const json = await res.json();
@@ -139,6 +143,7 @@ export default function TabOperations({ rawData }) {
         setAddJob("");
         setAddSopLink("");
         setAddNotes("");
+        setAddVolume("");
         setShowAddModal(false);
         await fetchProjects();
       }
@@ -174,6 +179,7 @@ export default function TabOperations({ rawData }) {
           sopStatus:     editSopStatus,
           kickoffStatus: editKickoffStatus,
           notes:         editNotes,
+          volume:        editVolume,
         }),
       });
       const json = await res.json();
@@ -355,6 +361,7 @@ export default function TabOperations({ rawData }) {
                 <th style={{ textAlign: "left", padding: "12px 8px" }}>Công Việc</th>
                 <th style={{ textAlign: "left", padding: "12px 8px" }}>Dự Kiến OB</th>
                 <th style={{ textAlign: "right", padding: "12px 8px" }}>Doanh Thu Dự Kiến</th>
+                <th style={{ textAlign: "right", padding: "12px 8px" }}>Dự Kiến Volume</th>
                 <th style={{ textAlign: "center", padding: "12px 8px" }}>Trạng Thái</th>
                 <th style={{ textAlign: "center", padding: "12px 8px" }}>Tác vụ</th>
               </tr>
@@ -395,6 +402,9 @@ export default function TabOperations({ rawData }) {
                     </td>
                     <td style={{ padding: "14px 8px", textAlign: "right", fontWeight: 600 }}>
                       {formatRevenue(p.revenue)}
+                    </td>
+                    <td style={{ padding: "14px 8px", textAlign: "right", color: "var(--text-secondary)" }}>
+                      {p.volume || "—"}
                     </td>
                     <td style={{ padding: "14px 8px", textAlign: "center" }}>
                       <span style={{ 
@@ -529,6 +539,15 @@ export default function TabOperations({ rawData }) {
                   <input 
                     type="text" value={addJob} onChange={(e) => setAddJob(e.target.value)}
                     placeholder="Mặc định: Recap onsite"
+                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                  />
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Dự Kiến Volume</label>
+                  <input 
+                    type="text" value={addVolume} onChange={(e) => setAddVolume(e.target.value)}
+                    placeholder="Ví dụ: 10.000 đơn/tháng"
                     style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
                   />
                 </div>
@@ -703,6 +722,14 @@ export default function TabOperations({ rawData }) {
                     <label style={{ fontSize: 11, color: "var(--text-secondary)" }}>Công việc hiện tại</label>
                     <input 
                       type="text" value={editJob} disabled={!isManager} onChange={(e) => setEditJob(e.target.value)}
+                      style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "6px 8px", borderRadius: 4, fontSize: 12 }}
+                    />
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <label style={{ fontSize: 11, color: "var(--text-secondary)" }}>Dự kiến Volume</label>
+                    <input 
+                      type="text" value={editVolume} disabled={!isManager} onChange={(e) => setEditVolume(e.target.value)}
                       style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "6px 8px", borderRadius: 4, fontSize: 12 }}
                     />
                   </div>

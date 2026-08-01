@@ -50,6 +50,28 @@ export default async function handler(req, res) {
       // First row contains headers
       const headers = (rowData[0].values || []).map(v => String(v.formattedValue || "").trim());
 
+      let volumeIdx = headers.indexOf("Dự kiến Volume");
+      if (volumeIdx === -1) {
+        volumeIdx = headers.indexOf("Dự kiến Vollume");
+      }
+      if (volumeIdx === -1) {
+        const col12Idx = headers.indexOf("Cột 12");
+        if (col12Idx !== -1) {
+          try {
+            await sheets.spreadsheets.values.update({
+              spreadsheetId: ltlProjectsId,
+              range: "Data dự án !L1",
+              valueInputOption: "USER_ENTERED",
+              resource: { values: [["Dự kiến Volume"]] },
+            });
+            volumeIdx = col12Idx;
+            headers[volumeIdx] = "Dự kiến Volume";
+          } catch (renameErr) {
+            console.warn("Could not rename cell L1:", renameErr.message);
+          }
+        }
+      }
+
       const sheetProjects = rowData.slice(1).map(row => {
         const obj = {};
         const vals = row.values || [];
@@ -95,11 +117,12 @@ export default async function handler(req, res) {
           pic:                 local.pic !== undefined ? local.pic : (p["ĐẢM NHIỆM"] || ""),
           status:              local.status !== undefined ? local.status : (p["TRẠNG THÁI"] || "Đang thực hiện"),
           job:                 local.job !== undefined ? local.job : (p["CÔNG VIỆC"] || ""),
-          expectedOb:          local.expectedOb !== undefined ? local.expectedOb : (p["Dự kiến OB "] || ""),
+          expectedOb:          local.expectedOb !== undefined ? local.expectedOb : (p["Dự kiến OB "] || p["Dự kiến OB"] || ""),
           revenue:             local.revenue !== undefined ? local.revenue : (p["Doanh Thu dự kiến"] || ""),
           sopLink:             local.sopLink !== undefined ? local.sopLink : sheetSopLink,
           model:               local.model !== undefined ? local.model : (p["MÔ HÌNH VẬN HÀNH"] || ""),
           slaLogic:            p["Logic SLA"] || "",
+          volume:              local.volume !== undefined ? local.volume : (p["Dự kiến Volume"] || p["Dự kiến Vollume"] || p["Cột 12"] || ""),
           
           recapStatus:         local.recapStatus || defaultRecapStatus,
           recapLink:           local.recapLink || "",
@@ -149,7 +172,7 @@ export default async function handler(req, res) {
 
   if (req.method === "POST") {
     try {
-      const { action, name, pic, status, job, expectedOb, revenue, sopLink, model, recapStatus, recapLink, sopStatus, kickoffStatus, notes } = req.body;
+      const { action, name, pic, status, job, expectedOb, revenue, sopLink, model, recapStatus, recapLink, sopStatus, kickoffStatus, notes, volume } = req.body;
       if (!name) return res.status(400).json({ error: "Missing project name" });
 
       const key = String(name).trim();
@@ -162,7 +185,7 @@ export default async function handler(req, res) {
         // 1. Append a new project row to Google Sheets
         await sheets.spreadsheets.values.append({
           spreadsheetId: ltlProjectsId,
-          range: "Data dự án !A:J",
+          range: "Data dự án !A:L",
           valueInputOption: "USER_ENTERED",
           resource: {
             values: [[
@@ -175,7 +198,9 @@ export default async function handler(req, res) {
               expectedOb || "", // Dự kiến OB 
               revenue || "", // Doanh Thu dự kiến
               sopLink || "", // LINK SOP
-              model || "" // MÔ HÌNH VẬN HÀNH
+              model || "", // MÔ HÌNH VẬN HÀNH
+              "", // Logic SLA (K)
+              volume || "" // Dự kiến Volume (L)
             ]]
           }
         });
@@ -194,6 +219,7 @@ export default async function handler(req, res) {
           sopStatus: "Chưa thực hiện",
           kickoffStatus: "Chưa thực hiện",
           notes: notes || "",
+          volume: volume || "",
           updatedAt: new Date().toISOString(),
           updatedBy: userName,
         };
@@ -218,6 +244,7 @@ export default async function handler(req, res) {
           sopStatus,
           kickoffStatus,
           notes,
+          volume,
           updatedAt: new Date().toISOString(),
           updatedBy: userName,
         };
@@ -230,7 +257,7 @@ export default async function handler(req, res) {
         try {
           const response = await sheets.spreadsheets.values.get({
             spreadsheetId: ltlProjectsId,
-            range: "Data dự án !A1:J100",
+            range: "Data dự án !A1:L100",
           });
           const rows = response.data.values || [];
           if (rows.length > 0) {
@@ -239,11 +266,19 @@ export default async function handler(req, res) {
             const picIdx = headers.indexOf("ĐẢM NHIỆM");
             const statusIdx = headers.indexOf("TRẠNG THÁI");
             const jobIdx = headers.indexOf("CÔNG VIỆC");
-            const obIdx = headers.indexOf("Dự kiến OB ");
+            const obIdx = headers.indexOf("Dự kiến OB"); // Trimmed version
             const revIdx = headers.indexOf("Doanh Thu dự kiến");
             const sopIdx = headers.indexOf("LINK SOP");
             const modelIdx = headers.indexOf("MÔ HÌNH VẬN HÀNH");
             const checklistIdx = headers.indexOf("CHECK LIST CÔNG VIỆC");
+            
+            let volumeIdx = headers.indexOf("Dự kiến Volume");
+            if (volumeIdx === -1) {
+              volumeIdx = headers.indexOf("Dự kiến Vollume");
+            }
+            if (volumeIdx === -1) {
+              volumeIdx = headers.indexOf("Cột 12");
+            }
 
             const rowIdx = rows.findIndex((row, i) => i > 0 && String(row[nameIdx] || "").trim() === key);
             if (rowIdx !== -1) {
@@ -270,6 +305,7 @@ export default async function handler(req, res) {
                 updateCell(sopIdx, sopLink),
                 updateCell(modelIdx, model),
                 updateCell(checklistIdx, notes),
+                updateCell(volumeIdx, volume),
               ]);
             }
           }
