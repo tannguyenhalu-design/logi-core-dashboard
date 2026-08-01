@@ -29,6 +29,8 @@ export default async function handler(req, res) {
   const session = await getSession(req, res);
   session.user = {
     username: user.username,
+    email: user.username,
+    name: user.name || user.username,
     role: user.role,
     project: user.project || null,
   };

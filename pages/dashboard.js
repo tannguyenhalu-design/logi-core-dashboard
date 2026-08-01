@@ -4,7 +4,6 @@
  * Filter state managed here and passed down to all tabs for sync.
  */
 import { useState, useEffect, useCallback } from "react";
-import { useSession, signOut } from "next-auth/react";
 import Head from "next/head";
 import FilterBar from "../components/FilterBar";
 import dynamic from "next/dynamic";
@@ -13,9 +12,8 @@ import { transformLTL } from "../lib/transform-ltl";
 const TabLTL        = dynamic(() => import("../components/TabLTL"),        { ssr: false });
 const TabOperations = dynamic(() => import("../components/TabOperations"), { ssr: false });
 
-export default function DashboardPage() {
-  const { data: session } = useSession();
-  const user = session?.user || {};
+export default function DashboardPage({ user: initialUser }) {
+  const user = initialUser || {};
   const [activeTab, setActiveTab] = useState("ltl"); // 'ltl' | 'operations'
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [selectedProjects, setSelectedProjects] = useState([]);
@@ -190,7 +188,7 @@ export default function DashboardPage() {
               {user.email || ""}
             </div>
             <button
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={() => { window.location.href = "/api/logout"; }}
               style={{
                 display: "flex", alignItems: "center", gap: 8,
                 fontSize: 13, color: "var(--text-muted)", background: "none",
@@ -330,12 +328,11 @@ export default function DashboardPage() {
   );
 }
 
-export async function getServerSideProps(context) {
-  const { getServerSession } = await import("next-auth");
-  const { authOptions } = await import("../lib/auth-options");
-  const session = await getServerSession(context.req, context.res, authOptions);
-  if (!session) {
+export async function getServerSideProps({ req, res }) {
+  const { getSession } = await import("../lib/auth");
+  const session = await getSession(req, res);
+  if (!session?.user) {
     return { redirect: { destination: "/login", permanent: false } };
   }
-  return { props: {} };
+  return { props: { user: session.user } };
 }

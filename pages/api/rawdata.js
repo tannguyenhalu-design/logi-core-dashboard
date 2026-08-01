@@ -4,15 +4,14 @@
  * Only needed columns — reduces payload size.
  * Cache-Control header lets CDN cache for 5 minutes.
  */
-import { getServerSession } from "next-auth";
-import { authOptions } from "../../lib/auth-options";
+import { getSession } from "../../lib/auth";
 import { fetchSheet } from "../../lib/sheets";
 import fs from "fs";
 import path from "path";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).end();
-  const session = await getServerSession(req, res, authOptions);
+  const session = await getSession(req, res);
   if (!session?.user) return res.status(401).json({ error: "Unauthorized" });
   try {
     const ltlSheetId = "1Nj1IMAOH_mdmvNImgS6KPelP9dXvPWF9aWZjEhM58Pc";

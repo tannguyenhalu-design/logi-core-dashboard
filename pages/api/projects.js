@@ -1,6 +1,5 @@
 import { getAuth } from "../../lib/sheets";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../../lib/auth-options";
+import { getSession } from "../../lib/auth";
 import { google } from "googleapis";
 import fs from "fs";
 import path from "path";
@@ -8,7 +7,7 @@ import path from "path";
 const PIC_MAILS = ["tutd@ghn.vn", "diennk@giaohangnhanh.vn", "datnt2@ghn.vn"];
 
 export default async function handler(req, res) {
-  const session = await getServerSession(req, res, authOptions);
+  const session = await getSession(req, res);
   if (!session?.user) return res.status(401).json({ error: "Unauthorized" });
 
   const storePath = path.join(process.cwd(), "lib", "projects-store.json");

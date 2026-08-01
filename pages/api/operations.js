@@ -1,10 +1,9 @@
 import fs from "fs";
 import path from "path";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../../lib/auth-options";
+import { getSession } from "../../lib/auth";
 
 export default async function handler(req, res) {
-  const session = await getServerSession(req, res, authOptions);
+  const session = await getSession(req, res);
   if (!session?.user) return res.status(401).json({ error: "Unauthorized" });
 
   const storePath = path.join(process.cwd(), "lib", "operations-store.json");

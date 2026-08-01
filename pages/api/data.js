@@ -6,8 +6,7 @@
  * Fetches Google Sheets, transforms data, returns JSON.
  * If role='client', automatically filters to user's assigned project.
  */
-import { getServerSession } from "next-auth";
-import { authOptions } from "../../lib/auth-options";
+import { getSession } from "../../lib/auth";
 import { fetchSheet } from "../../lib/sheets";
 import { transformLTL } from "../../lib/transform-ltl";
 import { transformFTL } from "../../lib/transform-ftl";
@@ -19,8 +18,8 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // ── Auth check (NextAuth) ──
-  const session = await getServerSession(req, res, authOptions);
+  // ── Auth check ──
+  const session = await getSession(req, res);
   if (!session?.user) {
     return res.status(401).json({ error: "Unauthorized" });
   }
