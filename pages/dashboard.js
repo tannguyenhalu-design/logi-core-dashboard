@@ -12,10 +12,11 @@ import { transformLTL } from "../lib/transform-ltl";
 
 const TabLTL        = dynamic(() => import("../components/TabLTL"),        { ssr: false });
 const TabOperations = dynamic(() => import("../components/TabOperations"), { ssr: false });
+const TabUsers      = dynamic(() => import("../components/TabUsers"),      { ssr: false });
 
 export default function DashboardPage({ user: initialUser }) {
   const user = initialUser || {};
-  const [activeTab, setActiveTab] = useState("ltl"); // 'ltl' | 'operations'
+  const [activeTab, setActiveTab] = useState("ltl"); // 'ltl' | 'operations' | 'users'
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [selectedProjects, setSelectedProjects] = useState([]);
   const [filterMode, setFilterMode] = useState("pickup");
@@ -175,12 +176,29 @@ export default function DashboardPage({ user: initialUser }) {
               </svg>
               Team Vận Hành
             </div>
+            {user.role === "manager" && (
+              <div
+                className={`nav-item ${activeTab === "users" ? "active" : ""}`}
+                onClick={() => setActiveTab("users")}
+                style={{
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
+                  color: activeTab === "users" ? "#fff" : "var(--text-muted)",
+                  background: activeTab === "users" ? "rgba(20, 224, 196,0.15)" : "transparent"
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+                Quản lý người dùng
+              </div>
+            )}
           </nav>
 
           {/* User info + Logout */}
           <div style={{ marginTop: "auto", borderTop: "1px solid var(--border)", paddingTop: 16 }}>
             <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>
-              👑 {dashData?.user?.role === "pic" ? "PIC Vận Hành" : "Manager"}
+              👑 {user.role === "pic" ? "PIC Vận Hành" : user.role === "client" ? "Khách hàng" : "Manager"}
             </div>
             <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {user.name || ""}
@@ -221,7 +239,7 @@ export default function DashboardPage({ user: initialUser }) {
             zIndex: 100,
           }}>
             <div style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)" }}>
-              {activeTab === "ltl" ? "LTL Dashboard" : "Team Vận Hành"}
+              {activeTab === "ltl" ? "LTL Dashboard" : activeTab === "users" ? "Quản lý người dùng" : "Team Vận Hành"}
             </div>
 
             {activeTab === "ltl" ? (
@@ -286,41 +304,47 @@ export default function DashboardPage({ user: initialUser }) {
 
           {/* Dashboard body */}
           <main style={{ flex: 1, overflowY: "auto", padding: 24, position: "relative" }}>
-            {/* Full-page loader */}
-            {loading && (
-              <div style={{ display: "flex", justifyContent: "center", paddingTop: 60 }}>
-                <TruckLoader size={88} label="Đang tải dữ liệu..." />
-              </div>
-            )}
+            {activeTab === "users" ? (
+              <TabUsers />
+            ) : (
+              <>
+                {/* Full-page loader */}
+                {loading && (
+                  <div style={{ display: "flex", justifyContent: "center", paddingTop: 60 }}>
+                    <TruckLoader size={88} label="Đang tải dữ liệu..." />
+                  </div>
+                )}
 
-            {filtering && !loading && (
-              <div style={{
-                position: "absolute", top: 12, right: 24, zIndex: 10,
-                display: "flex", alignItems: "center", gap: 6,
-                fontSize: 11, color: "var(--blue)",
-                background: "rgba(20, 224, 196,0.1)", border: "1px solid rgba(20, 224, 196,0.2)",
-                borderRadius: 20, padding: "4px 10px",
-              }}>
-                <div className="spinner" style={{ width: 10, height: 10 }} />
-                Đang lọc...
-              </div>
-            )}
+                {filtering && !loading && (
+                  <div style={{
+                    position: "absolute", top: 12, right: 24, zIndex: 10,
+                    display: "flex", alignItems: "center", gap: 6,
+                    fontSize: 11, color: "var(--blue)",
+                    background: "rgba(20, 224, 196,0.1)", border: "1px solid rgba(20, 224, 196,0.2)",
+                    borderRadius: 20, padding: "4px 10px",
+                  }}>
+                    <div className="spinner" style={{ width: 10, height: 10 }} />
+                    Đang lọc...
+                  </div>
+                )}
 
-            {error && !loading && (
-              <div style={{
-                background: "rgba(244,63,94,0.1)", border: "1px solid var(--red)",
-                borderRadius: 10, padding: 20, color: "var(--red)",
-              }}>
-                Lỗi tải dữ liệu: {error}. Vui lòng thử lại hoặc kiểm tra kết nối Google Sheets.
-              </div>
-            )}
+                {error && !loading && (
+                  <div style={{
+                    background: "rgba(244,63,94,0.1)", border: "1px solid var(--red)",
+                    borderRadius: 10, padding: 20, color: "var(--red)",
+                  }}>
+                    Lỗi tải dữ liệu: {error}. Vui lòng thử lại hoặc kiểm tra kết nối Google Sheets.
+                  </div>
+                )}
 
-            {!loading && !error && dashData && (
-              activeTab === "ltl" ? (
-                <TabLTL data={dashData.ltl} />
-              ) : (
-                <TabOperations rawData={dashData.raw} />
-              )
+                {!loading && !error && dashData && (
+                  activeTab === "ltl" ? (
+                    <TabLTL data={dashData.ltl} />
+                  ) : (
+                    <TabOperations rawData={dashData.raw} />
+                  )
+                )}
+              </>
             )}
           </main>
         </div>

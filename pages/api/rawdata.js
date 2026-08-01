@@ -61,53 +61,46 @@ export default async function handler(req, res) {
     let rawDamage = [];
     let mapping = [];
 
-    const forceRefresh = req.query.refresh === "true";
-    let loadedFromBackup = false;
+    // Always fetch live from Google Sheets (fetchSheet() already keeps a 5-minute
+    // in-memory cache, so this stays cheap). The local backup file is only a
+    // fallback for when the Sheets API call itself fails — it is never used as
+    // the default source, so the dashboard never silently shows a stale snapshot.
+    try {
+      const [ontimeSheet, damageSheet, mappingSheet] = await Promise.all([
+        fetchSheet("raw_ontime", ltlSheetId),
+        fetchSheet("raw_damage", ltlSheetId),
+        fetchSheet("mapping", ltlSheetId),
+      ]);
 
-    if (!forceRefresh && fs.existsSync(backupPath)) {
-      try {
-        const backup = JSON.parse(fs.readFileSync(backupPath, "utf8"));
-        rawOntime = backup.rawOntime || [];
-        rawDamage = backup.rawDamage || [];
-        mapping = backup.mapping || [];
-        loadedFromBackup = true;
-      } catch (backupErr) {
-        console.warn("Failed to read local backup file, falling back to Sheets fetch...", backupErr);
-      }
-    }
+      if (ontimeSheet && ontimeSheet.length > 10) {
+        rawOntime = ontimeSheet;
+        rawDamage = damageSheet;
+        mapping = mappingSheet;
 
-    if (!loadedFromBackup) {
-      try {
-        const [ontimeSheet, damageSheet, mappingSheet] = await Promise.all([
-          fetchSheet("raw_ontime", ltlSheetId),
-          fetchSheet("raw_damage", ltlSheetId),
-          fetchSheet("mapping", ltlSheetId),
-        ]);
-
-        if (ontimeSheet && ontimeSheet.length > 10) {
-          rawOntime = ontimeSheet;
-          rawDamage = damageSheet;
-          mapping = mappingSheet;
-
-          // Save local backup (only DM records from July 2026 to keep file tiny)
-          try {
-            const backupOntime = rawOntime.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"]));
-            const backupDamage = rawDamage.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"] || r["case_date"]));
-            const backupMapping = mapping.filter(r => isDMClient(r["client_name"]));
-            fs.writeFileSync(backupPath, JSON.stringify({ rawOntime: backupOntime, rawDamage: backupDamage, mapping: backupMapping }, null, 2), "utf8");
-          } catch (err) {
-            console.error("Failed to write Vercel data backup:", err);
-          }
-        } else {
-          throw new Error("Returned spreadsheet rows count too low");
+        // Best-effort local backup for the error-fallback path below.
+        // On Vercel the filesystem is read-only, so this write is expected to
+        // fail there — that's fine, it just means no fallback snapshot exists yet.
+        try {
+          const backupOntime = rawOntime.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"]));
+          const backupDamage = rawDamage.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"] || r["case_date"]));
+          const backupMapping = mapping.filter(r => isDMClient(r["client_name"]));
+          fs.writeFileSync(backupPath, JSON.stringify({ rawOntime: backupOntime, rawDamage: backupDamage, mapping: backupMapping }, null, 2), "utf8");
+        } catch (err) {
+          console.warn("Could not write local data backup cache:", err.message);
         }
-      } catch (sheetErr) {
-        console.warn("Failed fetching from Google Sheets API...", sheetErr);
-        if (fs.existsSync(backupPath)) {
+      } else {
+        throw new Error("Returned spreadsheet rows count too low");
+      }
+    } catch (sheetErr) {
+      console.warn("Failed fetching from Google Sheets API, falling back to local backup...", sheetErr);
+      if (fs.existsSync(backupPath)) {
+        try {
           const backup = JSON.parse(fs.readFileSync(backupPath, "utf8"));
           rawOntime = backup.rawOntime || [];
           rawDamage = backup.rawDamage || [];
           mapping = backup.mapping || [];
+        } catch (backupErr) {
+          console.error("Failed to read local backup fallback:", backupErr);
         }
       }
     }
@@ -125,25 +118,13 @@ export default async function handler(req, res) {
       }
     });
 
-    // Detect user role and matching PIC
+    // Role/PIC/project are authoritative from the session — set at login time
+    // from the Users sheet (see lib/users.js), and assigned by a manager via
+    // /api/admin-users. No more guessing based on email/name patterns.
     const userEmail = String(session?.user?.email || "").toLowerCase();
-    const userName = String(session?.user?.name || "").trim();
-
-    let userRole = "manager";
-    let userPIC = null;
-
-    const allPics = [...new Set(mapping.map(r => String(r["PIC"] || "").trim()).filter(Boolean))];
-    const matchedPic = allPics.find(pic => 
-      pic.toLowerCase() === userName.toLowerCase() ||
-      userName.toLowerCase().includes(pic.toLowerCase())
-    );
-
-    const isAdmin = userEmail.includes("tannguyen") || userName.toLowerCase().includes("tannguyen") || userEmail === "admin@ghn.vn";
-
-    if (matchedPic && !isAdmin) {
-      userRole = "pic";
-      userPIC = matchedPic;
-    }
+    const userName = userEmail;
+    const userRole = session?.user?.role || "manager";
+    const userPIC = session?.user?.pic || null;
 
     // Build a map for damage cases by order_code
     const damageMap = new Map();

@@ -4,8 +4,6 @@ import { google } from "googleapis";
 import fs from "fs";
 import path from "path";
 
-const PIC_MAILS = ["tutd@ghn.vn", "diennk@giaohangnhanh.vn", "datnt2@ghn.vn"];
-
 export default async function handler(req, res) {
   const session = await getSession(req, res);
   if (!session?.user) return res.status(401).json({ error: "Unauthorized" });
@@ -161,26 +159,14 @@ export default async function handler(req, res) {
         };
       });
 
-      // Detect user role & PIC
+      // Role/PIC are authoritative from the session (set at login from the
+      // Users sheet, assigned by a manager via /api/admin-users).
       const userEmail = String(session.user.email || "").toLowerCase();
-      const userName = String(session.user.name || "").trim();
+      const userName = userEmail;
+      const userRole = session.user.role || "manager";
+      const userPIC = session.user.pic || null;
 
-      let userRole = "manager";
-      let userPIC = null;
-
-      const matchedPic = PIC_MAILS.find(email => 
-        email.toLowerCase() === userEmail ||
-        userName.toLowerCase().includes(email.split("@")[0])
-      );
-
-      const isAdmin = userEmail.includes("tannguyen") || userName.toLowerCase().includes("tannguyen") || userEmail === "admin@ghn.vn" || userEmail.includes("tannt");
-
-      if (matchedPic && !isAdmin) {
-        userRole = "pic";
-        userPIC = matchedPic;
-      }
-
-      return res.status(200).json({ 
+      return res.status(200).json({
         ok: true, 
         projects: mergedProjects,
         user: {
