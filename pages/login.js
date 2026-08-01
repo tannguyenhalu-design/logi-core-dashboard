@@ -25,9 +25,7 @@ export default function LoginPage() {
   };
 
   const errorMessage =
-    errorParam === "AccessDenied"
-      ? "Tài khoản này không được phép truy cập. Vui lòng dùng email @ghn.vn."
-      : errorParam
+    errorParam
       ? "Đăng nhập thất bại. Vui lòng thử lại."
       : null;
 
@@ -60,11 +58,8 @@ export default function LoginPage() {
 
           {/* Divider với label */}
           <div style={{ textAlign: "center", marginBottom: 24 }}>
-            <p style={{ color: "var(--text-muted)", fontSize: 13, margin: "0 0 6px" }}>
-              Đăng nhập bằng tài khoản GHN của bạn
-            </p>
-            <p style={{ color: "var(--text-muted)", fontSize: 12, margin: 0, opacity: 0.7 }}>
-              Chỉ chấp nhận email <span style={{ color: "var(--blue)", fontWeight: 600 }}>@ghn.vn</span>
+            <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>
+              Đăng nhập bằng tài khoản Google của bạn
             </p>
           </div>
 
