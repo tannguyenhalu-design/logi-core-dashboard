@@ -143,10 +143,10 @@ function multidrop(orderedItems, maxStops) {
 // ── Priority Badge ────────────────────────────────────────────────────────────
 function PriorityBadge({ priority }) {
   if (priority === "Pilot FTL thường xuyên")
-    return <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(51,214,192,.15)", color: "#33D6C0", fontWeight: 600 }}>🟢 Pilot FTL</span>;
+    return <span title="Đủ tải để chạy riêng 1 xe tải mỗi ngày, không cần ghép hàng với tuyến khác" style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(51,214,192,.15)", color: "#33D6C0", fontWeight: 600, cursor: "help" }}>Pilot FTL</span>;
   if (priority === "Lên lịch gom chuyến")
-    return <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(255,178,62,.15)", color: "#FFB23E", fontWeight: 600 }}>🟡 Gom chuyến</span>;
-  return <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(140,153,174,.15)", color: "#8C99AE", fontWeight: 600 }}>⚪ Theo dõi</span>;
+    return <span title="Chưa đủ tải mỗi ngày — nên gom nhiều ngày lại thành 1 chuyến để tiết kiệm chi phí" style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(255,178,62,.15)", color: "#FFB23E", fontWeight: 600, cursor: "help" }}>Gom chuyến</span>;
+  return <span title="Sản lượng còn thấp — chưa đủ cơ sở để đề xuất, tiếp tục theo dõi thêm" style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(140,153,174,.15)", color: "#8C99AE", fontWeight: 600, cursor: "help" }}>Theo dõi</span>;
 }
 
 // ── Client chips ──────────────────────────────────────────────────────────────
@@ -329,10 +329,10 @@ function Lens4({ tcData, idxs, windowDays, hub }) {
 
   const RecommendBadge = ({ rec }) => {
     if (rec === "Nên gom 2 ngày & tách")
-      return <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(51,214,192,.15)", color: "#33D6C0", whiteSpace: "nowrap" }}>🟢 Gom 2 ngày & tách</span>;
+      return <span title="Mỗi ngày chưa đủ 1 xe, nhưng gom 2 ngày lại thì vừa đủ tải" style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(51,214,192,.15)", color: "#33D6C0", whiteSpace: "nowrap", cursor: "help" }}>Gom 2 ngày & tách</span>;
     if (rec === "Đã đủ tải mỗi ngày")
-      return <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(91,140,255,.15)", color: "#5B8CFF", whiteSpace: "nowrap" }}>🔵 Đủ tải — đi thẳng</span>;
-    return <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(140,153,174,.15)", color: "#8C99AE", whiteSpace: "nowrap" }}>⚪ Chưa đủ dù gom 2 ngày</span>;
+      return <span title="Tỉnh này đã đủ hàng để chạy xe riêng mỗi ngày, không cần gom" style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(91,140,255,.15)", color: "#5B8CFF", whiteSpace: "nowrap", cursor: "help" }}>Đủ tải — đi thẳng</span>;
+    return <span title="Dù gom 2 ngày cũng chưa đủ tải — cần gom lâu hơn hoặc ghép chung với tuyến khác" style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(140,153,174,.15)", color: "#8C99AE", whiteSpace: "nowrap", cursor: "help" }}>Chưa đủ dù gom 2 ngày</span>;
   };
 
   return (
@@ -606,6 +606,8 @@ export default function TabTachTrip({ tcData }) {
   const [lens, setLens] = useState("lens4");
   const [windowDays, setWindowDays] = useState(30);
   const [volumeMultiplier, setVolumeMultiplier] = useState(1.0);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showLaneTable, setShowLaneTable] = useState(false);
 
   const HUBS = [
     { value: "__ALL__", label: "🏭 Tất cả 3 kho" },
@@ -615,9 +617,9 @@ export default function TabTachTrip({ tcData }) {
   ];
 
   const LENSES = [
-    { value: "lens4", label: "Góc nhìn 1 — Tỉnh giao & đề xuất gom 2 ngày" },
-    { value: "lens3", label: "Góc nhìn 2 — Trục tuyến đường (multi-drop)" },
-    { value: "lens2", label: "Góc nhìn 3 — Thành phố, gộp đa điểm" },
+    { value: "lens4", label: "Theo Tỉnh — đề xuất gom 2 ngày" },
+    { value: "lens3", label: "Theo Tuyến — ghép nhiều điểm dừng" },
+    { value: "lens2", label: "Theo Thành Phố — gộp đa điểm" },
   ];
 
   // Giả lập dữ liệu dựa trên hệ số sản lượng (What-If Simulation)
@@ -678,6 +680,13 @@ export default function TabTachTrip({ tcData }) {
   // TC filtered indices (live từ GSheet hoặc simulated)
   const idxs = useMemo(() => tcFilteredIdx(activeTcData, windowDays, hub), [activeTcData, windowDays, hub]);
 
+  // Plain-language summary for newcomers — no jargon, just the headline numbers.
+  const summary = useMemo(() => {
+    const pilotCount = liveLanes.filter((r) => r.priority === "Pilot FTL thường xuyên").length;
+    const gomCount = liveLanes.filter((r) => r.priority === "Lên lịch gom chuyến").length;
+    return { pilotCount, gomCount, provinceCount: tcData.provinces?.length || 0 };
+  }, [liveLanes, tcData]);
+
   const panelStyle = {
     background: "#141C2B",
     border: "1px solid #293345",
@@ -688,7 +697,31 @@ export default function TabTachTrip({ tcData }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-      {/* ── What-If Simulation Control Panel ── */}
+      {/* ── Plain-language summary ── */}
+      <div style={{
+        ...panelStyle,
+        borderLeft: "3px solid var(--green)",
+        display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12,
+      }}>
+        <p style={{ margin: 0, fontSize: 13.5, color: "var(--text-secondary)", lineHeight: 1.6 }}>
+          Đang giao tới <b style={{ color: "#fff" }}>{summary.provinceCount} tỉnh/thành</b>.{" "}
+          <b style={{ color: "var(--cyan)" }}>{summary.pilotCount} tuyến</b> đã đủ tải chạy xe riêng mỗi ngày.{" "}
+          <b style={{ color: "var(--amber)" }}>{summary.gomCount} tuyến</b> nên gom lại vài ngày một chuyến để tiết kiệm chi phí.
+        </p>
+        <button
+          onClick={() => setShowAdvanced((v) => !v)}
+          style={{
+            background: showAdvanced ? "rgba(20,224,196,0.15)" : "rgba(255,255,255,0.05)",
+            border: "1px solid var(--border)", color: showAdvanced ? "var(--cyan)" : "#fff",
+            padding: "7px 14px", borderRadius: 6, fontSize: 12.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
+          }}
+        >
+          🔧 Tùy chọn nâng cao {showAdvanced ? "▴" : "▾"}
+        </button>
+      </div>
+
+      {/* ── What-If Simulation Control Panel (advanced only) ── */}
+      {showAdvanced && (
       <div style={{
         ...panelStyle,
         borderLeft: "3px solid var(--cyan)",
@@ -743,19 +776,41 @@ export default function TabTachTrip({ tcData }) {
           </div>
         </div>
       </div>
-      {/* ── Tầng 1: Tuyến cố định ── */}
+      )}
+      {/* Tang 1: Tuyen co dinh */}
       <div style={{ ...panelStyle, borderLeft: "3px solid #5B8CFF" }}>
-        <h3 style={{ fontSize: 14, margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif" }}>
-          🛣️ Tầng 1 — Tấn cụ́ć theo tựng lane (kho lấy → kho giao) — 30 ngày gần nhất
-        </h3>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+          <h3 style={{ fontSize: 14, margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif" }}>
+            Chi tiết theo tuyến cố định (kho lấy - kho giao) — 30 ngày gần nhất
+          </h3>
+          <button
+            onClick={() => setShowLaneTable((v) => !v)}
+            style={{
+              background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "var(--text-secondary)",
+              padding: "5px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
+            }}
+          >
+            {showLaneTable ? "Thu gọn" : "Xem bảng chi tiết"}
+          </button>
+        </div>
+        {!showLaneTable && (
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+            <span style={{ fontSize: 12, padding: "5px 10px", borderRadius: 8, background: "rgba(51,214,192,.12)", color: "#33D6C0" }}>
+              {liveLanes.filter(r => r.priority === "Pilot FTL thường xuyên").length} tuyến đủ tải chạy riêng mỗi ngày
+            </span>
+            <span style={{ fontSize: 12, padding: "5px 10px", borderRadius: 8, background: "rgba(255,178,62,.12)", color: "#FFB23E" }}>
+              {liveLanes.filter(r => r.priority === "Lên lịch gom chuyến").length} tuyến nên gom chuyến
+            </span>
+            <span style={{ fontSize: 12, padding: "5px 10px", borderRadius: 8, background: "rgba(140,153,174,.12)", color: "#8C99AE" }}>
+              {liveLanes.filter(r => r.priority === "Theo dõi ngày cao điểm").length} tuyến còn thấp, theo dõi thêm
+            </span>
+          </div>
+        )}
+        {showLaneTable && (
+        <>
         <p style={{ fontSize: 12, color: "#8C99AE", margin: "0 0 6px" }}>
           Nguồn: <b style={{ color: "#33D6C0" }}>Google Sheets Raw (live)</b> · chỉ tính đơn status=delivered · đã loại Aqua B2B + LG Pantos
           · tổng <b>{liveLanes.length} lane</b> · cập nhật tự động theo data GSheet
-        </p>
-        <p style={{ fontSize: 12, color: "#8C99AE", margin: "0 0 14px", lineHeight: 1.6 }}>
-          <span style={{ color: "#33D6C0", fontWeight: 600 }}>Pilot FTL</span>: TB30 ≥1.000 kg/ngày và ≥20 ngày active —{" "}
-          <span style={{ color: "#FFB23E", fontWeight: 600 }}>Gom chuyến</span>: TB30 ≥500 kg/ngày —{" "}
-          <span style={{ color: "#8C99AE" }}>Theo dõi</span>: còn lại
         </p>
         <div style={{ marginBottom: 12 }}>
           <label style={{ fontSize: 11, color: "#8C99AE", textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 5 }}>Lọc theo mức ưu tiên</label>
@@ -806,6 +861,8 @@ export default function TabTachTrip({ tcData }) {
             </tbody>
           </table>
         </div>
+        </>
+        )}
       </div>
 
       {/* ── Tầng 2: Góc nhìn gom tuyến ── */}
@@ -838,15 +895,16 @@ export default function TabTachTrip({ tcData }) {
               ))}
             </div>
           </div>
-          {/* Lens selector */}
+          {/* Lens + window selectors (advanced only) */}
+          {showAdvanced && (
+          <>
           <div>
-            <label style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.07em", color: "#8C99AE", display: "block", marginBottom: 5 }}>Góc nhìn</label>
+            <label style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.07em", color: "#8C99AE", display: "block", marginBottom: 5 }}>Cách xem</label>
             <select value={lens} onChange={(e) => setLens(e.target.value)}
               style={{ background: "#0E1420", border: "1px solid #293345", color: "#EAF0F8", borderRadius: 6, padding: "7px 10px", fontSize: 13, fontFamily: "inherit" }}>
               {LENSES.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
             </select>
           </div>
-          {/* Window selector */}
           <div>
             <label style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.07em", color: "#8C99AE", display: "block", marginBottom: 5 }}>Khoảng ngày</label>
             <select value={windowDays} onChange={(e) => setWindowDays(Number(e.target.value))}
@@ -857,13 +915,15 @@ export default function TabTachTrip({ tcData }) {
               <option value={60}>60 ngày</option>
             </select>
           </div>
+          </>
+          )}
         </div>
 
-        {/* Lens content */}
+        {/* Lens content — always Theo Tỉnh unless Nâng cao chọn cách khác */}
         <div style={{ minHeight: 300 }}>
-          {lens === "lens4" && <Lens4 tcData={tcData} idxs={idxs} windowDays={windowDays} hub={hub} />}
-          {lens === "lens3" && <Lens3 tcData={tcData} idxs={idxs} windowDays={windowDays} hub={hub} />}
-          {lens === "lens2" && <Lens2 tcData={tcData} idxs={idxs} windowDays={windowDays} hub={hub} />}
+          {(!showAdvanced || lens === "lens4") && <Lens4 tcData={tcData} idxs={idxs} windowDays={windowDays} hub={hub} />}
+          {showAdvanced && lens === "lens3" && <Lens3 tcData={tcData} idxs={idxs} windowDays={windowDays} hub={hub} />}
+          {showAdvanced && lens === "lens2" && <Lens2 tcData={tcData} idxs={idxs} windowDays={windowDays} hub={hub} />}
         </div>
       </div>
     </div>
