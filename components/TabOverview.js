@@ -23,7 +23,7 @@ export default function TabOverview({ overview, ltlFiltered }) {
             icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/></svg>}
             label="Tổng Đơn LTL"
             value={fmt(ltl?.totalOrders)}
-            sub={`${fmt(ltl?.totalWeight)} KG`}
+            sub="Tính theo số lượng đơn"
             colorClass="text-cyan"
           />
           {ltlFiltered?.deliveredThisMonthCount !== undefined && (

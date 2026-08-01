@@ -225,34 +225,70 @@ function OrdersProjChart({ ordersByProject }) {
 }
 
 // ── Damage Regions component ──
-function DamageRegions({ topDamageProvinces, topDamageWarehouses }) {
+function DamageRegions({ topDamageProvinces, topDamageWarehouses, selectedProvince, selectedWarehouse, onSelectProvince, onSelectWarehouse }) {
   return (
     <div className="grid-2" style={{ marginTop: 20, marginBottom: 20 }}>
       <div style={{ background: "rgba(255,255,255,0.02)", padding: 18, borderRadius: 12, border: "1px solid var(--border)", backdropFilter: "blur(8px)" }}>
         <h4 style={{ margin: "0 0 12px 0", fontSize: 13, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 6 }}>
-          📍 Top 5 Tỉnh/Thành nhận hàng bị hư hỏng
+          📍 Top 5 Tỉnh/Thành nhận hàng (Click để lọc)
         </h4>
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {topDamageProvinces.map((p, idx) => (
-            <li key={p.name} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: idx < 4 ? "1px solid rgba(255,255,255,0.05)" : "none", fontSize: 13 }}>
-              <span style={{ color: "var(--text-primary)" }}>{idx + 1}. {p.name}</span>
-              <span className="text-red" style={{ fontWeight: 600 }}>{p.count} ca</span>
-            </li>
-          ))}
+          {topDamageProvinces.map((p, idx) => {
+            const isSelected = selectedProvince === p.name;
+            return (
+              <li 
+                key={p.name} 
+                onClick={() => onSelectProvince(isSelected ? null : p.name)}
+                style={{ 
+                  display: "flex", 
+                  justifyContent: "space-between", 
+                  padding: "8px 12px", 
+                  borderBottom: idx < 4 ? "1px solid rgba(255,255,255,0.05)" : "none", 
+                  fontSize: 13,
+                  cursor: "pointer",
+                  background: isSelected ? "rgba(244, 63, 94, 0.15)" : "transparent",
+                  borderRadius: 6,
+                  transition: "all 0.2s",
+                  fontWeight: isSelected ? 600 : 400
+                }}
+              >
+                <span style={{ color: "var(--text-primary)" }}>{idx + 1}. {p.name} {isSelected && "🎯"}</span>
+                <span className="text-red" style={{ fontWeight: 600 }}>{p.count} ca</span>
+              </li>
+            );
+          })}
           {topDamageProvinces.length === 0 && <div style={{ color: "var(--text-muted)", fontSize: 12 }}>Không có dữ liệu bể vỡ.</div>}
         </ul>
       </div>
       <div style={{ background: "rgba(255,255,255,0.02)", padding: 18, borderRadius: 12, border: "1px solid var(--border)", backdropFilter: "blur(8px)" }}>
         <h4 style={{ margin: "0 0 12px 0", fontSize: 13, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 6 }}>
-          🏢 Top 5 Kho giao hàng báo hư hỏng
+          🏢 Top 5 Kho giao hàng (Click để lọc)
         </h4>
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {topDamageWarehouses.map((w, idx) => (
-            <li key={w.name} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: idx < 4 ? "1px solid rgba(255,255,255,0.05)" : "none", fontSize: 13 }}>
-              <span style={{ color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "80%" }} title={w.name}>{idx + 1}. {w.name}</span>
-              <span className="text-red" style={{ fontWeight: 600 }}>{w.count} ca</span>
-            </li>
-          ))}
+          {topDamageWarehouses.map((w, idx) => {
+            const isSelected = selectedWarehouse === w.name;
+            return (
+              <li 
+                key={w.name} 
+                onClick={() => onSelectWarehouse(isSelected ? null : w.name)}
+                style={{ 
+                  display: "flex", 
+                  justifyContent: "space-between", 
+                  padding: "8px 12px", 
+                  borderBottom: idx < 4 ? "1px solid rgba(255,255,255,0.05)" : "none", 
+                  fontSize: 13,
+                  cursor: "pointer",
+                  background: isSelected ? "rgba(244, 63, 94, 0.15)" : "transparent",
+                  borderRadius: 6,
+                  transition: "all 0.2s",
+                  fontWeight: isSelected ? 600 : 400
+                }}
+              >
+                <span style={{ color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "75%" }} title={w.name}>{idx + 1}. {w.name} {isSelected && "🎯"}</span>
+                <span className="text-red" style={{ fontWeight: 600 }}>{w.count} ca</span>
+              </li>
+            );
+          })}
           {topDamageWarehouses.length === 0 && <div style={{ color: "var(--text-muted)", fontSize: 12 }}>Không có dữ liệu bể vỡ.</div>}
         </ul>
       </div>
@@ -261,9 +297,14 @@ function DamageRegions({ topDamageProvinces, topDamageWarehouses }) {
 }
 
 // ── Detailed damage cases table component ──
-function DetailedDamageTable({ cases, selectedType }) {
-  const filteredCases = selectedType
-    ? cases.filter(c => c.damage_type === selectedType)
+function DetailedDamageTable({ cases, filter }) {
+  const filteredCases = filter
+    ? cases.filter(c => {
+        if (filter.type === 'type') return c.damage_type === filter.value;
+        if (filter.type === 'province') return c.to_province === filter.value;
+        if (filter.type === 'warehouse') return c.warehouse_giao === filter.value;
+        return true;
+      })
     : cases;
 
   return (
@@ -341,6 +382,7 @@ function WarehouseRiskChart({ warehouseAlerts }) {
     },
     options: {
       indexAxis: "y", responsive: true, maintainAspectRatio: false,
+      layout: { padding: { right: 30 } },
       plugins: {
         legend: { display: false },
       },
@@ -412,9 +454,11 @@ function BrokenTable({ brokenByType, totalBroken, brokenCompensated, brokenResol
 }
 
 export default function TabLTL({ data }) {
-  const [selectedDamageType, setSelectedDamageType] = useState(null);
+  const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
 
   if (!data) return <div className="spinner" />;
+
+  const selectedDamageType = damageFilter?.type === "type" ? damageFilter.value : null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -495,7 +539,7 @@ export default function TabLTL({ data }) {
         <div className="chart-panel">
           <div className="chart-panel-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
-            Top 8 Kho Rủi Ro Cao
+            Top 10 Kho Rủi Ro Cao
           </div>
           <div style={{ height: 260 }}>
             <WarehouseRiskChart warehouseAlerts={data.warehouseAlerts} />
@@ -517,7 +561,7 @@ export default function TabLTL({ data }) {
             brokenResolved={data.brokenResolved || 0}
             brokenPending={data.brokenPending || 0}
             selectedType={selectedDamageType}
-            onSelectType={setSelectedDamageType}
+            onSelectType={(type) => setDamageFilter(type ? { type: "type", value: type } : null)}
           />
         </div>
         <div className="chart-panel">
@@ -528,19 +572,33 @@ export default function TabLTL({ data }) {
           <DamageRegions
             topDamageProvinces={data.topDamageProvinces || []}
             topDamageWarehouses={data.topDamageWarehouses || []}
+            selectedProvince={damageFilter?.type === "province" ? damageFilter.value : null}
+            selectedWarehouse={damageFilter?.type === "warehouse" ? damageFilter.value : null}
+            onSelectProvince={(prov) => setDamageFilter(prov ? { type: "province", value: prov } : null)}
+            onSelectWarehouse={(wh) => setDamageFilter(wh ? { type: "warehouse", value: wh } : null)}
           />
         </div>
       </div>
 
       {/* Broken details */}
       <div className="chart-panel">
-        <div className="chart-panel-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          Chi Tiết Ca Hư Hỏng {selectedDamageType ? `— Lọc: ${selectedDamageType}` : ""}
+        <div className="chart-panel-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Chi Tiết Ca Hư Hỏng {damageFilter ? `— Lọc theo ${damageFilter.type === "type" ? "Loại: " : damageFilter.type === "province" ? "Tỉnh: " : "Kho: "}${damageFilter.value}` : ""}
+          </span>
+          {damageFilter && (
+            <button 
+              onClick={() => setDamageFilter(null)}
+              style={{ background: "rgba(244,63,94,0.15)", border: "1px solid var(--red)", color: "var(--red)", fontSize: 11, padding: "2px 8px", borderRadius: 4, cursor: "pointer" }}
+            >
+              Hủy lọc x
+            </button>
+          )}
         </div>
         <DetailedDamageTable
           cases={data.detailedDamageCases || []}
-          selectedType={selectedDamageType}
+          filter={damageFilter}
         />
       </div>
     </div>
