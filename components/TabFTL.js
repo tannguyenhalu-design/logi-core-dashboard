@@ -5,11 +5,12 @@ import { useRef, useEffect, useState, useMemo } from "react";
 import Chart from "chart.js/auto";
 import ChartDataLabels from "chartjs-plugin-datalabels";
 import KpiCard from "./KpiCard";
+import TruckLoader from "./TruckLoader";
 
 Chart.register(ChartDataLabels);
 
 const COLORS = {
-  cyan: "#3b82f6", green: "#10b981", red: "#f43f5e",
+  cyan: "#14e0c4", green: "#10b981", red: "#f43f5e",
   amber: "#f59e0b", purple: "#8b5cf6",
 };
 
@@ -44,7 +45,7 @@ function TripsByDayChart({ tripsByDay }) {
       datasets: [{
         label: "Số chuyến",
         data: dates.map((d) => tripsByDay[d]),
-        borderColor: COLORS.cyan, backgroundColor: "rgba(59,130,246,0.1)",
+        borderColor: COLORS.cyan, backgroundColor: "rgba(20, 224, 196,0.1)",
         borderWidth: 2, tension: 0.3, fill: true, pointRadius: 3,
         pointBackgroundColor: COLORS.cyan,
         datalabels: { display: false },
@@ -296,7 +297,7 @@ function ProjectCompareChart({ projectStats }) {
 
 export default function TabFTL({ data }) {
   const [selVehicles, setSelVehicles] = useState([]);
-  if (!data) return <div className="spinner" />;
+  if (!data) return <TruckLoader />;
 
   // ── Vehicle filter: derived from xe_ghn_cap on trips ──
   const allVehicleTypes = data.allVehicleTypes || [];
@@ -327,7 +328,7 @@ export default function TabFTL({ data }) {
   const toggleVehicle = (v) =>
     setSelVehicles(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]);
 
-  const vehicleColor = { "1T9":"#06b6d4", "2.5T":"#a78bfa", "3.5T":"#f59e0b", "5T":"#3b82f6", "7T":"#10b981", "8T":"#8b5cf6", "10T":"#f43f5e", "15T":"#ec4899" };
+  const vehicleColor = { "1T9":"#06b6d4", "2.5T":"#a78bfa", "3.5T":"#f59e0b", "5T":"#14e0c4", "7T":"#10b981", "8T":"#8b5cf6", "10T":"#f43f5e", "15T":"#ec4899" };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -346,7 +347,7 @@ export default function TabFTL({ data }) {
             style={{
               padding: "4px 12px", borderRadius: 20, fontSize: 12, cursor: "pointer",
               border: "1px solid var(--border)", fontFamily: "inherit",
-              background: selVehicles.length === 0 ? "rgba(59,130,246,0.2)" : "transparent",
+              background: selVehicles.length === 0 ? "rgba(20, 224, 196,0.2)" : "transparent",
               color: selVehicles.length === 0 ? "var(--blue)" : "var(--text-muted)",
               fontWeight: selVehicles.length === 0 ? 600 : 400,
               transition: "all 0.15s",

@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Head from "next/head";
 import FilterBar from "../components/FilterBar";
+import TruckLoader from "../components/TruckLoader";
 import dynamic from "next/dynamic";
 import { transformLTL } from "../lib/transform-ltl";
 
@@ -128,10 +129,10 @@ export default function DashboardPage({ user: initialUser }) {
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 8px 20px" }}>
             <div style={{
               width: 36, height: 36, borderRadius: 8,
-              background: "rgba(59,130,246,0.15)",
+              background: "rgba(20, 224, 196,0.15)",
               display: "flex", alignItems: "center", justifyContent: "center",
             }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#14e0c4" strokeWidth="2">
                 <path d="M12 2L2 7l10 5 10-5-10-5z"/>
                 <path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
               </svg>
@@ -151,7 +152,7 @@ export default function DashboardPage({ user: initialUser }) {
                 cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
                 padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
                 color: activeTab === "ltl" ? "#fff" : "var(--text-muted)",
-                background: activeTab === "ltl" ? "rgba(59,130,246,0.15)" : "transparent"
+                background: activeTab === "ltl" ? "rgba(20, 224, 196,0.15)" : "transparent"
               }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -166,7 +167,7 @@ export default function DashboardPage({ user: initialUser }) {
                 cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
                 padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
                 color: activeTab === "operations" ? "#fff" : "var(--text-muted)",
-                background: activeTab === "operations" ? "rgba(59,130,246,0.15)" : "transparent"
+                background: activeTab === "operations" ? "rgba(20, 224, 196,0.15)" : "transparent"
               }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -255,8 +256,8 @@ export default function DashboardPage({ user: initialUser }) {
                 }}
                 disabled={loading}
                 style={{
-                  background: "rgba(59,130,246,0.1)",
-                  border: "1px solid rgba(59,130,246,0.2)",
+                  background: "rgba(20, 224, 196,0.1)",
+                  border: "1px solid rgba(20, 224, 196,0.2)",
                   color: "var(--cyan)",
                   fontSize: 12,
                   fontWeight: 600,
@@ -285,10 +286,10 @@ export default function DashboardPage({ user: initialUser }) {
 
           {/* Dashboard body */}
           <main style={{ flex: 1, overflowY: "auto", padding: 24, position: "relative" }}>
-            {/* Full-page spinner */}
+            {/* Full-page loader */}
             {loading && (
               <div style={{ display: "flex", justifyContent: "center", paddingTop: 60 }}>
-                <div className="spinner" />
+                <TruckLoader size={88} label="Đang tải dữ liệu..." />
               </div>
             )}
 
@@ -297,7 +298,7 @@ export default function DashboardPage({ user: initialUser }) {
                 position: "absolute", top: 12, right: 24, zIndex: 10,
                 display: "flex", alignItems: "center", gap: 6,
                 fontSize: 11, color: "var(--blue)",
-                background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.2)",
+                background: "rgba(20, 224, 196,0.1)", border: "1px solid rgba(20, 224, 196,0.2)",
                 borderRadius: 20, padding: "4px 10px",
               }}>
                 <div className="spinner" style={{ width: 10, height: 10 }} />

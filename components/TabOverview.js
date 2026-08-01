@@ -2,6 +2,7 @@
  * components/TabOverview.js — Overview tab: always shows all-time data
  */
 import KpiCard from "./KpiCard";
+import TruckLoader from "./TruckLoader";
 
 function fmt(n, d = 0) {
   if (n === null || n === undefined) return "—";
@@ -9,7 +10,7 @@ function fmt(n, d = 0) {
 }
 
 export default function TabOverview({ overview, ltlFiltered }) {
-  if (!overview) return <div className="spinner" />;
+  if (!overview) return <TruckLoader />;
   const { ltl, ftl } = overview;
 
   return (

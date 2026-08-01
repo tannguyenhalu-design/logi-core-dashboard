@@ -158,7 +158,7 @@ export default function TabAIInsights({ data }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Header */}
       <div style={{
-        background: "linear-gradient(135deg, rgba(139,92,246,0.12) 0%, rgba(59,130,246,0.08) 100%)",
+        background: "linear-gradient(135deg, rgba(139,92,246,0.12) 0%, rgba(20, 224, 196,0.08) 100%)",
         border: "1px solid rgba(139,92,246,0.25)",
         borderRadius: 14, padding: "16px 20px",
         display: "flex", justifyContent: "space-between", alignItems: "center",

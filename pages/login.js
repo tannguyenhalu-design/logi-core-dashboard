@@ -46,10 +46,10 @@ export default function LoginPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
             <div style={{
               width: 44, height: 44, borderRadius: 12,
-              background: "rgba(59,130,246,0.15)",
+              background: "rgba(20, 224, 196,0.15)",
               display: "flex", alignItems: "center", justifyContent: "center",
             }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#14e0c4" strokeWidth="2">
                 <path d="M12 2L2 7l10 5 10-5-10-5z"/>
                 <path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
               </svg>
@@ -132,8 +132,8 @@ export default function LoginPage() {
                 justifyContent: "center",
                 gap: 12,
                 padding: "12px 20px",
-                background: loading ? "rgba(59,130,246,0.4)" : "rgba(59,130,246,0.8)",
-                border: "1px solid rgba(59,130,246,0.5)",
+                background: loading ? "rgba(20, 224, 196,0.4)" : "rgba(20, 224, 196,0.8)",
+                border: "1px solid rgba(20, 224, 196,0.5)",
                 borderRadius: 10,
                 color: "#fff",
                 fontSize: 15,

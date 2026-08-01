@@ -6,18 +6,19 @@ import { useEffect, useRef, useState } from "react";
 import Chart from "chart.js/auto";
 import ChartDataLabels from "chartjs-plugin-datalabels";
 import KpiCard from "./KpiCard";
+import TruckLoader from "./TruckLoader";
 
 Chart.register(ChartDataLabels);
 
 Chart.defaults.color = "#94a3b8";
 Chart.defaults.font.family = "'Inter', sans-serif";
 Chart.defaults.plugins.tooltip.backgroundColor = "rgba(15,23,42,0.95)";
-Chart.defaults.plugins.tooltip.borderColor = "rgba(59,130,246,0.3)";
+Chart.defaults.plugins.tooltip.borderColor = "rgba(20, 224, 196,0.3)";
 Chart.defaults.plugins.tooltip.borderWidth = 1;
 Chart.defaults.plugins.tooltip.titleColor = "#fff";
 
 const COLORS = {
-  cyan: "#3b82f6", green: "#10b981", red: "#f43f5e",
+  cyan: "#14e0c4", green: "#10b981", red: "#f43f5e",
   amber: "#f59e0b", purple: "#8b5cf6",
 };
 
@@ -178,7 +179,7 @@ function OrdersProjChart({ ordersByProject }) {
   const ref = useRef(null);
   const projs = Object.keys(ordersByProject).sort((a, b) => ordersByProject[b] - ordersByProject[a]);
   const total = projs.reduce((s, p) => s + ordersByProject[p], 0);
-  const palette = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#f43f5e", "#ec4899", "#06b6d4", "#84cc16"];
+  const palette = ["#14e0c4", "#8b5cf6", "#10b981", "#f59e0b", "#f43f5e", "#ec4899", "#06b6d4", "#84cc16"];
 
   useChart(ref, () => ({
     type: "doughnut",
@@ -441,7 +442,7 @@ function BrokenTable({ brokenByType, totalBroken, brokenCompensated, brokenResol
                 onClick={() => onSelectType(isSelected ? null : t)}
                 style={{ 
                   cursor: "pointer", 
-                  background: isSelected ? "rgba(59, 130, 246, 0.15)" : "transparent",
+                  background: isSelected ? "rgba(20, 224, 196, 0.15)" : "transparent",
                   borderLeft: isSelected ? "3px solid var(--blue)" : "none"
                 }}
               >
@@ -462,7 +463,7 @@ function BrokenTable({ brokenByType, totalBroken, brokenCompensated, brokenResol
 export default function TabLTL({ data }) {
   const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
 
-  if (!data) return <div className="spinner" />;
+  if (!data) return <TruckLoader />;
 
   const selectedDamageType = damageFilter?.type === "type" ? damageFilter.value : null;
 

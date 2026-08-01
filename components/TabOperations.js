@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import TruckLoader from "./TruckLoader";
 
 const PIC_NAMES = {
   "tutd@ghn.vn": "Duy Tú",
@@ -251,7 +252,7 @@ export default function TabOperations({ rawData }) {
           >
             🔄 Tải Lại Dữ Liệu
           </button>
-          <div style={{ background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.2)", padding: "8px 12px", borderRadius: 8, fontSize: 13 }}>
+          <div style={{ background: "rgba(20, 224, 196,0.1)", border: "1px solid rgba(20, 224, 196,0.2)", padding: "8px 12px", borderRadius: 8, fontSize: 13 }}>
             👤 Vai trò: <strong style={{ color: "var(--cyan)" }}>{isManager ? "Manager (Xem toàn bộ)" : "PIC Vận Hành"}</strong>
             {currentUser.pic && <span> | Tên: <strong style={{ color: "var(--green)" }}>{PIC_NAMES[currentUser.pic] || currentUser.pic}</strong></span>}
           </div>
@@ -275,7 +276,7 @@ export default function TabOperations({ rawData }) {
           <div style={{ fontSize: 24, fontWeight: "bold", margin: "6px 0", color: "var(--green)" }}>{doneCount}</div>
           <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Dự án đã bàn giao và chạy ổn định</div>
         </div>
-        <div style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.15)", padding: 16, borderRadius: 12 }}>
+        <div style={{ background: "rgba(20, 224, 196,0.05)", border: "1px solid rgba(20, 224, 196,0.15)", padding: 16, borderRadius: 12 }}>
           <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase" }}>Doanh Thu Dự Kiến</div>
           <div style={{ fontSize: 24, fontWeight: "bold", margin: "6px 0", color: "var(--cyan)" }}>
             {totalRevenue > 0 ? (totalRevenue / 1000000000).toFixed(1).replace(".0", "") + " Tỷđ" : "0đ"}
@@ -349,7 +350,7 @@ export default function TabOperations({ rawData }) {
       <div style={{ background: "rgba(255,255,255,0.01)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 20px", overflowX: "auto" }}>
         {loading ? (
           <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}>
-            <div className="spinner" />
+            <TruckLoader />
           </div>
         ) : (
           <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -426,14 +427,14 @@ export default function TabOperations({ rawData }) {
                             target="_blank" 
                             rel="noreferrer" 
                             style={{ 
-                              background: "rgba(59,130,246,0.15)", 
+                              background: "rgba(20, 224, 196,0.15)", 
                               color: "var(--cyan)", 
                               padding: "5px 10px", 
                               borderRadius: 6, 
                               fontSize: 11,
                               fontWeight: 600,
                               textDecoration: "none",
-                              border: "1px solid rgba(59,130,246,0.2)"
+                              border: "1px solid rgba(20, 224, 196,0.2)"
                             }}
                           >
                             Mở SOP 🔗
