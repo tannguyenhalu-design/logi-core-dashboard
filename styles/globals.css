@@ -158,12 +158,12 @@ body {
 /* ── Table ── */
 .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .data-table th {
-  color: var(--text-secondary); font-weight: 600; font-size: 11px;
-  text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-secondary); font-weight: 600; font-size: 12px;
   padding: 10px 14px; border-bottom: 1px solid var(--border);
   text-align: left; background: rgba(0,0,0,0.15);
+  white-space: nowrap;
 }
-.data-table td { padding: 11px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.data-table td { padding: 11px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); white-space: nowrap; }
 .data-table tr:last-child td { border-bottom: none; }
 .data-table tr:hover td { background: rgba(255,255,255,0.02); }
 
@@ -260,27 +260,49 @@ body {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── Truck Loader (brand) ── */
+.truck-track {
+  position: relative;
+  overflow: hidden;
+  margin: 0 auto;
+}
+.truck-road {
+  position: absolute;
+  left: 0; right: 0; bottom: 15%;
+  height: 1px;
+  background: repeating-linear-gradient(to right, var(--cyan) 0, var(--cyan) 10px, transparent 10px, transparent 20px);
+  opacity: 0.25;
+}
+.truck-driving {
+  position: absolute;
+  top: 6%;
+  left: -30%;
+  animation: truck-drive 1.8s linear infinite;
+}
+@keyframes truck-drive {
+  0%   { left: -30%; }
+  100% { left: 105%; }
+}
 .truck-loader-svg .truck-body {
-  animation: truck-bounce 1.1s ease-in-out infinite;
+  animation: truck-bounce 0.35s ease-in-out infinite;
 }
 .truck-loader-svg .truck-motion-lines line {
   transform-origin: right center;
-  animation: truck-motion-line 0.7s ease-in-out infinite;
+  animation: truck-motion-line 0.35s ease-in-out infinite;
   opacity: 0.6;
 }
-.truck-loader-svg .truck-motion-lines line:nth-child(2) { animation-delay: 0.12s; }
-.truck-loader-svg .truck-motion-lines line:nth-child(3) { animation-delay: 0.24s; }
+.truck-loader-svg .truck-motion-lines line:nth-child(2) { animation-delay: 0.08s; }
+.truck-loader-svg .truck-motion-lines line:nth-child(3) { animation-delay: 0.16s; }
 .truck-loader-svg .truck-headlight {
-  animation: truck-headlight-pulse 1.1s ease-in-out infinite;
+  animation: truck-headlight-pulse 0.6s ease-in-out infinite;
   filter: drop-shadow(0 0 3px var(--cyan));
 }
 @keyframes truck-bounce {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-2px); }
+  50% { transform: translateY(-1.5px); }
 }
 @keyframes truck-motion-line {
   0% { transform: scaleX(1); opacity: 0.6; }
-  50% { transform: scaleX(0.4); opacity: 0.15; }
+  50% { transform: scaleX(0.3); opacity: 0.15; }
   100% { transform: scaleX(1); opacity: 0.6; }
 }
 @keyframes truck-headlight-pulse {

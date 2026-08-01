@@ -28,6 +28,13 @@ export default function TabUsers() {
   const [error, setError] = useState(null);
   const [drafts, setDrafts] = useState({}); // email -> { role, pic, project }
   const [savingEmail, setSavingEmail] = useState(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [newRole, setNewRole] = useState("manager");
+  const [newPic, setNewPic] = useState("");
+  const [newProject, setNewProject] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState(null);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -76,20 +83,58 @@ export default function TabUsers() {
     }
   };
 
+  const handleAddUser = async (e) => {
+    e.preventDefault();
+    const email = newEmail.trim().toLowerCase();
+    if (!email.endsWith("@ghn.vn")) {
+      setAddError("Chỉ chấp nhận email @ghn.vn");
+      return;
+    }
+    setAdding(true);
+    setAddError(null);
+    try {
+      const res = await fetch("/api/admin-users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, role: newRole, pic: newPic, project: newProject }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error || "Thêm thất bại");
+      setShowAddModal(false);
+      setNewEmail("");
+      setNewRole("manager");
+      setNewPic("");
+      setNewProject("");
+      await fetchUsers();
+    } catch (e) {
+      setAddError(e.message);
+    } finally {
+      setAdding(false);
+    }
+  };
+
   if (loading) return <TruckLoader />;
 
   const pendingCount = (users || []).filter((u) => u.role === "pending").length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", padding: "16px 20px", borderRadius: 12 }}>
-        <h3 style={{ margin: 0, fontSize: 16, color: "var(--text-primary)" }}>Quản lý người dùng</h3>
-        <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "var(--text-muted)" }}>
-          Mọi email @ghn.vn có thể tự đăng ký, nhưng chỉ xem được dữ liệu sau khi được duyệt và gán vai trò ở đây.
-          {pendingCount > 0 && (
-            <span style={{ color: "var(--amber)", fontWeight: 600 }}> Đang có {pendingCount} tài khoản chờ duyệt.</span>
-          )}
-        </p>
+      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", padding: "16px 20px", borderRadius: 12, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 16, color: "var(--text-primary)" }}>Quản lý người dùng</h3>
+          <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "var(--text-muted)" }}>
+            Mọi email @ghn.vn có thể tự đăng ký, nhưng chỉ xem được dữ liệu sau khi được duyệt và gán vai trò ở đây.
+            {pendingCount > 0 && (
+              <span style={{ color: "var(--amber)", fontWeight: 600 }}> Đang có {pendingCount} tài khoản chờ duyệt.</span>
+            )}
+          </p>
+        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          style={{ background: "var(--cyan)", color: "#04211d", border: "none", padding: "8px 16px", borderRadius: 6, fontWeight: 700, cursor: "pointer", fontSize: 13, whiteSpace: "nowrap" }}
+        >
+          + Thêm người dùng
+        </button>
       </div>
 
       {error && (
@@ -181,6 +226,87 @@ export default function TabUsers() {
           </div>
         )}
       </div>
+
+      {showAddModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
+          <div style={{ background: "#0f172a", border: "1px solid var(--border)", padding: 24, borderRadius: 16, width: "90%", maxWidth: 420, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 10px 25px rgba(0,0,0,0.5)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h4 style={{ margin: 0, fontSize: 16, color: "#fff" }}>➕ Thêm người dùng</h4>
+              <button onClick={() => setShowAddModal(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 20, cursor: "pointer" }}>&times;</button>
+            </div>
+
+            {addError && (
+              <div style={{ background: "rgba(244,63,94,0.1)", border: "1px solid var(--red)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--red)" }}>
+                {addError}
+              </div>
+            )}
+
+            <form onSubmit={handleAddUser} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Email @ghn.vn *</label>
+                <input
+                  type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="vd: tutd@ghn.vn"
+                  style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                />
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Vai trò</label>
+                <select
+                  value={newRole} onChange={(e) => setNewRole(e.target.value)}
+                  style={{ background: "#0f172a", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                >
+                  <option value="manager">Quản lý</option>
+                  <option value="pic">Chuyên viên vận hành (PIC)</option>
+                  <option value="client">Khách hàng</option>
+                </select>
+              </div>
+
+              {newRole === "pic" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Tên PIC (khớp sheet mapping)</label>
+                  <input
+                    type="text" value={newPic} onChange={(e) => setNewPic(e.target.value)}
+                    placeholder="Ví dụ: Duy Tú"
+                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                  />
+                </div>
+              )}
+
+              {newRole === "client" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Dự án</label>
+                  <input
+                    type="text" value={newProject} onChange={(e) => setNewProject(e.target.value)}
+                    placeholder="Ví dụ: Samsung"
+                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                  />
+                </div>
+              )}
+
+              <p style={{ margin: 0, fontSize: 11.5, color: "var(--text-muted)" }}>
+                Người này sẽ tự đặt mật khẩu ở lần đăng nhập đầu tiên bằng chính email trên.
+              </p>
+
+              <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 6 }}>
+                <button
+                  type="button" onClick={() => setShowAddModal(false)}
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "#fff", padding: "8px 18px", borderRadius: 6, cursor: "pointer", fontSize: 13 }}
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit" disabled={adding}
+                  style={{ background: "var(--green)", color: "#fff", border: "none", padding: "8px 24px", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13 }}
+                >
+                  {adding ? "Đang thêm..." : "Thêm"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@
  * Manager-only: list all accounts and approve/assign roles.
  */
 import { getSession } from "../../lib/auth";
-import { getAllUsers, updateUserRole } from "../../lib/users";
+import { getAllUsers, updateUserRole, createUserWithRole, findUserByEmail } from "../../lib/users";
 
 export default async function handler(req, res) {
   const session = await getSession(req, res);
@@ -40,7 +40,17 @@ export default async function handler(req, res) {
       if (!["pending", "manager", "pic", "client"].includes(role)) {
         return res.status(400).json({ error: "Vai trò không hợp lệ" });
       }
-      await updateUserRole(email, { role, pic, project, updatedBy: session.user.email });
+      const normalizedEmail = String(email).trim().toLowerCase();
+      if (!normalizedEmail.endsWith("@ghn.vn")) {
+        return res.status(400).json({ error: "Chỉ chấp nhận email @ghn.vn" });
+      }
+
+      const existing = await findUserByEmail(normalizedEmail);
+      if (existing) {
+        await updateUserRole(normalizedEmail, { role, pic, project, updatedBy: session.user.email });
+      } else {
+        await createUserWithRole(normalizedEmail, { role, pic, project, updatedBy: session.user.email });
+      }
       return res.status(200).json({ ok: true });
     } catch (err) {
       console.error("[/api/admin-users] POST error:", err);

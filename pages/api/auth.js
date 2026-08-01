@@ -6,7 +6,7 @@
  * manager approves it and assigns a role via /api/admin-users.
  */
 import { getSession } from "../../lib/auth";
-import { findUserByEmail, createPendingUser, checkPassword } from "../../lib/users";
+import { findUserByEmail, createPendingUser, checkPassword, setUserPassword } from "../../lib/users";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -51,7 +51,16 @@ export default async function handler(req, res) {
     });
   }
 
-  if (!checkPassword(user, password)) {
+  if (!user.passwordHash) {
+    // Manager pre-created this account (with a role already assigned) but no
+    // password yet — the first login attempt sets it.
+    try {
+      await setUserPassword(user.email, password);
+    } catch (err) {
+      console.error("[/api/auth] set initial password failed:", err);
+      return res.status(500).json({ error: "Không thể đặt mật khẩu, vui lòng thử lại sau" });
+    }
+  } else if (!checkPassword(user, password)) {
     return res.status(401).json({ error: "Email hoặc mật khẩu không đúng" });
   }
 

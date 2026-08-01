@@ -231,7 +231,7 @@ export default function TabOperations({ rawData }) {
       {/* Header Panel */}
       <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", padding: "16px 20px", borderRadius: 12, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: 16, color: "var(--text-primary)" }}>Team Vận Hành SD3 — Theo Dõi Dự Án Mới</h3>
+          <h3 style={{ margin: 0, fontSize: 16, color: "var(--text-primary)" }}>Vận Hành SD3 — Theo Dõi Dự Án Mới</h3>
           <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "var(--text-muted)" }}>
             Bảng quản trị tiến độ và phân quyền onboard dự án của team Solution Điện Máy.
           </p>
