@@ -60,41 +60,54 @@ export default async function handler(req, res) {
       return d.getFullYear() > 2026 || (d.getFullYear() === 2026 && d.getMonth() >= 6);
     };
 
-    let rawOntime = [];
-    let rawDamage = [];
-    let mapping = [];
+    const forceRefresh = req.query.refresh === "true";
+    let loadedFromBackup = false;
 
-    try {
-      const [ontimeSheet, damageSheet, mappingSheet] = await Promise.all([
-        fetchSheet("raw_ontime", ltlSheetId),
-        fetchSheet("raw_damage", ltlSheetId),
-        fetchSheet("mapping", ltlSheetId),
-      ]);
-
-      if (ontimeSheet && ontimeSheet.length > 10) {
-        rawOntime = ontimeSheet;
-        rawDamage = damageSheet;
-        mapping = mappingSheet;
-
-        // Save local backup asynchronously (only DM records from July 2026 to keep file tiny)
-        try {
-          const backupOntime = rawOntime.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"]));
-          const backupDamage = rawDamage.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"] || r["case_date"]));
-          const backupMapping = mapping.filter(r => isDMClient(r["client_name"]));
-          fs.writeFileSync(backupPath, JSON.stringify({ rawOntime: backupOntime, rawDamage: backupDamage, mapping: backupMapping }, null, 2), "utf8");
-        } catch (err) {
-          console.error("Failed to write Vercel data backup:", err);
-        }
-      } else {
-        throw new Error("Returned spreadsheet rows count too low");
-      }
-    } catch (sheetErr) {
-      console.warn("Failed fetching from Google Sheets API, falling back to local backup file...", sheetErr);
-      if (fs.existsSync(backupPath)) {
+    if (!forceRefresh && fs.existsSync(backupPath)) {
+      try {
         const backup = JSON.parse(fs.readFileSync(backupPath, "utf8"));
         rawOntime = backup.rawOntime || [];
         rawDamage = backup.rawDamage || [];
         mapping = backup.mapping || [];
+        loadedFromBackup = true;
+      } catch (backupErr) {
+        console.warn("Failed to read local backup file, falling back to Sheets fetch...", backupErr);
+      }
+    }
+
+    if (!loadedFromBackup) {
+      try {
+        const [ontimeSheet, damageSheet, mappingSheet] = await Promise.all([
+          fetchSheet("raw_ontime", ltlSheetId),
+          fetchSheet("raw_damage", ltlSheetId),
+          fetchSheet("mapping", ltlSheetId),
+        ]);
+
+        if (ontimeSheet && ontimeSheet.length > 10) {
+          rawOntime = ontimeSheet;
+          rawDamage = damageSheet;
+          mapping = mappingSheet;
+
+          // Save local backup (only DM records from July 2026 to keep file tiny)
+          try {
+            const backupOntime = rawOntime.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"]));
+            const backupDamage = rawDamage.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"] || r["case_date"]));
+            const backupMapping = mapping.filter(r => isDMClient(r["client_name"]));
+            fs.writeFileSync(backupPath, JSON.stringify({ rawOntime: backupOntime, rawDamage: backupDamage, mapping: backupMapping }, null, 2), "utf8");
+          } catch (err) {
+            console.error("Failed to write Vercel data backup:", err);
+          }
+        } else {
+          throw new Error("Returned spreadsheet rows count too low");
+        }
+      } catch (sheetErr) {
+        console.warn("Failed fetching from Google Sheets API...", sheetErr);
+        if (fs.existsSync(backupPath)) {
+          const backup = JSON.parse(fs.readFileSync(backupPath, "utf8"));
+          rawOntime = backup.rawOntime || [];
+          rawDamage = backup.rawDamage || [];
+          mapping = backup.mapping || [];
+        }
       }
     }
 

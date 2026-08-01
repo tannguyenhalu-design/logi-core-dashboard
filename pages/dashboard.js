@@ -27,11 +27,14 @@ export default function DashboardPage() {
   const [rawCache, setRawCache] = useState(null);
 
   // ── Fetch raw data ONCE on mount ──
-  const fetchRaw = useCallback(async () => {
+  const fetchRaw = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/rawdata?t=${Date.now()}`);
+      const url = forceRefresh 
+        ? `/api/rawdata?refresh=true&t=${Date.now()}` 
+        : `/api/rawdata?t=${Date.now()}`;
+      const res = await fetch(url);
       if (!res.ok) throw new Error(`API error ${res.status}`);
       const raw = await res.json();
       setRawCache(raw);
@@ -238,14 +241,47 @@ export default function DashboardPage() {
               <div style={{ flex: 1 }} />
             )}
 
-            {/* Live indicator */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--green)" }}>
-              <div style={{
-                width: 7, height: 7, borderRadius: "50%",
-                background: "var(--green)", boxShadow: "0 0 8px var(--green)",
-                animation: "spin 2s linear infinite",
-              }} />
-              LIVE
+            {/* Sync & Live indicator */}
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <button
+                onClick={async () => {
+                  if (confirm("Đồng bộ dữ liệu trực tiếp từ Google Sheet? (Quá trình này có thể mất 15-20s do tải >50.000 dòng từ Sheet).")) {
+                    const raw = await fetchRaw(true);
+                    if (raw) {
+                      applyTransforms(raw, selectedMonths, selectedProjects, filterMode);
+                      alert("Đồng bộ thành công!");
+                    } else {
+                      alert("Đồng bộ thất bại, vui lòng kiểm tra lại mạng!");
+                    }
+                  }
+                }}
+                disabled={loading}
+                style={{
+                  background: "rgba(59,130,246,0.1)",
+                  border: "1px solid rgba(59,130,246,0.2)",
+                  color: "var(--cyan)",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: "5px 10px",
+                  borderRadius: 6,
+                  cursor: loading ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  transition: "all 0.2s"
+                }}
+              >
+                🔄 Đồng bộ Google Sheet
+              </button>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--green)" }}>
+                <div style={{
+                  width: 7, height: 7, borderRadius: "50%",
+                  background: "var(--green)", boxShadow: "0 0 8px var(--green)",
+                  animation: "spin 2s linear infinite",
+                }} />
+                LIVE
+              </div>
             </div>
           </header>
 
