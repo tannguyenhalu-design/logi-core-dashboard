@@ -96,6 +96,7 @@ export default async function handler(req, res) {
       ok: true,
       ltl:           mergedLTL,
       ftl:           rawFTL,
+      damage:        rawDamage,
       masterVehicle,
     });
   } catch (err) {

@@ -119,11 +119,11 @@ export default function DashboardPage() {
           : projects.length > 0 ? projects : null;
         const filters  = { months: mFilter, projects: pFilter, filterMode: fMode || "pickup" };
 
-        const ltlData      = transformLTL(raw.ltl, filters);
+        const ltlData      = transformLTL(raw.ltl, filters, raw.damage);
         const ftlData      = transformFTL(raw.ftl, raw.masterVehicle, filters);
         const tachTripData = transformTachTrip(raw.ltl);
         const aiInsights   = transformAIInsights(raw.ltl);
-        const overviewLTL  = transformLTL(raw.ltl, {});
+        const overviewLTL  = transformLTL(raw.ltl, {}, raw.damage);
         const overviewFTL  = transformFTL(raw.ftl, raw.masterVehicle, {});
 
         setDashData({
