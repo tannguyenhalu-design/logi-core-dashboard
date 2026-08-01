@@ -151,6 +151,66 @@ export default async function handler(req, res) {
       }
 
       fs.writeFileSync(storePath, JSON.stringify(store, null, 2), "utf8");
+
+      // WRITE BACK TO GOOGLE SHEET
+      try {
+        const { google } = require("googleapis");
+        const { getAuth } = require("../../lib/sheets");
+        const auth = getAuth();
+        const sheets = google.sheets({ version: "v4", auth });
+
+        // 1. Fetch current rows to find correct project index
+        const response = await sheets.spreadsheets.values.get({
+          spreadsheetId: ltlProjectsId,
+          range: "Data dự án !A1:J100",
+        });
+        const rows = response.data.values || [];
+        if (rows.length > 0) {
+          const headers = rows[0].map(h => String(h || "").trim());
+          const nameIdx = headers.indexOf("TÊN DỰ ÁN");
+          const picIdx = headers.indexOf("ĐẢM NHIỆM");
+          const statusIdx = headers.indexOf("TRẠNG THÁI");
+          const jobIdx = headers.indexOf("CÔNG VIỆC");
+          const obIdx = headers.indexOf("Dự kiến OB ");
+          const revIdx = headers.indexOf("Doanh Thu dự kiến");
+          const sopIdx = headers.indexOf("LINK SOP");
+          const modelIdx = headers.indexOf("MÔ HÌNH VẬN HÀNH");
+
+          // Find matching row (0-indexed array row number)
+          const rowIdx = rows.findIndex((row, i) => i > 0 && String(row[nameIdx] || "").trim() === key);
+          if (rowIdx !== -1) {
+            const rowNumber = rowIdx + 1; // Google Sheet is 1-indexed
+
+            const colIndexToLetter = (idx) => String.fromCharCode(65 + idx);
+
+            const updateCell = async (colIdx, val) => {
+              if (colIdx !== -1 && val !== undefined) {
+                await sheets.spreadsheets.values.update({
+                  spreadsheetId: ltlProjectsId,
+                  range: `Data dự án !${colIndexToLetter(colIdx)}${rowNumber}`,
+                  valueInputOption: "USER_ENTERED",
+                  resource: { values: [[val]] },
+                });
+              }
+            };
+
+            // Write matching fields to Google Sheets cells
+            await Promise.all([
+              updateCell(picIdx, pic),
+              updateCell(statusIdx, store.projects[key].status), // use auto-computed status
+              updateCell(jobIdx, job),
+              updateCell(obIdx, expectedOb),
+              updateCell(revIdx, revenue),
+              updateCell(sopIdx, sopLink),
+              updateCell(modelIdx, model),
+            ]);
+            console.log(`Successfully wrote updates back to Google Sheet row ${rowNumber} for project "${key}"`);
+          }
+        }
+      } catch (sheetWriteErr) {
+        console.warn("Could not write update back to Google Sheets directly (might be read-only):", sheetWriteErr.message);
+      }
+
       return res.status(200).json({ ok: true });
     } catch (err) {
       console.error("[/api/projects] POST error:", err);
