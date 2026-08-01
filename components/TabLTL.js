@@ -227,8 +227,8 @@ function OrdersProjChart({ ordersByProject }) {
 // ── Damage Regions component ──
 function DamageRegions({ topDamageProvinces, topDamageWarehouses, selectedProvince, selectedWarehouse, onSelectProvince, onSelectWarehouse }) {
   return (
-    <div className="grid-2" style={{ marginTop: 20, marginBottom: 20 }}>
-      <div style={{ background: "rgba(255,255,255,0.02)", padding: 18, borderRadius: 12, border: "1px solid var(--border)", backdropFilter: "blur(8px)" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ background: "rgba(255,255,255,0.02)", padding: 16, borderRadius: 12, border: "1px solid var(--border)", backdropFilter: "blur(8px)" }}>
         <h4 style={{ margin: "0 0 12px 0", fontSize: 13, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 6 }}>
           📍 Top 5 Tỉnh/Thành nhận hàng (Click để lọc)
         </h4>
@@ -260,7 +260,7 @@ function DamageRegions({ topDamageProvinces, topDamageWarehouses, selectedProvin
           {topDamageProvinces.length === 0 && <div style={{ color: "var(--text-muted)", fontSize: 12 }}>Không có dữ liệu bể vỡ.</div>}
         </ul>
       </div>
-      <div style={{ background: "rgba(255,255,255,0.02)", padding: 18, borderRadius: 12, border: "1px solid var(--border)", backdropFilter: "blur(8px)" }}>
+      <div style={{ background: "rgba(255,255,255,0.02)", padding: 16, borderRadius: 12, border: "1px solid var(--border)", backdropFilter: "blur(8px)" }}>
         <h4 style={{ margin: "0 0 12px 0", fontSize: 13, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 6 }}>
           🏢 Top 5 Kho giao hàng (Click để lọc)
         </h4>
@@ -284,7 +284,7 @@ function DamageRegions({ topDamageProvinces, topDamageWarehouses, selectedProvin
                   fontWeight: isSelected ? 600 : 400
                 }}
               >
-                <span style={{ color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "75%" }} title={w.name}>{idx + 1}. {w.name} {isSelected && "🎯"}</span>
+                <span style={{ color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "80%" }} title={w.name}>{idx + 1}. {w.name} {isSelected && "🎯"}</span>
                 <span className="text-red" style={{ fontWeight: 600 }}>{w.count} ca</span>
               </li>
             );
@@ -300,7 +300,9 @@ function DamageRegions({ topDamageProvinces, topDamageWarehouses, selectedProvin
 function DetailedDamageTable({ cases, filter }) {
   const filteredCases = filter
     ? cases.filter(c => {
-        if (filter.type === 'type') return c.damage_type === filter.value;
+        if (filter.type === 'type') {
+          return String(c.damage_type || "").trim().toLowerCase() === String(filter.value || "").trim().toLowerCase();
+        }
         if (filter.type === 'province') return c.to_province === filter.value;
         if (filter.type === 'warehouse') return c.warehouse_giao === filter.value;
         return true;
