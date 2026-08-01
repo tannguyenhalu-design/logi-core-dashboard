@@ -71,6 +71,33 @@ export default async function handler(req, res) {
         }
       }
 
+      // Claim (or create) dedicated columns for the SD3 pipeline fields so they
+      // persist in the Sheet instead of the ephemeral local store (which is wiped
+      // on every Vercel deployment/cold start).
+      const ensureHeader = async (targetName, colLetter, colIdx) => {
+        if (headers[colIdx] === targetName) return colIdx;
+        if (!headers[colIdx] || /^Cột \d+$/.test(headers[colIdx])) {
+          try {
+            await sheets.spreadsheets.values.update({
+              spreadsheetId: ltlProjectsId,
+              range: `'Data dự án'!${colLetter}1`,
+              valueInputOption: "USER_ENTERED",
+              resource: { values: [[targetName]] },
+            });
+            headers[colIdx] = targetName;
+            return colIdx;
+          } catch (renameErr) {
+            console.warn(`Could not set header ${colLetter}1:`, renameErr.message);
+          }
+        }
+        return headers.indexOf(targetName);
+      };
+
+      await ensureHeader("RECAP STATUS", "M", 12);
+      await ensureHeader("RECAP LINK", "N", 13);
+      await ensureHeader("SOP STATUS", "O", 14);
+      await ensureHeader("KICKOFF STATUS", "P", 15);
+
       const sheetProjects = rowData.slice(1).map(row => {
         const obj = {};
         const vals = row.values || [];
@@ -123,10 +150,10 @@ export default async function handler(req, res) {
           slaLogic:            p["Logic SLA"] || "",
           volume:              local.volume !== undefined ? local.volume : (p["Dự kiến Volume"] || p["Dự kiến Vollume"] || p["Cột 12"] || ""),
           
-          recapStatus:         local.recapStatus || defaultRecapStatus,
-          recapLink:           local.recapLink || "",
-          sopStatus:           local.sopStatus || defaultSopStatus,
-          kickoffStatus:       local.kickoffStatus || defaultKickoffStatus,
+          recapStatus:         local.recapStatus !== undefined ? local.recapStatus : ((p["RECAP STATUS"] || "").trim() || defaultRecapStatus),
+          recapLink:           local.recapLink !== undefined ? local.recapLink : (p["RECAP LINK"] || "").trim(),
+          sopStatus:           local.sopStatus !== undefined ? local.sopStatus : ((p["SOP STATUS"] || "").trim() || defaultSopStatus),
+          kickoffStatus:       local.kickoffStatus !== undefined ? local.kickoffStatus : ((p["KICKOFF STATUS"] || "").trim() || defaultKickoffStatus),
 
           notes:               local.notes !== undefined ? local.notes : (p["CHECK LIST CÔNG VIỆC"] || ""),
           updatedAt:           local.updatedAt || null,
@@ -184,7 +211,7 @@ export default async function handler(req, res) {
         // 1. Append a new project row to Google Sheets
         await sheets.spreadsheets.values.append({
           spreadsheetId: ltlProjectsId,
-          range: "'Data dự án'!A:L",
+          range: "'Data dự án'!A:P",
           valueInputOption: "USER_ENTERED",
           resource: {
             values: [[
@@ -194,12 +221,16 @@ export default async function handler(req, res) {
               pic || "", // ĐẢM NHIỆM
               status || "Đang thực hiện", // TRẠNG THÁI
               job || "Recap onsite", // CÔNG VIỆC
-              expectedOb || "", // Dự kiến OB 
+              expectedOb || "", // Dự kiến OB
               revenue || "", // Doanh Thu dự kiến
               sopLink || "", // LINK SOP
               model || "", // MÔ HÌNH VẬN HÀNH
               "", // Logic SLA (K)
-              volume || "" // Dự kiến Volume (L)
+              volume || "", // Dự kiến Volume (L)
+              "Chưa thực hiện", // RECAP STATUS (M)
+              "", // RECAP LINK (N)
+              "Chưa thực hiện", // SOP STATUS (O)
+              "Chưa thực hiện", // KICKOFF STATUS (P)
             ]]
           }
         });
@@ -256,7 +287,7 @@ export default async function handler(req, res) {
         try {
           const response = await sheets.spreadsheets.values.get({
             spreadsheetId: ltlProjectsId,
-              range: "'Data dự án'!A1:L100",
+              range: "'Data dự án'!A1:P100",
           });
           const rows = response.data.values || [];
           if (rows.length > 0) {
@@ -270,7 +301,11 @@ export default async function handler(req, res) {
             const sopIdx = headers.indexOf("LINK SOP");
             const modelIdx = headers.indexOf("MÔ HÌNH VẬN HÀNH");
             const checklistIdx = headers.indexOf("CHECK LIST CÔNG VIỆC");
-            
+            const recapStatusIdx = headers.indexOf("RECAP STATUS");
+            const recapLinkIdx = headers.indexOf("RECAP LINK");
+            const sopStatusIdx = headers.indexOf("SOP STATUS");
+            const kickoffStatusIdx = headers.indexOf("KICKOFF STATUS");
+
             let volumeIdx = headers.indexOf("Dự kiến Volume");
             if (volumeIdx === -1) {
               volumeIdx = headers.indexOf("Dự kiến Vollume");
@@ -305,6 +340,10 @@ export default async function handler(req, res) {
                 updateCell(modelIdx, model),
                 updateCell(checklistIdx, notes),
                 updateCell(volumeIdx, volume),
+                updateCell(recapStatusIdx, recapStatus),
+                updateCell(recapLinkIdx, recapLink),
+                updateCell(sopStatusIdx, sopStatus),
+                updateCell(kickoffStatusIdx, kickoffStatus),
               ]);
             }
           }
@@ -313,7 +352,14 @@ export default async function handler(req, res) {
         }
       }
 
-      fs.writeFileSync(storePath, JSON.stringify(store, null, 2), "utf8");
+      // Best-effort local cache — the Sheet write above is the real persistence.
+      // On Vercel the filesystem is read-only, so this is expected to fail there;
+      // it must not turn a successful Sheet write into a 500 for the client.
+      try {
+        fs.writeFileSync(storePath, JSON.stringify(store, null, 2), "utf8");
+      } catch (fsErr) {
+        console.warn("Could not write local projects-store.json cache:", fsErr.message);
+      }
       return res.status(200).json({ ok: true });
     } catch (err) {
       console.error("[/api/projects] POST error:", err);
