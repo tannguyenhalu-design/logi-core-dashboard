@@ -12,10 +12,8 @@ import path from "path";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).end();
-
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user) return res.status(401).json({ error: "Unauthorized" });
-
   try {
     const ltlSheetId = "1Nj1IMAOH_mdmvNImgS6KPelP9dXvPWF9aWZjEhM58Pc";
     const backupPath = path.join(process.cwd(), "lib", "backup-data.json");
@@ -59,6 +57,10 @@ export default async function handler(req, res) {
       if (isNaN(d.getTime())) return false;
       return d.getFullYear() > 2026 || (d.getFullYear() === 2026 && d.getMonth() >= 6);
     };
+
+    let rawOntime = [];
+    let rawDamage = [];
+    let mapping = [];
 
     const forceRefresh = req.query.refresh === "true";
     let loadedFromBackup = false;
