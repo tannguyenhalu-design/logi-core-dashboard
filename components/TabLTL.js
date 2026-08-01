@@ -7,6 +7,7 @@ import Chart from "chart.js/auto";
 import ChartDataLabels from "chartjs-plugin-datalabels";
 import KpiCard from "./KpiCard";
 import TruckLoader from "./TruckLoader";
+import VietnamMap from "./VietnamMap";
 
 Chart.register(ChartDataLabels);
 
@@ -460,10 +461,79 @@ function BrokenTable({ brokenByType, totalBroken, brokenCompensated, brokenResol
   );
 }
 
-export default function TabLTL({ data }) {
+// ── Province delivery map + AI insight (Bản đồ phân bố + gợi ý theo tỉnh) ──
+function ProvinceMapPanel({ provinceStats, routeStats, singleProjectMode, projectName }) {
+  if (!provinceStats || provinceStats.length === 0) {
+    return (
+      <div className="chart-panel" style={{ width: "100%" }}>
+        <div style={{ padding: "24px 0", textAlign: "center", color: "var(--text-muted)" }}>
+          Không có dữ liệu tỉnh giao trong khoảng lọc hiện tại.
+        </div>
+      </div>
+    );
+  }
+
+  const maxOrders = Math.max(...provinceStats.map((p) => p.orders), 1);
+  const colorMap = {};
+  provinceStats.forEach((p) => {
+    const intensity = Math.min(1, p.orders / maxOrders);
+    const alpha = 0.2 + intensity * 0.75;
+    colorMap[p.name] = `rgba(20, 224, 196, ${alpha.toFixed(2)})`;
+  });
+
+  const topProvinces = provinceStats.slice(0, 8);
+  const highlightProvinces = provinceStats.slice(0, 5).map((p) => p.name);
+
+  const routeLines = singleProjectMode
+    ? routeStats.slice(0, 15).map((r) => ({ from: r.from, to: r.to, weight: r.orders, color: "#33D6C0" }))
+    : [];
+
+  return (
+    <div className="chart-panel" style={{ width: "100%" }}>
+      <div className="chart-panel-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+        Bản đồ phân bố giao hàng theo tỉnh{singleProjectMode ? ` — Dự án ${projectName}` : ""}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20, alignItems: "start" }}>
+        <div>
+          <VietnamMap colorMap={colorMap} highlightProvinces={singleProjectMode ? [] : highlightProvinces} routeLines={routeLines} />
+          {singleProjectMode && (
+            <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 8 }}>
+              Đường nối thể hiện lộ trình từ kho lấy tới tỉnh giao của dự án này — nét càng dày, số đơn càng nhiều.
+            </p>
+          )}
+        </div>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            💡 Insight theo tỉnh
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 420, overflowY: "auto" }}>
+            {topProvinces.map((p) => (
+              <div key={p.name} style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 12px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <span style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)" }}>{p.name}</span>
+                  <span style={{ fontSize: 12, color: "var(--cyan)", fontWeight: 700 }}>{fmt(p.orders)} đơn</span>
+                </div>
+                {p.topClient && (
+                  <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 3 }}>
+                    Chủ yếu từ <b style={{ color: "var(--text-secondary)" }}>{p.topClient.name}</b> ({p.topClient.pct}% · {fmt(p.topClient.orders)} đơn)
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function TabLTL({ data, selectedProjects = [] }) {
   const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
 
   if (!data) return <TruckLoader />;
+
+  const singleProjectMode = selectedProjects.length === 1;
 
   const selectedDamageType = damageFilter?.type === "type" ? damageFilter.value : null;
 
@@ -503,6 +573,13 @@ export default function TabLTL({ data }) {
           colorClass="text-amber"
         />
       </div>
+
+      <ProvinceMapPanel
+        provinceStats={data.provinceStats}
+        routeStats={data.routeStats}
+        singleProjectMode={singleProjectMode}
+        projectName={singleProjectMode ? selectedProjects[0] : ""}
+      />
 
       {/* Ontime trend + Orders donut */}
       <div className="grid-2-1">
