@@ -41,6 +41,25 @@ export default async function handler(req, res) {
       return false;
     };
 
+    const isFromJuly2026 = (dateStr) => {
+      if (!dateStr) return false;
+      const trimStr = String(dateStr).trim();
+      if (/^\d{4}-\d{2}/.test(trimStr)) {
+        const year = parseInt(trimStr.slice(0, 4));
+        const month = parseInt(trimStr.slice(5, 7));
+        return year > 2026 || (year === 2026 && month >= 7);
+      }
+      if (/^\d{2}\/\d{2}\/\d{4}/.test(trimStr)) {
+        const parts = trimStr.split("/");
+        const year = parseInt(parts[2]);
+        const month = parseInt(parts[1]);
+        return year > 2026 || (year === 2026 && month >= 7);
+      }
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return false;
+      return d.getFullYear() > 2026 || (d.getFullYear() === 2026 && d.getMonth() >= 6);
+    };
+
     let rawOntime = [];
     let rawDamage = [];
 
@@ -54,10 +73,10 @@ export default async function handler(req, res) {
         rawOntime = ontimeSheet;
         rawDamage = damageSheet;
 
-        // Save local backup asynchronously (only DM records to keep file tiny)
+        // Save local backup asynchronously (only DM records from July 2026 to keep file tiny)
         try {
-          const backupOntime = rawOntime.filter(r => isDMClient(r["client_name"]));
-          const backupDamage = rawDamage.filter(r => isDMClient(r["client_name"]));
+          const backupOntime = rawOntime.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"]));
+          const backupDamage = rawDamage.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"] || r["case_date"]));
           fs.writeFileSync(backupPath, JSON.stringify({ rawOntime: backupOntime, rawDamage: backupDamage }, null, 2), "utf8");
         } catch (err) {
           console.error("Failed to write Vercel data backup:", err);
@@ -74,8 +93,8 @@ export default async function handler(req, res) {
       }
     }
 
-    const filteredOntime = rawOntime.filter(r => isDMClient(r["client_name"]));
-    const filteredDamage = rawDamage.filter(r => isDMClient(r["client_name"]));
+    const filteredOntime = rawOntime.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"]));
+    const filteredDamage = rawDamage.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"] || r["case_date"]));
 
     // Build a map for damage cases by order_code
     const damageMap = new Map();

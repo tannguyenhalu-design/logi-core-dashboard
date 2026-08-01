@@ -109,7 +109,11 @@ function OntimeMonthChart({ ontimeByMonth, isWeekly }) {
       scales: {
         y: { stacked: true, grid: { color: "rgba(255,255,255,0.05)" } },
         y1: { position: "right", grid: { display: false }, min: 0, max: 100, ticks: { callback: (v) => v + "%" } },
-        x: { stacked: true, grid: { display: false } },
+        x: { 
+          stacked: true, 
+          grid: { display: false },
+          ticks: { maxRotation: 0, minRotation: 0 }
+        },
       },
       plugins: {
         legend: { position: "bottom", labels: { color: "#94a3b8", boxWidth: 12 } },
