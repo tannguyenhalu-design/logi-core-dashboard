@@ -89,8 +89,8 @@ export default async function handler(req, res) {
       };
     });
 
-    // Allow CDN edge cache 5min, stale 10min
-    res.setHeader("Cache-Control", "s-maxage=300, stale-while-revalidate=600");
+    // Disable Edge CDN caching to force fresh data load
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
 
     return res.status(200).json({
       ok: true,

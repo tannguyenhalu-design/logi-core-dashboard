@@ -94,7 +94,7 @@ export default function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/rawdata");
+      const res = await fetch(`/api/rawdata?t=${Date.now()}`);
       if (!res.ok) throw new Error(`API error ${res.status}`);
       const raw = await res.json();
       setRawCache(raw);
