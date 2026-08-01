@@ -1,0 +1,46 @@
+{
+  "projects": [
+    {
+      "id": "proj-1",
+      "name": "PSD LTL Onboarding",
+      "pic": "Nguyễn Đức Khánh",
+      "bdLink": "https://docs.google.com/document/d/1sample-psd-bd-handover/edit",
+      "onsiteLink": "https://docs.google.com/presentation/d/1sample-psd-onsite-report/edit",
+      "sopLink": "https://docs.google.com/document/d/1sample-psd-sop-v1/edit",
+      "stage": 3,
+      "notes": "Đã thống nhất SOP thô với Ops Sup, đang chờ duyệt phiên bản cuối.",
+      "createdAt": "2026-07-28T09:00:00.000Z",
+      "createdBy": "Manager",
+      "updatedAt": "2026-07-31T15:30:00.000Z",
+      "updatedBy": "Nguyễn Đức Khánh"
+    },
+    {
+      "id": "proj-2",
+      "name": "Nguyễn Kim Miền Bắc Expansion",
+      "pic": "Nguyễn Công Danh",
+      "bdLink": "https://docs.google.com/document/d/1sample-nk-bd-handover/edit",
+      "onsiteLink": "https://docs.google.com/presentation/d/1sample-nk-onsite-report/edit",
+      "sopLink": "",
+      "stage": 2,
+      "notes": "Vừa hoàn thành khảo sát onsite kho Đông Anh ngày hôm qua. Đang tổng hợp Recao.",
+      "createdAt": "2026-07-29T10:00:00.000Z",
+      "createdBy": "Manager",
+      "updatedAt": "2026-08-01T11:00:00.000Z",
+      "updatedBy": "Nguyễn Công Danh"
+    },
+    {
+      "id": "proj-3",
+      "name": "AUX Air Conditioner Pilot",
+      "pic": "Thiều Hoàng Ban",
+      "bdLink": "https://docs.google.com/document/d/1sample-aux-bd-handover/edit",
+      "onsiteLink": "",
+      "sopLink": "",
+      "stage": 1,
+      "notes": "Nhận thông tin sơ bộ từ BD. Lịch đi onsite dự kiến tuần sau.",
+      "createdAt": "2026-08-01T08:00:00.000Z",
+      "createdBy": "Manager",
+      "updatedAt": "2026-08-01T08:00:00.000Z",
+      "updatedBy": "Manager"
+    }
+  ]
+}
