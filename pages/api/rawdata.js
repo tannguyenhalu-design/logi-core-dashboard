@@ -20,37 +20,6 @@ export default async function handler(req, res) {
     const ltlSheetId = "1Nj1IMAOH_mdmvNImgS6KPelP9dXvPWF9aWZjEhM58Pc";
     const backupPath = path.join(process.cwd(), "lib", "backup-data.json");
 
-    let rawOntime = [];
-    let rawDamage = [];
-
-    try {
-      const [ontimeSheet, damageSheet] = await Promise.all([
-        fetchSheet("raw_ontime", ltlSheetId),
-        fetchSheet("raw_damage", ltlSheetId),
-      ]);
-
-      if (ontimeSheet && ontimeSheet.length > 10) {
-        rawOntime = ontimeSheet;
-        rawDamage = damageSheet;
-
-        // Save local backup asynchronously
-        try {
-          fs.writeFileSync(backupPath, JSON.stringify({ rawOntime, rawDamage }, null, 2), "utf8");
-        } catch (err) {
-          console.error("Failed to write Vercel data backup:", err);
-        }
-      } else {
-        throw new Error("Returned spreadsheet rows count too low");
-      }
-    } catch (sheetErr) {
-      console.warn("Failed fetching from Google Sheets API, falling back to local backup file...", sheetErr);
-      if (fs.existsSync(backupPath)) {
-        const backup = JSON.parse(fs.readFileSync(backupPath, "utf8"));
-        rawOntime = backup.rawOntime || [];
-        rawDamage = backup.rawDamage || [];
-      }
-    }
-
     const isDMClient = (clientName) => {
       if (!clientName) return false;
       const name = String(clientName).trim();
@@ -71,6 +40,39 @@ export default async function handler(req, res) {
       }
       return false;
     };
+
+    let rawOntime = [];
+    let rawDamage = [];
+
+    try {
+      const [ontimeSheet, damageSheet] = await Promise.all([
+        fetchSheet("raw_ontime", ltlSheetId),
+        fetchSheet("raw_damage", ltlSheetId),
+      ]);
+
+      if (ontimeSheet && ontimeSheet.length > 10) {
+        rawOntime = ontimeSheet;
+        rawDamage = damageSheet;
+
+        // Save local backup asynchronously (only DM records to keep file tiny)
+        try {
+          const backupOntime = rawOntime.filter(r => isDMClient(r["client_name"]));
+          const backupDamage = rawDamage.filter(r => isDMClient(r["client_name"]));
+          fs.writeFileSync(backupPath, JSON.stringify({ rawOntime: backupOntime, rawDamage: backupDamage }, null, 2), "utf8");
+        } catch (err) {
+          console.error("Failed to write Vercel data backup:", err);
+        }
+      } else {
+        throw new Error("Returned spreadsheet rows count too low");
+      }
+    } catch (sheetErr) {
+      console.warn("Failed fetching from Google Sheets API, falling back to local backup file...", sheetErr);
+      if (fs.existsSync(backupPath)) {
+        const backup = JSON.parse(fs.readFileSync(backupPath, "utf8"));
+        rawOntime = backup.rawOntime || [];
+        rawDamage = backup.rawDamage || [];
+      }
+    }
 
     const filteredOntime = rawOntime.filter(r => isDMClient(r["client_name"]));
     const filteredDamage = rawDamage.filter(r => isDMClient(r["client_name"]));
