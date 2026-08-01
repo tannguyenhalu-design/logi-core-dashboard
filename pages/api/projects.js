@@ -37,7 +37,7 @@ export default async function handler(req, res) {
       // Fetch spreadsheet data with GridData to extract embedded hyperlinks
       const response = await sheets.spreadsheets.get({
         spreadsheetId: ltlProjectsId,
-        ranges: ["'Data dự án '!A1:Z100"],
+        ranges: ["'Data dự án'!A1:Z100"],
         includeGridData: true,
       });
 
@@ -60,7 +60,7 @@ export default async function handler(req, res) {
           try {
             await sheets.spreadsheets.values.update({
               spreadsheetId: ltlProjectsId,
-              range: "'Data dự án '!L1",
+              range: "'Data dự án'!L1",
               valueInputOption: "USER_ENTERED",
               resource: { values: [["Dự kiến Volume"]] },
             });
@@ -185,7 +185,7 @@ export default async function handler(req, res) {
         // 1. Append a new project row to Google Sheets
         await sheets.spreadsheets.values.append({
           spreadsheetId: ltlProjectsId,
-          range: "'Data dự án '!A:L",
+          range: "'Data dự án'!A:L",
           valueInputOption: "USER_ENTERED",
           resource: {
             values: [[
@@ -257,7 +257,7 @@ export default async function handler(req, res) {
         try {
           const response = await sheets.spreadsheets.values.get({
             spreadsheetId: ltlProjectsId,
-            range: "'Data dự án '!A1:L100",
+              range: "'Data dự án'!A1:L100",
           });
           const rows = response.data.values || [];
           if (rows.length > 0) {
@@ -289,7 +289,7 @@ export default async function handler(req, res) {
                 if (colIdx !== -1 && val !== undefined) {
                   await sheets.spreadsheets.values.update({
                     spreadsheetId: ltlProjectsId,
-                    range: `'Data dự án '!${colIndexToLetter(colIdx)}${rowNumber}`,
+                    range: `'Data dự án'!${colIndexToLetter(colIdx)}${rowNumber}`,
                     valueInputOption: "USER_ENTERED",
                     resource: { values: [[val]] },
                   });
