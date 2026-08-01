@@ -41,6 +41,13 @@ export default function LoginPage() {
         <title>Đăng nhập — LogiCore Dashboard</title>
       </Head>
       <div className="login-page">
+        <div className="login-hero">
+          <div className="login-hero-content">
+            <div className="tagline">Your loads. Our roads.</div>
+            <h2>Giao Hàng Nặng<br />Kênh Bán Lẻ Toàn Quốc</h2>
+          </div>
+        </div>
+        <div className="login-form-panel">
         <div className="login-card">
           {/* Logo + Title */}
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
@@ -158,6 +165,7 @@ export default function LoginPage() {
           <p style={{ textAlign: "center", marginTop: 20, fontSize: 11.5, color: "var(--text-muted)", opacity: 0.6 }}>
             Bằng cách đăng nhập, bạn đồng ý với điều khoản sử dụng nội bộ GHN.
           </p>
+        </div>
         </div>
       </div>
     </>
