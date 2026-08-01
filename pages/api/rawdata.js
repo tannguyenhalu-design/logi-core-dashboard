@@ -8,25 +8,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../lib/auth-options";
 import { fetchSheet } from "../../lib/sheets";
 
-// Only send columns needed by all transforms
-const LTL_COLS = [
-  "order_code","weight","client_name",
-  "from_province_name","from_district_name",
-  "to_province_name","to_district_name",
-  "status","pickup_time","delivered_time","finish_date","deadline",
-  "odr_success","warehouse_lay","warehouse_giao",
-  "loai_kho_giao","vung_giao",
-  "Tình trạng","Hướng xử lý","Số tiền",
-];
-
-function compact(rows, cols) {
-  return rows.map(row => {
-    const obj = {};
-    cols.forEach(c => { if (row[c] !== undefined && row[c] !== null) obj[c] = row[c]; });
-    return obj;
-  });
-}
-
 export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).end();
 
@@ -34,18 +15,86 @@ export default async function handler(req, res) {
   if (!session?.user) return res.status(401).json({ error: "Unauthorized" });
 
   try {
-    const [rawLTL, rawFTL, masterVehicle] = await Promise.all([
-      fetchSheet("Raw"),
-      fetchSheet("Raw_FTL"),
-      fetchSheet("Master data xe"),
+    const ltlSheetId = process.env.GOOGLE_SHEET_ID;
+    const ftlSheetId = process.env.GOOGLE_SHEET_ID_FTL || "1gE2LO4jGOE6EmUIGP-jFpTSRQ-g2ge7M-PDnR_aa6g0";
+
+    const [rawOntime, rawDamage, rawFTL, masterVehicle] = await Promise.all([
+      fetchSheet("raw_ontime", ltlSheetId),
+      fetchSheet("raw_damage", ltlSheetId),
+      fetchSheet("Raw_FTL", ftlSheetId),
+      fetchSheet("Master data xe", ftlSheetId),
     ]);
+
+    // Build a map for damage cases by order_code
+    const damageMap = new Map();
+    rawDamage.forEach(row => {
+      const code = String(row["order_code"] || "").trim();
+      if (code) {
+        damageMap.set(code, row);
+      }
+    });
+
+    // Merge raw_damage into raw_ontime to maintain backward compatibility
+    const mergedLTL = rawOntime.map(row => {
+      const orderCode = String(row["order_code"] || "").trim();
+      const dmg = damageMap.get(orderCode);
+
+      let statusDamage = "";
+      let compensationAmount = 0;
+      let handling = "";
+
+      if (dmg) {
+        statusDamage = String(dmg["damage_type"] || "").trim();
+        const statusStr = String(dmg["case_status"] || "").trim();
+        const isNumber = /^[0-9.,]+$/.test(statusStr);
+        const cleaned = statusStr.replace(/[.,]/g, "");
+        const num = parseFloat(cleaned);
+
+        if (!isNaN(num) && num > 0) {
+          compensationAmount = num;
+          handling = "Đền bù";
+        } else if (statusStr.includes("Đền bù") || statusStr.includes("đền bù")) {
+          handling = "Đền bù";
+        } else {
+          const reason = String(dmg["qlrr_reason"] || "").trim();
+          if (reason.length > 0) {
+            handling = "Đã xử lý (không đền bù)";
+          } else {
+            handling = "Chưa xử lý";
+          }
+        }
+      }
+
+      return {
+        order_code:          orderCode,
+        weight:              row["weight"],
+        client_name:         row["client_name"],
+        from_province_name:  row["from_province_name"],
+        from_district_name:  row["from_district_name"],
+        to_province_name:    row["to_province_name"],
+        to_district_name:    row["to_district_name"],
+        status:              row["status"],
+        pickup_time:         row["pickup_time"],
+        delivered_time:      row["delivered_time"],
+        finish_date:         row["finish_date"],
+        deadline:            row["deadline_plus"], // Map deadline_plus to deadline
+        odr_success:         row["odr_success"],
+        warehouse_lay:       row["kho_lay"],       // Map kho_lay to warehouse_lay
+        warehouse_giao:      row["kho_giao"],      // Map kho_giao to warehouse_giao
+        loai_kho_giao:       row["loai_kho_giao"] || null,
+        vung_giao:           row["vung_giao"] || null,
+        "Tình trạng":        statusDamage,
+        "Hướng xử lý":        handling,
+        "Số tiền":           compensationAmount,
+      };
+    });
 
     // Allow CDN edge cache 5min, stale 10min
     res.setHeader("Cache-Control", "s-maxage=300, stale-while-revalidate=600");
 
     return res.status(200).json({
       ok: true,
-      ltl:           compact(rawLTL, LTL_COLS),
+      ltl:           mergedLTL,
       ftl:           rawFTL,
       masterVehicle,
     });
