@@ -15,8 +15,8 @@ export default async function handler(req, res) {
   if (!session?.user) return res.status(401).json({ error: "Unauthorized" });
 
   try {
-    const ltlSheetId = process.env.GOOGLE_SHEET_ID || "1Nj1IMAOH_mdmvNImgS6KPelP9dXvPWF9aWZjEhM58Pc";
-    const ftlSheetId = process.env.GOOGLE_SHEET_ID_FTL || "1gE2LO4jGOE6EmUIGP-jFpTSRQ-g2ge7M-PDnR_aa6g0";
+    const ltlSheetId = "1Nj1IMAOH_mdmvNImgS6KPelP9dXvPWF9aWZjEhM58Pc";
+    const ftlSheetId = "1gE2LO4jGOE6EmUIGP-jFpTSRQ-g2ge7M-PDnR_aa6g0";
 
     const [rawOntime, rawDamage, rawFTL, masterVehicle] = await Promise.all([
       fetchSheet("raw_ontime", ltlSheetId),
