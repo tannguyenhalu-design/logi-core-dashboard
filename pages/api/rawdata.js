@@ -16,13 +16,10 @@ export default async function handler(req, res) {
 
   try {
     const ltlSheetId = "1Nj1IMAOH_mdmvNImgS6KPelP9dXvPWF9aWZjEhM58Pc";
-    const ftlSheetId = "1gE2LO4jGOE6EmUIGP-jFpTSRQ-g2ge7M-PDnR_aa6g0";
 
-    const [rawOntime, rawDamage, rawFTL, masterVehicle] = await Promise.all([
+    const [rawOntime, rawDamage] = await Promise.all([
       fetchSheet("raw_ontime", ltlSheetId),
       fetchSheet("raw_damage", ltlSheetId),
-      fetchSheet("Raw_FTL", ftlSheetId),
-      fetchSheet("Master data xe", ftlSheetId),
     ]);
 
     // Build a map for damage cases by order_code
@@ -95,9 +92,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       ok: true,
       ltl:           mergedLTL,
-      ftl:           rawFTL,
       damage:        rawDamage,
-      masterVehicle,
     });
   } catch (err) {
     console.error("[/api/rawdata]", err);

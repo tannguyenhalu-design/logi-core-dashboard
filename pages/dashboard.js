@@ -9,77 +9,14 @@ import Head from "next/head";
 import FilterBar from "../components/FilterBar";
 import dynamic from "next/dynamic";
 import { transformLTL } from "../lib/transform-ltl";
-import { transformFTL } from "../lib/transform-ftl";
-import { transformTachTrip } from "../lib/transform-tach-trip";
-import { transformAIInsights } from "../lib/transform-ai-insights";
 
-const TabOverview   = dynamic(() => import("../components/TabOverview"),   { ssr: false });
 const TabLTL        = dynamic(() => import("../components/TabLTL"),        { ssr: false });
-const TabFTL        = dynamic(() => import("../components/TabFTL"),        { ssr: false });
-const TabTachTrip   = dynamic(() => import("../components/TabTachTrip"),   { ssr: false });
-const TabAIInsights = dynamic(() => import("../components/TabAIInsights"), { ssr: false });
 
-const TABS = [
-  {
-    id: "overview",
-    label: "Tổng quan",
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-      </svg>
-    ),
-  },
-  {
-    id: "ltl",
-    label: "LTL",
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-        <line x1="3" y1="6" x2="21" y2="6"/>
-      </svg>
-    ),
-  },
-  {
-    id: "ftl",
-    label: "FTL",
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <rect x="1" y="3" width="15" height="13"/>
-        <path d="M16 8h4l3 3v5h-7V8z"/>
-        <circle cx="5.5" cy="18.5" r="2.5"/>
-        <circle cx="18.5" cy="18.5" r="2.5"/>
-      </svg>
-    ),
-  },
-  {
-    id: "tachtrip",
-    label: "Tách Chuyến LTL",
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <rect x="3" y="3" width="18" height="18" rx="2"/>
-        <line x1="9" y1="3" x2="9" y2="21"/>
-        <line x1="15" y1="3" x2="15" y2="21"/>
-      </svg>
-    ),
-  },
-  {
-    id: "ai",
-    label: "AI Insights",
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.5V12h-4V9.5C8.8 8.8 8 7.5 8 6a4 4 0 0 1 4-4z"/>
-        <path d="M8 12H5a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2h-3"/>
-        <circle cx="12" cy="17" r="1"/>
-      </svg>
-    ),
-  },
-];
+// TABS constant removed, displaying only LTL tab.
 
 export default function DashboardPage() {
   const { data: session } = useSession();
   const user = session?.user || {};
-  const [activeTab, setActiveTab] = useState("overview");
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [selectedProjects, setSelectedProjects] = useState([]);
   const [filterMode, setFilterMode] = useState("pickup"); // 'pickup' | 'delivered'
@@ -120,25 +57,14 @@ export default function DashboardPage() {
         const filters  = { months: mFilter, projects: pFilter, filterMode: fMode || "pickup" };
 
         const ltlData      = transformLTL(raw.ltl, filters, raw.damage);
-        const ftlData      = transformFTL(raw.ftl, raw.masterVehicle, filters);
-        const tachTripData = transformTachTrip(raw.ltl);
-        const aiInsights   = transformAIInsights(raw.ltl);
-        const overviewLTL  = transformLTL(raw.ltl, {}, raw.damage);
-        const overviewFTL  = transformFTL(raw.ftl, raw.masterVehicle, {});
 
         setDashData({
           ok: true,
           user:    { role: user.role || "manager", project: user.project || null },
           filters,
           ltl:     ltlData,
-          ftl:     ftlData,
-          tachTrip:   tachTripData,
-          aiInsights,
           overview: {
-            ltl: { totalOrders: overviewLTL.totalOrders, totalWeight: overviewLTL.totalWeight, ontimePct: overviewLTL.ontimePct, totalBroken: overviewLTL.totalBroken },
-            ftl: { totalTrips:  overviewFTL.totalTrips,  totalOrders: overviewFTL.totalOrders,  totalWeight: overviewFTL.totalWeight },
             allProjectsLTL: ltlData.allProjects || [],
-            allProjectsFTL: ftlData.allProjects || [],
           },
         });
       } catch(e) { setError(e.message); }
@@ -160,10 +86,7 @@ export default function DashboardPage() {
   }, [selectedMonths, selectedProjects, filterMode]);
 
   const allProjects = dashData
-    ? [...new Set([
-        ...(dashData.overview?.allProjectsLTL || []),
-        ...(dashData.overview?.allProjectsFTL || []),
-      ])].sort()
+    ? (dashData.overview?.allProjectsLTL || []).sort()
     : user.project ? [user.project] : [];
 
   return (
@@ -200,18 +123,15 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Tabs */}
+          {/* Active Navigation */}
           <nav className="sidebar-nav">
-            {TABS.map((tab) => (
-              <div
-                key={tab.id}
-                className={`nav-item${activeTab === tab.id ? " active" : ""}`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.icon}
-                {tab.label}
-              </div>
-            ))}
+            <div className="nav-item active" style={{ cursor: "default" }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+                <line x1="3" y1="6" x2="21" y2="6"/>
+              </svg>
+              LTL
+            </div>
           </nav>
 
           {/* User info + Logout */}
@@ -258,7 +178,7 @@ export default function DashboardPage() {
             zIndex: 100,
           }}>
             <div style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)" }}>
-              {TABS.find((t) => t.id === activeTab)?.label}
+              LTL
             </div>
 
             <FilterBar
@@ -318,13 +238,7 @@ export default function DashboardPage() {
 
             {!loading && !error && dashData && (
 
-              <>
-                {activeTab === "overview"  && <TabOverview    overview={dashData.overview} ltlFiltered={dashData.ltl} />}
-                {activeTab === "ltl"       && <TabLTL         data={dashData.ltl} />}
-                {activeTab === "ftl"       && <TabFTL         data={dashData.ftl} />}
-                {activeTab === "tachtrip"  && <TabTachTrip    tcData={dashData.tachTrip} />}
-                {activeTab === "ai"        && <TabAIInsights  data={dashData} />}
-              </>
+              <TabLTL data={dashData.ltl} />
             )}
           </main>
         </div>
