@@ -72,6 +72,7 @@ export default async function handler(req, res) {
     role: user.role,
     pic: user.pic || null,
     project: user.project || null,
+    tabs: user.tabs || [],
   };
   await session.save();
 
@@ -79,5 +80,6 @@ export default async function handler(req, res) {
     ok: true,
     role: user.role,
     project: user.project || null,
+    tabs: user.tabs || [],
   });
 }

@@ -13,6 +13,9 @@ export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).end();
   const session = await getSession(req, res);
   if (!session?.user) return res.status(401).json({ error: "Unauthorized" });
+  if (session.user.role !== "manager" && !(session.user.tabs || []).includes("ltl")) {
+    return res.status(403).json({ error: "Bạn không có quyền xem LTL Dashboard" });
+  }
   try {
     const ltlSheetId = "1Nj1IMAOH_mdmvNImgS6KPelP9dXvPWF9aWZjEhM58Pc";
     const backupPath = path.join(process.cwd(), "lib", "backup-data.json");

@@ -22,6 +22,7 @@ export default async function handler(req, res) {
           role: u.role,
           pic: u.pic,
           project: u.project,
+          tabs: u.tabs,
           createdAt: u.createdAt,
           updatedAt: u.updatedAt,
           updatedBy: u.updatedBy,
@@ -35,7 +36,7 @@ export default async function handler(req, res) {
 
   if (req.method === "POST") {
     try {
-      const { email, role, pic, project } = req.body || {};
+      const { email, role, pic, project, tabs } = req.body || {};
       if (!email || !role) return res.status(400).json({ error: "Thiếu email hoặc vai trò" });
       if (!["pending", "manager", "pic", "client"].includes(role)) {
         return res.status(400).json({ error: "Vai trò không hợp lệ" });
@@ -44,12 +45,13 @@ export default async function handler(req, res) {
       if (!normalizedEmail.endsWith("@ghn.vn")) {
         return res.status(400).json({ error: "Chỉ chấp nhận email @ghn.vn" });
       }
+      const normalizedTabs = Array.isArray(tabs) ? tabs.filter((t) => ["ltl", "operations"].includes(t)) : undefined;
 
       const existing = await findUserByEmail(normalizedEmail);
       if (existing) {
-        await updateUserRole(normalizedEmail, { role, pic, project, updatedBy: session.user.email });
+        await updateUserRole(normalizedEmail, { role, pic, project, tabs: normalizedTabs, updatedBy: session.user.email });
       } else {
-        await createUserWithRole(normalizedEmail, { role, pic, project, updatedBy: session.user.email });
+        await createUserWithRole(normalizedEmail, { role, pic, project, tabs: normalizedTabs, updatedBy: session.user.email });
       }
       return res.status(200).json({ ok: true });
     } catch (err) {

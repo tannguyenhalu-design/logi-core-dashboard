@@ -7,6 +7,9 @@ import path from "path";
 export default async function handler(req, res) {
   const session = await getSession(req, res);
   if (!session?.user) return res.status(401).json({ error: "Unauthorized" });
+  if (session.user.role !== "manager" && !(session.user.tabs || []).includes("operations")) {
+    return res.status(403).json({ error: "Bạn không có quyền xem Vận hành SD3" });
+  }
 
   const storePath = path.join(process.cwd(), "lib", "projects-store.json");
 

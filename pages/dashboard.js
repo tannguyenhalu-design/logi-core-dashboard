@@ -16,12 +16,15 @@ const TabUsers      = dynamic(() => import("../components/TabUsers"),      { ssr
 
 export default function DashboardPage({ user: initialUser }) {
   const user = initialUser || {};
-  const [activeTab, setActiveTab] = useState("ltl"); // 'ltl' | 'operations' | 'users'
+  const allowedTabs = user.role === "manager" ? ["ltl", "operations"] : (user.tabs || []);
+  const canSeeLTL = allowedTabs.includes("ltl");
+  const canSeeOperations = allowedTabs.includes("operations");
+  const [activeTab, setActiveTab] = useState(allowedTabs[0] || "none"); // 'ltl' | 'operations' | 'users' | 'none'
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [selectedProjects, setSelectedProjects] = useState([]);
   const [filterMode, setFilterMode] = useState("pickup");
   const [dashData, setDashData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(canSeeLTL);
   const [filtering, setFiltering] = useState(false);
   const [error, setError] = useState(null);
   const [rawCache, setRawCache] = useState(null);
@@ -94,8 +97,9 @@ export default function DashboardPage({ user: initialUser }) {
     }, 0);
   }, []);
 
-  // Mount: fetch raw once
+  // Mount: fetch raw once (only if this user can see the LTL tab at all)
   useEffect(() => {
+    if (!canSeeLTL) return;
     fetchRaw().then(raw => { if (raw) applyTransforms(raw, [], []); });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -146,36 +150,40 @@ export default function DashboardPage({ user: initialUser }) {
 
           {/* Active Navigation */}
           <nav className="sidebar-nav" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <div 
-              className={`nav-item ${activeTab === "ltl" ? "active" : ""}`}
-              onClick={() => setActiveTab("ltl")}
-              style={{
-                cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
-                color: activeTab === "ltl" ? "#fff" : "var(--text-muted)",
-                background: activeTab === "ltl" ? "rgba(20, 224, 196,0.15)" : "transparent"
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 3h18v18H3z"/><path d="M21 9H3M9 21V9"/>
-              </svg>
-              LTL Dashboard
-            </div>
-            <div 
-              className={`nav-item ${activeTab === "operations" ? "active" : ""}`}
-              onClick={() => setActiveTab("operations")}
-              style={{
-                cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
-                color: activeTab === "operations" ? "#fff" : "var(--text-muted)",
-                background: activeTab === "operations" ? "rgba(20, 224, 196,0.15)" : "transparent"
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-              </svg>
-              Vận hành SD3
-            </div>
+            {canSeeLTL && (
+              <div
+                className={`nav-item ${activeTab === "ltl" ? "active" : ""}`}
+                onClick={() => setActiveTab("ltl")}
+                style={{
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
+                  color: activeTab === "ltl" ? "#fff" : "var(--text-muted)",
+                  background: activeTab === "ltl" ? "rgba(20, 224, 196,0.15)" : "transparent"
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 3h18v18H3z"/><path d="M21 9H3M9 21V9"/>
+                </svg>
+                LTL Dashboard
+              </div>
+            )}
+            {canSeeOperations && (
+              <div
+                className={`nav-item ${activeTab === "operations" ? "active" : ""}`}
+                onClick={() => setActiveTab("operations")}
+                style={{
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
+                  color: activeTab === "operations" ? "#fff" : "var(--text-muted)",
+                  background: activeTab === "operations" ? "rgba(20, 224, 196,0.15)" : "transparent"
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                Vận hành SD3
+              </div>
+            )}
             {user.role === "manager" && (
               <div
                 className={`nav-item ${activeTab === "users" ? "active" : ""}`}
@@ -239,7 +247,7 @@ export default function DashboardPage({ user: initialUser }) {
             zIndex: 100,
           }}>
             <div style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)" }}>
-              {activeTab === "ltl" ? "LTL Dashboard" : activeTab === "users" ? "Quản lý người dùng" : "Vận hành SD3"}
+              {activeTab === "ltl" ? "LTL Dashboard" : activeTab === "users" ? "Quản lý người dùng" : activeTab === "operations" ? "Vận hành SD3" : "LogiCore Dashboard"}
             </div>
 
             {activeTab === "ltl" ? (
@@ -304,7 +312,14 @@ export default function DashboardPage({ user: initialUser }) {
 
           {/* Dashboard body */}
           <main style={{ flex: 1, overflowY: "auto", padding: 24, position: "relative" }}>
-            {activeTab === "users" ? (
+            {activeTab === "none" ? (
+              <div style={{
+                background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)",
+                borderRadius: 12, padding: 24, color: "var(--amber)", textAlign: "center",
+              }}>
+                Tài khoản của bạn chưa được cấp quyền xem mục nào. Vui lòng liên hệ quản lý.
+              </div>
+            ) : activeTab === "users" ? (
               <TabUsers />
             ) : (
               <>
@@ -337,12 +352,10 @@ export default function DashboardPage({ user: initialUser }) {
                   </div>
                 )}
 
-                {!loading && !error && dashData && (
-                  activeTab === "ltl" ? (
-                    <TabLTL data={dashData.ltl} />
-                  ) : (
-                    <TabOperations rawData={dashData.raw} />
-                  )
+                {activeTab === "operations" ? (
+                  <TabOperations rawData={dashData?.raw} />
+                ) : (
+                  !loading && !error && dashData && <TabLTL data={dashData.ltl} />
                 )}
               </>
             )}

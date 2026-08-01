@@ -12,6 +12,39 @@ const ROLE_LABELS = {
   client: "Khách hàng",
 };
 
+const TAB_OPTIONS = [
+  { value: "ltl", label: "LTL Dashboard" },
+  { value: "operations", label: "Vận hành SD3" },
+];
+
+function defaultTabsForRole(role) {
+  if (role === "manager") return ["ltl", "operations"];
+  if (role === "pic") return ["ltl", "operations"];
+  if (role === "client") return ["ltl"];
+  return [];
+}
+
+function TabCheckboxes({ tabs, disabled, onChange }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {TAB_OPTIONS.map((opt) => (
+        <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: disabled ? "var(--text-muted)" : "var(--text-secondary)", cursor: disabled ? "not-allowed" : "pointer" }}>
+          <input
+            type="checkbox"
+            disabled={disabled}
+            checked={tabs.includes(opt.value)}
+            onChange={(e) => {
+              const next = e.target.checked ? [...tabs, opt.value] : tabs.filter((t) => t !== opt.value);
+              onChange(next);
+            }}
+          />
+          {opt.label}
+        </label>
+      ))}
+    </div>
+  );
+}
+
 function RoleBadge({ role }) {
   const color = role === "pending" ? "var(--amber)" : role === "manager" ? "var(--cyan)" : role === "pic" ? "var(--green)" : "var(--purple)";
   const bg = role === "pending" ? "rgba(245,158,11,0.15)" : role === "manager" ? "rgba(20,224,196,0.15)" : role === "pic" ? "rgba(16,185,129,0.15)" : "rgba(139,92,246,0.15)";
@@ -33,6 +66,7 @@ export default function TabUsers() {
   const [newRole, setNewRole] = useState("manager");
   const [newPic, setNewPic] = useState("");
   const [newProject, setNewProject] = useState("");
+  const [newTabs, setNewTabs] = useState(defaultTabsForRole("manager"));
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState(null);
 
@@ -46,7 +80,7 @@ export default function TabUsers() {
       setUsers(json.users);
       const nextDrafts = {};
       json.users.forEach((u) => {
-        nextDrafts[u.email] = { role: u.role, pic: u.pic || "", project: u.project || "" };
+        nextDrafts[u.email] = { role: u.role, pic: u.pic || "", project: u.project || "", tabs: u.tabs || [] };
       });
       setDrafts(nextDrafts);
     } catch (e) {
@@ -71,7 +105,7 @@ export default function TabUsers() {
       const res = await fetch("/api/admin-users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, role: draft.role, pic: draft.pic, project: draft.project }),
+        body: JSON.stringify({ email, role: draft.role, pic: draft.pic, project: draft.project, tabs: draft.tabs }),
       });
       const json = await res.json();
       if (!res.ok || !json.ok) throw new Error(json.error || "Lưu thất bại");
@@ -96,7 +130,7 @@ export default function TabUsers() {
       const res = await fetch("/api/admin-users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, role: newRole, pic: newPic, project: newProject }),
+        body: JSON.stringify({ email, role: newRole, pic: newPic, project: newProject, tabs: newTabs }),
       });
       const json = await res.json();
       if (!res.ok || !json.ok) throw new Error(json.error || "Thêm thất bại");
@@ -105,6 +139,7 @@ export default function TabUsers() {
       setNewRole("manager");
       setNewPic("");
       setNewProject("");
+      setNewTabs(defaultTabsForRole("manager"));
       await fetchUsers();
     } catch (e) {
       setAddError(e.message);
@@ -149,6 +184,7 @@ export default function TabUsers() {
             <tr style={{ borderBottom: "2px solid var(--border)" }}>
               <th style={{ textAlign: "left", padding: "12px 8px" }}>Email</th>
               <th style={{ textAlign: "left", padding: "12px 8px" }}>Vai trò</th>
+              <th style={{ textAlign: "left", padding: "12px 8px" }}>Xem được tab</th>
               <th style={{ textAlign: "left", padding: "12px 8px" }}>Tên PIC (nếu là PIC)</th>
               <th style={{ textAlign: "left", padding: "12px 8px" }}>Dự án (nếu là Khách hàng)</th>
               <th style={{ textAlign: "center", padding: "12px 8px" }}>Tác vụ</th>
@@ -156,9 +192,12 @@ export default function TabUsers() {
           </thead>
           <tbody>
             {(users || []).map((u) => {
-              const draft = drafts[u.email] || { role: u.role, pic: "", project: "" };
+              const draft = drafts[u.email] || { role: u.role, pic: "", project: "", tabs: u.tabs || [] };
+              const draftTabs = draft.tabs || [];
+              const origTabs = u.tabs || [];
+              const tabsChanged = draftTabs.length !== origTabs.length || draftTabs.some((t) => !origTabs.includes(t));
               const dirty =
-                draft.role !== u.role || (draft.pic || "") !== (u.pic || "") || (draft.project || "") !== (u.project || "");
+                draft.role !== u.role || (draft.pic || "") !== (u.pic || "") || (draft.project || "") !== (u.project || "") || tabsChanged;
               return (
                 <tr key={u.email} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
                   <td style={{ padding: "12px 8px", fontWeight: 600 }}>
@@ -167,7 +206,7 @@ export default function TabUsers() {
                   <td style={{ padding: "12px 8px" }}>
                     <select
                       value={draft.role}
-                      onChange={(e) => updateDraft(u.email, { role: e.target.value })}
+                      onChange={(e) => updateDraft(u.email, { role: e.target.value, tabs: defaultTabsForRole(e.target.value) })}
                       style={{ background: "#0f172a", border: "1px solid var(--border)", color: "#fff", padding: "6px 8px", borderRadius: 6, fontSize: 12 }}
                     >
                       <option value="pending">Chờ duyệt</option>
@@ -175,6 +214,13 @@ export default function TabUsers() {
                       <option value="pic">Chuyên viên vận hành (PIC)</option>
                       <option value="client">Khách hàng</option>
                     </select>
+                  </td>
+                  <td style={{ padding: "12px 8px" }}>
+                    <TabCheckboxes
+                      tabs={draft.role === "manager" ? ["ltl", "operations"] : draftTabs}
+                      disabled={draft.role === "manager"}
+                      onChange={(next) => updateDraft(u.email, { tabs: next })}
+                    />
                   </td>
                   <td style={{ padding: "12px 8px" }}>
                     <input
@@ -254,13 +300,23 @@ export default function TabUsers() {
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Vai trò</label>
                 <select
-                  value={newRole} onChange={(e) => setNewRole(e.target.value)}
+                  value={newRole}
+                  onChange={(e) => { setNewRole(e.target.value); setNewTabs(defaultTabsForRole(e.target.value)); }}
                   style={{ background: "#0f172a", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
                 >
                   <option value="manager">Quản lý</option>
                   <option value="pic">Chuyên viên vận hành (PIC)</option>
                   <option value="client">Khách hàng</option>
                 </select>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Xem được tab</label>
+                <TabCheckboxes
+                  tabs={newRole === "manager" ? ["ltl", "operations"] : newTabs}
+                  disabled={newRole === "manager"}
+                  onChange={setNewTabs}
+                />
               </div>
 
               {newRole === "pic" && (
