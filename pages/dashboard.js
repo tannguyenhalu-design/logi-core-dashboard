@@ -11,22 +11,22 @@ import dynamic from "next/dynamic";
 import { transformLTL } from "../lib/transform-ltl";
 
 const TabLTL        = dynamic(() => import("../components/TabLTL"),        { ssr: false });
-
-// TABS constant removed, displaying only LTL tab.
+const TabOperations = dynamic(() => import("../components/TabOperations"), { ssr: false });
 
 export default function DashboardPage() {
   const { data: session } = useSession();
   const user = session?.user || {};
+  const [activeTab, setActiveTab] = useState("ltl"); // 'ltl' | 'operations'
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [selectedProjects, setSelectedProjects] = useState([]);
-  const [filterMode, setFilterMode] = useState("pickup"); // 'pickup' | 'delivered'
+  const [filterMode, setFilterMode] = useState("pickup");
   const [dashData, setDashData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filtering, setFiltering] = useState(false);
   const [error, setError] = useState(null);
   const [rawCache, setRawCache] = useState(null);
 
-  // ── Fetch raw data ONCE on mount (or manual refresh) ──
+  // ── Fetch raw data ONCE on mount ──
   const fetchRaw = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -44,33 +44,52 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // ── Apply all transforms client-side (instant, no API call) ──
+  // ── Apply all transforms client-side ──
   const applyTransforms = useCallback((raw, months, projects, fMode) => {
     if (!raw) return;
     setFiltering(true);
     setTimeout(() => {
       try {
+        const userSession = raw.user || {};
+        const picMapping = raw.picMapping || {};
+
+        let ltlSource = raw.ltl || [];
+        let damageSource = raw.damage || [];
+
+        // PIC Filtering check
+        if (userSession.role === "pic" && userSession.pic) {
+          ltlSource = (raw.ltl || []).filter(r => picMapping[r.client_name] === userSession.pic);
+          damageSource = (raw.damage || []).filter(r => picMapping[r.client_name] === userSession.pic);
+        }
+
         const mFilter  = months.length > 0 ? months : null;
-        const pFilter  = user.role === "client" && user.project
-          ? [user.project]
+        const pFilter  = userSession.role === "client" && userSession.project
+          ? [userSession.project]
           : projects.length > 0 ? projects : null;
         const filters  = { months: mFilter, projects: pFilter, filterMode: fMode || "pickup" };
 
-        const ltlData      = transformLTL(raw.ltl, filters, raw.damage);
+        const ltlData      = transformLTL(ltlSource, filters, damageSource);
 
         setDashData({
           ok: true,
-          user:    { role: user.role || "manager", project: user.project || null },
+          user:    userSession,
+          picMapping,
           filters,
           ltl:     ltlData,
           overview: {
             allProjectsLTL: ltlData.allProjects || [],
           },
+          raw: {
+            ltl: ltlSource,
+            damage: damageSource,
+            user: userSession,
+            picMapping,
+          }
         });
       } catch(e) { setError(e.message); }
       finally    { setFiltering(false); }
     }, 0);
-  }, [user]);
+  }, []);
 
   // Mount: fetch raw once
   useEffect(() => {
@@ -78,8 +97,7 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Filter change: re-transform client-side (no API call, instant)
-  // Filter/mode change: re-transform client-side (no API call, instant)
+  // Filter change: re-transform client-side
   useEffect(() => {
     if (rawCache) applyTransforms(rawCache, selectedMonths, selectedProjects, filterMode);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -124,25 +142,48 @@ export default function DashboardPage() {
           </div>
 
           {/* Active Navigation */}
-          <nav className="sidebar-nav">
-            <div className="nav-item active" style={{ cursor: "default" }}>
+          <nav className="sidebar-nav" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div 
+              className={`nav-item ${activeTab === "ltl" ? "active" : ""}`}
+              onClick={() => setActiveTab("ltl")}
+              style={{
+                cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
+                color: activeTab === "ltl" ? "#fff" : "var(--text-muted)",
+                background: activeTab === "ltl" ? "rgba(59,130,246,0.15)" : "transparent"
+              }}
+            >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-                <line x1="3" y1="6" x2="21" y2="6"/>
+                <path d="M3 3h18v18H3z"/><path d="M21 9H3M9 21V9"/>
               </svg>
-              LTL
+              LTL Dashboard
+            </div>
+            <div 
+              className={`nav-item ${activeTab === "operations" ? "active" : ""}`}
+              onClick={() => setActiveTab("operations")}
+              style={{
+                cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
+                color: activeTab === "operations" ? "#fff" : "var(--text-muted)",
+                background: activeTab === "operations" ? "rgba(59,130,246,0.15)" : "transparent"
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              Team Vận Hành
             </div>
           </nav>
 
           {/* User info + Logout */}
           <div style={{ marginTop: "auto", borderTop: "1px solid var(--border)", paddingTop: 16 }}>
             <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>
-              👑 Quản lý
+              👑 {dashData?.user?.role === "pic" ? "PIC Vận Hành" : "Manager"}
             </div>
-            <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 2 }}>
+            <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {user.name || ""}
             </div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 12, opacity: 0.7 }}>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 12, opacity: 0.7, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {user.email || ""}
             </div>
             <button
@@ -178,20 +219,24 @@ export default function DashboardPage() {
             zIndex: 100,
           }}>
             <div style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)" }}>
-              LTL
+              {activeTab === "ltl" ? "LTL Dashboard" : "Team Vận Hành"}
             </div>
 
-            <FilterBar
-              selectedMonths={selectedMonths}
-              onMonthsChange={setSelectedMonths}
-              selectedProjects={selectedProjects}
-              onProjectsChange={setSelectedProjects}
-              availableProjects={allProjects}
-              userRole={user.role}
-              userProject={user.project}
-              filterMode={filterMode}
-              onFilterModeChange={setFilterMode}
-            />
+            {activeTab === "ltl" ? (
+              <FilterBar
+                selectedMonths={selectedMonths}
+                onMonthsChange={setSelectedMonths}
+                selectedProjects={selectedProjects}
+                onProjectsChange={setSelectedProjects}
+                availableProjects={allProjects}
+                userRole={dashData?.user?.role}
+                userProject={dashData?.user?.project}
+                filterMode={filterMode}
+                onFilterModeChange={setFilterMode}
+              />
+            ) : (
+              <div style={{ flex: 1 }} />
+            )}
 
             {/* Live indicator */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--green)" }}>
@@ -206,14 +251,13 @@ export default function DashboardPage() {
 
           {/* Dashboard body */}
           <main style={{ flex: 1, overflowY: "auto", padding: 24, position: "relative" }}>
-            {/* Full-page spinner: first load only */}
+            {/* Full-page spinner */}
             {loading && (
               <div style={{ display: "flex", justifyContent: "center", paddingTop: 60 }}>
                 <div className="spinner" />
               </div>
             )}
 
-            {/* Lightweight filter indicator (data still visible) */}
             {filtering && !loading && (
               <div style={{
                 position: "absolute", top: 12, right: 24, zIndex: 10,
@@ -237,8 +281,11 @@ export default function DashboardPage() {
             )}
 
             {!loading && !error && dashData && (
-
-              <TabLTL data={dashData.ltl} />
+              activeTab === "ltl" ? (
+                <TabLTL data={dashData.ltl} />
+              ) : (
+                <TabOperations rawData={dashData.raw} />
+              )
             )}
           </main>
         </div>

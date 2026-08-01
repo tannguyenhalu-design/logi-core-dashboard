@@ -62,22 +62,26 @@ export default async function handler(req, res) {
 
     let rawOntime = [];
     let rawDamage = [];
+    let mapping = [];
 
     try {
-      const [ontimeSheet, damageSheet] = await Promise.all([
+      const [ontimeSheet, damageSheet, mappingSheet] = await Promise.all([
         fetchSheet("raw_ontime", ltlSheetId),
         fetchSheet("raw_damage", ltlSheetId),
+        fetchSheet("mapping", ltlSheetId),
       ]);
 
       if (ontimeSheet && ontimeSheet.length > 10) {
         rawOntime = ontimeSheet;
         rawDamage = damageSheet;
+        mapping = mappingSheet;
 
         // Save local backup asynchronously (only DM records from July 2026 to keep file tiny)
         try {
           const backupOntime = rawOntime.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"]));
           const backupDamage = rawDamage.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"] || r["case_date"]));
-          fs.writeFileSync(backupPath, JSON.stringify({ rawOntime: backupOntime, rawDamage: backupDamage }, null, 2), "utf8");
+          const backupMapping = mapping.filter(r => isDMClient(r["client_name"]));
+          fs.writeFileSync(backupPath, JSON.stringify({ rawOntime: backupOntime, rawDamage: backupDamage, mapping: backupMapping }, null, 2), "utf8");
         } catch (err) {
           console.error("Failed to write Vercel data backup:", err);
         }
@@ -90,11 +94,42 @@ export default async function handler(req, res) {
         const backup = JSON.parse(fs.readFileSync(backupPath, "utf8"));
         rawOntime = backup.rawOntime || [];
         rawDamage = backup.rawDamage || [];
+        mapping = backup.mapping || [];
       }
     }
 
     const filteredOntime = rawOntime.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"]));
     const filteredDamage = rawDamage.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"] || r["case_date"]));
+
+    // Build the PIC mapping object
+    const picMapping = {};
+    mapping.forEach(row => {
+      const client = String(row["client_name"] || "").trim();
+      const pic = String(row["PIC"] || "").trim();
+      if (client && pic) {
+        picMapping[client] = pic;
+      }
+    });
+
+    // Detect user role and matching PIC
+    const userEmail = String(session?.user?.email || "").toLowerCase();
+    const userName = String(session?.user?.name || "").trim();
+
+    let userRole = "manager";
+    let userPIC = null;
+
+    const allPics = [...new Set(mapping.map(r => String(r["PIC"] || "").trim()).filter(Boolean))];
+    const matchedPic = allPics.find(pic => 
+      pic.toLowerCase() === userName.toLowerCase() ||
+      userName.toLowerCase().includes(pic.toLowerCase())
+    );
+
+    const isAdmin = userEmail.includes("tannguyen") || userName.toLowerCase().includes("tannguyen") || userEmail === "admin@ghn.vn";
+
+    if (matchedPic && !isAdmin) {
+      userRole = "pic";
+      userPIC = matchedPic;
+    }
 
     // Build a map for damage cases by order_code
     const damageMap = new Map();
@@ -167,6 +202,13 @@ export default async function handler(req, res) {
       ok: true,
       ltl:           mergedLTL,
       damage:        filteredDamage,
+      user: {
+        name: userName,
+        email: userEmail,
+        role: userRole,
+        pic: userPIC,
+      },
+      picMapping,
     });
   } catch (err) {
     console.error("[/api/rawdata]", err);
