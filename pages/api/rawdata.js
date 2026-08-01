@@ -22,9 +22,33 @@ export default async function handler(req, res) {
       fetchSheet("raw_damage", ltlSheetId),
     ]);
 
+    const isDMClient = (clientName) => {
+      if (!clientName) return false;
+      const name = String(clientName).trim();
+      const dmList = [
+        "266", "AUX", "Aqua B2B", "Aqua B2C", "Bluestone", "Casper", 
+        "CellphoneS North (HTV)", "Cellphones", "DigiWorld", "Elmich B2B", 
+        "FRT B2B", "FRT B2C", "Hisense FTL", "Hisense LTL", "Hồng Đạt", 
+        "Hồng Đạt MXT", "LG LTL", "LG Pantos", "Nguyễn Kim", 
+        "Nguyễn Kim Miền Bắc", "Nguyễn Kim Miền Nam", "PSD", "PSD LTL", 
+        "Samsung", "Samsung SDS - Xdocs Hải Phòng", "Samsung SDS - Xdocs H", 
+        "Samsung SDS DAN", "Thợ ĐMX FTL", "Toshiba B2B", "Điện máy Tân Long"
+      ];
+      if (dmList.includes(name)) return true;
+      const lowerName = name.toLowerCase();
+      const dmKeywords = ["nguyễn kim", "psd", "samsung", "aqua", "lg ltl", "lg pantos", "casper", "bluestone", "elmich", "toshiba", "hisense", "cellphones"];
+      for (const kw of dmKeywords) {
+        if (lowerName.includes(kw)) return true;
+      }
+      return false;
+    };
+
+    const filteredOntime = rawOntime.filter(r => isDMClient(r["client_name"]));
+    const filteredDamage = rawDamage.filter(r => isDMClient(r["client_name"]));
+
     // Build a map for damage cases by order_code
     const damageMap = new Map();
-    rawDamage.forEach(row => {
+    filteredDamage.forEach(row => {
       const code = String(row["order_code"] || "").trim();
       if (code) {
         damageMap.set(code, row);
@@ -32,7 +56,7 @@ export default async function handler(req, res) {
     });
 
     // Merge raw_damage into raw_ontime to maintain backward compatibility
-    const mergedLTL = rawOntime.map(row => {
+    const mergedLTL = filteredOntime.map(row => {
       const orderCode = String(row["order_code"] || "").trim();
       const dmg = damageMap.get(orderCode);
 
@@ -74,10 +98,10 @@ export default async function handler(req, res) {
         pickup_time:         row["pickup_time"],
         delivered_time:      row["delivered_time"],
         finish_date:         row["finish_date"],
-        deadline:            row["deadline_plus"], // Map deadline_plus to deadline
+        deadline:            row["deadline_plus"],
         odr_success:         row["odr_success"],
-        warehouse_lay:       row["kho_lay"],       // Map kho_lay to warehouse_lay
-        warehouse_giao:      row["kho_giao"],      // Map kho_giao to warehouse_giao
+        warehouse_lay:       row["kho_lay"],
+        warehouse_giao:      row["kho_giao"],
         loai_kho_giao:       row["loai_kho_giao"] || null,
         vung_giao:           row["vung_giao"] || null,
         "Tình trạng":        statusDamage,
@@ -92,7 +116,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       ok: true,
       ltl:           mergedLTL,
-      damage:        rawDamage,
+      damage:        filteredDamage,
     });
   } catch (err) {
     console.error("[/api/rawdata]", err);
