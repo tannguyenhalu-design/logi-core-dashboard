@@ -38,7 +38,7 @@ export default function LoginPage() {
   return (
     <>
       <Head>
-        <title>Đăng nhập — LogiCore Dashboard</title>
+        <title>Đăng nhập — SD3-Điện Máy</title>
       </Head>
       <div className="login-page">
         <div className="login-hero">
@@ -62,7 +62,7 @@ export default function LoginPage() {
               </svg>
             </div>
             <div>
-              <h1>LogiCore Dashboard</h1>
+              <h1>SD3-Điện Máy</h1>
               <p style={{ margin: 0 }}>Hệ thống theo dõi vận hành</p>
             </div>
           </div>

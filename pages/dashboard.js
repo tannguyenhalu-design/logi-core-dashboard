@@ -12,14 +12,17 @@ import { transformLTL } from "../lib/transform-ltl";
 
 const TabLTL        = dynamic(() => import("../components/TabLTL"),        { ssr: false });
 const TabOperations = dynamic(() => import("../components/TabOperations"), { ssr: false });
+const TabTachTrip   = dynamic(() => import("../components/TabTachTrip"),   { ssr: false });
 const TabUsers      = dynamic(() => import("../components/TabUsers"),      { ssr: false });
+const TabAuditLog   = dynamic(() => import("../components/TabAuditLog"),   { ssr: false });
 
 export default function DashboardPage({ user: initialUser }) {
   const user = initialUser || {};
-  const allowedTabs = user.role === "manager" ? ["ltl", "operations"] : (user.tabs || []);
+  const allowedTabs = user.role === "manager" ? ["ltl", "operations", "tachtrip"] : (user.tabs || []);
   const canSeeLTL = allowedTabs.includes("ltl");
   const canSeeOperations = allowedTabs.includes("operations");
-  const [activeTab, setActiveTab] = useState(allowedTabs[0] || "none"); // 'ltl' | 'operations' | 'users' | 'none'
+  const canSeeTachTrip = allowedTabs.includes("tachtrip");
+  const [activeTab, setActiveTab] = useState(allowedTabs[0] || "none"); // 'ltl' | 'operations' | 'tachtrip' | 'users' | 'none'
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [selectedProjects, setSelectedProjects] = useState([]);
   const [filterMode, setFilterMode] = useState("pickup");
@@ -28,6 +31,9 @@ export default function DashboardPage({ user: initialUser }) {
   const [filtering, setFiltering] = useState(false);
   const [error, setError] = useState(null);
   const [rawCache, setRawCache] = useState(null);
+  const [tcData, setTcData] = useState(null);
+  const [tcLoading, setTcLoading] = useState(false);
+  const [tcError, setTcError] = useState(null);
 
   // ── Fetch raw data ONCE on mount ──
   const fetchRaw = useCallback(async (forceRefresh = false) => {
@@ -104,6 +110,22 @@ export default function DashboardPage({ user: initialUser }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Tách Chuyến: fetch lazily the first time the user opens that tab
+  useEffect(() => {
+    if (activeTab !== "tachtrip" || tcData || tcLoading) return;
+    setTcLoading(true);
+    setTcError(null);
+    fetch(`/api/tachtrip?t=${Date.now()}`)
+      .then(res => res.json())
+      .then(json => {
+        if (!json.ok) throw new Error(json.error || "Lỗi tải dữ liệu");
+        setTcData(json.tcData);
+      })
+      .catch(e => setTcError(e.message))
+      .finally(() => setTcLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
   // Filter change: re-transform client-side
   useEffect(() => {
     if (rawCache) applyTransforms(rawCache, selectedMonths, selectedProjects, filterMode);
@@ -117,7 +139,7 @@ export default function DashboardPage({ user: initialUser }) {
   return (
     <>
       <Head>
-        <title>LogiCore Dashboard</title>
+        <title>SD3-Điện Máy Dashboard</title>
         <meta name="description" content="Hệ thống theo dõi vận hành logistics điện máy" />
       </Head>
 
@@ -143,7 +165,7 @@ export default function DashboardPage({ user: initialUser }) {
               </svg>
             </div>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>LogiCore</div>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>SD3-Điện Máy</div>
               <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Dashboard</div>
             </div>
           </div>
@@ -184,6 +206,23 @@ export default function DashboardPage({ user: initialUser }) {
                 Vận hành SD3
               </div>
             )}
+            {canSeeTachTrip && (
+              <div
+                className={`nav-item ${activeTab === "tachtrip" ? "active" : ""}`}
+                onClick={() => setActiveTab("tachtrip")}
+                style={{
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
+                  color: activeTab === "tachtrip" ? "#fff" : "var(--text-muted)",
+                  background: activeTab === "tachtrip" ? "rgba(20, 224, 196,0.15)" : "transparent"
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-.553-.894L15 4m0 13V4m0 0L9 7"/>
+                </svg>
+                Tách Chuyến
+              </div>
+            )}
             {user.role === "manager" && (
               <div
                 className={`nav-item ${activeTab === "users" ? "active" : ""}`}
@@ -199,6 +238,23 @@ export default function DashboardPage({ user: initialUser }) {
                   <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                 </svg>
                 Quản lý người dùng
+              </div>
+            )}
+            {user.role === "manager" && (
+              <div
+                className={`nav-item ${activeTab === "auditlog" ? "active" : ""}`}
+                onClick={() => setActiveTab("auditlog")}
+                style={{
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
+                  color: activeTab === "auditlog" ? "#fff" : "var(--text-muted)",
+                  background: activeTab === "auditlog" ? "rgba(20, 224, 196,0.15)" : "transparent"
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/>
+                </svg>
+                Nhật Ký Hoạt Động
               </div>
             )}
           </nav>
@@ -247,7 +303,12 @@ export default function DashboardPage({ user: initialUser }) {
             zIndex: 100,
           }}>
             <div style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)" }}>
-              {activeTab === "ltl" ? "LTL Dashboard" : activeTab === "users" ? "Quản lý người dùng" : activeTab === "operations" ? "Vận hành SD3" : "LogiCore Dashboard"}
+              {activeTab === "ltl" ? "LTL Dashboard"
+                : activeTab === "users" ? "Quản lý người dùng"
+                : activeTab === "operations" ? "Vận hành SD3"
+                : activeTab === "tachtrip" ? "Tách Chuyến"
+                : activeTab === "auditlog" ? "Nhật Ký Hoạt Động"
+                : "SD3-Điện Máy"}
             </div>
 
             {activeTab === "ltl" ? (
@@ -321,6 +382,23 @@ export default function DashboardPage({ user: initialUser }) {
               </div>
             ) : activeTab === "users" ? (
               <TabUsers />
+            ) : activeTab === "auditlog" ? (
+              <TabAuditLog />
+            ) : activeTab === "tachtrip" ? (
+              tcLoading ? (
+                <div style={{ display: "flex", justifyContent: "center", paddingTop: 60 }}>
+                  <TruckLoader size={88} label="Đang tải dữ liệu Tách Chuyến..." />
+                </div>
+              ) : tcError ? (
+                <div style={{
+                  background: "rgba(244,63,94,0.1)", border: "1px solid var(--red)",
+                  borderRadius: 10, padding: 20, color: "var(--red)",
+                }}>
+                  Lỗi tải dữ liệu: {tcError}.
+                </div>
+              ) : (
+                <TabTachTrip tcData={tcData} />
+              )
             ) : (
               <>
                 {/* Full-page loader */}

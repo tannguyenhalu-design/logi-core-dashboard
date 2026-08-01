@@ -15,11 +15,12 @@ const ROLE_LABELS = {
 const TAB_OPTIONS = [
   { value: "ltl", label: "LTL Dashboard" },
   { value: "operations", label: "Vận hành SD3" },
+  { value: "tachtrip", label: "Tách Chuyến" },
 ];
 
 function defaultTabsForRole(role) {
-  if (role === "manager") return ["ltl", "operations"];
-  if (role === "pic") return ["ltl", "operations"];
+  if (role === "manager") return ["ltl", "operations", "tachtrip"];
+  if (role === "pic") return ["ltl", "operations", "tachtrip"];
   if (role === "client") return ["ltl"];
   return [];
 }

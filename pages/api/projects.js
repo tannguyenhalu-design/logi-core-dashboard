@@ -1,5 +1,6 @@
 import { getAuth } from "../../lib/sheets";
 import { getSession } from "../../lib/auth";
+import { logAction } from "../../lib/audit-log";
 import { google } from "googleapis";
 import fs from "fs";
 import path from "path";
@@ -349,6 +350,14 @@ export default async function handler(req, res) {
       } catch (fsErr) {
         console.warn("Could not write local projects-store.json cache:", fsErr.message);
       }
+
+      await logAction({
+        actor: session.user.email,
+        action: action === "create" ? "project.create" : "project.update",
+        target: key,
+        details: { pic, status, job, expectedOb, revenue, sopLink, model, recapStatus, sopStatus, kickoffStatus, volume },
+      });
+
       return res.status(200).json({ ok: true });
     } catch (err) {
       console.error("[/api/projects] POST error:", err);

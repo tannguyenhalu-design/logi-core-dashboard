@@ -6,6 +6,7 @@
  */
 import { getSession } from "../../lib/auth";
 import { fetchSheet } from "../../lib/sheets";
+import { isDMClient } from "../../lib/dm-clients";
 import fs from "fs";
 import path from "path";
 
@@ -19,27 +20,6 @@ export default async function handler(req, res) {
   try {
     const ltlSheetId = "1Nj1IMAOH_mdmvNImgS6KPelP9dXvPWF9aWZjEhM58Pc";
     const backupPath = path.join(process.cwd(), "lib", "backup-data.json");
-
-    const isDMClient = (clientName) => {
-      if (!clientName) return false;
-      const name = String(clientName).trim();
-      const dmList = [
-        "266", "AUX", "Aqua B2B", "Aqua B2C", "Bluestone", "Casper", 
-        "CellphoneS North (HTV)", "Cellphones", "DigiWorld", "Elmich B2B", 
-        "FRT B2B", "FRT B2C", "Hisense FTL", "Hisense LTL", "Hồng Đạt", 
-        "Hồng Đạt MXT", "LG LTL", "LG Pantos", "Nguyễn Kim", 
-        "Nguyễn Kim Miền Bắc", "Nguyễn Kim Miền Nam", "PSD", "PSD LTL", 
-        "Samsung", "Samsung SDS - Xdocs Hải Phòng", "Samsung SDS - Xdocs H", 
-        "Samsung SDS DAN", "Thợ ĐMX FTL", "Toshiba B2B", "Điện máy Tân Long"
-      ];
-      if (dmList.includes(name)) return true;
-      const lowerName = name.toLowerCase();
-      const dmKeywords = ["nguyễn kim", "psd", "samsung", "aqua", "lg ltl", "lg pantos", "casper", "bluestone", "elmich", "toshiba", "hisense", "cellphones"];
-      for (const kw of dmKeywords) {
-        if (lowerName.includes(kw)) return true;
-      }
-      return false;
-    };
 
     const isFromJuly2026 = (dateStr) => {
       if (!dateStr) return false;

@@ -4,6 +4,7 @@
  */
 import { getSession } from "../../lib/auth";
 import { getAllUsers, updateUserRole, createUserWithRole, findUserByEmail } from "../../lib/users";
+import { logAction } from "../../lib/audit-log";
 
 export default async function handler(req, res) {
   const session = await getSession(req, res);
@@ -45,7 +46,7 @@ export default async function handler(req, res) {
       if (!normalizedEmail.endsWith("@ghn.vn")) {
         return res.status(400).json({ error: "Chỉ chấp nhận email @ghn.vn" });
       }
-      const normalizedTabs = Array.isArray(tabs) ? tabs.filter((t) => ["ltl", "operations"].includes(t)) : undefined;
+      const normalizedTabs = Array.isArray(tabs) ? tabs.filter((t) => ["ltl", "operations", "tachtrip"].includes(t)) : undefined;
 
       const existing = await findUserByEmail(normalizedEmail);
       if (existing) {
@@ -53,6 +54,14 @@ export default async function handler(req, res) {
       } else {
         await createUserWithRole(normalizedEmail, { role, pic, project, tabs: normalizedTabs, updatedBy: session.user.email });
       }
+
+      await logAction({
+        actor: session.user.email,
+        action: existing ? "user.role_update" : "user.create",
+        target: normalizedEmail,
+        details: { role, pic, project, tabs: normalizedTabs },
+      });
+
       return res.status(200).json({ ok: true });
     } catch (err) {
       console.error("[/api/admin-users] POST error:", err);
