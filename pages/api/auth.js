@@ -6,7 +6,7 @@
  * manager approves it and assigns a role via /api/admin-users.
  */
 import { getSession } from "../../lib/auth";
-import { findUserByEmail, createPendingUser, checkPassword, setUserPassword } from "../../lib/users";
+import { findUserByEmail, createPendingUser } from "../../lib/users";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
