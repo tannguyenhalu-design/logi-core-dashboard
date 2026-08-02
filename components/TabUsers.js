@@ -230,7 +230,7 @@ export default function TabUsers() {
                     <input
                       type="text"
                       value={draft.pic}
-                      disabled={draft.role !== "pic"}
+                      disabled={draft.role === "client" || draft.role === "pending"}
                       onChange={(e) => updateDraft(u.email, { pic: e.target.value })}
                       placeholder="Ví dụ: Duy Tú"
                       style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 8px", borderRadius: 6, fontSize: 12, width: 140 }}
@@ -324,7 +324,7 @@ export default function TabUsers() {
                 />
               </div>
 
-              {newRole === "pic" && (
+              {["pic", "manager", "ops_specialist"].includes(newRole) && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Tên PIC (khớp sheet mapping)</label>
                   <input
