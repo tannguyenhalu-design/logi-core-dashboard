@@ -51,20 +51,21 @@ export default async function handler(req, res) {
 
   try {
     // ── Fetch raw data from Google Sheets ──
-    const [rawLTL, rawFTL, masterVehicle] = await Promise.all([
-      fetchSheet("Raw"),
-      fetchSheet("Raw_FTL"),
-      fetchSheet("Master data xe"),
+    const [rawLTL, rawFTL, masterVehicle, rawDamage] = await Promise.all([
+      fetchSheet("raw_ontime"),
+      fetchSheet("Raw_FTL").catch(() => []),
+      fetchSheet("Master data xe").catch(() => []),
+      fetchSheet("raw_damage").catch(() => []),
     ]);
 
     // ── Transform ──
-    const ltlData       = transformLTL(rawLTL, { months, projects });
+    const ltlData       = transformLTL(rawLTL, { months, projects }, rawDamage);
     const ftlData       = transformFTL(rawFTL, masterVehicle, { months, projects });
     const tachTripData  = transformTachTrip(rawLTL);
     const aiInsights    = transformAIInsights(rawLTL);
 
     // ── Overview: all-time totals (no filter) ──
-    const overviewLTL = transformLTL(rawLTL, {});
+    const overviewLTL = transformLTL(rawLTL, {}, rawDamage);
     const overviewFTL = transformFTL(rawFTL, masterVehicle, {});
 
     return res.status(200).json({

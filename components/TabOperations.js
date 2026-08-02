@@ -28,6 +28,120 @@ export default function TabOperations({ rawData }) {
   const [picFilter, setPicFilter] = useState("all");
   const [modelFilter, setModelFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  // Active sub-tab state ('projects' | 'tasks')
+  const [activeSubTab, setActiveSubTab] = useState("projects");
+
+  // Task & Deadline Tracker state
+  const [tasks, setTasks] = useState([]);
+  const [taskPicFilter, setTaskPicFilter] = useState("all");
+  const [taskStatusFilter, setTaskStatusFilter] = useState("all");
+  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+
+  // New task form state
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskPic, setNewTaskPic] = useState("tutd@ghn.vn");
+  const [newTaskProject, setNewTaskProject] = useState("Vận hành chung SD3");
+  const [newTaskDeadline, setNewTaskDeadline] = useState("");
+  const [newTaskNotes, setNewTaskNotes] = useState("");
+
+  // Load tasks from localStorage or set initial tasks
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("sd3_tasks_v1");
+      if (saved) {
+        setTasks(JSON.parse(saved));
+      } else {
+        const INITIAL_TASKS = [
+          {
+            id: "task-1",
+            title: "Báo cáo ODR & SLA tuần 31 gửi Giám đốc Vận hành",
+            pic: "diennk@giaohangnhanh.vn",
+            picName: "Kim Diện",
+            project: "Vận hành chung SD3",
+            deadline: "2026-08-04",
+            status: "ontime",
+            notes: "Đã tổng hợp 100% dữ liệu từ các kho",
+          },
+          {
+            id: "task-2",
+            title: "Đối soát cước phí vận tải & doanh thu dự án Casper T7",
+            pic: "tutd@ghn.vn",
+            picName: "Duy Tú",
+            project: "Casper",
+            deadline: "2026-08-05",
+            status: "in_progress",
+            notes: "Đang kiểm tra 442 đơn giao",
+          },
+          {
+            id: "task-3",
+            title: "Rà soát & giải quyết đền bù 5 ca hư hỏng kho Bình Dương",
+            pic: "datnt2@ghn.vn",
+            picName: "Nguyễn Tiến Đạt",
+            project: "Aqua B2C",
+            deadline: "2026-08-03",
+            status: "ontime",
+            notes: "Đã chốt phương án đền bù với bảo hiểm",
+          },
+          {
+            id: "task-4",
+            title: "Nghiệm thu & cập nhật SOP vận hành dự án Aqua B2C",
+            pic: "tutd@ghn.vn",
+            picName: "Duy Tú",
+            project: "Aqua B2C",
+            deadline: "2026-08-01",
+            status: "overdue",
+            notes: "Cần bổ sung quy trình giao kho bãi",
+          },
+        ];
+        setTasks(INITIAL_TASKS);
+        localStorage.setItem("sd3_tasks_v1", JSON.stringify(INITIAL_TASKS));
+      }
+    } catch (e) {
+      console.error("Failed to load tasks:", e);
+    }
+  }, []);
+
+  const saveTasks = (newTasks) => {
+    setTasks(newTasks);
+    try {
+      localStorage.setItem("sd3_tasks_v1", JSON.stringify(newTasks));
+    } catch (e) {
+      console.error("Failed to save tasks:", e);
+    }
+  };
+
+  const handleAddTask = (e) => {
+    e.preventDefault();
+    if (!newTaskTitle.trim() || !newTaskDeadline) return;
+
+    const newTask = {
+      id: "task-" + Date.now(),
+      title: newTaskTitle.trim(),
+      pic: newTaskPic,
+      picName: PIC_NAMES[newTaskPic] || newTaskPic,
+      project: newTaskProject,
+      deadline: newTaskDeadline,
+      status: "in_progress",
+      notes: newTaskNotes.trim(),
+    };
+
+    const updated = [newTask, ...tasks];
+    saveTasks(updated);
+    setShowAddTaskModal(false);
+    setNewTaskTitle("");
+    setNewTaskDeadline("");
+    setNewTaskNotes("");
+  };
+
+  const handleToggleTaskStatus = (id, newStatus) => {
+    const updated = tasks.map((t) => (t.id === id ? { ...t, status: newStatus } : t));
+    saveTasks(updated);
+  };
+
+  const handleDeleteTask = (id) => {
+    const updated = tasks.filter((t) => t.id !== id);
+    saveTasks(updated);
+  };
 
   // User session state returned from API
   const [currentUser, setCurrentUser] = useState({ role: "manager", pic: null });
@@ -228,7 +342,330 @@ export default function TabOperations({ rawData }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20, position: "relative" }}>
-      {/* Header Panel */}
+      {/* Sub-tab Navigation Bar */}
+      <div style={{ display: "flex", gap: 12, borderBottom: "1px solid var(--border)", paddingBottom: 10 }}>
+        <button
+          onClick={() => setActiveSubTab("projects")}
+          style={{
+            padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700, border: "none", cursor: "pointer",
+            background: activeSubTab === "projects" ? "var(--cyan)" : "var(--panel-bg-strong)",
+            color: activeSubTab === "projects" ? "#0f172a" : "var(--text-secondary)",
+            transition: "all 0.2s", display: "flex", alignItems: "center", gap: 6,
+          }}
+        >
+          📌 Quản Lý Tiến Độ Dự Án SD3 ({projects.length})
+        </button>
+        <button
+          onClick={() => setActiveSubTab("tasks")}
+          style={{
+            padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700, border: "none", cursor: "pointer",
+            background: activeSubTab === "tasks" ? "var(--cyan)" : "var(--panel-bg-strong)",
+            color: activeSubTab === "tasks" ? "#0f172a" : "var(--text-secondary)",
+            transition: "all 0.2s", display: "flex", alignItems: "center", gap: 6,
+          }}
+        >
+          📋 Quản Lý Task & Deadline Vận Hành SD3 ({tasks.length})
+        </button>
+      </div>
+
+      {activeSubTab === "tasks" ? (
+        /* ── SECTION: SD3 TASK & DEADLINE TRACKER ── */
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Header & Controls Bar */}
+          <div style={{ background: "var(--panel-bg-strong)", border: "1px solid var(--border)", padding: 16, borderRadius: 12, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 16, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
+                📋 Theo Dõi Task & Deadline Vận Hành SD3
+              </h3>
+              <p style={{ margin: "4px 0 0 0", fontSize: 12.5, color: "var(--text-muted)" }}>
+                Quản lý tiến độ hoàn thành đúng hạn các công việc vận hành, báo cáo & đền bù của các PIC.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowAddTaskModal(true)}
+              style={{ background: "var(--green)", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
+            >
+              + Tạo Task Mới
+            </button>
+          </div>
+
+          {/* Task KPI Summary Cards */}
+          {(() => {
+            const filteredTasks = tasks.filter((t) => {
+              if (taskPicFilter !== "all" && t.pic !== taskPicFilter) return false;
+              if (taskStatusFilter !== "all" && t.status !== taskStatusFilter) return false;
+              return true;
+            });
+            const totalT = filteredTasks.length;
+            const ontimeT = filteredTasks.filter((t) => t.status === "ontime").length;
+            const inProgT = filteredTasks.filter((t) => t.status === "in_progress").length;
+            const overdueT = filteredTasks.filter((t) => t.status === "overdue").length;
+            const ontimePct = totalT > 0 ? Math.round((ontimeT / totalT) * 100) : 100;
+
+            return (
+              <>
+                <div className="grid-4">
+                  <div style={{ background: "var(--panel-bg-strong)", border: "1px solid var(--border)", padding: 14, borderRadius: 10 }}>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase" }}>Tỷ Lệ Hoàn Thành Đúng Hạn</div>
+                    <div style={{ fontSize: 24, fontWeight: "bold", margin: "4px 0", color: ontimePct >= 90 ? "var(--green)" : ontimePct >= 80 ? "var(--amber)" : "var(--red)" }}>
+                      {ontimePct}%
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>KPI đúng hạn của team SD3</div>
+                  </div>
+                  <div style={{ background: "rgba(16,185,129,0.05)", border: "1px solid rgba(16,185,129,0.2)", padding: 14, borderRadius: 10 }}>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase" }}>Hoàn Thành Đúng Hạn 🟢</div>
+                    <div style={{ fontSize: 24, fontWeight: "bold", margin: "4px 0", color: "var(--green)" }}>{ontimeT} task</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Task làm xong đúng deadline</div>
+                  </div>
+                  <div style={{ background: "rgba(245,158,11,0.05)", border: "1px solid rgba(245,158,11,0.2)", padding: 14, borderRadius: 10 }}>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase" }}>Đang Thực Hiện 🟡</div>
+                    <div style={{ fontSize: 24, fontWeight: "bold", margin: "4px 0", color: "var(--amber)" }}>{inProgT} task</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Trong thời hạn làm việc</div>
+                  </div>
+                  <div style={{ background: "rgba(244,63,94,0.05)", border: "1px solid rgba(244,63,94,0.2)", padding: 14, borderRadius: 10 }}>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase" }}>Trễ Hạn Deadline 🔴</div>
+                    <div style={{ fontSize: 24, fontWeight: "bold", margin: "4px 0", color: "var(--red)" }}>{overdueT} task</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Task quá hạn cần xử lý gấp</div>
+                  </div>
+                </div>
+
+                {/* Filter Controls Bar */}
+                <div style={{ background: "var(--panel-bg-strong)", border: "1px solid var(--border)", padding: "10px 14px", borderRadius: 8, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>Lọc theo PIC:</label>
+                    <select
+                      value={taskPicFilter}
+                      onChange={(e) => setTaskPicFilter(e.target.value)}
+                      style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "4px 8px", borderRadius: 6, fontSize: 12 }}
+                    >
+                      <option value="all">Tất cả PIC</option>
+                      <option value="tutd@ghn.vn">Duy Tú</option>
+                      <option value="diennk@giaohangnhanh.vn">Kim Diện</option>
+                      <option value="datnt2@ghn.vn">Nguyễn Tiến Đạt</option>
+                    </select>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>Trạng thái:</label>
+                    <select
+                      value={taskStatusFilter}
+                      onChange={(e) => setTaskStatusFilter(e.target.value)}
+                      style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "4px 8px", borderRadius: 6, fontSize: 12 }}
+                    >
+                      <option value="all">Tất cả trạng thái</option>
+                      <option value="in_progress">🟡 Đang thực hiện</option>
+                      <option value="ontime">🟢 Đã xong đúng hạn</option>
+                      <option value="overdue">🔴 Trễ hạn (Overdue)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Task Table */}
+                <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: 10 }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, textAlign: "left" }}>
+                    <thead>
+                      <tr style={{ background: "var(--table-header-bg)", color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>
+                        <th style={{ padding: "10px 14px" }}>Tên Task / Công Việc</th>
+                        <th style={{ padding: "10px 14px" }}>Người Đảm Nhiệm (PIC)</th>
+                        <th style={{ padding: "10px 14px" }}>Dự Án</th>
+                        <th style={{ padding: "10px 14px" }}>Hạn Chót (Deadline)</th>
+                        <th style={{ padding: "10px 14px" }}>Trạng Thái & Đánh Giá</th>
+                        <th style={{ padding: "10px 14px", textAlign: "right" }}>Thao Tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredTasks.length > 0 ? (
+                        filteredTasks.map((t) => {
+                          const isOverdue = t.status === "overdue";
+                          const isOntime = t.status === "ontime";
+                          return (
+                            <tr key={t.id} style={{ borderBottom: "1px solid var(--border)", background: isOverdue ? "rgba(244, 63, 94, 0.05)" : "transparent" }}>
+                              <td style={{ padding: "10px 14px", fontWeight: 600, color: "var(--text-primary)" }}>
+                                {t.title}
+                                {t.notes && <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 400, marginTop: 2 }}>{t.notes}</div>}
+                              </td>
+                              <td style={{ padding: "10px 14px", color: "var(--cyan)", fontWeight: 600 }}>
+                                👤 {t.picName}
+                              </td>
+                              <td style={{ padding: "10px 14px", color: "var(--text-secondary)" }}>
+                                {t.project}
+                              </td>
+                              <td style={{ padding: "10px 14px", fontWeight: 700, color: isOverdue ? "var(--red)" : "var(--text-primary)" }}>
+                                📅 {t.deadline}
+                              </td>
+                              <td style={{ padding: "10px 14px" }}>
+                                {isOntime && (
+                                  <span style={{ fontSize: 11, background: "rgba(16,185,129,0.15)", color: "var(--green)", border: "1px solid var(--green)", padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>
+                                    🟢 Đúng hạn (Ontime)
+                                  </span>
+                                )}
+                                {t.status === "in_progress" && (
+                                  <span style={{ fontSize: 11, background: "rgba(245,158,11,0.15)", color: "var(--amber)", border: "1px solid var(--amber)", padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>
+                                    🟡 Đang làm
+                                  </span>
+                                )}
+                                {isOverdue && (
+                                  <span style={{ fontSize: 11, background: "rgba(244,63,94,0.15)", color: "var(--red)", border: "1px solid var(--red)", padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>
+                                    🚨 Trễ hạn (Overdue)
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ padding: "10px 14px", textAlign: "right" }}>
+                                <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                                  <a
+                                    href={(() => {
+                                      const title = encodeURIComponent(`[SD3 Task] ${t.title}`);
+                                      const dateStr = (t.deadline || "").replace(/-/g, "");
+                                      const dates = dateStr ? `${dateStr}T090000/${dateStr}T180000` : "";
+                                      const details = encodeURIComponent(`Nhiệm vụ vận hành SD3 GHN:\n- Tên công việc: ${t.title}\n- Dự án: ${t.project}\n- PIC đảm nhiệm: ${t.picName} (${t.pic})\n- Ghi chú: ${t.notes || "N/A"}`);
+                                      const add = encodeURIComponent(t.pic || "");
+                                      return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&add=${add}`;
+                                    })()}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title="Thêm lịch Google Calendar & tự động nhắc PIC"
+                                    style={{
+                                      background: "rgba(2, 132, 199, 0.12)",
+                                      border: "1px solid var(--cyan)",
+                                      color: "var(--cyan)",
+                                      padding: "3px 8px",
+                                      borderRadius: 4,
+                                      fontSize: 11,
+                                      textDecoration: "none",
+                                      fontWeight: 600,
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 3,
+                                    }}
+                                  >
+                                    📅 Lịch Google
+                                  </a>
+                                  <button
+                                    onClick={() => handleToggleTaskStatus(t.id, t.status === "ontime" ? "in_progress" : "ontime")}
+                                    style={{ background: "rgba(16,185,129,0.15)", border: "1px solid var(--green)", color: "var(--green)", padding: "3px 8px", borderRadius: 4, fontSize: 11, cursor: "pointer", fontWeight: 600 }}
+                                  >
+                                    {t.status === "ontime" ? "Mở lại" : "✓ Xong đúng hạn"}
+                                  </button>
+                                  <button
+                                    onClick={() => handleToggleTaskStatus(t.id, "overdue")}
+                                    style={{ background: "rgba(244,63,94,0.15)", border: "1px solid var(--red)", color: "var(--red)", padding: "3px 8px", borderRadius: 4, fontSize: 11, cursor: "pointer", fontWeight: 600 }}
+                                  >
+                                    ⚠️ Báo Trễ
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteTask(t.id)}
+                                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "var(--text-muted)", padding: "3px 6px", borderRadius: 4, fontSize: 11, cursor: "pointer" }}
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={6} style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>
+                            Chưa có task nào trong danh sách lọc.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Modal Add New Task */}
+                {showAddTaskModal && (
+                  <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
+                    <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 24, width: 440, maxWidth: "90vw", boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}>
+                      <h3 style={{ margin: "0 0 16px 0", color: "var(--text-primary)", fontSize: 16 }}>+ Tạo Task & Gán Deadline Cho PIC</h3>
+                      <form onSubmit={handleAddTask} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                        <div>
+                          <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>Tên Công Việc / Task:</label>
+                          <input
+                            type="text"
+                            required
+                            value={newTaskTitle}
+                            onChange={(e) => setNewTaskTitle(e.target.value)}
+                            placeholder="Ví dụ: Báo cáo ODR tuần 31 cho Director..."
+                            style={{ width: "100%", background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 10px", borderRadius: 6, fontSize: 13, marginTop: 4 }}
+                          />
+                        </div>
+
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                          <div>
+                            <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>Người Đảm Nhiệm (PIC):</label>
+                            <select
+                              value={newTaskPic}
+                              onChange={(e) => setNewTaskPic(e.target.value)}
+                              style={{ width: "100%", background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 10px", borderRadius: 6, fontSize: 12, marginTop: 4 }}
+                            >
+                              <option value="tutd@ghn.vn">Duy Tú</option>
+                              <option value="diennk@giaohangnhanh.vn">Kim Diện</option>
+                              <option value="datnt2@ghn.vn">Nguyễn Tiến Đạt</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>Hạn Chót (Deadline):</label>
+                            <input
+                              type="date"
+                              required
+                              value={newTaskDeadline}
+                              onChange={(e) => setNewTaskDeadline(e.target.value)}
+                              style={{ width: "100%", background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 10px", borderRadius: 6, fontSize: 12, marginTop: 4 }}
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>Dự Án / Mảng Việc:</label>
+                          <input
+                            type="text"
+                            value={newTaskProject}
+                            onChange={(e) => setNewTaskProject(e.target.value)}
+                            placeholder="Casper, Aqua B2C, Vận hành chung..."
+                            style={{ width: "100%", background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 10px", borderRadius: 6, fontSize: 12, marginTop: 4 }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>Ghi Chú / Yêu Cầu Kết Quả:</label>
+                          <textarea
+                            rows={2}
+                            value={newTaskNotes}
+                            onChange={(e) => setNewTaskNotes(e.target.value)}
+                            placeholder="Nhập ghi chú chi tiết hoặc dán link kết quả..."
+                            style={{ width: "100%", background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 10px", borderRadius: 6, fontSize: 12, marginTop: 4, resize: "none" }}
+                          />
+                        </div>
+
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>
+                          <button
+                            type="button"
+                            onClick={() => setShowAddTaskModal(false)}
+                            style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 16px", borderRadius: 6, fontSize: 12, cursor: "pointer" }}
+                          >
+                            Hủy Bỏ
+                          </button>
+                          <button
+                            type="submit"
+                            style={{ background: "var(--green)", color: "#fff", border: "none", padding: "8px 20px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                          >
+                            Lưu Task Mới
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </div>
+      ) : (
+        /* ── SECTION: SD3 PROJECTS OVERBOARD (ORIGINAL SECTION) ── */
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", padding: "16px 20px", borderRadius: 12, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div>
           <h3 style={{ margin: 0, fontSize: 16, color: "var(--text-primary)" }}>Vận Hành SD3 — Theo Dõi Dự Án Mới</h3>
@@ -763,6 +1200,8 @@ export default function TabOperations({ rawData }) {
             </form>
           </div>
         </div>
+      )}
+      </div>
       )}
 
       <style jsx global>{`

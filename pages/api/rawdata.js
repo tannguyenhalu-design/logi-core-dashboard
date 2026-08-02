@@ -21,24 +21,38 @@ export default async function handler(req, res) {
     const ltlSheetId = "1Nj1IMAOH_mdmvNImgS6KPelP9dXvPWF9aWZjEhM58Pc";
     const backupPath = path.join(process.cwd(), "lib", "backup-data.json");
 
+    // Parse DD/MM/YYYY safely (handles both "01/08/2026" and "1/8/2026")
+    const parseDDMMYYYY = (str) => {
+      const m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+      if (!m) return null;
+      return { day: parseInt(m[1]), month: parseInt(m[2]), year: parseInt(m[3]) };
+    };
+
     const isFromJuly2026 = (dateStr) => {
       if (!dateStr) return false;
       const trimStr = String(dateStr).trim();
+      // Excel serial number
+      if (typeof dateStr === "number") {
+        const d = new Date(new Date(1899, 11, 30).getTime() + dateStr * 86400000);
+        return d.getFullYear() > 2026 || (d.getFullYear() === 2026 && d.getMonth() >= 6);
+      }
+      // YYYY-MM-... format
       if (/^\d{4}-\d{2}/.test(trimStr)) {
         const year = parseInt(trimStr.slice(0, 4));
         const month = parseInt(trimStr.slice(5, 7));
         return year > 2026 || (year === 2026 && month >= 7);
       }
-      if (/^\d{2}\/\d{2}\/\d{4}/.test(trimStr)) {
-        const parts = trimStr.split("/");
-        const year = parseInt(parts[2]);
-        const month = parseInt(parts[1]);
-        return year > 2026 || (year === 2026 && month >= 7);
+      // DD/MM/YYYY or D/M/YYYY (Vietnamese format) — handles single digit day/month
+      const dmy = parseDDMMYYYY(trimStr);
+      if (dmy) {
+        return dmy.year > 2026 || (dmy.year === 2026 && dmy.month >= 7);
       }
+      // Fallback: native Date (ambiguous, last resort)
       const d = new Date(dateStr);
       if (isNaN(d.getTime())) return false;
       return d.getFullYear() > 2026 || (d.getFullYear() === 2026 && d.getMonth() >= 6);
     };
+
 
     let rawOntime = [];
     let rawDamage = [];

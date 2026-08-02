@@ -20,15 +20,23 @@ export default function VietnamMap({
 }) {
   const svgRef = useRef(null);
   const [hoveredProv, setHoveredProv] = useState(null);
+  const hoverTimerRef = useRef(null);
 
   const handleMouseEnter = (name) => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
     setHoveredProv(name);
     if (onProvinceHover) onProvinceHover(name);
   };
 
   const handleMouseLeave = () => {
-    setHoveredProv(null);
-    if (onProvinceHover) onProvinceHover(null);
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = setTimeout(() => {
+      setHoveredProv(null);
+      if (onProvinceHover) onProvinceHover(null);
+    }, 35);
   };
 
   const getColor = (name) => {

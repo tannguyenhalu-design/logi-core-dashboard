@@ -62,51 +62,51 @@
 }
 
 :root[data-theme="light"] {
-  --bg-base: #f1f5f9;
+  --bg-base: #f8fafc;
   --bg-surface: #ffffff;
-  --bg-panel: rgba(255, 255, 255, 0.85);
-  --border: rgba(15, 23, 42, 0.1);
-  --border-hover: rgba(13, 148, 136, 0.4);
+  --bg-panel: #ffffff;
+  --border: #cbd5e1;
+  --border-hover: #0284c7;
 
   --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
 
-  --cyan: #0d9488;
-  --cyan-glow: rgba(13, 148, 136, 0.15);
-  --green: #059669;
-  --green-glow: rgba(5, 150, 105, 0.15);
-  --red: #e11d48;
-  --red-glow: rgba(225, 29, 72, 0.15);
-  --amber: #b45309;
-  --amber-glow: rgba(180, 83, 9, 0.15);
-  --purple: #7c3aed;
-  --purple-glow: rgba(124, 58, 237, 0.15);
+  --cyan: #0284c7;
+  --cyan-glow: rgba(2, 132, 199, 0.12);
+  --green: #15803d;
+  --green-glow: rgba(21, 128, 61, 0.12);
+  --red: #dc2626;
+  --red-glow: rgba(220, 38, 38, 0.12);
+  --amber: #d97706;
+  --amber-glow: rgba(217, 119, 6, 0.12);
+  --purple: #6d28d9;
+  --purple-glow: rgba(109, 40, 217, 0.12);
 
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
 
-  --shadow-panel: 0 4px 24px rgba(15, 23, 42, 0.08);
+  --shadow-panel: 0 4px 20px rgba(15, 23, 42, 0.06);
   --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 
-  --panel-bg: rgba(255, 255, 255, 0.7);
-  --panel-bg-strong: rgba(255, 255, 255, 0.8);
-  --panel-border: rgba(15, 23, 42, 0.08);
-  --panel-border-soft: rgba(15, 23, 42, 0.06);
+  --panel-bg: #ffffff;
+  --panel-bg-strong: #f1f5f9;
+  --panel-border: #cbd5e1;
+  --panel-border-soft: #e2e8f0;
   --panel-glow: rgba(15, 23, 42, 0.03);
-  --input-bg: rgba(15, 23, 42, 0.04);
-  --dropdown-bg: rgba(255, 255, 255, 0.98);
-  --table-header-bg: rgba(15, 23, 42, 0.04);
-  --row-hover-bg: rgba(15, 23, 42, 0.025);
-  --alert-bg: rgba(15, 23, 42, 0.04);
-  --scrollbar-thumb: #cbd5e1;
-  --shadow-soft: rgba(15, 23, 42, 0.06);
-  --shadow-strong: rgba(15, 23, 42, 0.1);
-  --body-bg-color: #eef2f6;
+  --input-bg: #f1f5f9;
+  --dropdown-bg: #ffffff;
+  --table-header-bg: #f1f5f9;
+  --row-hover-bg: #f8fafc;
+  --alert-bg: #f1f5f9;
+  --scrollbar-thumb: #94a3b8;
+  --shadow-soft: rgba(15, 23, 42, 0.05);
+  --shadow-strong: rgba(15, 23, 42, 0.12);
+  --body-bg-color: #f1f5f9;
   --body-bg-image:
-    radial-gradient(circle at 10% 20%, rgba(13, 148, 136, 0.06), transparent 45%),
-    radial-gradient(circle at 90% 80%, rgba(124, 58, 237, 0.06), transparent 45%);
+    radial-gradient(circle at 10% 20%, rgba(2, 132, 199, 0.05), transparent 45%),
+    radial-gradient(circle at 90% 80%, rgba(109, 40, 217, 0.05), transparent 45%);
 
   /* Map Variables */
   --map-ocean: #e2e8f0;

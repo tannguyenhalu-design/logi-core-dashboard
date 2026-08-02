@@ -19,7 +19,8 @@ const TabAuditLog   = dynamic(() => import("../components/TabAuditLog"),   { ssr
 
 export default function DashboardPage({ user: initialUser }) {
   const user = initialUser || {};
-  const allowedTabs = user.role === "manager" ? ["ltl", "operations", "tachtrip"] : (user.tabs || []);
+  const isManager = user.role === "manager";
+  const allowedTabs = isManager ? ["ltl", "operations", "tachtrip"] : (user.tabs || []);
   const canSeeLTL = allowedTabs.includes("ltl");
   const canSeeOperations = allowedTabs.includes("operations");
   const canSeeTachTrip = allowedTabs.includes("tachtrip");
@@ -35,6 +36,9 @@ export default function DashboardPage({ user: initialUser }) {
   const [tcData, setTcData] = useState(null);
   const [tcLoading, setTcLoading] = useState(false);
   const [tcError, setTcError] = useState(null);
+  // Role-switcher for manager: { type: 'manager'|'pic'|'project', value: string|null }
+  const [viewAs, setViewAs] = useState({ type: "manager", value: null });
+  const [showRoleMenu, setShowRoleMenu] = useState(false);
 
   // ── Fetch raw data ONCE on mount ──
   const fetchRaw = useCallback(async (forceRefresh = false) => {
@@ -58,7 +62,7 @@ export default function DashboardPage({ user: initialUser }) {
   }, []);
 
   // ── Apply all transforms client-side ──
-  const applyTransforms = useCallback((raw, months, projects, fMode) => {
+  const applyTransforms = useCallback((raw, months, projects, fMode, overrideViewAs) => {
     if (!raw) return;
     setFiltering(true);
     setTimeout(() => {
@@ -69,8 +73,16 @@ export default function DashboardPage({ user: initialUser }) {
         let ltlSource = raw.ltl || [];
         let damageSource = raw.damage || [];
 
-        // PIC Filtering check
-        if (userSession.role === "pic" && userSession.pic) {
+        // Role-switcher: manager can impersonate a PIC or a project view
+        const effectiveViewAs = overrideViewAs !== undefined ? overrideViewAs : viewAs;
+        if (userSession.role === "manager" && effectiveViewAs.type === "pic" && effectiveViewAs.value) {
+          ltlSource = ltlSource.filter(r => picMapping[r.client_name] === effectiveViewAs.value);
+          damageSource = damageSource.filter(r => picMapping[r.client_name] === effectiveViewAs.value);
+        } else if (userSession.role === "manager" && effectiveViewAs.type === "project" && effectiveViewAs.value) {
+          ltlSource = ltlSource.filter(r => r.client_name === effectiveViewAs.value);
+          damageSource = damageSource.filter(r => r.client_name === effectiveViewAs.value);
+        } else if (userSession.role === "pic" && userSession.pic) {
+          // PIC Filtering check (for actual PIC users)
           ltlSource = (raw.ltl || []).filter(r => picMapping[r.client_name] === userSession.pic);
           damageSource = (raw.damage || []).filter(r => picMapping[r.client_name] === userSession.pic);
         }
@@ -102,12 +114,13 @@ export default function DashboardPage({ user: initialUser }) {
       } catch(e) { setError(e.message); }
       finally    { setFiltering(false); }
     }, 0);
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewAs]);
 
   // Mount: fetch raw once (only if this user can see the LTL tab at all)
   useEffect(() => {
     if (!canSeeLTL) return;
-    fetchRaw().then(raw => { if (raw) applyTransforms(raw, [], []); });
+    fetchRaw().then(raw => { if (raw) applyTransforms(raw, [], [], "pickup", { type: "manager", value: null }); });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -131,7 +144,7 @@ export default function DashboardPage({ user: initialUser }) {
   useEffect(() => {
     if (rawCache) applyTransforms(rawCache, selectedMonths, selectedProjects, filterMode);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonths, selectedProjects, filterMode]);
+  }, [selectedMonths, selectedProjects, filterMode, viewAs]);
 
   const allProjects = dashData
     ? (dashData.overview?.allProjectsLTL || []).sort()
@@ -260,8 +273,79 @@ export default function DashboardPage({ user: initialUser }) {
             )}
           </nav>
 
+          {/* ── Role Switcher (Manager only) ── */}
+          {isManager && rawCache && (
+            <div style={{ position: "relative", marginTop: "auto" }}>
+              {/* label */}
+              <div style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", padding: "12px 8px 4px" }}>
+                🎭 Đang xem theo vai trò
+              </div>
+              <button
+                onClick={() => setShowRoleMenu(v => !v)}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "8px 10px", borderRadius: 8, fontSize: 12, fontFamily: "inherit",
+                  cursor: "pointer", transition: "all 0.2s",
+                  background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.4)",
+                  color: "#a78bfa", fontWeight: 600,
+                }}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 140 }}>
+                  {viewAs.type === "manager" ? "👑 Manager (Tổng)" : viewAs.type === "pic" ? `👤 PIC: ${viewAs.value}` : `📦 KH: ${viewAs.value}`}
+                </span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <polyline points={showRoleMenu ? "18 15 12 9 6 15" : "6 9 12 15 18 9"}/>
+                </svg>
+              </button>
+
+              {showRoleMenu && (() => {
+                const picMapping = rawCache.picMapping || {};
+                const allPICs = [...new Set(Object.values(picMapping))].filter(Boolean).sort();
+                const allClients = [...new Set((rawCache.ltl || []).map(r => r.client_name))].filter(Boolean).sort();
+                const menuItems = [
+                  { label: "👑 Manager (Tổng quan)", type: "manager", value: null },
+                  ...allPICs.map(p => ({ label: `👤 PIC: ${p}`, type: "pic", value: p })),
+                  ...allClients.map(c => ({ label: `📦 KH: ${c}`, type: "project", value: c })),
+                ];
+                return (
+                  <div style={{
+                    position: "absolute", bottom: "100%", left: 0, right: 0, marginBottom: 4,
+                    background: "var(--bg-panel)", border: "1px solid var(--border)",
+                    borderRadius: 10, boxShadow: "0 -8px 32px rgba(0,0,0,0.3)",
+                    maxHeight: 260, overflowY: "auto", zIndex: 999,
+                  }}>
+                    {menuItems.map((item, i) => {
+                      const isActive = viewAs.type === item.type && viewAs.value === item.value;
+                      return (
+                        <div
+                          key={i}
+                          onClick={() => {
+                            setViewAs({ type: item.type, value: item.value });
+                            setShowRoleMenu(false);
+                          }}
+                          style={{
+                            padding: "8px 12px", fontSize: 11.5, cursor: "pointer",
+                            color: isActive ? "#a78bfa" : "var(--text-secondary)",
+                            background: isActive ? "rgba(139,92,246,0.12)" : "transparent",
+                            fontWeight: isActive ? 700 : 400,
+                            borderBottom: i < menuItems.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none",
+                            transition: "background 0.15s",
+                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                          }}
+                          onMouseOver={(e) => { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+                          onMouseOut={(e)  => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+                        >
+                          {item.label}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
           {/* User info + Logout */}
-          <div style={{ marginTop: "auto", borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+          <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, marginTop: isManager && rawCache ? 8 : "auto" }}>
             <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>
               👑 {user.role === "pic" ? "PIC Vận Hành" : user.role === "client" ? "Khách hàng" : "Manager"}
             </div>
@@ -304,13 +388,29 @@ export default function DashboardPage({ user: initialUser }) {
             position: "relative",
             zIndex: 100,
           }}>
-            <div style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)" }}>
-              {activeTab === "ltl" ? "LTL Dashboard"
-                : activeTab === "users" ? "Quản lý người dùng"
-                : activeTab === "operations" ? "Vận hành SD3"
-                : activeTab === "tachtrip" ? "Tách Chuyến"
-                : activeTab === "auditlog" ? "Nhật Ký Hoạt Động"
-                : "SD3-Điện Máy"}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)" }}>
+                {activeTab === "ltl" ? "LTL Dashboard"
+                  : activeTab === "users" ? "Quản lý người dùng"
+                  : activeTab === "operations" ? "Vận hành SD3"
+                  : activeTab === "tachtrip" ? "Tách Chuyến"
+                  : activeTab === "auditlog" ? "Nhật Ký Hoạt Động"
+                  : "SD3-Điện Máy"}
+              </div>
+              {isManager && viewAs.type !== "manager" && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  padding: "3px 10px", borderRadius: 20, fontSize: 11.5, fontWeight: 600,
+                  background: "rgba(139,92,246,0.18)", border: "1px solid rgba(139,92,246,0.5)",
+                  color: "#c4b5fd",
+                }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  {viewAs.type === "pic" ? `Xem góc nhìn PIC: ${viewAs.value}` : `Xem góc nhìn KH: ${viewAs.value}`}
+                  <button
+                    onClick={() => setViewAs({ type: "manager", value: null })}
+                    style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "#c4b5fd", lineHeight: 1, marginLeft: 2 }}>✕</button>
+                </div>
+              )}
             </div>
 
             {activeTab === "ltl" ? (

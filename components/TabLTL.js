@@ -11,12 +11,50 @@ import VietnamMap from "./VietnamMap";
 
 Chart.register(ChartDataLabels);
 
-Chart.defaults.color = "#94a3b8";
 Chart.defaults.font.family = "'Inter', sans-serif";
-Chart.defaults.plugins.tooltip.backgroundColor = "rgba(15,23,42,0.95)";
-Chart.defaults.plugins.tooltip.borderColor = "rgba(20, 224, 196,0.3)";
 Chart.defaults.plugins.tooltip.borderWidth = 1;
-Chart.defaults.plugins.tooltip.titleColor = "#fff";
+
+// Chart.js draws to <canvas>, so it can't read CSS variables — colors must
+// be resolved in JS and re-applied whenever the theme toggles.
+const CHART_THEME = {
+  dark: {
+    text: "#f1f5f9",
+    muted: "#94a3b8",
+    grid: "rgba(255,255,255,0.05)",
+    tooltipBg: "rgba(15,23,42,0.95)",
+    tooltipBorder: "rgba(20, 224, 196, 0.3)",
+    tooltipTitle: "#ffffff",
+    tooltipBody: "#f1f5f9",
+    legend: "#ffffff",
+  },
+  light: {
+    text: "#0f172a",
+    muted: "#475569",
+    grid: "rgba(15,23,42,0.08)",
+    tooltipBg: "rgba(255,255,255,0.98)",
+    tooltipBorder: "rgba(2, 132, 199, 0.35)",
+    tooltipTitle: "#0f172a",
+    tooltipBody: "#1e293b",
+    legend: "#0f172a",
+  },
+};
+
+function currentTheme() {
+  if (typeof document === "undefined") return "dark";
+  return document.documentElement.getAttribute("data-theme") || "dark";
+}
+
+function useTheme() {
+  const [theme, setTheme] = useState(currentTheme());
+  useEffect(() => {
+    const el = document.documentElement;
+    const obs = new MutationObserver(() => setTheme(currentTheme()));
+    obs.observe(el, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => obs.disconnect();
+  }, []);
+  return theme;
+}
+
 
 const COLORS = {
   cyan: "#14e0c4", green: "#10b981", red: "#f43f5e",
@@ -28,21 +66,29 @@ function fmt(n, decimals = 0) {
   return Number(n).toLocaleString("vi-VN", { maximumFractionDigits: decimals });
 }
 
-function useChart(canvasRef, config, deps) {
+function useChart(canvasRef, config, deps, theme = "dark") {
   const chartRef = useRef(null);
   useEffect(() => {
     if (!canvasRef.current) return;
+    const t = CHART_THEME[theme] || CHART_THEME.dark;
+    Chart.defaults.color = t.muted;
+    Chart.defaults.plugins.tooltip.backgroundColor = t.tooltipBg;
+    Chart.defaults.plugins.tooltip.borderColor = t.tooltipBorder;
+    Chart.defaults.plugins.tooltip.titleColor = t.tooltipTitle;
+    Chart.defaults.plugins.tooltip.bodyColor = t.tooltipBody;
+    Chart.defaults.plugins.legend.labels.color = t.legend;
     if (chartRef.current) chartRef.current.destroy();
     chartRef.current = new Chart(canvasRef.current, config());
     return () => { if (chartRef.current) chartRef.current.destroy(); };
     // eslint-disable-next-line
-  }, deps);
+  }, [...deps, theme]);
 }
 
 // ── Chart: Ontime/Late by Month (stacked bar + line % ontime) ──
-function OntimeMonthChart({ ontimeByMonth, isWeekly }) {
+function OntimeMonthChart({ ontimeByMonth, isWeekly, theme = "dark" }) {
   const ref = useRef(null);
   const months = Object.keys(ontimeByMonth).sort((a, b) => a - b);
+  const ct = CHART_THEME[theme] || CHART_THEME.dark;
 
   useChart(ref, () => ({
     type: "bar",
@@ -109,28 +155,29 @@ function OntimeMonthChart({ ontimeByMonth, isWeekly }) {
     options: {
       responsive: true, maintainAspectRatio: false,
       scales: {
-        y: { stacked: true, grid: { color: "rgba(255,255,255,0.05)" } },
+        y: { stacked: true, grid: { color: ct.grid } },
         y1: { position: "right", grid: { display: false }, min: 0, max: 100, ticks: { callback: (v) => v + "%" } },
-        x: { 
-          stacked: true, 
+        x: {
+          stacked: true,
           grid: { display: false },
           ticks: { maxRotation: 0, minRotation: 0 }
         },
       },
       plugins: {
-        legend: { position: "bottom", labels: { color: "#94a3b8", boxWidth: 12 } },
+        legend: { position: "bottom", labels: { color: ct.muted, boxWidth: 12 } },
         datalabels: { display: false }, // defaults to false, overridden in datasets
       },
     },
-  }), [ontimeByMonth]);
+  }), [ontimeByMonth], theme);
 
   return <canvas ref={ref} />;
 }
 
 // ── Chart: Ontime % by Project (bar, % on top) ──
-function OntimeProjChart({ ontimeByProject }) {
+function OntimeProjChart({ ontimeByProject, theme = "dark" }) {
   const ref = useRef(null);
   const projs = Object.keys(ontimeByProject).sort();
+  const ct = CHART_THEME[theme] || CHART_THEME.dark;
 
   useChart(ref, () => ({
     type: "bar",
@@ -166,21 +213,22 @@ function OntimeProjChart({ ontimeByProject }) {
         },
       },
       scales: {
-        y: { min: 0, max: 105, grid: { color: "rgba(255,255,255,0.05)" }, ticks: { callback: (v) => v <= 100 ? v + "%" : "" } },
+        y: { min: 0, max: 105, grid: { color: ct.grid }, ticks: { callback: (v) => v <= 100 ? v + "%" : "" } },
         x: { grid: { display: false } },
       },
     },
-  }), [ontimeByProject]);
+  }), [ontimeByProject], theme);
 
   return <canvas ref={ref} />;
 }
 
 // ── Chart: Orders by Project (donut, % in legend) ──
-function OrdersProjChart({ ordersByProject }) {
+function OrdersProjChart({ ordersByProject, theme = "dark" }) {
   const ref = useRef(null);
   const projs = Object.keys(ordersByProject).sort((a, b) => ordersByProject[b] - ordersByProject[a]);
   const total = projs.reduce((s, p) => s + ordersByProject[p], 0);
   const palette = ["#14e0c4", "#8b5cf6", "#10b981", "#f59e0b", "#f43f5e", "#ec4899", "#06b6d4", "#84cc16"];
+  const ct = CHART_THEME[theme] || CHART_THEME.dark;
 
   useChart(ref, () => ({
     type: "doughnut",
@@ -196,10 +244,22 @@ function OrdersProjChart({ ordersByProject }) {
       }],
     },
     options: {
-      responsive: true, maintainAspectRatio: false, cutout: "68%",
+      responsive: true, maintainAspectRatio: false, cutout: "65%",
       plugins: {
-        legend: { position: "right", labels: { color: "#94a3b8", boxWidth: 12, font: { size: 12 } } },
+        legend: {
+          position: "right",
+          labels: {
+            color: ct.legend,
+            boxWidth: 11,
+            padding: 10,
+            font: { size: 12, weight: "600" },
+          },
+        },
         tooltip: {
+          backgroundColor: ct.tooltipBg,
+          borderColor: ct.tooltipBorder,
+          titleColor: ct.tooltipTitle,
+          bodyColor: ct.tooltipBody,
           callbacks: {
             label: (item) => {
               const val = item.raw;
@@ -210,22 +270,70 @@ function OrdersProjChart({ ordersByProject }) {
             }
           }
         },
-        datalabels: {
-          display: (ctx) => {
-            const val = ctx.dataset.data[ctx.dataIndex];
-            const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
-            return sum > 0 ? (val / sum) * 100 > 4 : false;
-          },
-          color: "#fff",
-          font: { weight: "bold", size: 10 },
-          formatter: (v, ctx) => {
-            const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
-            return sum > 0 ? Math.round((v / sum) * 100) + "%" : "";
-          }
-        },
+        datalabels: { display: false },
       },
     },
-  }), [ordersByProject]);
+  }), [ordersByProject], theme);
+
+  return <canvas ref={ref} />;
+}
+
+
+// ── Chart: Weight (Kg/Tấn) by Project (donut, % in legend) ──
+function WeightProjChart({ weightByProject = {}, theme = "dark" }) {
+  const ref = useRef(null);
+  const projs = Object.keys(weightByProject).sort((a, b) => (weightByProject[b] || 0) - (weightByProject[a] || 0));
+  const total = projs.reduce((s, p) => s + (weightByProject[p] || 0), 0);
+  const palette = ["#06b6d4", "#f59e0b", "#10b981", "#8b5cf6", "#f43f5e", "#14e0c4", "#ec4899", "#84cc16"];
+  const ct = CHART_THEME[theme] || CHART_THEME.dark;
+
+  useChart(ref, () => ({
+    type: "doughnut",
+    data: {
+      labels: projs.map((p) => {
+        const w = weightByProject[p] || 0;
+        const pct = total > 0 ? Math.round((w / total) * 100) : 0;
+        const displayW = w >= 1000 ? `${(w / 1000).toFixed(1).replace(".0", "")} Tấn` : `${w} Kg`;
+        return `${p}: ${displayW} (${pct}%)`;
+      }),
+      datasets: [{
+        data: projs.map((p) => weightByProject[p] || 0),
+        backgroundColor: projs.map((_, i) => palette[i % palette.length]),
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: "65%",
+      plugins: {
+        legend: {
+          position: "right",
+          labels: {
+            color: ct.legend,
+            boxWidth: 11,
+            padding: 10,
+            font: { size: 12, weight: "600" },
+          },
+        },
+        tooltip: {
+          backgroundColor: ct.tooltipBg,
+          borderColor: ct.tooltipBorder,
+          titleColor: ct.tooltipTitle,
+          bodyColor: ct.tooltipBody,
+          callbacks: {
+            label: (item) => {
+              const val = item.raw;
+              const sum = item.dataset.data.reduce((a, b) => a + b, 0);
+              const pct = sum > 0 ? Math.round((val / sum) * 100) : 0;
+              const displayVal = val >= 1000 ? `${(val / 1000).toFixed(1).replace(".0", "")} Tấn` : `${val} Kg`;
+              const projName = item.label.split(":")[0];
+              return ` ${projName}: ${displayVal} (${pct}%)`;
+            }
+          }
+        },
+        datalabels: { display: false },
+      },
+    },
+  }), [weightByProject], theme);
 
   return <canvas ref={ref} />;
 }
@@ -365,8 +473,9 @@ function DetailedDamageTable({ cases, filter }) {
 }
 
 // ── Chart: Warehouse risk bar ──
-function WarehouseRiskChart({ warehouseAlerts }) {
+function WarehouseRiskChart({ warehouseAlerts, theme = "dark" }) {
   const ref = useRef(null);
+  const ct = CHART_THEME[theme] || CHART_THEME.dark;
 
   useChart(ref, () => ({
     type: "bar",
@@ -380,7 +489,7 @@ function WarehouseRiskChart({ warehouseAlerts }) {
           borderRadius: 4,
           datalabels: {
             display: true,
-            color: "#fff",
+            color: ct.text,
             anchor: "end",
             align: "right",
             font: { weight: "bold", size: 10 }
@@ -395,11 +504,11 @@ function WarehouseRiskChart({ warehouseAlerts }) {
         legend: { display: false },
       },
       scales: {
-        x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { precision: 0 } },
+        x: { grid: { color: ct.grid }, ticks: { precision: 0 } },
         y: { grid: { display: false } },
       },
     },
-  }), [warehouseAlerts]);
+  }), [warehouseAlerts], theme);
 
   return <canvas ref={ref} />;
 }
@@ -628,6 +737,8 @@ function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, 
               borderRadius: 12,
               padding: "16px 20px",
               backdropFilter: "blur(8px)",
+              minHeight: 310,
+              transition: "all 0.2s ease-out",
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
@@ -734,6 +845,8 @@ function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, 
               borderRadius: 12,
               padding: "16px 20px",
               backdropFilter: "blur(8px)",
+              minHeight: 310,
+              transition: "all 0.2s ease-out",
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cyan)", display: "flex", alignItems: "center", gap: 8 }}>
@@ -880,6 +993,7 @@ function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, 
 
 export default function TabLTL({ data, selectedProjects = [] }) {
   const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
+  const theme = useTheme();
 
   if (!data) return <TruckLoader />;
 
@@ -941,24 +1055,36 @@ export default function TabLTL({ data, selectedProjects = [] }) {
         projectName={singleProjectMode ? selectedProjects[0] : ""}
       />
 
-      {/* Ontime trend + Orders donut */}
-      <div className="grid-2-1">
-        <div className="chart-panel">
-          <div className="chart-panel-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            Xu hướng Ontime / Late theo {data.isWeekly ? "tuần" : "tháng"}
-          </div>
-          <div style={{ height: 280 }}>
-            <OntimeMonthChart ontimeByMonth={data.ontimeByMonth} isWeekly={data.isWeekly} />
-          </div>
+      {/* 1. Xu hướng Ontime / Late theo tháng (FULL WIDTH 100%) */}
+      <div className="chart-panel" style={{ width: "100%" }}>
+        <div className="chart-panel-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Xu hướng Ontime / Late theo {data.isWeekly ? "tuần" : "tháng"}
         </div>
+        <div style={{ height: 340 }}>
+          <OntimeMonthChart ontimeByMonth={data.ontimeByMonth} isWeekly={data.isWeekly} theme={theme} />
+        </div>
+      </div>
+
+      {/* 2. Tỷ trọng Số Đơn & Tải Trọng Tấn theo Dự Án (NẰM CHUNG HÀNG 2 CỘT 50/50) */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         <div className="chart-panel">
           <div className="chart-panel-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
-            Tỷ trọng Số đơn theo Dự Án
+            📦 Tỷ trọng Số Đơn theo Dự Án
           </div>
-          <div style={{ height: 280 }}>
-            <OrdersProjChart ordersByProject={data.ordersByProject} />
+          <div style={{ height: 380 }}>
+            <OrdersProjChart ordersByProject={data.ordersByProject} theme={theme} />
+          </div>
+        </div>
+
+        <div className="chart-panel">
+          <div className="chart-panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M2 12h20"/></svg>
+            ⚖️ Tỷ trọng Tải Trọng (Tấn/Kg) theo Dự Án
+          </div>
+          <div style={{ height: 380 }}>
+            <WeightProjChart weightByProject={data.weightByProject || {}} theme={theme} />
           </div>
         </div>
       </div>
@@ -970,7 +1096,7 @@ export default function TabLTL({ data, selectedProjects = [] }) {
           % Ontime theo Dự Án
         </div>
         <div style={{ height: 350 }}>
-          <OntimeProjChart ontimeByProject={data.ontimeByProject} />
+          <OntimeProjChart ontimeByProject={data.ontimeByProject} theme={theme} />
         </div>
       </div>
 
@@ -981,7 +1107,7 @@ export default function TabLTL({ data, selectedProjects = [] }) {
           Top 10 Kho Rủi Ro Cao
         </div>
         <div style={{ height: 300 }}>
-          <WarehouseRiskChart warehouseAlerts={data.warehouseAlerts} />
+          <WarehouseRiskChart warehouseAlerts={data.warehouseAlerts} theme={theme} />
         </div>
       </div>
 
