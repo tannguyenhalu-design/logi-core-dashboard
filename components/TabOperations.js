@@ -322,7 +322,9 @@ export default function TabOperations({ rawData, userRole }) {
       const checklist = String(p.checklist || "").toLowerCase();
       const notes = String(p.notes || "").toLowerCase();
       const sla = String(p.slaLogic || "").toLowerCase();
-      if (!name.includes(q) && !checklist.includes(q) && !notes.includes(q) && !sla.includes(q)) return false;
+      const picEmail = String(p.pic || "").toLowerCase();
+      const picName = String(PIC_NAMES[p.pic] || "").toLowerCase();
+      if (!name.includes(q) && !checklist.includes(q) && !notes.includes(q) && !sla.includes(q) && !picEmail.includes(q) && !picName.includes(q)) return false;
     }
     if (picFilter !== "all" && p.pic !== picFilter) return false;
     if (modelFilter !== "all" && p.model !== modelFilter) return false;
