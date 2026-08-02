@@ -934,16 +934,16 @@ export default function TabOperations({ rawData }) {
                     </td>
                     <td style={{ padding: "14px 8px", textAlign: "center" }}>
                       <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
-                        {p.sopLink ? (
-                          <a 
+                        {/^https?:\/\//i.test(p.sopLink || "") ? (
+                          <a
                             href={p.sopLink}
-                            target="_blank" 
-                            rel="noreferrer" 
-                            style={{ 
-                              background: "rgba(20, 224, 196,0.15)", 
-                              color: "var(--cyan)", 
-                              padding: "5px 10px", 
-                              borderRadius: 6, 
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                              background: "rgba(20, 224, 196,0.15)",
+                              color: "var(--cyan)",
+                              padding: "5px 10px",
+                              borderRadius: 6,
                               fontSize: 11,
                               fontWeight: 600,
                               textDecoration: "none",
@@ -952,6 +952,13 @@ export default function TabOperations({ rawData }) {
                           >
                             Mở SOP 🔗
                           </a>
+                        ) : p.sopLink ? (
+                          <span
+                            title="Ô LINK SOP trên Sheet chỉ có tên/nhãn, không có URL thật — mở Sheet, bấm chuột phải vào ô này > Insert link để gắn lại link đầy đủ."
+                            style={{ color: "var(--amber)", fontSize: 11, padding: "5px 10px", cursor: "help" }}
+                          >
+                            ⚠️ {p.sopLink} (chưa có link)
+                          </span>
                         ) : (
                           <span style={{ color: "var(--text-muted)", fontSize: 11, padding: "5px 10px" }}>Chưa có SOP</span>
                         )}

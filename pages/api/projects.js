@@ -182,8 +182,13 @@ export default async function handler(req, res) {
         headers.forEach((h, idx) => {
           const cell = vals[idx] || {};
           const text = cell.formattedValue || "";
-          const link = cell.hyperlink || "";
-          
+          // Cells created via "Insert > Link" as a Google Sheets "smart chip"
+          // (pasting a Doc/Drive URL) store the URL under chipRuns, not the
+          // plain hyperlink field — a whole separate structure from a
+          // =HYPERLINK() formula or a manually-applied cell-level link.
+          const chipLink = cell.chipRuns?.[0]?.chip?.richLinkProperties?.uri || "";
+          const link = cell.hyperlink || chipLink || "";
+
           if (h === "LINK SOP") {
             obj[h] = link || text;
           } else {
