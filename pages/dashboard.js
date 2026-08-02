@@ -75,14 +75,14 @@ export default function DashboardPage({ user: initialUser }) {
 
         // Role-switcher: manager can impersonate a PIC or a project view
         const effectiveViewAs = overrideViewAs !== undefined ? overrideViewAs : viewAs;
-        if (userSession.role === "manager" && effectiveViewAs.type === "pic" && effectiveViewAs.value) {
+        if (userSession.role === "manager" && effectiveViewAs.type === "cs" && effectiveViewAs.value) {
           ltlSource = ltlSource.filter(r => picMapping[r.client_name] === effectiveViewAs.value);
           damageSource = damageSource.filter(r => picMapping[r.client_name] === effectiveViewAs.value);
         } else if (userSession.role === "manager" && effectiveViewAs.type === "project" && effectiveViewAs.value) {
           ltlSource = ltlSource.filter(r => r.client_name === effectiveViewAs.value);
           damageSource = damageSource.filter(r => r.client_name === effectiveViewAs.value);
-        } else if (userSession.role === "pic" && userSession.pic) {
-          // PIC Filtering check (for actual PIC users)
+        } else if (userSession.role === "cs" && userSession.pic) {
+          // CS Filtering check (for actual CS users)
           ltlSource = (raw.ltl || []).filter(r => picMapping[r.client_name] === userSession.pic);
           damageSource = (raw.damage || []).filter(r => picMapping[r.client_name] === userSession.pic);
         }
@@ -290,7 +290,7 @@ export default function DashboardPage({ user: initialUser }) {
                   color: "#a78bfa", fontWeight: 600,
                 }}>
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 140 }}>
-                  {viewAs.type === "manager" ? "👑 Manager (Tổng)" : viewAs.type === "pic" ? `👤 PIC: ${viewAs.value}` : `📦 KH: ${viewAs.value}`}
+                  {viewAs.type === "manager" ? "👑 Manager (Tổng)" : viewAs.type === "cs" ? `👤 Nhân sự: ${viewAs.value}` : `📦 KH: ${viewAs.value}`}
                 </span>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <polyline points={showRoleMenu ? "18 15 12 9 6 15" : "6 9 12 15 18 9"}/>
@@ -303,7 +303,7 @@ export default function DashboardPage({ user: initialUser }) {
                 const allClients = [...new Set((rawCache.ltl || []).map(r => r.client_name))].filter(Boolean).sort();
                 const menuItems = [
                   { label: "👑 Manager (Tổng quan)", type: "manager", value: null },
-                  ...allPICs.map(p => ({ label: `👤 PIC: ${p}`, type: "pic", value: p })),
+                  ...allPICs.map(p => ({ label: `👤 Nhân sự: ${p}`, type: "cs", value: p })),
                   ...allClients.map(c => ({ label: `📦 KH: ${c}`, type: "project", value: c })),
                 ];
                 return (
@@ -405,7 +405,7 @@ export default function DashboardPage({ user: initialUser }) {
                   color: "#c4b5fd",
                 }}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  {viewAs.type === "pic" ? `Xem góc nhìn PIC: ${viewAs.value}` : `Xem góc nhìn KH: ${viewAs.value}`}
+                  {viewAs.type === "cs" ? `Xem góc nhìn Nhân sự: ${viewAs.value}` : `Xem góc nhìn KH: ${viewAs.value}`}
                   <button
                     onClick={() => setViewAs({ type: "manager", value: null })}
                     style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "#c4b5fd", lineHeight: 1, marginLeft: 2 }}>✕</button>
