@@ -64,6 +64,26 @@ export default async function handler(req, res) {
     const tachTripData  = transformTachTrip(rawLTL);
     const aiInsights    = transformAIInsights(rawLTL);
 
+    // Filter revenue metrics for unauthorized roles
+    const canSeeRevenue = role === "manager" || role === "ops_specialist";
+    if (!canSeeRevenue) {
+      ltlData.totalRevenue = 0;
+      ltlData.totalPlan = 0;
+      if (ltlData.projects) {
+        ltlData.projects.forEach(p => {
+          p.revenue = 0;
+          p.plan = 0;
+          p.lastMoNsr = 0;
+          p.revenueAchievement = 0;
+        });
+      }
+      if (ltlData.volumeByMonth) {
+        ltlData.volumeByMonth.forEach(m => {
+          m.revenue = 0;
+        });
+      }
+    }
+
     // ── Overview: all-time totals (no filter) ──
     const overviewLTL = transformLTL(rawLTL, {}, rawDamage);
     const overviewFTL = transformFTL(rawFTL, masterVehicle, {});

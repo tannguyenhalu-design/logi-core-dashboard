@@ -22,7 +22,7 @@ function formatRevenue(val) {
   return num.toLocaleString("vi-VN") + "đ";
 }
 
-export default function TabOperations({ rawData }) {
+export default function TabOperations({ rawData, userRole }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -340,6 +340,7 @@ export default function TabOperations({ rawData }) {
   };
 
   const totalRevenue = filteredProjects.reduce((sum, p) => sum + parseRevenue(p.revenue), 0);
+  const canSeeRevenue = userRole === "manager" || userRole === "ops_specialist";
 
   const revenueByPic = {};
   const revenueByStatus = {};
@@ -758,17 +759,19 @@ export default function TabOperations({ rawData }) {
           <div style={{ fontSize: 24, fontWeight: "bold", margin: "6px 0", color: "var(--green)" }}>{doneCount}</div>
           <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Dự án đã bàn giao và chạy ổn định</div>
         </div>
-        <div style={{ background: "rgba(20, 224, 196,0.05)", border: "1px solid rgba(20, 224, 196,0.15)", padding: 16, borderRadius: 12 }}>
-          <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase" }}>Doanh Thu Dự Kiến</div>
-          <div style={{ fontSize: 24, fontWeight: "bold", margin: "6px 0", color: "var(--cyan)" }}>
-            {totalRevenue > 0 ? (totalRevenue / 1000000000).toFixed(1).replace(".0", "") + " Tỷđ" : "0đ"}
+        {canSeeRevenue && (
+          <div style={{ background: "rgba(20, 224, 196,0.05)", border: "1px solid rgba(20, 224, 196,0.15)", padding: 16, borderRadius: 12 }}>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase" }}>Doanh Thu Dự Kiến</div>
+            <div style={{ fontSize: 24, fontWeight: "bold", margin: "6px 0", color: "var(--cyan)" }}>
+              {totalRevenue > 0 ? (totalRevenue / 1000000000).toFixed(1).replace(".0", "") + " Tỷđ" : "0đ"}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Tổng quy mô doanh thu ước tính</div>
           </div>
-          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Tổng quy mô doanh thu ước tính</div>
-        </div>
+        )}
       </div>
 
       {/* Revenue breakdown by PIC / status — rolled up from "Doanh Thu Dự Kiến" per project */}
-      {totalRevenue > 0 && (
+      {canSeeRevenue && totalRevenue > 0 && (
         <div style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", padding: 16, borderRadius: 12 }}>
           <h4 style={{ margin: "0 0 12px", fontSize: 13, color: "var(--text-primary)" }}>💰 Doanh Thu Dự Kiến — theo PIC & trạng thái</h4>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
@@ -870,8 +873,8 @@ export default function TabOperations({ rawData }) {
                 <th style={{ textAlign: "left", padding: "12px 8px" }}>Mô Hình Vận Hành</th>
                 <th style={{ textAlign: "left", padding: "12px 8px" }}>Công Việc</th>
                 <th style={{ textAlign: "left", padding: "12px 8px" }}>Dự Kiến OB</th>
-                <th style={{ textAlign: "right", padding: "12px 8px" }}>Doanh Thu Dự Kiến</th>
-                <th style={{ textAlign: "right", padding: "12px 8px" }}>Last Mo. NSR</th>
+                {canSeeRevenue && <th style={{ textAlign: "right", padding: "12px 8px" }}>Doanh Thu Dự Kiến</th>}
+                {canSeeRevenue && <th style={{ textAlign: "right", padding: "12px 8px" }}>Last Mo. NSR</th>}
                 <th style={{ textAlign: "right", padding: "12px 8px" }}>Dự Kiến Volume</th>
                 <th style={{ textAlign: "center", padding: "12px 8px" }}>Trạng Thái</th>
                 <th style={{ textAlign: "center", padding: "12px 8px" }}>Tác vụ</th>
@@ -1029,12 +1032,16 @@ export default function TabOperations({ rawData }) {
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Doanh Thu Dự Kiến (VND)</label>
-                  <input 
-                    type="text" value={addRevenue} onChange={(e) => setAddRevenue(e.target.value)}
-                    placeholder="Ví dụ: 500.000.000"
-                    style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
-                  />
+                {canSeeRevenue && (
+                  <>
+                    <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Doanh Thu Dự Kiến (VND)</label>
+                    <input 
+                      type="text" value={addRevenue} onChange={(e) => setAddRevenue(e.target.value)}
+                      placeholder="Ví dụ: 500.000.000"
+                      style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                    />
+                  </>
+                )}
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -1215,13 +1222,15 @@ export default function TabOperations({ rawData }) {
                     </select>
                   </div>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <label style={{ fontSize: 11, color: "var(--text-secondary)" }}>Doanh Thu Dự Kiến</label>
-                    <input 
-                      type="text" value={editRevenue} disabled={!isManager} onChange={(e) => setEditRevenue(e.target.value)}
-                      style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 8px", borderRadius: 4, fontSize: 12 }}
-                    />
-                  </div>
+                  {canSeeRevenue && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <label style={{ fontSize: 11, color: "var(--text-secondary)" }}>Doanh Thu Dự Kiến</label>
+                      <input 
+                        type="text" value={editRevenue} disabled={!isManager} onChange={(e) => setEditRevenue(e.target.value)}
+                        style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 8px", borderRadius: 4, fontSize: 12 }}
+                      />
+                    </div>
+                  )}
 
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     <label style={{ fontSize: 11, color: "var(--text-secondary)" }}>Dự kiến OB</label>

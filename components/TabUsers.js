@@ -8,6 +8,7 @@ import TruckLoader from "./TruckLoader";
 const ROLE_LABELS = {
   pending: "Chờ duyệt",
   manager: "Quản lý",
+  ops_specialist: "Chuyên viên giải pháp vận hành",
   pic: "Chuyên viên vận hành (PIC)",
   client: "Khách hàng",
 };
@@ -20,6 +21,7 @@ const TAB_OPTIONS = [
 
 function defaultTabsForRole(role) {
   if (role === "manager") return ["ltl", "operations", "tachtrip"];
+  if (role === "ops_specialist") return ["ltl", "operations", "tachtrip"];
   if (role === "pic") return ["ltl", "operations", "tachtrip"];
   if (role === "client") return ["ltl"];
   return [];
@@ -47,8 +49,8 @@ function TabCheckboxes({ tabs, disabled, onChange }) {
 }
 
 function RoleBadge({ role }) {
-  const color = role === "pending" ? "var(--amber)" : role === "manager" ? "var(--cyan)" : role === "pic" ? "var(--green)" : "var(--purple)";
-  const bg = role === "pending" ? "rgba(245,158,11,0.15)" : role === "manager" ? "rgba(20,224,196,0.15)" : role === "pic" ? "rgba(16,185,129,0.15)" : "rgba(139,92,246,0.15)";
+  const color = role === "pending" ? "var(--amber)" : role === "manager" ? "var(--cyan)" : role === "ops_specialist" ? "var(--blue)" : role === "pic" ? "var(--green)" : "var(--purple)";
+  const bg = role === "pending" ? "rgba(245,158,11,0.15)" : role === "manager" ? "rgba(20,224,196,0.15)" : role === "ops_specialist" ? "rgba(59,130,246,0.15)" : role === "pic" ? "rgba(16,185,129,0.15)" : "rgba(139,92,246,0.15)";
   return (
     <span style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 20, background: bg, color }}>
       {ROLE_LABELS[role] || role}
@@ -212,6 +214,7 @@ export default function TabUsers() {
                     >
                       <option value="pending">Chờ duyệt</option>
                       <option value="manager">Quản lý</option>
+                      <option value="ops_specialist">Chuyên viên GPVH</option>
                       <option value="pic">Chuyên viên vận hành (PIC)</option>
                       <option value="client">Khách hàng</option>
                     </select>
@@ -306,6 +309,7 @@ export default function TabUsers() {
                   style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
                 >
                   <option value="manager">Quản lý</option>
+                  <option value="ops_specialist">Chuyên viên GPVH</option>
                   <option value="pic">Chuyên viên vận hành (PIC)</option>
                   <option value="client">Khách hàng</option>
                 </select>

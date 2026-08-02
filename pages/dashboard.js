@@ -535,7 +535,7 @@ export default function DashboardPage({ user: initialUser }) {
                 )}
 
                 {activeTab === "operations" ? (
-                  <TabOperations rawData={dashData?.raw} />
+                  <TabOperations rawData={dashData?.raw} userRole={dashData?.user?.role} />
                 ) : (
                   !loading && !error && dashData && <TabLTL data={dashData.ltl} selectedProjects={selectedProjects} userRole={dashData.user?.role} />
                 )}
