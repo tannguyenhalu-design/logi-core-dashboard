@@ -174,6 +174,7 @@ export default async function handler(req, res) {
       await ensureHeader("RECAP LINK", "N", 13);
       await ensureHeader("SOP STATUS", "O", 14);
       await ensureHeader("KICKOFF STATUS", "P", 15);
+      await ensureHeader("Last Mo NSR", "Q", 16);
 
       const sheetProjects = rowData.slice(1).map(row => {
         const obj = {};
@@ -231,6 +232,7 @@ export default async function handler(req, res) {
           recapLink:           local.recapLink !== undefined ? local.recapLink : (p["RECAP LINK"] || "").trim(),
           sopStatus:           local.sopStatus !== undefined ? local.sopStatus : ((p["SOP STATUS"] || "").trim() || defaultSopStatus),
           kickoffStatus:       local.kickoffStatus !== undefined ? local.kickoffStatus : ((p["KICKOFF STATUS"] || "").trim() || defaultKickoffStatus),
+          lastMoNsr:           local.lastMoNsr !== undefined ? local.lastMoNsr : (p["Last Mo NSR"] || ""),
 
           notes:               local.notes !== undefined ? local.notes : (p["CHECK LIST CÔNG VIỆC"] || ""),
           updatedAt:           local.updatedAt || null,
@@ -274,7 +276,7 @@ export default async function handler(req, res) {
 
   if (req.method === "POST") {
     try {
-      const { action, name, pic, status, job, expectedOb, revenue, sopLink, model, recapStatus, recapLink, sopStatus, kickoffStatus, notes, volume } = req.body;
+      const { action, name, pic, status, job, expectedOb, revenue, sopLink, model, recapStatus, recapLink, sopStatus, kickoffStatus, notes, volume, clientId, lastMoNsr } = req.body;
       if (!name) return res.status(400).json({ error: "Missing project name" });
 
       const key = String(name).trim();
@@ -351,6 +353,8 @@ export default async function handler(req, res) {
           kickoffStatus,
           notes,
           volume,
+          clientId,
+          lastMoNsr,
           updatedAt: new Date().toISOString(),
           updatedBy: userName,
         };
@@ -363,12 +367,14 @@ export default async function handler(req, res) {
         try {
           const response = await sheets.spreadsheets.values.get({
             spreadsheetId: ltlProjectsId,
-              range: "'Data dự án'!A1:P100",
+              range: "'Data dự án'!A1:Q100",
           });
           const rows = response.data.values || [];
           if (rows.length > 0) {
             const headers = rows[0].map(h => String(h || "").trim());
             const nameIdx = headers.indexOf("TÊN DỰ ÁN");
+            const clientIdIdx = headers.indexOf("Clinet ID");
+            const lastMoNsrIdx = headers.indexOf("Last Mo NSR");
             const picIdx = headers.indexOf("ĐẢM NHIỆM");
             const statusIdx = headers.indexOf("TRẠNG THÁI");
             const jobIdx = headers.indexOf("CÔNG VIỆC");
@@ -395,32 +401,39 @@ export default async function handler(req, res) {
               const rowNumber = rowIdx + 1;
               const colIndexToLetter = (idx) => String.fromCharCode(65 + idx);
 
-              const updateCell = async (colIdx, val) => {
-                if (colIdx !== -1 && val !== undefined) {
-                  await sheets.spreadsheets.values.update({
-                    spreadsheetId: ltlProjectsId,
-                    range: `'Data dự án'!${colIndexToLetter(colIdx)}${rowNumber}`,
-                    valueInputOption: "USER_ENTERED",
-                    resource: { values: [[val]] },
-                  });
-                }
-              };
+              // One batchUpdate call for the whole row instead of one values.update
+              // per changed field — the latter (~15 calls per save) blows through
+              // the Sheets API's per-minute write quota under any back-to-back use.
+              const cellWrites = [
+                [clientIdIdx, clientId],
+                [picIdx, pic],
+                [statusIdx, store.projects[key].status],
+                [jobIdx, job],
+                [obIdx, expectedOb],
+                [revIdx, revenue],
+                [sopIdx, sopLink],
+                [modelIdx, model],
+                [checklistIdx, notes],
+                [volumeIdx, volume],
+                [recapStatusIdx, recapStatus],
+                [recapLinkIdx, recapLink],
+                [sopStatusIdx, sopStatus],
+                [kickoffStatusIdx, kickoffStatus],
+                [lastMoNsrIdx, lastMoNsr],
+              ].filter(([colIdx, val]) => colIdx !== -1 && val !== undefined);
 
-              await Promise.all([
-                updateCell(picIdx, pic),
-                updateCell(statusIdx, store.projects[key].status),
-                updateCell(jobIdx, job),
-                updateCell(obIdx, expectedOb),
-                updateCell(revIdx, revenue),
-                updateCell(sopIdx, sopLink),
-                updateCell(modelIdx, model),
-                updateCell(checklistIdx, notes),
-                updateCell(volumeIdx, volume),
-                updateCell(recapStatusIdx, recapStatus),
-                updateCell(recapLinkIdx, recapLink),
-                updateCell(sopStatusIdx, sopStatus),
-                updateCell(kickoffStatusIdx, kickoffStatus),
-              ]);
+              if (cellWrites.length > 0) {
+                await sheets.spreadsheets.values.batchUpdate({
+                  spreadsheetId: ltlProjectsId,
+                  resource: {
+                    valueInputOption: "USER_ENTERED",
+                    data: cellWrites.map(([colIdx, val]) => ({
+                      range: `'Data dự án'!${colIndexToLetter(colIdx)}${rowNumber}`,
+                      values: [[val]],
+                    })),
+                  },
+                });
+              }
             }
           }
         } catch (sheetWriteErr) {
@@ -441,7 +454,7 @@ export default async function handler(req, res) {
         actor: session.user.email,
         action: action === "create" ? "project.create" : "project.update",
         target: key,
-        details: { pic, status, job, expectedOb, revenue, sopLink, model, recapStatus, sopStatus, kickoffStatus, volume },
+        details: { pic, status, job, expectedOb, revenue, sopLink, model, recapStatus, sopStatus, kickoffStatus, volume, clientId, lastMoNsr },
       });
 
       return res.status(200).json({ ok: true });

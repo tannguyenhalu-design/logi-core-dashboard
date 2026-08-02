@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import TruckLoader from "./TruckLoader";
+import { downloadCSV } from "../lib/csv-export";
 
 const PIC_NAMES = {
   "tutd@ghn.vn": "Duy Tú",
@@ -333,10 +334,48 @@ export default function TabOperations({ rawData }) {
   const totalCount = filteredProjects.length;
   const inProgressCount = filteredProjects.filter(p => p.status === "Đang thực hiện").length;
   const doneCount = filteredProjects.filter(p => p.status === "Done").length;
-  const totalRevenue = filteredProjects.reduce((sum, p) => {
-    const revStr = String(p.revenue || "").replace(/[^\d]/g, "");
-    return revStr ? sum + parseInt(revStr) : sum;
-  }, 0);
+  const parseRevenue = (val) => {
+    const numStr = String(val || "").replace(/[^\d]/g, "");
+    return numStr ? parseInt(numStr) : 0;
+  };
+
+  const totalRevenue = filteredProjects.reduce((sum, p) => sum + parseRevenue(p.revenue), 0);
+
+  const revenueByPic = {};
+  const revenueByStatus = {};
+  filteredProjects.forEach((p) => {
+    const rev = parseRevenue(p.revenue);
+    const picKey = PIC_NAMES[p.pic] || p.pic || "Chưa gán";
+    if (!revenueByPic[picKey]) revenueByPic[picKey] = { revenue: 0, count: 0 };
+    revenueByPic[picKey].revenue += rev;
+    revenueByPic[picKey].count += 1;
+
+    const statusKey = p.status || "Chưa cập nhật";
+    if (!revenueByStatus[statusKey]) revenueByStatus[statusKey] = { revenue: 0, count: 0 };
+    revenueByStatus[statusKey].revenue += rev;
+    revenueByStatus[statusKey].count += 1;
+  });
+
+  const exportProjectsCSV = () => {
+    downloadCSV(
+      `VanHanhSD3_bao_cao_${new Date().toISOString().slice(0, 10)}.csv`,
+      [
+        { label: "Tên dự án", value: "name" },
+        { label: "PIC", value: (p) => PIC_NAMES[p.pic] || p.pic || "" },
+        { label: "Mô hình vận hành", value: "model" },
+        { label: "Trạng thái", value: "status" },
+        { label: "Công việc", value: "job" },
+        { label: "Dự kiến OB", value: "expectedOb" },
+        { label: "Doanh thu dự kiến", value: "revenue" },
+        { label: "Last Mo. NSR", value: "lastMoNsr" },
+        { label: "Dự kiến Volume", value: "volume" },
+        { label: "RECAP status", value: "recapStatus" },
+        { label: "SOP status", value: "sopStatus" },
+        { label: "KICKOFF status", value: "kickoffStatus" },
+      ],
+      filteredProjects
+    );
+  };
 
   const isManager = currentUser.role === "manager";
 
@@ -682,12 +721,18 @@ export default function TabOperations({ rawData }) {
               + Tạo Dự Án Mới
             </button>
           )}
-          <button 
+          <button
             onClick={fetchProjects}
             disabled={loading}
             style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 16px", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
           >
             🔄 Tải Lại Dữ Liệu
+          </button>
+          <button
+            onClick={exportProjectsCSV}
+            style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 16px", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
+          >
+            ⬇️ Xuất CSV
           </button>
           <div style={{ background: "rgba(20, 224, 196,0.1)", border: "1px solid rgba(20, 224, 196,0.2)", padding: "8px 12px", borderRadius: 8, fontSize: 13 }}>
             👤 Vai trò: <strong style={{ color: "var(--cyan)" }}>{isManager ? "Manager (Xem toàn bộ)" : "PIC Vận Hành"}</strong>
@@ -721,6 +766,33 @@ export default function TabOperations({ rawData }) {
           <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Tổng quy mô doanh thu ước tính</div>
         </div>
       </div>
+
+      {/* Revenue breakdown by PIC / status — rolled up from "Doanh Thu Dự Kiến" per project */}
+      {totalRevenue > 0 && (
+        <div style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", padding: 16, borderRadius: 12 }}>
+          <h4 style={{ margin: "0 0 12px", fontSize: 13, color: "var(--text-primary)" }}>💰 Doanh Thu Dự Kiến — theo PIC & trạng thái</h4>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8 }}>Theo PIC</div>
+              {Object.entries(revenueByPic).sort((a, b) => b[1].revenue - a[1].revenue).map(([pic, v]) => (
+                <div key={pic} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--panel-border-soft)", fontSize: 13 }}>
+                  <span style={{ color: "var(--text-secondary)" }}>{pic} <span style={{ color: "var(--text-muted)", fontSize: 11 }}>({v.count} dự án)</span></span>
+                  <b style={{ color: "var(--cyan)" }}>{formatRevenue(v.revenue)}</b>
+                </div>
+              ))}
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8 }}>Theo trạng thái</div>
+              {Object.entries(revenueByStatus).sort((a, b) => b[1].revenue - a[1].revenue).map(([status, v]) => (
+                <div key={status} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--panel-border-soft)", fontSize: 13 }}>
+                  <span style={{ color: "var(--text-secondary)" }}>{status} <span style={{ color: "var(--text-muted)", fontSize: 11 }}>({v.count} dự án)</span></span>
+                  <b style={{ color: "var(--green)" }}>{formatRevenue(v.revenue)}</b>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filter Row */}
       <div style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", padding: 16, borderRadius: 12, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
@@ -799,6 +871,7 @@ export default function TabOperations({ rawData }) {
                 <th style={{ textAlign: "left", padding: "12px 8px" }}>Công Việc</th>
                 <th style={{ textAlign: "left", padding: "12px 8px" }}>Dự Kiến OB</th>
                 <th style={{ textAlign: "right", padding: "12px 8px" }}>Doanh Thu Dự Kiến</th>
+                <th style={{ textAlign: "right", padding: "12px 8px" }}>Last Mo. NSR</th>
                 <th style={{ textAlign: "right", padding: "12px 8px" }}>Dự Kiến Volume</th>
                 <th style={{ textAlign: "center", padding: "12px 8px" }}>Trạng Thái</th>
                 <th style={{ textAlign: "center", padding: "12px 8px" }}>Tác vụ</th>
@@ -840,6 +913,9 @@ export default function TabOperations({ rawData }) {
                     </td>
                     <td style={{ padding: "14px 8px", textAlign: "right", fontWeight: 600 }}>
                       {formatRevenue(p.revenue)}
+                    </td>
+                    <td style={{ padding: "14px 8px", textAlign: "right", color: "var(--text-secondary)" }}>
+                      {p.lastMoNsr ? formatRevenue(p.lastMoNsr) : "—"}
                     </td>
                     <td style={{ padding: "14px 8px", textAlign: "right", color: "var(--text-secondary)" }}>
                       {p.volume || "—"}

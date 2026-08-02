@@ -8,6 +8,7 @@ import ChartDataLabels from "chartjs-plugin-datalabels";
 import KpiCard from "./KpiCard";
 import TruckLoader from "./TruckLoader";
 import VietnamMap from "./VietnamMap";
+import { downloadCSV } from "../lib/csv-export";
 
 Chart.register(ChartDataLabels);
 
@@ -440,7 +441,46 @@ function DamageRegions({ topDamageProvinces, topDamageWarehouses, selectedProvin
 }
 
 // ── Detailed damage cases table component ──
-function DetailedDamageTable({ cases, filter }) {
+const CLAIM_STATUSES = ["Mới", "Đang xử lý", "Chờ đền bù", "Hoàn tất"];
+const CLAIM_STATUS_CLASS = {
+  "Mới": "bg-muted",
+  "Đang xử lý": "bg-amber",
+  "Chờ đền bù": "bg-purple",
+  "Hoàn tất": "bg-green",
+};
+
+function DetailedDamageTable({ cases, filter, showClaimsWorkflow = true }) {
+  const [claims, setClaims] = useState({});
+  const [savingCode, setSavingCode] = useState(null);
+
+  useEffect(() => {
+    if (!showClaimsWorkflow) return;
+    fetch("/api/damage-claims")
+      .then((r) => r.json())
+      .then((json) => { if (json.ok) setClaims(json.claims || {}); })
+      .catch(() => {});
+  }, [showClaimsWorkflow]);
+
+  const saveClaim = async (orderCode, patch) => {
+    const current = claims[orderCode] || { status: "Mới", assignee: "", notes: "" };
+    const next = { ...current, ...patch };
+    setClaims((prev) => ({ ...prev, [orderCode]: next }));
+    setSavingCode(orderCode);
+    try {
+      const res = await fetch("/api/damage-claims", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderCode, status: next.status, assignee: next.assignee, notes: next.notes }),
+      });
+      const json = await res.json();
+      if (json.ok) setClaims((prev) => ({ ...prev, [orderCode]: json.claim }));
+    } catch (e) {
+      // leave optimistic value in place; user can retry by editing again
+    } finally {
+      setSavingCode(null);
+    }
+  };
+
   const filteredCases = filter
     ? cases.filter(c => {
         if (filter.type === 'type') {
@@ -466,10 +506,14 @@ function DetailedDamageTable({ cases, filter }) {
             <th>Nơi phát hiện</th>
             <th style={{ textAlign: "right" }}>Số tiền</th>
             <th>Hướng xử lý</th>
+            {showClaimsWorkflow && <th>Trạng thái xử lý (nội bộ)</th>}
+            {showClaimsWorkflow && <th>Người phụ trách</th>}
           </tr>
         </thead>
         <tbody>
-          {filteredCases.map((c, i) => (
+          {filteredCases.map((c, i) => {
+            const claim = claims[c.order_code] || { status: "Mới", assignee: "" };
+            return (
             <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
               <td style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: "var(--cyan)" }}>{c.order_code}</td>
               <td style={{ fontSize: 12 }}>{c.client_name}</td>
@@ -486,11 +530,47 @@ function DetailedDamageTable({ cases, filter }) {
                   {c.handling}
                 </span>
               </td>
+              {showClaimsWorkflow && (
+                <td>
+                  {c.order_code ? (
+                    <select
+                      value={claim.status}
+                      onChange={(e) => saveClaim(c.order_code, { status: e.target.value })}
+                      disabled={savingCode === c.order_code}
+                      style={{
+                        background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)",
+                        borderRadius: 4, fontSize: 11, padding: "3px 6px", fontFamily: "inherit",
+                      }}
+                    >
+                      {CLAIM_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  ) : "—"}
+                </td>
+              )}
+              {showClaimsWorkflow && (
+                <td>
+                  {c.order_code ? (
+                    <input
+                      type="text"
+                      defaultValue={claim.assignee}
+                      placeholder="Chưa gán"
+                      onBlur={(e) => {
+                        if (e.target.value !== claim.assignee) saveClaim(c.order_code, { assignee: e.target.value });
+                      }}
+                      style={{
+                        background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)",
+                        borderRadius: 4, fontSize: 11, padding: "3px 6px", fontFamily: "inherit", width: 100,
+                      }}
+                    />
+                  ) : "—"}
+                </td>
+              )}
             </tr>
-          ))}
+            );
+          })}
           {filteredCases.length === 0 && (
             <tr>
-              <td colSpan="9" style={{ textAlign: "center", color: "var(--text-muted)", padding: 30 }}>
+              <td colSpan={showClaimsWorkflow ? 11 : 9} style={{ textAlign: "center", color: "var(--text-muted)", padding: 30 }}>
                 Không có dữ liệu ca hư hỏng chi tiết.
               </td>
             </tr>
@@ -1020,19 +1100,53 @@ function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, 
   );
 }
 
-export default function TabLTL({ data, selectedProjects = [] }) {
+export default function TabLTL({ data, selectedProjects = [], userRole }) {
   const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
   const theme = useTheme();
 
   if (!data) return <TruckLoader />;
 
+  const isClient = userRole === "client";
   const singleProjectMode = selectedProjects.length === 1;
 
   const selectedDamageType = damageFilter?.type === "type" ? damageFilter.value : null;
 
+  const exportSummaryCSV = () => {
+    const projects = Object.values(data.projectSummaries || {}).sort((a, b) => b.totalOrders - a.totalOrders);
+    downloadCSV(
+      `LTL_bao_cao_${new Date().toISOString().slice(0, 10)}.csv`,
+      [
+        { label: "Dự án", value: "name" },
+        { label: "Số đơn", value: "totalOrders" },
+        { label: "Tổng tải trọng (kg)", value: (r) => Math.round(r.totalWeight) },
+        { label: "Đơn ontime", value: "ontimeCount" },
+        { label: "Đơn late", value: "lateCount" },
+        { label: "% Ontime", value: (r) => (r.evalCount > 0 ? ((r.ontimeCount / r.evalCount) * 100).toFixed(1) : "") },
+        { label: "Ca hư hỏng", value: (r) => r.damageCount || 0 },
+      ],
+      projects
+    );
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* KPI Cards */}
+      {!isClient && (
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button
+            onClick={exportSummaryCSV}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              background: "var(--panel-glow)", border: "1px solid var(--border)",
+              color: "var(--text-secondary)", padding: "6px 12px", borderRadius: 6,
+              fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Xuất báo cáo CSV
+          </button>
+        </div>
+      )}
       <div className="grid-4">
         <KpiCard
           icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>}
@@ -1129,16 +1243,18 @@ export default function TabLTL({ data, selectedProjects = [] }) {
         </div>
       </div>
 
-      {/* Warehouse risk (full width) */}
-      <div className="chart-panel" style={{ width: "100%" }}>
-        <div className="chart-panel-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
-          Top 10 Kho Rủi Ro Cao
+      {/* Warehouse risk (full width) — internal ops resource planning, not client-facing */}
+      {!isClient && (
+        <div className="chart-panel" style={{ width: "100%" }}>
+          <div className="chart-panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+            Top 10 Kho Rủi Ro Cao
+          </div>
+          <div style={{ height: 240 }}>
+            <WarehouseRiskChart warehouseAlerts={data.warehouseAlerts} theme={theme} />
+          </div>
         </div>
-        <div style={{ height: 240 }}>
-          <WarehouseRiskChart warehouseAlerts={data.warehouseAlerts} theme={theme} />
-        </div>
-      </div>
+      )}
 
       {/* Area damage & Broken breakdown table */}
       <div className="grid-2-1">
@@ -1192,6 +1308,7 @@ export default function TabLTL({ data, selectedProjects = [] }) {
         <DetailedDamageTable
           cases={data.detailedDamageCases || []}
           filter={damageFilter}
+          showClaimsWorkflow={!isClient}
         />
       </div>
     </div>
