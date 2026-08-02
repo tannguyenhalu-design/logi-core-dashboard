@@ -65,7 +65,7 @@ export default async function handler(req, res) {
     const aiInsights    = transformAIInsights(rawLTL);
 
     // Filter revenue metrics for unauthorized roles
-    const canSeeRevenue = role === "manager" || role === "ops_specialist";
+    const canSeeRevenue = role === "manager" || role === "sd3";
     if (!canSeeRevenue) {
       ltlData.totalRevenue = 0;
       ltlData.totalPlan = 0;

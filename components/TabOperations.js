@@ -342,7 +342,7 @@ export default function TabOperations({ rawData, userRole }) {
   };
 
   const totalRevenue = filteredProjects.reduce((sum, p) => sum + parseRevenue(p.revenue), 0);
-  const canSeeRevenue = userRole === "manager" || userRole === "ops_specialist";
+  const canSeeRevenue = userRole === "manager" || userRole === "sd3";
 
   const revenueByPic = {};
   const revenueByStatus = {};
