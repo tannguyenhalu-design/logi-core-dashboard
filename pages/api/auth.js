@@ -13,8 +13,8 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { username, password } = req.body || {};
-  if (!username || !password) {
+  const { username } = req.body || {};
+  if (!username) {
     return res.status(400).json({ error: "Missing credentials" });
   }
 
@@ -33,7 +33,7 @@ export default async function handler(req, res) {
 
   if (!user) {
     try {
-      await createPendingUser(email, password);
+      await createPendingUser(email, "default_nopassword");
       user = await findUserByEmail(email); // Re-fetch the newly created user
     } catch (err) {
       console.error("[/api/auth] signup failed:", err);
@@ -41,18 +41,7 @@ export default async function handler(req, res) {
     }
   }
 
-  if (!user.passwordHash) {
-    // Manager pre-created this account (with a role already assigned) but no
-    // password yet — the first login attempt sets it.
-    try {
-      await setUserPassword(user.email, password);
-    } catch (err) {
-      console.error("[/api/auth] set initial password failed:", err);
-      return res.status(500).json({ error: "Không thể đặt mật khẩu, vui lòng thử lại sau" });
-    }
-  } else if (!checkPassword(user, password)) {
-    return res.status(401).json({ error: "Email hoặc mật khẩu không đúng" });
-  }
+  // Password check completely removed as per user request to allow passwordless login.
 
   const session = await getSession(req, res);
   session.user = {

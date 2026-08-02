@@ -9,7 +9,6 @@ import ThemeToggle from "../components/ThemeToggle";
 export default function LoginPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
 
@@ -21,7 +20,7 @@ export default function LoginPage() {
       const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -99,26 +98,6 @@ export default function LoginPage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
-              required
-              style={{
-                width: "100%",
-                padding: "12px 14px",
-                marginBottom: 12,
-                background: "var(--input-bg)",
-                border: "1px solid var(--border)",
-                borderRadius: 10,
-                color: "var(--text-primary)",
-                fontSize: 14,
-                fontFamily: "inherit",
-                boxSizing: "border-box",
-              }}
-            />
-            <input
-              type="password"
-              placeholder="Mật khẩu"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
               required
               style={{
                 width: "100%",
