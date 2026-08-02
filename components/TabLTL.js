@@ -225,34 +225,45 @@ function OntimeProjChart({ ontimeByProject, theme = "dark" }) {
 // ── Chart: Orders by Project (donut, % in legend) ──
 function OrdersProjChart({ ordersByProject, theme = "dark" }) {
   const ref = useRef(null);
-  const projs = Object.keys(ordersByProject).sort((a, b) => ordersByProject[b] - ordersByProject[a]);
-  const total = projs.reduce((s, p) => s + ordersByProject[p], 0);
-  const palette = ["#14e0c4", "#8b5cf6", "#10b981", "#f59e0b", "#f43f5e", "#ec4899", "#06b6d4", "#84cc16"];
   const ct = CHART_THEME[theme] || CHART_THEME.dark;
+
+  // Sort desc, keep top 10, group rest as "Khác"
+  const sorted = Object.entries(ordersByProject).sort((a, b) => b[1] - a[1]);
+  const TOP = 10;
+  const top = sorted.slice(0, TOP);
+  const rest = sorted.slice(TOP);
+  const restTotal = rest.reduce((s, [, v]) => s + v, 0);
+  const entries = restTotal > 0 ? [...top, [`Khác (${rest.length} dự án)`, restTotal]] : top;
+  const total = entries.reduce((s, [, v]) => s + v, 0);
+
+  const palette = ["#14e0c4","#8b5cf6","#10b981","#f59e0b","#f43f5e","#ec4899","#06b6d4","#84cc16","#a855f7","#0ea5e9","#64748b"];
 
   useChart(ref, () => ({
     type: "doughnut",
     data: {
-      labels: projs.map((p) => {
-        const pct = total > 0 ? Math.round((ordersByProject[p] / total) * 100) : 0;
+      labels: entries.map(([p, v]) => {
+        const pct = total > 0 ? Math.round((v / total) * 100) : 0;
         return `${p} (${pct}%)`;
       }),
       datasets: [{
-        data: projs.map((p) => ordersByProject[p]),
-        backgroundColor: projs.map((_, i) => palette[i % palette.length]),
+        data: entries.map(([, v]) => v),
+        backgroundColor: entries.map((_, i) => palette[i % palette.length]),
         borderWidth: 0,
       }],
     },
     options: {
       responsive: true, maintainAspectRatio: false, cutout: "65%",
+      layout: { padding: { right: 4 } },
       plugins: {
         legend: {
           position: "right",
+          align: "start",
           labels: {
             color: ct.legend,
-            boxWidth: 11,
-            padding: 10,
-            font: { size: 12, weight: "600" },
+            boxWidth: 9,
+            boxHeight: 9,
+            padding: 6,
+            font: { size: 10.5, weight: "600" },
           },
         },
         tooltip: {
@@ -282,36 +293,48 @@ function OrdersProjChart({ ordersByProject, theme = "dark" }) {
 // ── Chart: Weight (Kg/Tấn) by Project (donut, % in legend) ──
 function WeightProjChart({ weightByProject = {}, theme = "dark" }) {
   const ref = useRef(null);
-  const projs = Object.keys(weightByProject).sort((a, b) => (weightByProject[b] || 0) - (weightByProject[a] || 0));
-  const total = projs.reduce((s, p) => s + (weightByProject[p] || 0), 0);
-  const palette = ["#06b6d4", "#f59e0b", "#10b981", "#8b5cf6", "#f43f5e", "#14e0c4", "#ec4899", "#84cc16"];
   const ct = CHART_THEME[theme] || CHART_THEME.dark;
+
+  // Sort desc, keep top 10, group rest as "Khác"
+  const sorted = Object.entries(weightByProject)
+    .map(([k, v]) => [k, v || 0])
+    .sort((a, b) => b[1] - a[1]);
+  const TOP = 10;
+  const top = sorted.slice(0, TOP);
+  const rest = sorted.slice(TOP);
+  const restTotal = rest.reduce((s, [, v]) => s + v, 0);
+  const entries = restTotal > 0 ? [...top, [`Khác (${rest.length} dự án)`, restTotal]] : top;
+  const total = entries.reduce((s, [, v]) => s + v, 0);
+
+  const palette = ["#06b6d4","#f59e0b","#10b981","#8b5cf6","#f43f5e","#14e0c4","#ec4899","#84cc16","#a855f7","#0ea5e9","#64748b"];
 
   useChart(ref, () => ({
     type: "doughnut",
     data: {
-      labels: projs.map((p) => {
-        const w = weightByProject[p] || 0;
+      labels: entries.map(([p, w]) => {
         const pct = total > 0 ? Math.round((w / total) * 100) : 0;
-        const displayW = w >= 1000 ? `${(w / 1000).toFixed(1).replace(".0", "")} Tấn` : `${w} Kg`;
+        const displayW = w >= 1000 ? `${(w / 1000).toFixed(1).replace(".0", "")} Tấn` : `${Math.round(w)} Kg`;
         return `${p}: ${displayW} (${pct}%)`;
       }),
       datasets: [{
-        data: projs.map((p) => weightByProject[p] || 0),
-        backgroundColor: projs.map((_, i) => palette[i % palette.length]),
+        data: entries.map(([, v]) => v),
+        backgroundColor: entries.map((_, i) => palette[i % palette.length]),
         borderWidth: 0,
       }],
     },
     options: {
       responsive: true, maintainAspectRatio: false, cutout: "65%",
+      layout: { padding: { right: 4 } },
       plugins: {
         legend: {
           position: "right",
+          align: "start",
           labels: {
             color: ct.legend,
-            boxWidth: 11,
-            padding: 10,
-            font: { size: 12, weight: "600" },
+            boxWidth: 9,
+            boxHeight: 9,
+            padding: 6,
+            font: { size: 10.5, weight: "600" },
           },
         },
         tooltip: {
@@ -324,7 +347,7 @@ function WeightProjChart({ weightByProject = {}, theme = "dark" }) {
               const val = item.raw;
               const sum = item.dataset.data.reduce((a, b) => a + b, 0);
               const pct = sum > 0 ? Math.round((val / sum) * 100) : 0;
-              const displayVal = val >= 1000 ? `${(val / 1000).toFixed(1).replace(".0", "")} Tấn` : `${val} Kg`;
+              const displayVal = val >= 1000 ? `${(val / 1000).toFixed(1).replace(".0", "")} Tấn` : `${Math.round(val)} Kg`;
               const projName = item.label.split(":")[0];
               return ` ${projName}: ${displayVal} (${pct}%)`;
             }
