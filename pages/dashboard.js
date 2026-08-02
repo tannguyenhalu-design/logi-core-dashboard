@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from "react";
 import Head from "next/head";
 import FilterBar from "../components/FilterBar";
 import TruckLoader from "../components/TruckLoader";
+import ThemeToggle from "../components/ThemeToggle";
 import dynamic from "next/dynamic";
 import { transformLTL } from "../lib/transform-ltl";
 
@@ -146,7 +147,7 @@ export default function DashboardPage({ user: initialUser }) {
       <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
         {/* ── Sidebar ── */}
         <aside style={{
-          width: 220, background: "rgba(30,41,59,0.5)",
+          width: 220, background: "var(--bg-panel)",
           borderRight: "1px solid var(--border)",
           padding: "20px 12px",
           display: "flex", flexDirection: "column", gap: 4,
@@ -270,6 +271,7 @@ export default function DashboardPage({ user: initialUser }) {
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 12, opacity: 0.7, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {user.email || ""}
             </div>
+            <ThemeToggle style={{ marginBottom: 6, border: "none", padding: "8px 8px" }} />
             <button
               onClick={() => { window.location.href = "/api/logout"; }}
               style={{
@@ -293,7 +295,7 @@ export default function DashboardPage({ user: initialUser }) {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {/* Header */}
           <header style={{
-            height: 60, background: "rgba(30,41,59,0.7)",
+            height: 60, background: "var(--bg-panel)",
             borderBottom: "1px solid var(--border)",
             backdropFilter: "blur(12px)",
             display: "flex", alignItems: "center",
@@ -329,6 +331,8 @@ export default function DashboardPage({ user: initialUser }) {
 
             {/* Sync & Live indicator */}
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <ThemeToggle style={{ width: "auto", border: "1px solid var(--border)", padding: "5px 10px", borderRadius: 6 }} />
+
               <button
                 onClick={async () => {
                   if (confirm("Đồng bộ dữ liệu trực tiếp từ Google Sheet? (Quá trình này có thể mất 15-20s do tải >50.000 dòng từ Sheet).")) {

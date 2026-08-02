@@ -145,12 +145,12 @@ function PriorityBadge({ priority }) {
     return <span title="Đủ tải để chạy riêng 1 xe tải mỗi ngày, không cần ghép hàng với tuyến khác" style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(51,214,192,.15)", color: "#33D6C0", fontWeight: 600, cursor: "help" }}>Pilot FTL</span>;
   if (priority === "Lên lịch gom chuyến")
     return <span title="Chưa đủ tải mỗi ngày — nên gom nhiều ngày lại thành 1 chuyến để tiết kiệm chi phí" style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(255,178,62,.15)", color: "#FFB23E", fontWeight: 600, cursor: "help" }}>Gom chuyến</span>;
-  return <span title="Sản lượng còn thấp — chưa đủ cơ sở để đề xuất, tiếp tục theo dõi thêm" style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(140,153,174,.15)", color: "#8C99AE", fontWeight: 600, cursor: "help" }}>Theo dõi</span>;
+  return <span title="Sản lượng còn thấp — chưa đủ cơ sở để đề xuất, tiếp tục theo dõi thêm" style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(140,153,174,.15)", color: "var(--text-muted)", fontWeight: 600, cursor: "help" }}>Theo dõi</span>;
 }
 
 // ── Client chips ──────────────────────────────────────────────────────────────
 function ClientChips({ clients, limit = 5 }) {
-  if (!clients || !clients.length) return <span style={{ color: "#5A6478" }}>—</span>;
+  if (!clients || !clients.length) return <span style={{ color: "var(--text-muted)" }}>—</span>;
   return (
     <>
       {clients.slice(0, limit).map((c) => (
@@ -166,21 +166,21 @@ function ClientChips({ clients, limit = 5 }) {
 // ── Multidrop Group Card ──────────────────────────────────────────────────────
 function MultidropGroup({ group, idx, label = "Xe multi-drop" }) {
   const pct = group.total_pct;
-  const pctColor = pct >= 90 ? "#33D6C0" : pct >= 60 ? "#FFB23E" : "#8C99AE";
+  const pctColor = pct >= 90 ? "#33D6C0" : pct >= 60 ? "#FFB23E" : "var(--text-muted)";
   return (
-    <div style={{ marginBottom: 14, padding: "12px 14px", background: "#1B2436", borderRadius: 8 }}>
-      <div style={{ fontSize: 12, color: "#8C99AE", marginBottom: 8 }}>
+    <div style={{ marginBottom: 14, padding: "12px 14px", background: "var(--panel-bg)", borderRadius: 8 }}>
+      <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8 }}>
         {label} #{idx} — tổng tải <b style={{ color: pctColor }}>{pct.toFixed(0)}%</b>
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
         {group.stops.map((s, i) => (
           <span key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div style={{ background: "#0E1420", border: "1px solid #293345", borderRadius: 6, padding: "6px 10px", fontSize: 12 }}>
-              <b style={{ color: "#EAF0F8" }}>{s.name}</b><br />
+            <div style={{ background: "var(--input-bg)", border: "1px solid var(--panel-border)", borderRadius: 6, padding: "6px 10px", fontSize: 12 }}>
+              <b style={{ color: "var(--text-primary)" }}>{s.name}</b><br />
               <span style={{ color: "#FFB23E", fontFamily: "monospace" }}>hạ {fmt(s.drop_kg)}g ({s.drop_pct.toFixed(0)}%)</span><br />
-              <span style={{ color: "#8C99AE", fontSize: 10.5, fontFamily: "monospace" }}>luỹ kế {s.cumulative_pct.toFixed(0)}%</span>
+              <span style={{ color: "var(--text-muted)", fontSize: 10.5, fontFamily: "monospace" }}>luỹ kế {s.cumulative_pct.toFixed(0)}%</span>
             </div>
-            {i < group.stops.length - 1 && <span style={{ color: "#8C99AE", fontSize: 16 }}>→</span>}
+            {i < group.stops.length - 1 && <span style={{ color: "var(--text-muted)", fontSize: 16 }}>→</span>}
           </span>
         ))}
       </div>
@@ -226,7 +226,7 @@ function Lens4({ tcData, idxs, windowDays, hub }) {
       } else if (r.recommend === "Đã đủ tải mỗi ngày") {
         m[r.province] = "#5B8CFF";
       } else {
-        m[r.province] = "#3A4458";
+        m[r.province] = "var(--map-neutral-data)";
       }
     });
     return m;
@@ -249,7 +249,7 @@ function Lens4({ tcData, idxs, windowDays, hub }) {
       return <span title="Mỗi ngày chưa đủ 1 xe, nhưng gom 2 ngày lại thì vừa đủ tải" style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(51,214,192,.15)", color: "#33D6C0", whiteSpace: "nowrap", cursor: "help" }}>Gom 2 ngày & tách</span>;
     if (rec === "Đã đủ tải mỗi ngày")
       return <span title="Tỉnh này đã đủ hàng để chạy xe riêng mỗi ngày, không cần gom" style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(91,140,255,.15)", color: "#5B8CFF", whiteSpace: "nowrap", cursor: "help" }}>Đủ tải — đi thẳng</span>;
-    return <span title="Dù gom 2 ngày cũng chưa đủ tải — cần gom lâu hơn hoặc ghép chung với tuyến khác" style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(140,153,174,.15)", color: "#8C99AE", whiteSpace: "nowrap", cursor: "help" }}>Chưa đủ dù gom 2 ngày</span>;
+    return <span title="Dù gom 2 ngày cũng chưa đủ tải — cần gom lâu hơn hoặc ghép chung với tuyến khác" style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(140,153,174,.15)", color: "var(--text-muted)", whiteSpace: "nowrap", cursor: "help" }}>Chưa đủ dù gom 2 ngày</span>;
   };
 
   return (
@@ -257,24 +257,24 @@ function Lens4({ tcData, idxs, windowDays, hub }) {
       {/* Left: map + legend */}
       <div style={{ position: "sticky", top: 80, alignSelf: "start" }}>
         <VietnamMap colorMap={colorMap} onProvinceClick={handleProvinceClick} />
-        <div style={{ marginTop: 10, fontSize: 11.5, color: "#8C99AE", lineHeight: 1.6, padding: 10, background: "#1B2436", borderRadius: 8 }}>
+        <div style={{ marginTop: 10, fontSize: 11.5, color: "var(--text-muted)", lineHeight: 1.6, padding: 10, background: "var(--panel-bg)", borderRadius: 8 }}>
           <b style={{ color: "#33D6C0" }}>🟢 Gom 2 ngày & tách</b> — 70-130% tải<br />
           <b style={{ color: "#5B8CFF" }}>🔵 Đủ tải mỗi ngày</b> — đi thẳng ngay<br />
-          <b style={{ color: "#5A6478" }}>⚪ Chưa đủ</b> — gom lâu hơn hoặc ghép LTL<br />
+          <b style={{ color: "var(--text-muted)" }}>⚪ Chưa đủ</b> — gom lâu hơn hoặc ghép LTL<br />
           <span style={{ fontSize: 10.5 }}>Bấm vào tỉnh trên bản đồ → nhảy tới dòng tương ứng</span>
         </div>
       </div>
       {/* Right: filter + table */}
       <div>
-        <p style={{ fontSize: 12, color: "#8C99AE", marginBottom: 12 }}>
+        <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>
           Kho xuất phát: <b style={{ color: "#33D6C0" }}>{hubLabel}</b> · TB kg/ngày <b>{windowDays} ngày gần nhất</b> · chỉ đơn GTC · đã loại Aqua B2B + LG Pantos.
         </p>
         <div style={{ marginBottom: 12 }}>
-          <label style={{ fontSize: 11, color: "#8C99AE", textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 5 }}>Lọc đề xuất</label>
+          <label style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 5 }}>Lọc đề xuất</label>
           <select
             value={filterVal}
             onChange={(e) => setFilterVal(e.target.value)}
-            style={{ background: "#0E1420", border: "1px solid #293345", color: "#EAF0F8", borderRadius: 6, padding: "7px 10px", fontSize: 13, fontFamily: "inherit" }}
+            style={{ background: "var(--input-bg)", border: "1px solid var(--panel-border)", color: "var(--text-primary)", borderRadius: 6, padding: "7px 10px", fontSize: 13, fontFamily: "inherit" }}
           >
             <option value="__ALL__">Tất cả tỉnh</option>
             <option value="Nên gom 2 ngày & tách">🟢 Nên gom 2 ngày & tách</option>
@@ -287,7 +287,7 @@ function Lens4({ tcData, idxs, windowDays, hub }) {
             <thead>
               <tr>
                 {["Kho xuất phát", "Tỉnh giao", "Khách hàng chính", "% tải/ngày", "% nếu gom 2 ngày", "Đề xuất"].map((h) => (
-                  <th key={h} style={{ textAlign: "left", color: "#8C99AE", fontWeight: 500, padding: "8px 10px", borderBottom: "1px solid #293345", textTransform: "uppercase", fontSize: 11 }}>{h}</th>
+                  <th key={h} style={{ textAlign: "left", color: "var(--text-muted)", fontWeight: 500, padding: "8px 10px", borderBottom: "1px solid var(--panel-border)", textTransform: "uppercase", fontSize: 11 }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -295,7 +295,7 @@ function Lens4({ tcData, idxs, windowDays, hub }) {
               {rows.map((r) => {
                 const originText = r.pick.map((p) => `${p.name} ${p.pct.toFixed(0)}%`).join(", ") || hubLabel;
                 const show2day = r.recommend === "Đã đủ tải mỗi ngày"
-                  ? <span style={{ color: "#5A6478" }}>— đã đủ tải</span>
+                  ? <span style={{ color: "var(--text-muted)" }}>— đã đủ tải</span>
                   : `${r.pct2.toFixed(0)}%`;
                 const isHovered = hoveredProv === r.province;
                 const isSelected = highlightProv === r.province;
@@ -313,12 +313,12 @@ function Lens4({ tcData, idxs, windowDays, hub }) {
                     onMouseLeave={() => setHoveredProv(null)}
                     onClick={() => handleProvinceClick(r.province)}
                   >
-                    <td style={{ padding: "9px 10px", borderBottom: "1px solid #293345", fontSize: 11.5, color: "#8C99AE" }}>{originText}</td>
-                    <td style={{ padding: "9px 10px", borderBottom: "1px solid #293345" }}><b>{r.province}</b></td>
-                    <td style={{ padding: "9px 10px", borderBottom: "1px solid #293345", maxWidth: 200 }}><ClientChips clients={r.clients} limit={3} /></td>
-                    <td style={{ padding: "9px 10px", borderBottom: "1px solid #293345", fontFamily: "monospace" }}>{r.pct1.toFixed(0)}%</td>
-                    <td style={{ padding: "9px 10px", borderBottom: "1px solid #293345", fontFamily: "monospace" }}>{show2day}</td>
-                    <td style={{ padding: "9px 10px", borderBottom: "1px solid #293345" }}><RecommendBadge rec={r.recommend} /></td>
+                    <td style={{ padding: "9px 10px", borderBottom: "1px solid var(--panel-border)", fontSize: 11.5, color: "var(--text-muted)" }}>{originText}</td>
+                    <td style={{ padding: "9px 10px", borderBottom: "1px solid var(--panel-border)" }}><b>{r.province}</b></td>
+                    <td style={{ padding: "9px 10px", borderBottom: "1px solid var(--panel-border)", maxWidth: 200 }}><ClientChips clients={r.clients} limit={3} /></td>
+                    <td style={{ padding: "9px 10px", borderBottom: "1px solid var(--panel-border)", fontFamily: "monospace" }}>{r.pct1.toFixed(0)}%</td>
+                    <td style={{ padding: "9px 10px", borderBottom: "1px solid var(--panel-border)", fontFamily: "monospace" }}>{show2day}</td>
+                    <td style={{ padding: "9px 10px", borderBottom: "1px solid var(--panel-border)" }}><RecommendBadge rec={r.recommend} /></td>
                   </tr>
                 );
               })}
@@ -379,9 +379,9 @@ function Lens3({ tcData, idxs, windowDays, hub }) {
       </div>
       <div>
         <div style={{ marginBottom: 12 }}>
-          <label style={{ fontSize: 11, color: "#8C99AE", textTransform: "uppercase", display: "block", marginBottom: 5 }}>Lọc theo trục</label>
+          <label style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", display: "block", marginBottom: 5 }}>Lọc theo trục</label>
           <select value={corridorFilter} onChange={(e) => setCorridorFilter(e.target.value)}
-            style={{ background: "#0E1420", border: "1px solid #293345", color: "#EAF0F8", borderRadius: 6, padding: "7px 10px", fontSize: 13, fontFamily: "inherit" }}>
+            style={{ background: "var(--input-bg)", border: "1px solid var(--panel-border)", color: "var(--text-primary)", borderRadius: 6, padding: "7px 10px", fontSize: 13, fontFamily: "inherit" }}>
             <option value="__ALL__">Tất cả 6 trục</option>
             {Object.keys(ROUTES3).map((c) => <option key={c} value={c}>Trục {c}</option>)}
           </select>
@@ -403,17 +403,17 @@ function Lens3({ tcData, idxs, windowDays, hub }) {
               onMouseEnter={() => setHoveredCorridor(name)}
               onMouseLeave={() => setHoveredCorridor(null)}>
               <h4 style={{ fontSize: 13, color: "#9B7BFF", margin: "0 0 8px" }}>
-                Trục {name} <span style={{ color: "#8C99AE", fontWeight: 400 }}>(xuất phát {info.hub})</span>
+                Trục {name} <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(xuất phát {info.hub})</span>
               </h4>
               {clientTop.length > 0 && (
-                <p style={{ fontSize: 11.5, color: "#8C99AE", margin: "0 0 10px" }}>
+                <p style={{ fontSize: 11.5, color: "var(--text-muted)", margin: "0 0 10px" }}>
                   Khách hàng chính:{" "}
                   <ClientChips clients={clientTop.map(([n, kg]) => ({ name: n, pct: (kg / clientTotal) * 100 }))} limit={5} />
                 </p>
               )}
               {direct.length > 0 && (
                 <div style={{ marginBottom: 10 }}>
-                  <span style={{ fontSize: 12, color: "#8C99AE" }}>Tỉnh đủ tải, đi thẳng riêng (≥80%):</span><br />
+                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Tỉnh đủ tải, đi thẳng riêng (≥80%):</span><br />
                   {direct.map((d) => (
                     <span key={d.name} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(91,140,255,.15)", color: "#5B8CFF", marginRight: 4, marginTop: 4, display: "inline-block" }}>
                       {d.name}: {d.pct.toFixed(0)}%
@@ -423,22 +423,22 @@ function Lens3({ tcData, idxs, windowDays, hub }) {
               )}
               {groups.map((g, i) => <MultidropGroup key={i} group={g} idx={i + 1} label="Xe multi-drop" />)}
               {hiddenLowValueCount > 0 && (
-                <p style={{ fontSize: 11, color: "#5A6478", margin: "0 0 10px" }}>
+                <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "0 0 10px" }}>
                   (Đã ẩn {hiddenLowValueCount} cụm dưới 40% tải vì chưa đủ ý nghĩa để đề xuất tách)
                 </p>
               )}
               {info.note && (
-                <p style={{ fontSize: 11.5, color: "#5A6478", background: "rgba(255,255,255,.04)", padding: "8px 10px", borderRadius: 6, marginBottom: 10 }}>
+                <p style={{ fontSize: 11.5, color: "var(--text-muted)", background: "rgba(255,255,255,.04)", padding: "8px 10px", borderRadius: 6, marginBottom: 10 }}>
                   ℹ️ {info.note}
                 </p>
               )}
               {!direct.length && !groups.length && (
-                <p style={{ color: "#5A6478", fontSize: 12 }}>Không đủ dữ liệu trong {windowDays} ngày gần nhất.</p>
+                <p style={{ color: "var(--text-muted)", fontSize: 12 }}>Không đủ dữ liệu trong {windowDays} ngày gần nhất.</p>
               )}
             </div>
           );
         })}
-        <p style={{ fontSize: 11.5, color: "#5A6478", borderTop: "1px solid #293345", paddingTop: 10 }}>
+        <p style={{ fontSize: 11.5, color: "var(--text-muted)", borderTop: "1px solid var(--panel-border)", paddingTop: 10 }}>
           ⚠️ TB kg/ngày tính theo {windowDays} ngày gần nhất · di chuột vào 1 trục để bản đồ highlight đúng trục đó.
         </p>
       </div>
@@ -466,14 +466,14 @@ function Lens2({ tcData, idxs, windowDays, hub }) {
       </div>
       <div>
         <div style={{ marginBottom: 12 }}>
-          <label style={{ fontSize: 11, color: "#8C99AE", textTransform: "uppercase", display: "block", marginBottom: 5 }}>Lọc theo thành phố</label>
+          <label style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", display: "block", marginBottom: 5 }}>Lọc theo thành phố</label>
           <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}
-            style={{ background: "#0E1420", border: "1px solid #293345", color: "#EAF0F8", borderRadius: 6, padding: "7px 10px", fontSize: 13, fontFamily: "inherit" }}>
+            style={{ background: "var(--input-bg)", border: "1px solid var(--panel-border)", color: "var(--text-primary)", borderRadius: 6, padding: "7px 10px", fontSize: 13, fontFamily: "inherit" }}>
             <option value="__ALL__">Tất cả thành phố</option>
             {cities.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
-        <p style={{ fontSize: 12, color: "#8C99AE", marginBottom: 16 }}>
+        <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 16 }}>
           Kho sort: <b style={{ color: "#33D6C0" }}>{hub === "__ALL__" ? "Tất cả 3 kho" : hub}</b> · TB kg/ngày <b>{windowDays} ngày</b> · kho ≥80% tải đi thẳng riêng, còn lại ghép multi-drop tối đa 3 điểm.
         </p>
         {visibleCities.map((city) => {
@@ -483,12 +483,12 @@ function Lens2({ tcData, idxs, windowDays, hub }) {
           return (
             <div key={city} style={{ marginBottom: 24 }}>
               <h4 style={{ fontSize: 13, color: "#33D6C0", margin: "0 0 10px" }}>{city}</h4>
-              <p style={{ fontSize: 11.5, color: "#8C99AE", margin: "0 0 10px" }}>
+              <p style={{ fontSize: 11.5, color: "var(--text-muted)", margin: "0 0 10px" }}>
                 Khách hàng chính: <ClientChips clients={cityClients} limit={5} />
               </p>
               {direct.length > 0 && (
                 <div style={{ marginBottom: 10 }}>
-                  <span style={{ fontSize: 12, color: "#8C99AE" }}>Kho đủ tải, đi thẳng riêng:</span><br />
+                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Kho đủ tải, đi thẳng riêng:</span><br />
                   {direct.map((d) => (
                     <span key={d.name} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "rgba(91,140,255,.15)", color: "#5B8CFF", marginRight: 4, marginTop: 4, display: "inline-block" }}>
                       {d.name}: {d.pct.toFixed(0)}%
@@ -498,7 +498,7 @@ function Lens2({ tcData, idxs, windowDays, hub }) {
               )}
               {groups.map((g, i) => <MultidropGroup key={i} group={g} idx={i + 1} label="Xe multi-drop" />)}
               {!direct.length && !groups.length && (
-                <p style={{ color: "#5A6478", fontSize: 12 }}>Không đủ dữ liệu trong {windowDays} ngày gần nhất.</p>
+                <p style={{ color: "var(--text-muted)", fontSize: 12 }}>Không đủ dữ liệu trong {windowDays} ngày gần nhất.</p>
               )}
             </div>
           );
@@ -512,7 +512,7 @@ function Lens2({ tcData, idxs, windowDays, hub }) {
 export default function TabTachTrip({ tcData }) {
   if (!tcData || !tcData.rows?.day?.length) {
     return (
-      <div style={{ padding: 40, textAlign: "center", color: "#5A6478" }}>
+      <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>
         <div style={{ fontSize: 32, marginBottom: 12 }}>🗺️</div>
         <div style={{ fontSize: 14 }}>Đang tải dữ liệu Tách chuyến từ Google Sheets...</div>
       </div>
@@ -605,8 +605,8 @@ export default function TabTachTrip({ tcData }) {
   }, [liveLanes, tcData]);
 
   const panelStyle = {
-    background: "#141C2B",
-    border: "1px solid #293345",
+    background: "var(--panel-bg-strong)",
+    border: "1px solid var(--panel-border)",
     borderRadius: 10,
     padding: "18px 20px",
     marginBottom: 16,
@@ -621,15 +621,15 @@ export default function TabTachTrip({ tcData }) {
         display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12,
       }}>
         <p style={{ margin: 0, fontSize: 13.5, color: "var(--text-secondary)", lineHeight: 1.6 }}>
-          Đang giao tới <b style={{ color: "#fff" }}>{summary.provinceCount} tỉnh/thành</b>.{" "}
+          Đang giao tới <b style={{ color: "var(--text-primary)" }}>{summary.provinceCount} tỉnh/thành</b>.{" "}
           <b style={{ color: "var(--cyan)" }}>{summary.pilotCount} tuyến</b> đã đủ tải chạy xe riêng mỗi ngày.{" "}
           <b style={{ color: "var(--amber)" }}>{summary.gomCount} tuyến</b> nên gom lại vài ngày một chuyến để tiết kiệm chi phí.
         </p>
         <button
           onClick={() => setShowAdvanced((v) => !v)}
           style={{
-            background: showAdvanced ? "rgba(20,224,196,0.15)" : "rgba(255,255,255,0.05)",
-            border: "1px solid var(--border)", color: showAdvanced ? "var(--cyan)" : "#fff",
+            background: showAdvanced ? "var(--cyan-glow)" : "var(--panel-glow)",
+            border: "1px solid var(--border)", color: showAdvanced ? "var(--cyan)" : "var(--text-primary)",
             padding: "7px 14px", borderRadius: 6, fontSize: 12.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
           }}
         >
@@ -718,21 +718,21 @@ export default function TabTachTrip({ tcData }) {
             <span style={{ fontSize: 12, padding: "5px 10px", borderRadius: 8, background: "rgba(255,178,62,.12)", color: "#FFB23E" }}>
               {liveLanes.filter(r => r.priority === "Lên lịch gom chuyến").length} tuyến nên gom chuyến
             </span>
-            <span style={{ fontSize: 12, padding: "5px 10px", borderRadius: 8, background: "rgba(140,153,174,.12)", color: "#8C99AE" }}>
+            <span style={{ fontSize: 12, padding: "5px 10px", borderRadius: 8, background: "rgba(140,153,174,.12)", color: "var(--text-muted)" }}>
               {liveLanes.filter(r => r.priority === "Theo dõi ngày cao điểm").length} tuyến còn thấp, theo dõi thêm
             </span>
           </div>
         )}
         {showLaneTable && (
         <>
-        <p style={{ fontSize: 12, color: "#8C99AE", margin: "0 0 6px" }}>
+        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 6px" }}>
           Nguồn: <b style={{ color: "#33D6C0" }}>Google Sheets Raw (live)</b> · chỉ tính đơn status=delivered · đã loại Aqua B2B + LG Pantos
           · tổng <b>{liveLanes.length} lane</b> · cập nhật tự động theo data GSheet
         </p>
         <div style={{ marginBottom: 12 }}>
-          <label style={{ fontSize: 11, color: "#8C99AE", textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 5 }}>Lọc theo mức ưu tiên</label>
+          <label style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 5 }}>Lọc theo mức ưu tiên</label>
           <select value={lanePriorityFilter} onChange={(e) => setLanePriorityFilter(e.target.value)}
-            style={{ background: "#0E1420", border: "1px solid #293345", color: "#EAF0F8", borderRadius: 6, padding: "7px 10px", fontSize: 13, fontFamily: "inherit" }}>
+            style={{ background: "var(--input-bg)", border: "1px solid var(--panel-border)", color: "var(--text-primary)", borderRadius: 6, padding: "7px 10px", fontSize: 13, fontFamily: "inherit" }}>
             <option value="__ALL__">Tất cả ({liveLanes.length} lane)</option>
             <option value="Pilot FTL thường xuyên">🟢 Pilot FTL thường xuyên ({liveLanes.filter(r=>r.priority==="Pilot FTL thường xuyên").length})</option>
             <option value="Lên lịch gom chuyến">🟡 Lên lịch gom chuyến ({liveLanes.filter(r=>r.priority==="Lên lịch gom chuyến").length})</option>
@@ -744,36 +744,36 @@ export default function TabTachTrip({ tcData }) {
             <thead>
               <tr>
                 {["Mức ưu tiên","Kho lấy","Kho giao","Tổng kg/30 ngày","TB kg/ngày","Đỉnh 1 ngày (kg)","Ngày FTL ≥1.000kg","Ngày gom ≥500kg","Ngày active","Đơn/30d","Khách hàng chính"].map((h) => (
-                  <th key={h} style={{ textAlign:"left", color:"#8C99AE", fontWeight:500, padding:"8px 10px",
-                    borderBottom:"1px solid #293345", textTransform:"uppercase", fontSize:11, whiteSpace:"nowrap" }}>{h}</th>
+                  <th key={h} style={{ textAlign:"left", color:"var(--text-muted)", fontWeight:500, padding:"8px 10px",
+                    borderBottom:"1px solid var(--panel-border)", textTransform:"uppercase", fontSize:11, whiteSpace:"nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {laneRows.map((r, i) => (
                 <tr key={i}
-                  onMouseEnter={(e) => e.currentTarget.style.background = "#1B2436"}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "var(--panel-bg)"}
                   onMouseLeave={(e) => e.currentTarget.style.background = ""}
                   style={{ transition: "background 0.15s" }}>
-                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345" }}><PriorityBadge priority={r.priority} /></td>
-                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345", maxWidth:200, fontSize:12 }}>{r.pick_wh}</td>
-                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345", maxWidth:200, fontSize:12 }}>{r.deliver_wh}</td>
-                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345", fontFamily:"monospace" }}>{fmt(r.kg30d)}</td>
-                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345", fontFamily:"monospace",
-                    color: r.avg_kg_day >= 1000 ? "#33D6C0" : r.avg_kg_day >= 500 ? "#FFB23E" : "#8C99AE",
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid var(--panel-border)" }}><PriorityBadge priority={r.priority} /></td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid var(--panel-border)", maxWidth:200, fontSize:12 }}>{r.pick_wh}</td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid var(--panel-border)", maxWidth:200, fontSize:12 }}>{r.deliver_wh}</td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid var(--panel-border)", fontFamily:"monospace" }}>{fmt(r.kg30d)}</td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid var(--panel-border)", fontFamily:"monospace",
+                    color: r.avg_kg_day >= 1000 ? "#33D6C0" : r.avg_kg_day >= 500 ? "#FFB23E" : "var(--text-muted)",
                     fontWeight: r.avg_kg_day >= 500 ? 600 : 400 }}>
                     {fmt(r.avg_kg_day)}
                   </td>
-                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345", fontFamily:"monospace", color:"#8C99AE", fontSize:11.5 }}>{fmt(r.peak_kg_day)}</td>
-                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345", fontFamily:"monospace" }}>{r.days_ftl1000}</td>
-                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345", fontFamily:"monospace" }}>{r.days_gom500}</td>
-                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345", fontFamily:"monospace" }}>{r.days_active}</td>
-                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345", fontFamily:"monospace" }}>{r.orders30d}</td>
-                  <td style={{ padding:"9px 10px", borderBottom:"1px solid #293345", fontSize:11.5, maxWidth:260 }}>{r.top_clients}</td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid var(--panel-border)", fontFamily:"monospace", color:"var(--text-muted)", fontSize:11.5 }}>{fmt(r.peak_kg_day)}</td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid var(--panel-border)", fontFamily:"monospace" }}>{r.days_ftl1000}</td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid var(--panel-border)", fontFamily:"monospace" }}>{r.days_gom500}</td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid var(--panel-border)", fontFamily:"monospace" }}>{r.days_active}</td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid var(--panel-border)", fontFamily:"monospace" }}>{r.orders30d}</td>
+                  <td style={{ padding:"9px 10px", borderBottom:"1px solid var(--panel-border)", fontSize:11.5, maxWidth:260 }}>{r.top_clients}</td>
                 </tr>
               ))}
               {!laneRows.length && (
-                <tr><td colSpan="11" style={{ padding:16, color:"#5A6478", textAlign:"center" }}>Không có lane nào trong mức ưu tiên đang lọc.</td></tr>
+                <tr><td colSpan="11" style={{ padding:16, color:"var(--text-muted)", textAlign:"center" }}>Không có lane nào trong mức ưu tiên đang lọc.</td></tr>
               )}
             </tbody>
           </table>
@@ -787,7 +787,7 @@ export default function TabTachTrip({ tcData }) {
         <h3 style={{ fontSize: 14, margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif" }}>
           🧭 Góc nhìn gom tuyến — chọn cách nhìn phù hợp với cách bạn muốn vận hành
         </h3>
-        <p style={{ fontSize: 12, color: "#8C99AE", margin: "0 0 14px" }}>
+        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 14px" }}>
           Dữ liệu <b>live từ Google Sheets</b> (sheet Raw) · chỉ tính đơn status=delivered · đã loại Aqua B2B + LG Pantos · mỗi chuyến multi-drop tối đa 3 điểm dừng · tự động cập nhật khi data mới được đẩy vào GSheet
         </p>
 
@@ -795,15 +795,15 @@ export default function TabTachTrip({ tcData }) {
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 14 }}>
           {/* Hub selector */}
           <div>
-            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", color: "#8C99AE", marginBottom: 6 }}>📦 Kho xuất phát (B2B Sort Hub)</div>
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-muted)", marginBottom: 6 }}>📦 Kho xuất phát (B2B Sort Hub)</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {HUBS.map((h) => (
                 <button key={h.value} onClick={() => setHub(h.value)}
                   style={{
                     padding: "7px 14px", borderRadius: 6, border: "1px solid",
-                    borderColor: hub === h.value ? "#33D6C0" : "#293345",
-                    background: hub === h.value ? "rgba(51,214,192,.15)" : "#1B2436",
-                    color: hub === h.value ? "#33D6C0" : "#EAF0F8",
+                    borderColor: hub === h.value ? "#33D6C0" : "var(--panel-border)",
+                    background: hub === h.value ? "rgba(51,214,192,.15)" : "var(--panel-bg)",
+                    color: hub === h.value ? "#33D6C0" : "var(--text-primary)",
                     fontSize: 13, cursor: "pointer", fontFamily: "inherit",
                     transition: "all 0.2s"
                   }}>
@@ -816,16 +816,16 @@ export default function TabTachTrip({ tcData }) {
           {showAdvanced && (
           <>
           <div>
-            <label style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.07em", color: "#8C99AE", display: "block", marginBottom: 5 }}>Cách xem</label>
+            <label style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--text-muted)", display: "block", marginBottom: 5 }}>Cách xem</label>
             <select value={lens} onChange={(e) => setLens(e.target.value)}
-              style={{ background: "#0E1420", border: "1px solid #293345", color: "#EAF0F8", borderRadius: 6, padding: "7px 10px", fontSize: 13, fontFamily: "inherit" }}>
+              style={{ background: "var(--input-bg)", border: "1px solid var(--panel-border)", color: "var(--text-primary)", borderRadius: 6, padding: "7px 10px", fontSize: 13, fontFamily: "inherit" }}>
               {LENSES.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
             </select>
           </div>
           <div>
-            <label style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.07em", color: "#8C99AE", display: "block", marginBottom: 5 }}>Khoảng ngày</label>
+            <label style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--text-muted)", display: "block", marginBottom: 5 }}>Khoảng ngày</label>
             <select value={windowDays} onChange={(e) => setWindowDays(Number(e.target.value))}
-              style={{ background: "#0E1420", border: "1px solid #293345", color: "#EAF0F8", borderRadius: 6, padding: "7px 10px", fontSize: 13, fontFamily: "inherit" }}>
+              style={{ background: "var(--input-bg)", border: "1px solid var(--panel-border)", color: "var(--text-primary)", borderRadius: 6, padding: "7px 10px", fontSize: 13, fontFamily: "inherit" }}>
               <option value={7}>7 ngày</option>
               <option value={14}>14 ngày</option>
               <option value={30}>30 ngày</option>

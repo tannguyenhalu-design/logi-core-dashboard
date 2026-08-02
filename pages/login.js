@@ -4,6 +4,7 @@
 import { useRouter } from "next/router";
 import { useState } from "react";
 import Head from "next/head";
+import ThemeToggle from "../components/ThemeToggle";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -48,15 +49,18 @@ export default function LoginPage() {
           </div>
         </div>
         <div className="login-form-panel">
-        <div className="login-card">
+        <div className="login-card" style={{ position: "relative" }}>
+          <div style={{ position: "absolute", top: 16, right: 16, width: "auto" }}>
+            <ThemeToggle style={{ width: "auto", padding: "6px 10px" }} />
+          </div>
           {/* Logo + Title */}
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
             <div style={{
               width: 44, height: 44, borderRadius: 12,
-              background: "rgba(20, 224, 196,0.15)",
+              background: "var(--cyan-glow)",
               display: "flex", alignItems: "center", justifyContent: "center",
             }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#14e0c4" strokeWidth="2">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" strokeWidth="2">
                 <path d="M12 2L2 7l10 5 10-5-10-5z"/>
                 <path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
               </svg>
@@ -100,10 +104,10 @@ export default function LoginPage() {
                 width: "100%",
                 padding: "12px 14px",
                 marginBottom: 12,
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.15)",
+                background: "var(--input-bg)",
+                border: "1px solid var(--border)",
                 borderRadius: 10,
-                color: "#EAF0F8",
+                color: "var(--text-primary)",
                 fontSize: 14,
                 fontFamily: "inherit",
                 boxSizing: "border-box",
@@ -139,8 +143,8 @@ export default function LoginPage() {
                 justifyContent: "center",
                 gap: 12,
                 padding: "12px 20px",
-                background: loading ? "rgba(20, 224, 196,0.4)" : "rgba(20, 224, 196,0.8)",
-                border: "1px solid rgba(20, 224, 196,0.5)",
+                background: "var(--cyan)",
+                border: "1px solid var(--cyan)",
                 borderRadius: 10,
                 color: "#fff",
                 fontSize: 15,
