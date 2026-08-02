@@ -227,6 +227,8 @@ function OrdersProjChart({ ordersByProject, theme = "dark" }) {
   const ref = useRef(null);
   const ct = CHART_THEME[theme] || CHART_THEME.dark;
 
+  const trunc = (s, max = 16) => s.length > max ? s.slice(0, max) + "…" : s;
+
   // Sort desc, keep top 10, group rest as "Khác"
   const sorted = Object.entries(ordersByProject).sort((a, b) => b[1] - a[1]);
   const TOP = 10;
@@ -235,15 +237,17 @@ function OrdersProjChart({ ordersByProject, theme = "dark" }) {
   const restTotal = rest.reduce((s, [, v]) => s + v, 0);
   const entries = restTotal > 0 ? [...top, [`Khác (${rest.length} dự án)`, restTotal]] : top;
   const total = entries.reduce((s, [, v]) => s + v, 0);
+  const fullNames = entries.map(([p]) => p);
 
   const palette = ["#14e0c4","#8b5cf6","#10b981","#f59e0b","#f43f5e","#ec4899","#06b6d4","#84cc16","#a855f7","#0ea5e9","#64748b"];
 
   useChart(ref, () => ({
     type: "doughnut",
     data: {
+      // Short label for legend (prevents 2-column overflow)
       labels: entries.map(([p, v]) => {
         const pct = total > 0 ? Math.round((v / total) * 100) : 0;
-        return `${p} (${pct}%)`;
+        return `${trunc(p)} (${pct}%)`;
       }),
       datasets: [{
         data: entries.map(([, v]) => v),
@@ -253,7 +257,6 @@ function OrdersProjChart({ ordersByProject, theme = "dark" }) {
     },
     options: {
       responsive: true, maintainAspectRatio: false, cutout: "65%",
-      layout: { padding: { right: 4 } },
       plugins: {
         legend: {
           position: "right",
@@ -262,7 +265,7 @@ function OrdersProjChart({ ordersByProject, theme = "dark" }) {
             color: ct.legend,
             boxWidth: 9,
             boxHeight: 9,
-            padding: 6,
+            padding: 5,
             font: { size: 10.5, weight: "600" },
           },
         },
@@ -272,12 +275,12 @@ function OrdersProjChart({ ordersByProject, theme = "dark" }) {
           titleColor: ct.tooltipTitle,
           bodyColor: ct.tooltipBody,
           callbacks: {
+            title: (items) => fullNames[items[0].dataIndex] || "",
             label: (item) => {
               const val = item.raw;
               const sum = item.dataset.data.reduce((a, b) => a + b, 0);
               const pct = sum > 0 ? Math.round((val / sum) * 100) : 0;
-              const projName = item.label.split(" (")[0];
-              return ` ${projName}: ${val.toLocaleString("vi-VN")} đơn (${pct}%)`;
+              return ` ${val.toLocaleString("vi-VN")} đơn (${pct}%)`;
             }
           }
         },
@@ -295,6 +298,8 @@ function WeightProjChart({ weightByProject = {}, theme = "dark" }) {
   const ref = useRef(null);
   const ct = CHART_THEME[theme] || CHART_THEME.dark;
 
+  const trunc = (s, max = 16) => s.length > max ? s.slice(0, max) + "…" : s;
+
   // Sort desc, keep top 10, group rest as "Khác"
   const sorted = Object.entries(weightByProject)
     .map(([k, v]) => [k, v || 0])
@@ -305,16 +310,18 @@ function WeightProjChart({ weightByProject = {}, theme = "dark" }) {
   const restTotal = rest.reduce((s, [, v]) => s + v, 0);
   const entries = restTotal > 0 ? [...top, [`Khác (${rest.length} dự án)`, restTotal]] : top;
   const total = entries.reduce((s, [, v]) => s + v, 0);
+  const fullNames = entries.map(([p]) => p);
 
   const palette = ["#06b6d4","#f59e0b","#10b981","#8b5cf6","#f43f5e","#14e0c4","#ec4899","#84cc16","#a855f7","#0ea5e9","#64748b"];
 
   useChart(ref, () => ({
     type: "doughnut",
     data: {
+      // Short label for legend
       labels: entries.map(([p, w]) => {
         const pct = total > 0 ? Math.round((w / total) * 100) : 0;
-        const displayW = w >= 1000 ? `${(w / 1000).toFixed(1).replace(".0", "")} Tấn` : `${Math.round(w)} Kg`;
-        return `${p}: ${displayW} (${pct}%)`;
+        const displayW = w >= 1000 ? `${(w / 1000).toFixed(1).replace(".0", "")}T` : `${Math.round(w)}Kg`;
+        return `${trunc(p)} ${displayW} (${pct}%)`;
       }),
       datasets: [{
         data: entries.map(([, v]) => v),
@@ -324,7 +331,6 @@ function WeightProjChart({ weightByProject = {}, theme = "dark" }) {
     },
     options: {
       responsive: true, maintainAspectRatio: false, cutout: "65%",
-      layout: { padding: { right: 4 } },
       plugins: {
         legend: {
           position: "right",
@@ -333,7 +339,7 @@ function WeightProjChart({ weightByProject = {}, theme = "dark" }) {
             color: ct.legend,
             boxWidth: 9,
             boxHeight: 9,
-            padding: 6,
+            padding: 5,
             font: { size: 10.5, weight: "600" },
           },
         },
@@ -343,13 +349,13 @@ function WeightProjChart({ weightByProject = {}, theme = "dark" }) {
           titleColor: ct.tooltipTitle,
           bodyColor: ct.tooltipBody,
           callbacks: {
+            title: (items) => fullNames[items[0].dataIndex] || "",
             label: (item) => {
               const val = item.raw;
               const sum = item.dataset.data.reduce((a, b) => a + b, 0);
               const pct = sum > 0 ? Math.round((val / sum) * 100) : 0;
               const displayVal = val >= 1000 ? `${(val / 1000).toFixed(1).replace(".0", "")} Tấn` : `${Math.round(val)} Kg`;
-              const projName = item.label.split(":")[0];
-              return ` ${projName}: ${displayVal} (${pct}%)`;
+              return ` ${displayVal} (${pct}%)`;
             }
           }
         },
@@ -1096,7 +1102,7 @@ export default function TabLTL({ data, selectedProjects = [] }) {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
             📦 Tỷ trọng Số Đơn theo Dự Án
           </div>
-          <div style={{ height: 380 }}>
+          <div style={{ height: 420 }}>
             <OrdersProjChart ordersByProject={data.ordersByProject} theme={theme} />
           </div>
         </div>
@@ -1106,7 +1112,7 @@ export default function TabLTL({ data, selectedProjects = [] }) {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M2 12h20"/></svg>
             ⚖️ Tỷ trọng Tải Trọng (Tấn/Kg) theo Dự Án
           </div>
-          <div style={{ height: 380 }}>
+          <div style={{ height: 420 }}>
             <WeightProjChart weightByProject={data.weightByProject || {}} theme={theme} />
           </div>
         </div>
