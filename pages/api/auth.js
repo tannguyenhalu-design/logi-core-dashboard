@@ -34,21 +34,11 @@ export default async function handler(req, res) {
   if (!user) {
     try {
       await createPendingUser(email, password);
+      user = await findUserByEmail(email); // Re-fetch the newly created user
     } catch (err) {
       console.error("[/api/auth] signup failed:", err);
       return res.status(500).json({ error: "Không thể tạo tài khoản, vui lòng thử lại sau" });
     }
-    return res.status(403).json({
-      error: "Tài khoản mới đã được tạo. Vui lòng chờ quản lý duyệt quyền truy cập.",
-      pending: true,
-    });
-  }
-
-  if (user.role === "pending") {
-    return res.status(403).json({
-      error: "Tài khoản của bạn đang chờ quản lý duyệt quyền truy cập.",
-      pending: true,
-    });
   }
 
   if (!user.passwordHash) {
