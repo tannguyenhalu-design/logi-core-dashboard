@@ -120,7 +120,7 @@ export default function FilterBar({
       {/* Filter mode toggle */}
       <div style={{
         display: "flex", alignItems: "center", gap: 0,
-        background: "rgba(255,255,255,0.05)", borderRadius: 8,
+        background: "var(--panel-glow)", borderRadius: 8,
         border: "1px solid var(--border)", overflow: "hidden", flexShrink: 0,
       }}>
         {[

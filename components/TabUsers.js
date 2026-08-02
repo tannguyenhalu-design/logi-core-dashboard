@@ -155,7 +155,7 @@ export default function TabUsers() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", padding: "16px 20px", borderRadius: 12, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+      <div style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", padding: "16px 20px", borderRadius: 12, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
         <div>
           <h3 style={{ margin: 0, fontSize: 16, color: "var(--text-primary)" }}>Quản lý người dùng</h3>
           <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "var(--text-muted)" }}>
@@ -179,7 +179,7 @@ export default function TabUsers() {
         </div>
       )}
 
-      <div style={{ background: "rgba(255,255,255,0.01)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 20px", overflowX: "auto" }}>
+      <div style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 20px", overflowX: "auto" }}>
         <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: "2px solid var(--border)" }}>
@@ -208,7 +208,7 @@ export default function TabUsers() {
                     <select
                       value={draft.role}
                       onChange={(e) => updateDraft(u.email, { role: e.target.value, tabs: defaultTabsForRole(e.target.value) })}
-                      style={{ background: "#0f172a", border: "1px solid var(--border)", color: "#fff", padding: "6px 8px", borderRadius: 6, fontSize: 12 }}
+                      style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 8px", borderRadius: 6, fontSize: 12 }}
                     >
                       <option value="pending">Chờ duyệt</option>
                       <option value="manager">Quản lý</option>
@@ -230,7 +230,7 @@ export default function TabUsers() {
                       disabled={draft.role !== "pic"}
                       onChange={(e) => updateDraft(u.email, { pic: e.target.value })}
                       placeholder="Ví dụ: Duy Tú"
-                      style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "6px 8px", borderRadius: 6, fontSize: 12, width: 140 }}
+                      style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 8px", borderRadius: 6, fontSize: 12, width: 140 }}
                     />
                   </td>
                   <td style={{ padding: "12px 8px" }}>
@@ -240,7 +240,7 @@ export default function TabUsers() {
                       disabled={draft.role !== "client"}
                       onChange={(e) => updateDraft(u.email, { project: e.target.value })}
                       placeholder="Ví dụ: Samsung"
-                      style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "6px 8px", borderRadius: 6, fontSize: 12, width: 140 }}
+                      style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 8px", borderRadius: 6, fontSize: 12, width: 140 }}
                     />
                   </td>
                   <td style={{ padding: "12px 8px", textAlign: "center" }}>
@@ -276,9 +276,9 @@ export default function TabUsers() {
 
       {showAddModal && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
-          <div style={{ background: "#0f172a", border: "1px solid var(--border)", padding: 24, borderRadius: 16, width: "90%", maxWidth: 420, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 10px 25px rgba(0,0,0,0.5)" }}>
+          <div style={{ background: "var(--input-bg)", border: "1px solid var(--border)", padding: 24, borderRadius: 16, width: "90%", maxWidth: 420, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 10px 25px rgba(0,0,0,0.5)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h4 style={{ margin: 0, fontSize: 16, color: "#fff" }}>➕ Thêm người dùng</h4>
+              <h4 style={{ margin: 0, fontSize: 16, color: "var(--text-primary)" }}>➕ Thêm người dùng</h4>
               <button onClick={() => setShowAddModal(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 20, cursor: "pointer" }}>&times;</button>
             </div>
 
@@ -294,7 +294,7 @@ export default function TabUsers() {
                 <input
                   type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
                   placeholder="vd: tutd@ghn.vn"
-                  style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                  style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
                 />
               </div>
 
@@ -303,7 +303,7 @@ export default function TabUsers() {
                 <select
                   value={newRole}
                   onChange={(e) => { setNewRole(e.target.value); setNewTabs(defaultTabsForRole(e.target.value)); }}
-                  style={{ background: "#0f172a", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                  style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
                 >
                   <option value="manager">Quản lý</option>
                   <option value="pic">Chuyên viên vận hành (PIC)</option>
@@ -326,7 +326,7 @@ export default function TabUsers() {
                   <input
                     type="text" value={newPic} onChange={(e) => setNewPic(e.target.value)}
                     placeholder="Ví dụ: Duy Tú"
-                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                    style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
                   />
                 </div>
               )}
@@ -337,7 +337,7 @@ export default function TabUsers() {
                   <input
                     type="text" value={newProject} onChange={(e) => setNewProject(e.target.value)}
                     placeholder="Ví dụ: Samsung"
-                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                    style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
                   />
                 </div>
               )}
@@ -349,13 +349,13 @@ export default function TabUsers() {
               <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 6 }}>
                 <button
                   type="button" onClick={() => setShowAddModal(false)}
-                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "#fff", padding: "8px 18px", borderRadius: 6, cursor: "pointer", fontSize: 13 }}
+                  style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 18px", borderRadius: 6, cursor: "pointer", fontSize: 13 }}
                 >
                   Hủy bỏ
                 </button>
                 <button
                   type="submit" disabled={adding}
-                  style={{ background: "var(--green)", color: "#fff", border: "none", padding: "8px 24px", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13 }}
+                  style={{ background: "var(--green)", color: "var(--text-primary)", border: "none", padding: "8px 24px", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13 }}
                 >
                   {adding ? "Đang thêm..." : "Thêm"}
                 </button>

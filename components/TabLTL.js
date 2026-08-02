@@ -371,7 +371,7 @@ function WeightProjChart({ weightByProject = {}, theme = "dark" }) {
 function DamageRegions({ topDamageProvinces, topDamageWarehouses, selectedProvince, selectedWarehouse, onSelectProvince, onSelectWarehouse }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ background: "rgba(255,255,255,0.02)", padding: 16, borderRadius: 12, border: "1px solid var(--border)", backdropFilter: "blur(8px)" }}>
+      <div style={{ background: "var(--panel-glow)", padding: 16, borderRadius: 12, border: "1px solid var(--border)", backdropFilter: "blur(8px)" }}>
         <h4 style={{ margin: "0 0 12px 0", fontSize: 13, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 6 }}>
           📍 Top 5 Tỉnh/Thành nhận hàng (Click để lọc)
         </h4>
@@ -403,7 +403,7 @@ function DamageRegions({ topDamageProvinces, topDamageWarehouses, selectedProvin
           {topDamageProvinces.length === 0 && <div style={{ color: "var(--text-muted)", fontSize: 12 }}>Không có dữ liệu bể vỡ.</div>}
         </ul>
       </div>
-      <div style={{ background: "rgba(255,255,255,0.02)", padding: 16, borderRadius: 12, border: "1px solid var(--border)", backdropFilter: "blur(8px)" }}>
+      <div style={{ background: "var(--panel-glow)", padding: 16, borderRadius: 12, border: "1px solid var(--border)", backdropFilter: "blur(8px)" }}>
         <h4 style={{ margin: "0 0 12px 0", fontSize: 13, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 6 }}>
           🏢 Top 5 Kho giao hàng (Click để lọc)
         </h4>
@@ -1090,7 +1090,7 @@ export default function TabLTL({ data, selectedProjects = [] }) {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           Xu hướng Ontime / Late theo {data.isWeekly ? "tuần" : "tháng"}
         </div>
-        <div style={{ height: 340 }}>
+        <div style={{ height: 280 }}>
           <OntimeMonthChart ontimeByMonth={data.ontimeByMonth} isWeekly={data.isWeekly} theme={theme} />
         </div>
       </div>
@@ -1102,7 +1102,7 @@ export default function TabLTL({ data, selectedProjects = [] }) {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
             📦 Tỷ trọng Số Đơn theo Dự Án
           </div>
-          <div style={{ height: 420 }}>
+          <div style={{ height: 320 }}>
             <OrdersProjChart ordersByProject={data.ordersByProject} theme={theme} />
           </div>
         </div>
@@ -1112,7 +1112,7 @@ export default function TabLTL({ data, selectedProjects = [] }) {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M2 12h20"/></svg>
             ⚖️ Tỷ trọng Tải Trọng (Tấn/Kg) theo Dự Án
           </div>
-          <div style={{ height: 420 }}>
+          <div style={{ height: 320 }}>
             <WeightProjChart weightByProject={data.weightByProject || {}} theme={theme} />
           </div>
         </div>
@@ -1124,7 +1124,7 @@ export default function TabLTL({ data, selectedProjects = [] }) {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
           % Ontime theo Dự Án
         </div>
-        <div style={{ height: 350 }}>
+        <div style={{ height: 280 }}>
           <OntimeProjChart ontimeByProject={data.ontimeByProject} theme={theme} />
         </div>
       </div>
@@ -1135,7 +1135,7 @@ export default function TabLTL({ data, selectedProjects = [] }) {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
           Top 10 Kho Rủi Ro Cao
         </div>
-        <div style={{ height: 300 }}>
+        <div style={{ height: 240 }}>
           <WarehouseRiskChart warehouseAlerts={data.warehouseAlerts} theme={theme} />
         </div>
       </div>

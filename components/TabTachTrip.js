@@ -703,7 +703,7 @@ export default function TabTachTrip({ tcData }) {
           <button
             onClick={() => setShowLaneTable((v) => !v)}
             style={{
-              background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "var(--text-secondary)",
+              background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-secondary)",
               padding: "5px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
             }}
           >

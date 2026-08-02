@@ -383,7 +383,7 @@ export default function TabOperations({ rawData }) {
             </div>
             <button
               onClick={() => setShowAddTaskModal(true)}
-              style={{ background: "var(--green)", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
+              style={{ background: "var(--green)", color: "var(--text-primary)", border: "none", padding: "8px 16px", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
             >
               + Tạo Task Mới
             </button>
@@ -554,7 +554,7 @@ export default function TabOperations({ rawData }) {
                                   </button>
                                   <button
                                     onClick={() => handleDeleteTask(t.id)}
-                                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "var(--text-muted)", padding: "3px 6px", borderRadius: 4, fontSize: 11, cursor: "pointer" }}
+                                    style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-muted)", padding: "3px 6px", borderRadius: 4, fontSize: 11, cursor: "pointer" }}
                                   >
                                     🗑️
                                   </button>
@@ -650,7 +650,7 @@ export default function TabOperations({ rawData }) {
                           </button>
                           <button
                             type="submit"
-                            style={{ background: "var(--green)", color: "#fff", border: "none", padding: "8px 20px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                            style={{ background: "var(--green)", color: "var(--text-primary)", border: "none", padding: "8px 20px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
                           >
                             Lưu Task Mới
                           </button>
@@ -666,7 +666,7 @@ export default function TabOperations({ rawData }) {
       ) : (
         /* ── SECTION: SD3 PROJECTS OVERBOARD (ORIGINAL SECTION) ── */
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", padding: "16px 20px", borderRadius: 12, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+      <div style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", padding: "16px 20px", borderRadius: 12, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div>
           <h3 style={{ margin: 0, fontSize: 16, color: "var(--text-primary)" }}>Vận Hành SD3 — Theo Dõi Dự Án Mới</h3>
           <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "var(--text-muted)" }}>
@@ -677,7 +677,7 @@ export default function TabOperations({ rawData }) {
           {isManager && (
             <button 
               onClick={() => setShowAddModal(true)}
-              style={{ background: "var(--cyan)", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13 }}
+              style={{ background: "var(--cyan)", color: "var(--text-primary)", border: "none", padding: "8px 16px", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13 }}
             >
               + Tạo Dự Án Mới
             </button>
@@ -685,7 +685,7 @@ export default function TabOperations({ rawData }) {
           <button 
             onClick={fetchProjects}
             disabled={loading}
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "#fff", padding: "8px 16px", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
+            style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 16px", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
           >
             🔄 Tải Lại Dữ Liệu
           </button>
@@ -698,7 +698,7 @@ export default function TabOperations({ rawData }) {
 
       {/* Stats Cards Row */}
       <div className="grid-4">
-        <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", padding: 16, borderRadius: 12 }}>
+        <div style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", padding: 16, borderRadius: 12 }}>
           <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase" }}>Tổng Dự Án</div>
           <div style={{ fontSize: 24, fontWeight: "bold", margin: "6px 0", color: "var(--text-primary)" }}>{totalCount}</div>
           <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Đang theo dõi trong danh sách</div>
@@ -723,7 +723,7 @@ export default function TabOperations({ rawData }) {
       </div>
 
       {/* Filter Row */}
-      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", padding: 16, borderRadius: 12, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+      <div style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", padding: 16, borderRadius: 12, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
         {/* Search */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, minWidth: 200 }}>
           <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 500 }}>Tìm kiếm dự án</label>
@@ -732,7 +732,7 @@ export default function TabOperations({ rawData }) {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Tìm theo tên dự án, checklist, logic SLA..."
-            style={{ background: "#0f172a", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+            style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
           />
         </div>
 
@@ -743,7 +743,7 @@ export default function TabOperations({ rawData }) {
             value={picFilter} 
             onChange={(e) => setPicFilter(e.target.value)}
             disabled={currentUser.role === "pic"}
-            style={{ background: "#0f172a", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, cursor: currentUser.role === "pic" ? "not-allowed" : "pointer" }}
+            style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, cursor: currentUser.role === "pic" ? "not-allowed" : "pointer" }}
           >
             <option value="all">Tất cả PIC</option>
             {uniquePics.map(email => (
@@ -758,7 +758,7 @@ export default function TabOperations({ rawData }) {
           <select 
             value={modelFilter} 
             onChange={(e) => setModelFilter(e.target.value)}
-            style={{ background: "#0f172a", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6 }}
+            style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6 }}
           >
             <option value="all">Tất cả mô hình</option>
             {uniqueModels.map(model => (
@@ -773,7 +773,7 @@ export default function TabOperations({ rawData }) {
           <select 
             value={statusFilter} 
             onChange={(e) => setStatusFilter(e.target.value)}
-            style={{ background: "#0f172a", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6 }}
+            style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6 }}
           >
             <option value="all">Tất cả trạng thái</option>
             {uniqueStatuses.map(status => (
@@ -784,7 +784,7 @@ export default function TabOperations({ rawData }) {
       </div>
 
       {/* Projects Table Container */}
-      <div style={{ background: "rgba(255,255,255,0.01)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 20px", overflowX: "auto" }}>
+      <div style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 20px", overflowX: "auto" }}>
         {loading ? (
           <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}>
             <TruckLoader />
@@ -828,7 +828,7 @@ export default function TabOperations({ rawData }) {
                       👤 {picName}
                     </td>
                     <td style={{ padding: "14px 8px" }}>
-                      <span style={{ fontSize: 11, background: "rgba(255,255,255,0.05)", padding: "4px 8px", borderRadius: 4, color: "var(--text-secondary)" }}>
+                      <span style={{ fontSize: 11, background: "var(--panel-glow)", padding: "4px 8px", borderRadius: 4, color: "var(--text-secondary)" }}>
                         {p.model}
                       </span>
                     </td>
@@ -915,9 +915,9 @@ export default function TabOperations({ rawData }) {
       {/* ======================================================== */}
       {showAddModal && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
-          <div style={{ background: "#0f172a", border: "1px solid var(--border)", padding: 24, borderRadius: 16, width: "90%", maxWidth: 650, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 10px 25px rgba(0,0,0,0.5)" }}>
+          <div style={{ background: "var(--input-bg)", border: "1px solid var(--border)", padding: 24, borderRadius: 16, width: "90%", maxWidth: 650, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 10px 25px rgba(0,0,0,0.5)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h4 style={{ margin: 0, fontSize: 16, color: "#fff" }}>➕ Khởi Tạo Dự Án Mới</h4>
+              <h4 style={{ margin: 0, fontSize: 16, color: "var(--text-primary)" }}>➕ Khởi Tạo Dự Án Mới</h4>
               <button onClick={() => setShowAddModal(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 20, cursor: "pointer" }}>&times;</button>
             </div>
 
@@ -928,7 +928,7 @@ export default function TabOperations({ rawData }) {
                   <input 
                     type="text" required value={addName} onChange={(e) => setAddName(e.target.value)}
                     placeholder="Nhập tên dự án (ví dụ: Casper B2B...)"
-                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                    style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
                   />
                 </div>
 
@@ -936,7 +936,7 @@ export default function TabOperations({ rawData }) {
                   <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Phân công PIC</label>
                   <select 
                     value={addPic} onChange={(e) => setAddPic(e.target.value)}
-                    style={{ background: "#0f172a", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                    style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
                   >
                     <option value="">-- Chưa phân công --</option>
                     <option value="tutd@ghn.vn">Duy Tú (tutd@ghn.vn)</option>
@@ -950,7 +950,7 @@ export default function TabOperations({ rawData }) {
                   <input 
                     type="text" value={addRevenue} onChange={(e) => setAddRevenue(e.target.value)}
                     placeholder="Ví dụ: 500.000.000"
-                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                    style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
                   />
                 </div>
 
@@ -959,7 +959,7 @@ export default function TabOperations({ rawData }) {
                   <input 
                     type="text" value={addExpectedOb} onChange={(e) => setAddExpectedOb(e.target.value)}
                     placeholder="Ví dụ: Tháng 8/2026"
-                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                    style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
                   />
                 </div>
 
@@ -968,7 +968,7 @@ export default function TabOperations({ rawData }) {
                   <input 
                     type="text" value={addModel} onChange={(e) => setAddModel(e.target.value)}
                     placeholder="Ví dụ: LTL B2B"
-                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                    style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
                   />
                 </div>
 
@@ -977,7 +977,7 @@ export default function TabOperations({ rawData }) {
                   <input 
                     type="text" value={addJob} onChange={(e) => setAddJob(e.target.value)}
                     placeholder="Mặc định: Recap onsite"
-                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                    style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
                   />
                 </div>
 
@@ -986,7 +986,7 @@ export default function TabOperations({ rawData }) {
                   <input 
                     type="text" value={addVolume} onChange={(e) => setAddVolume(e.target.value)}
                     placeholder="Ví dụ: 10.000 đơn/tháng"
-                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                    style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
                   />
                 </div>
               </div>
@@ -996,7 +996,7 @@ export default function TabOperations({ rawData }) {
                 <input 
                   type="url" value={addSopLink} onChange={(e) => setAddSopLink(e.target.value)}
                   placeholder="Nhập đường dẫn Google Docs SOP..."
-                  style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                  style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
                 />
               </div>
 
@@ -1005,20 +1005,20 @@ export default function TabOperations({ rawData }) {
                 <textarea 
                   rows={3} value={addNotes} onChange={(e) => setAddNotes(e.target.value)}
                   placeholder="Nhập thông tin các hạng mục công việc cần chuẩn bị..."
-                  style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 13, resize: "none" }}
+                  style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13, resize: "none" }}
                 />
               </div>
 
               <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 10 }}>
                 <button 
                   type="button" onClick={() => setShowAddModal(false)}
-                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "#fff", padding: "8px 18px", borderRadius: 6, cursor: "pointer", fontSize: 13 }}
+                  style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 18px", borderRadius: 6, cursor: "pointer", fontSize: 13 }}
                 >
                   Hủy bỏ
                 </button>
                 <button 
                   type="submit" disabled={saving}
-                  style={{ background: "var(--green)", color: "#fff", border: "none", padding: "8px 24px", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13 }}
+                  style={{ background: "var(--green)", color: "var(--text-primary)", border: "none", padding: "8px 24px", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13 }}
                 >
                   {saving ? "Đang tạo..." : "Khởi Tạo"}
                 </button>
@@ -1033,9 +1033,9 @@ export default function TabOperations({ rawData }) {
       {/* ======================================================== */}
       {editingProject && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
-          <div style={{ background: "#0f172a", border: "1px solid var(--border)", padding: 24, borderRadius: 16, width: "90%", maxWidth: 650, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 10px 25px rgba(0,0,0,0.5)" }}>
+          <div style={{ background: "var(--input-bg)", border: "1px solid var(--border)", padding: 24, borderRadius: 16, width: "90%", maxWidth: 650, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 10px 25px rgba(0,0,0,0.5)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h4 style={{ margin: 0, fontSize: 16, color: "#fff" }}>
+              <h4 style={{ margin: 0, fontSize: 16, color: "var(--text-primary)" }}>
                 ✏️ Chỉnh Sửa Tiến Độ: <span style={{ color: "var(--cyan)" }}>{editingProject.name}</span>
               </h4>
               <button onClick={() => setEditingProject(null)} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 20, cursor: "pointer" }}>&times;</button>
@@ -1044,7 +1044,7 @@ export default function TabOperations({ rawData }) {
             <form onSubmit={handleUpdateProject} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               
               {/* STEP 1, 2, 3 SECTION */}
-              <div style={{ background: "rgba(255,255,255,0.01)", border: "1px solid var(--border)", padding: 14, borderRadius: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", padding: 14, borderRadius: 10, display: "flex", flexDirection: "column", gap: 10 }}>
                 <h5 style={{ margin: 0, fontSize: 12, color: "var(--cyan)", textTransform: "uppercase" }}>🚩 Tiến độ chuyên viên (SD3 Pipeline)</h5>
                 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -1054,7 +1054,7 @@ export default function TabOperations({ rawData }) {
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                       <select 
                         value={editRecapStatus} onChange={(e) => setEditRecapStatus(e.target.value)}
-                        style={{ background: "#0f172a", border: "1px solid var(--border)", color: "#fff", padding: "6px", borderRadius: 4, fontSize: 12 }}
+                        style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px", borderRadius: 4, fontSize: 12 }}
                       >
                         <option value="Chưa thực hiện">Chưa thực hiện</option>
                         <option value="Đang thực hiện">Đang thực hiện</option>
@@ -1063,7 +1063,7 @@ export default function TabOperations({ rawData }) {
                       <input 
                         type="url" value={editRecapLink} onChange={(e) => setEditRecapLink(e.target.value)}
                         placeholder="Dán link report onsite..."
-                        style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "6px", borderRadius: 4, fontSize: 12 }}
+                        style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px", borderRadius: 4, fontSize: 12 }}
                       />
                     </div>
                   </div>
@@ -1074,7 +1074,7 @@ export default function TabOperations({ rawData }) {
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                       <select 
                         value={editSopStatus} onChange={(e) => setEditSopStatus(e.target.value)}
-                        style={{ background: "#0f172a", border: "1px solid var(--border)", color: "#fff", padding: "6px", borderRadius: 4, fontSize: 12 }}
+                        style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px", borderRadius: 4, fontSize: 12 }}
                       >
                         <option value="Chưa thực hiện">Chưa thực hiện</option>
                         <option value="Đang thực hiện">Đang thực hiện</option>
@@ -1083,7 +1083,7 @@ export default function TabOperations({ rawData }) {
                       <input 
                         type="url" value={editSopLink} onChange={(e) => setEditSopLink(e.target.value)}
                         placeholder="Dán link SOP docs..."
-                        style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "6px", borderRadius: 4, fontSize: 12 }}
+                        style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px", borderRadius: 4, fontSize: 12 }}
                       />
                     </div>
                   </div>
@@ -1094,7 +1094,7 @@ export default function TabOperations({ rawData }) {
                   <label style={{ fontSize: 11, fontWeight: "bold", display: "block", marginBottom: 4 }}>Bước 3: Kick OFF Onboard</label>
                   <select 
                     value={editKickoffStatus} onChange={(e) => setEditKickoffStatus(e.target.value)}
-                    style={{ background: "#0f172a", border: "1px solid var(--border)", color: "#fff", padding: "6px", borderRadius: 4, fontSize: 12, width: "100%" }}
+                    style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px", borderRadius: 4, fontSize: 12, width: "100%" }}
                   >
                     <option value="Chưa thực hiện">Chưa thực hiện</option>
                     <option value="Đang thực hiện">Đang thực hiện</option>
@@ -1104,7 +1104,7 @@ export default function TabOperations({ rawData }) {
               </div>
 
               {/* MANAGER ADMIN SETUP SECTION */}
-              <div style={{ background: "rgba(255,255,255,0.01)", border: "1px solid var(--border)", padding: 14, borderRadius: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", padding: 14, borderRadius: 10, display: "flex", flexDirection: "column", gap: 10 }}>
                 <h5 style={{ margin: 0, fontSize: 12, color: "var(--cyan)", textTransform: "uppercase" }}>⚙️ Thiết lập dự án {isManager ? "(Chỉnh sửa)" : "(Chỉ xem)"}</h5>
                 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -1112,7 +1112,7 @@ export default function TabOperations({ rawData }) {
                     <label style={{ fontSize: 11, color: "var(--text-secondary)" }}>Phân công PIC</label>
                     <select 
                       value={editPic} disabled={!isManager} onChange={(e) => setEditPic(e.target.value)}
-                      style={{ background: "#0f172a", border: "1px solid var(--border)", color: "#fff", padding: "6px 8px", borderRadius: 4, fontSize: 12 }}
+                      style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 8px", borderRadius: 4, fontSize: 12 }}
                     >
                       <option value="">-- Chưa gán --</option>
                       <option value="tutd@ghn.vn">Duy Tú</option>
@@ -1125,7 +1125,7 @@ export default function TabOperations({ rawData }) {
                     <label style={{ fontSize: 11, color: "var(--text-secondary)" }}>Trạng Thái Dự Án</label>
                     <select 
                       value={editStatus} disabled={!isManager} onChange={(e) => setEditStatus(e.target.value)}
-                      style={{ background: "#0f172a", border: "1px solid var(--border)", color: "#fff", padding: "6px 8px", borderRadius: 4, fontSize: 12 }}
+                      style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 8px", borderRadius: 4, fontSize: 12 }}
                     >
                       <option value="Đang thực hiện">Đang thực hiện</option>
                       <option value="Done">Done</option>
@@ -1136,7 +1136,7 @@ export default function TabOperations({ rawData }) {
                     <label style={{ fontSize: 11, color: "var(--text-secondary)" }}>Doanh Thu Dự Kiến</label>
                     <input 
                       type="text" value={editRevenue} disabled={!isManager} onChange={(e) => setEditRevenue(e.target.value)}
-                      style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "6px 8px", borderRadius: 4, fontSize: 12 }}
+                      style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 8px", borderRadius: 4, fontSize: 12 }}
                     />
                   </div>
 
@@ -1144,7 +1144,7 @@ export default function TabOperations({ rawData }) {
                     <label style={{ fontSize: 11, color: "var(--text-secondary)" }}>Dự kiến OB</label>
                     <input 
                       type="text" value={editExpectedOb} disabled={!isManager} onChange={(e) => setEditExpectedOb(e.target.value)}
-                      style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "6px 8px", borderRadius: 4, fontSize: 12 }}
+                      style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 8px", borderRadius: 4, fontSize: 12 }}
                     />
                   </div>
 
@@ -1152,7 +1152,7 @@ export default function TabOperations({ rawData }) {
                     <label style={{ fontSize: 11, color: "var(--text-secondary)" }}>Mô hình vận hành</label>
                     <input 
                       type="text" value={editModel} disabled={!isManager} onChange={(e) => setEditModel(e.target.value)}
-                      style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "6px 8px", borderRadius: 4, fontSize: 12 }}
+                      style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 8px", borderRadius: 4, fontSize: 12 }}
                     />
                   </div>
 
@@ -1160,7 +1160,7 @@ export default function TabOperations({ rawData }) {
                     <label style={{ fontSize: 11, color: "var(--text-secondary)" }}>Công việc hiện tại</label>
                     <input 
                       type="text" value={editJob} disabled={!isManager} onChange={(e) => setEditJob(e.target.value)}
-                      style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "6px 8px", borderRadius: 4, fontSize: 12 }}
+                      style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 8px", borderRadius: 4, fontSize: 12 }}
                     />
                   </div>
 
@@ -1168,7 +1168,7 @@ export default function TabOperations({ rawData }) {
                     <label style={{ fontSize: 11, color: "var(--text-secondary)" }}>Dự kiến Volume</label>
                     <input 
                       type="text" value={editVolume} disabled={!isManager} onChange={(e) => setEditVolume(e.target.value)}
-                      style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "6px 8px", borderRadius: 4, fontSize: 12 }}
+                      style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 8px", borderRadius: 4, fontSize: 12 }}
                     />
                   </div>
                 </div>
@@ -1179,20 +1179,20 @@ export default function TabOperations({ rawData }) {
                 <textarea 
                   rows={2} value={editNotes} onChange={(e) => setEditNotes(e.target.value)}
                   placeholder="Nhập tiến độ cập nhật chi tiết..."
-                  style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", color: "#fff", padding: "8px 12px", borderRadius: 6, fontSize: 12, resize: "none" }}
+                  style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 12, resize: "none" }}
                 />
               </div>
 
               <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 10 }}>
                 <button 
                   type="button" onClick={() => setEditingProject(null)}
-                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "#fff", padding: "8px 18px", borderRadius: 6, cursor: "pointer", fontSize: 13 }}
+                  style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 18px", borderRadius: 6, cursor: "pointer", fontSize: 13 }}
                 >
                   Đóng
                 </button>
                 <button 
                   type="submit" disabled={saving}
-                  style={{ background: "var(--green)", color: "#fff", border: "none", padding: "8px 24px", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13 }}
+                  style={{ background: "var(--green)", color: "var(--text-primary)", border: "none", padding: "8px 24px", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: 13 }}
                 >
                   {saving ? "Đang lưu..." : "Lưu Cập Nhật"}
                 </button>
