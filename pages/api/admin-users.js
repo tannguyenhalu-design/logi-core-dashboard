@@ -39,7 +39,7 @@ export default async function handler(req, res) {
     try {
       const { email, role, pic, project, tabs } = req.body || {};
       if (!email || !role) return res.status(400).json({ error: "Thiếu email hoặc vai trò" });
-      if (!["pending", "manager", "sd3", "cs", "client"].includes(role)) {
+      if (!["pending", "manager", "sd3", "cs"].includes(role)) {
         return res.status(400).json({ error: "Vai trò không hợp lệ" });
       }
       const normalizedEmail = String(email).trim().toLowerCase();

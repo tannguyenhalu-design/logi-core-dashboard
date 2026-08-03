@@ -39,6 +39,25 @@ export default function DashboardPage({ user: initialUser }) {
   // Role-switcher for manager: { type: 'manager'|'pic'|'project', value: string|null }
   const [viewAs, setViewAs] = useState({ type: "manager", value: null });
   const [showRoleMenu, setShowRoleMenu] = useState(false);
+  // Real registered SD/CS staff — not every name that ever appeared in the
+  // picMapping sheet (that list gets noisy with stale/duplicate entries).
+  const [staffPics, setStaffPics] = useState([]);
+
+  useEffect(() => {
+    if (!isManager) return;
+    fetch("/api/admin-users")
+      .then((r) => r.json())
+      .then((json) => {
+        if (!json.ok) return;
+        const names = [...new Set(
+          json.users
+            .filter((u) => (u.role === "sd3" || u.role === "cs") && u.pic)
+            .map((u) => u.pic.trim())
+        )].filter(Boolean).sort();
+        setStaffPics(names);
+      })
+      .catch(() => {});
+  }, [isManager]);
 
   // ── Fetch raw data ONCE on mount ──
   const fetchRaw = useCallback(async (forceRefresh = false) => {
@@ -298,12 +317,10 @@ export default function DashboardPage({ user: initialUser }) {
               </button>
 
               {showRoleMenu && (() => {
-                const picMapping = rawCache.picMapping || {};
-                const allPICs = [...new Set(Object.values(picMapping))].filter(Boolean).sort();
                 const allClients = [...new Set((rawCache.ltl || []).map(r => r.client_name))].filter(Boolean).sort();
                 const menuItems = [
                   { label: "👑 Manager (Tổng quan)", type: "manager", value: null },
-                  ...allPICs.map(p => ({ label: `👤 Nhân sự: ${p}`, type: "cs", value: p })),
+                  ...staffPics.map(p => ({ label: `👤 Nhân sự: ${p}`, type: "cs", value: p })),
                   ...allClients.map(c => ({ label: `📦 KH: ${c}`, type: "project", value: c })),
                 ];
                 return (

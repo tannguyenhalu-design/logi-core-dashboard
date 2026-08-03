@@ -99,6 +99,13 @@ export default function TabOperations({ rawData, userRole }) {
         setTasks((prev) => [...json.tasks, ...prev]);
         setShowAddTaskModal(false);
         setNewTaskRows([blankTaskRow()]);
+        // Assigned to exactly one person? Jump straight to their filtered
+        // view instead of leaving the list showing everyone's tasks.
+        const distinctPics = [...new Set(json.tasks.map((t) => t.pic))];
+        if (distinctPics.length === 1) {
+          setTaskPicFilter(distinctPics[0]);
+          setPicFilter(distinctPics[0]);
+        }
       } else {
         alert(json.error || "Không thể tạo task.");
       }
