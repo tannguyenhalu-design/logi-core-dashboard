@@ -7,10 +7,9 @@ import TruckLoader from "./TruckLoader";
 
 const ROLE_LABELS = {
   pending: "Chờ duyệt",
-  manager: "Quản lý",
-  sd3: "SD3",
+  manager: "Quản trị",
+  sd3: "Chuyên viên SD",
   cs: "CS",
-  client: "Khách hàng",
 };
 
 const TAB_OPTIONS = [
@@ -23,7 +22,6 @@ function defaultTabsForRole(role) {
   if (role === "manager") return ["ltl", "operations", "tachtrip"];
   if (role === "sd3") return ["ltl", "operations", "tachtrip"];
   if (role === "cs") return ["ltl"];
-  if (role === "client") return ["ltl"];
   return [];
 }
 
@@ -188,8 +186,7 @@ export default function TabUsers() {
               <th style={{ textAlign: "left", padding: "12px 8px" }}>Email</th>
               <th style={{ textAlign: "left", padding: "12px 8px" }}>Vai trò</th>
               <th style={{ textAlign: "left", padding: "12px 8px" }}>Xem được tab</th>
-              <th style={{ textAlign: "left", padding: "12px 8px" }}>Tên PIC (nếu là PIC)</th>
-              <th style={{ textAlign: "left", padding: "12px 8px" }}>Dự án (nếu là Khách hàng)</th>
+              <th style={{ textAlign: "left", padding: "12px 8px" }}>Tên (khớp mapping SD/CS)</th>
               <th style={{ textAlign: "center", padding: "12px 8px" }}>Tác vụ</th>
             </tr>
           </thead>
@@ -213,10 +210,9 @@ export default function TabUsers() {
                       style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 8px", borderRadius: 6, fontSize: 12 }}
                     >
                       <option value="pending">Chờ duyệt</option>
-                      <option value="manager">Quản lý</option>
-                      <option value="sd3">SD3</option>
+                      <option value="manager">Quản trị</option>
+                      <option value="sd3">Chuyên viên SD</option>
                       <option value="cs">CS</option>
-                      <option value="client">Khách hàng</option>
                     </select>
                   </td>
                   <td style={{ padding: "12px 8px" }}>
@@ -230,19 +226,9 @@ export default function TabUsers() {
                     <input
                       type="text"
                       value={draft.pic}
-                      disabled={draft.role === "client" || draft.role === "pending"}
+                      disabled={draft.role === "pending"}
                       onChange={(e) => updateDraft(u.email, { pic: e.target.value })}
                       placeholder="Ví dụ: Duy Tú"
-                      style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 8px", borderRadius: 6, fontSize: 12, width: 140 }}
-                    />
-                  </td>
-                  <td style={{ padding: "12px 8px" }}>
-                    <input
-                      type="text"
-                      value={draft.project}
-                      disabled={draft.role !== "client"}
-                      onChange={(e) => updateDraft(u.email, { project: e.target.value })}
-                      placeholder="Ví dụ: Samsung"
                       style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 8px", borderRadius: 6, fontSize: 12, width: 140 }}
                     />
                   </td>
@@ -308,10 +294,9 @@ export default function TabUsers() {
                   onChange={(e) => { setNewRole(e.target.value); setNewTabs(defaultTabsForRole(e.target.value)); }}
                   style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
                 >
-                  <option value="manager">Quản lý</option>
-                  <option value="sd3">SD3</option>
+                  <option value="manager">Quản trị</option>
+                  <option value="sd3">Chuyên viên SD</option>
                   <option value="cs">CS</option>
-                  <option value="client">Khách hàng</option>
                 </select>
               </div>
 
@@ -324,27 +309,14 @@ export default function TabUsers() {
                 />
               </div>
 
-              {["sd3", "manager", "cs"].includes(newRole) && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Tên PIC (khớp sheet mapping)</label>
-                  <input
-                    type="text" value={newPic} onChange={(e) => setNewPic(e.target.value)}
-                    placeholder="Ví dụ: Duy Tú"
-                    style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
-                  />
-                </div>
-              )}
-
-              {newRole === "client" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Dự án</label>
-                  <input
-                    type="text" value={newProject} onChange={(e) => setNewProject(e.target.value)}
-                    placeholder="Ví dụ: Samsung"
-                    style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
-                  />
-                </div>
-              )}
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Tên (khớp sheet mapping SD/CS)</label>
+                <input
+                  type="text" value={newPic} onChange={(e) => setNewPic(e.target.value)}
+                  placeholder="Ví dụ: Duy Tú"
+                  style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                />
+              </div>
 
               <p style={{ margin: 0, fontSize: 11.5, color: "var(--text-muted)" }}>
                 Người này sẽ tự đặt mật khẩu ở lần đăng nhập đầu tiên bằng chính email trên.

@@ -186,9 +186,10 @@ export default function TabOperations({ rawData, userRole }) {
     fetchProjects();
   }, []);
 
-  // Sync default filter for PICs
+  // Sync default filter for SD staff — lock them to their own assigned
+  // projects by default (manager sees everyone).
   useEffect(() => {
-    if (currentUser.role === "pic" && currentUser.pic) {
+    if (currentUser.role === "sd3" && currentUser.pic) {
       setPicFilter(currentUser.pic);
     }
   }, [currentUser]);
@@ -847,8 +848,8 @@ export default function TabOperations({ rawData, userRole }) {
           <select 
             value={picFilter} 
             onChange={(e) => setPicFilter(e.target.value)}
-            disabled={currentUser.role === "pic"}
-            style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, cursor: currentUser.role === "pic" ? "not-allowed" : "pointer" }}
+            disabled={currentUser.role === "sd3"}
+            style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, cursor: currentUser.role === "sd3" ? "not-allowed" : "pointer" }}
           >
             <option value="all">Tất cả PIC</option>
             {uniquePics.map(email => (

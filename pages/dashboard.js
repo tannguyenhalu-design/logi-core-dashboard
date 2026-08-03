@@ -347,7 +347,7 @@ export default function DashboardPage({ user: initialUser }) {
           {/* User info + Logout */}
           <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, marginTop: isManager && rawCache ? 8 : "auto" }}>
             <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>
-              👑 {user.role === "pic" ? "PIC Vận Hành" : user.role === "client" ? "Khách hàng" : "Manager"}
+              👑 {user.role === "sd3" ? "Chuyên viên SD" : user.role === "cs" ? "CS" : "Manager"}
             </div>
             <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {user.name || ""}

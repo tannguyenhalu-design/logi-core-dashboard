@@ -1375,7 +1375,9 @@ export default function TabLTL({ data, rawData, selectedProjects = [], userRole 
                             {" → "}
                             <span style={{ color: odr.to_province_name === selectedProvinceOrders ? "var(--cyan)" : "inherit" }}>{odr.to_province_name || "?"}</span>
                           </td>
-                          <td style={{ padding: "10px 12px", color: "var(--text-muted)" }}>{odr.weight ? `${odr.weight} kg` : "-"}</td>
+                          <td style={{ padding: "10px 12px", color: "var(--text-muted)" }}>
+                            {odr.weight ? `${(parseFloat(odr.weight) / 1000).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} kg` : "-"}
+                          </td>
                           <td style={{ padding: "10px 12px" }}>
                             {isLate ? (
                               <span style={{ background: "rgba(244,63,94,0.15)", color: "var(--red)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 }}>Late</span>
