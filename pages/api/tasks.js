@@ -27,19 +27,29 @@ export default async function handler(req, res) {
 
   if (req.method === "POST") {
     try {
-      const { title, pics, project, deadline, notes } = req.body || {};
-      if (!title || !Array.isArray(pics) || pics.length === 0 || !deadline) {
-        return res.status(400).json({ error: "Missing title, pics[], or deadline" });
+      // Either one task-group in the body directly ({title, pics, ...})
+      // or several at once via `tasks: [{title, pics, ...}, ...]` — lets
+      // "giao 4 task khác nhau cùng lúc" happen in a single save instead
+      // of reopening the modal 4 times. Each group still fans out across
+      // its own selected assignees, all written in one batched append.
+      const groups = Array.isArray(req.body?.tasks) ? req.body.tasks : [req.body];
+
+      for (const g of groups) {
+        if (!g?.title || !Array.isArray(g.pics) || g.pics.length === 0 || !g.deadline) {
+          return res.status(400).json({ error: "Mỗi task cần có tiêu đề, ít nhất 1 người phụ trách, và hạn chót" });
+        }
       }
-      const created = await createTasks(
-        pics.map((p) => ({ title, pic: p.pic, picName: p.picName, project, deadline, notes })),
-        actor
+
+      const flat = groups.flatMap((g) =>
+        g.pics.map((p) => ({ title: g.title, pic: p.pic, picName: p.picName, project: g.project, deadline: g.deadline, notes: g.notes }))
       );
+      const created = await createTasks(flat, actor);
+
       await logAction({
         actor,
         action: "task.create",
-        target: title,
-        details: { pics: pics.map((p) => p.pic), deadline, project },
+        target: groups.map((g) => g.title).join(", "),
+        details: { count: created.length, groups: groups.map((g) => ({ title: g.title, pics: g.pics.map((p) => p.pic), deadline: g.deadline })) },
       });
       return res.status(200).json({ ok: true, tasks: created });
     } catch (err) {
