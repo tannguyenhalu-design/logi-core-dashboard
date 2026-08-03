@@ -234,7 +234,7 @@ export default function DashboardPage({ user: initialUser }) {
           </nav>
 
           {/* ── Role Switcher (Manager only) ── */}
-          {isManager && rawCache && (
+          {isManager && dashData && (
             <div style={{ position: "relative", marginTop: "auto" }}>
               {/* label */}
               <div style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", padding: "12px 8px 4px" }}>
@@ -258,7 +258,7 @@ export default function DashboardPage({ user: initialUser }) {
               </button>
 
               {showRoleMenu && (() => {
-                const allClients = [...new Set((rawCache.ltl || []).map(r => r.client_name))].filter(Boolean).sort();
+                const allClients = allProjects;
                 const menuItems = [
                   { label: "👑 Manager (Tổng quan)", type: "manager", value: null },
                   ...staffPics.map(p => ({ label: `👤 Nhân sự: ${p}`, type: "cs", value: p })),
@@ -303,7 +303,7 @@ export default function DashboardPage({ user: initialUser }) {
           )}
 
           {/* User info + Logout */}
-          <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, marginTop: isManager && rawCache ? 8 : "auto" }}>
+          <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, marginTop: isManager && dashData ? 8 : "auto" }}>
             <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>
               👑 {user.role === "sd3" ? "Chuyên viên SD" : user.role === "cs" ? "CS" : "Manager"}
             </div>
@@ -394,13 +394,8 @@ export default function DashboardPage({ user: initialUser }) {
               <button
                 onClick={async () => {
                   if (confirm("Đồng bộ dữ liệu trực tiếp từ Google Sheet? (Quá trình này có thể mất 15-20s do tải >50.000 dòng từ Sheet).")) {
-                    const raw = await fetchRaw(true);
-                    if (raw) {
-                      applyTransforms(raw, selectedMonths, selectedProjects, filterMode);
-                      alert("Đồng bộ thành công!");
-                    } else {
-                      alert("Đồng bộ thất bại, vui lòng kiểm tra lại mạng!");
-                    }
+                    await fetchDashboardData(selectedMonths, selectedProjects, filterMode, viewAs);
+                    alert("Đồng bộ thành công!");
                   }
                 }}
                 disabled={loading}
