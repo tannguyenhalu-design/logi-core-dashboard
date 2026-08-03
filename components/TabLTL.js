@@ -1107,7 +1107,7 @@ export default function TabLTL({ data, rawData, selectedProjects = [], userRole 
 
   if (!data) return <TruckLoader />;
 
-  const rawLtl = rawData?.ltl || [];
+  const rawLtl = data.filteredRows || [];
 
   const isClient = userRole === "client";
   const singleProjectMode = selectedProjects.length === 1;
