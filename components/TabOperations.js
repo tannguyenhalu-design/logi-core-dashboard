@@ -32,116 +32,102 @@ export default function TabOperations({ rawData, userRole }) {
   // Active sub-tab state ('projects' | 'tasks')
   const [activeSubTab, setActiveSubTab] = useState("projects");
 
-  // Task & Deadline Tracker state
+  // Task & Deadline Tracker state — shared across the team via /api/tasks
+  // (Sheet-backed), not per-browser localStorage.
   const [tasks, setTasks] = useState([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
   const [taskPicFilter, setTaskPicFilter] = useState("all");
   const [taskStatusFilter, setTaskStatusFilter] = useState("all");
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
 
-  // New task form state
+  // New task form state — newTaskPics supports assigning one task to
+  // several people at once (fans out into one tracked row per person).
   const [newTaskTitle, setNewTaskTitle] = useState("");
-  const [newTaskPic, setNewTaskPic] = useState("tutd@ghn.vn");
+  const [newTaskPics, setNewTaskPics] = useState(["tutd@ghn.vn"]);
   const [newTaskProject, setNewTaskProject] = useState("Vận hành chung SD3");
   const [newTaskDeadline, setNewTaskDeadline] = useState("");
   const [newTaskNotes, setNewTaskNotes] = useState("");
+  const [taskSaving, setTaskSaving] = useState(false);
 
-  // Load tasks from localStorage or set initial tasks
-  useEffect(() => {
+  const fetchTasks = () => {
+    setTasksLoading(true);
+    fetch("/api/tasks")
+      .then((r) => r.json())
+      .then((json) => { if (json.ok) setTasks(json.tasks || []); })
+      .catch((e) => console.error("Failed to load tasks:", e))
+      .finally(() => setTasksLoading(false));
+  };
+
+  useEffect(() => { fetchTasks(); }, []);
+
+  const toggleNewTaskPic = (email) => {
+    setNewTaskPics((prev) => prev.includes(email) ? prev.filter((p) => p !== email) : [...prev, email]);
+  };
+
+  const handleAddTask = async (e) => {
+    e.preventDefault();
+    if (!newTaskTitle.trim() || !newTaskDeadline || newTaskPics.length === 0) return;
+
+    setTaskSaving(true);
     try {
-      const saved = localStorage.getItem("sd3_tasks_v1");
-      if (saved) {
-        setTasks(JSON.parse(saved));
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: newTaskTitle.trim(),
+          pics: newTaskPics.map((email) => ({ pic: email, picName: PIC_NAMES[email] || email })),
+          project: newTaskProject,
+          deadline: newTaskDeadline,
+          notes: newTaskNotes.trim(),
+        }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setTasks((prev) => [...json.tasks, ...prev]);
+        setShowAddTaskModal(false);
+        setNewTaskTitle("");
+        setNewTaskDeadline("");
+        setNewTaskNotes("");
+        setNewTaskPics(["tutd@ghn.vn"]);
       } else {
-        const INITIAL_TASKS = [
-          {
-            id: "task-1",
-            title: "Báo cáo ODR & SLA tuần 31 gửi Giám đốc Vận hành",
-            pic: "diennk@giaohangnhanh.vn",
-            picName: "Kim Diện",
-            project: "Vận hành chung SD3",
-            deadline: "2026-08-04",
-            status: "ontime",
-            notes: "Đã tổng hợp 100% dữ liệu từ các kho",
-          },
-          {
-            id: "task-2",
-            title: "Đối soát cước phí vận tải & doanh thu dự án Casper T7",
-            pic: "tutd@ghn.vn",
-            picName: "Duy Tú",
-            project: "Casper",
-            deadline: "2026-08-05",
-            status: "in_progress",
-            notes: "Đang kiểm tra 442 đơn giao",
-          },
-          {
-            id: "task-3",
-            title: "Rà soát & giải quyết đền bù 5 ca hư hỏng kho Bình Dương",
-            pic: "datnt2@ghn.vn",
-            picName: "Nguyễn Tiến Đạt",
-            project: "Aqua B2C",
-            deadline: "2026-08-03",
-            status: "ontime",
-            notes: "Đã chốt phương án đền bù với bảo hiểm",
-          },
-          {
-            id: "task-4",
-            title: "Nghiệm thu & cập nhật SOP vận hành dự án Aqua B2C",
-            pic: "tutd@ghn.vn",
-            picName: "Duy Tú",
-            project: "Aqua B2C",
-            deadline: "2026-08-01",
-            status: "overdue",
-            notes: "Cần bổ sung quy trình giao kho bãi",
-          },
-        ];
-        setTasks(INITIAL_TASKS);
-        localStorage.setItem("sd3_tasks_v1", JSON.stringify(INITIAL_TASKS));
+        alert(json.error || "Không thể tạo task.");
       }
     } catch (e) {
-      console.error("Failed to load tasks:", e);
+      alert("Lỗi kết nối, vui lòng thử lại.");
+    } finally {
+      setTaskSaving(false);
     }
-  }, []);
+  };
 
-  const saveTasks = (newTasks) => {
-    setTasks(newTasks);
+  const handleToggleTaskStatus = async (id, newStatus) => {
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status: newStatus } : t)));
     try {
-      localStorage.setItem("sd3_tasks_v1", JSON.stringify(newTasks));
+      const res = await fetch("/api/tasks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status: newStatus }),
+      });
+      const json = await res.json();
+      if (!json.ok) fetchTasks(); // revert to server truth on failure
     } catch (e) {
-      console.error("Failed to save tasks:", e);
+      fetchTasks();
     }
   };
 
-  const handleAddTask = (e) => {
-    e.preventDefault();
-    if (!newTaskTitle.trim() || !newTaskDeadline) return;
-
-    const newTask = {
-      id: "task-" + Date.now(),
-      title: newTaskTitle.trim(),
-      pic: newTaskPic,
-      picName: PIC_NAMES[newTaskPic] || newTaskPic,
-      project: newTaskProject,
-      deadline: newTaskDeadline,
-      status: "in_progress",
-      notes: newTaskNotes.trim(),
-    };
-
-    const updated = [newTask, ...tasks];
-    saveTasks(updated);
-    setShowAddTaskModal(false);
-    setNewTaskTitle("");
-    setNewTaskDeadline("");
-    setNewTaskNotes("");
-  };
-
-  const handleToggleTaskStatus = (id, newStatus) => {
-    const updated = tasks.map((t) => (t.id === id ? { ...t, status: newStatus } : t));
-    saveTasks(updated);
-  };
-
-  const handleDeleteTask = (id) => {
-    const updated = tasks.filter((t) => t.id !== id);
-    saveTasks(updated);
+  const handleDeleteTask = async (id) => {
+    const prevTasks = tasks;
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const json = await res.json();
+      if (!json.ok) setTasks(prevTasks);
+    } catch (e) {
+      setTasks(prevTasks);
+    }
   };
 
   // User session state returned from API
@@ -516,7 +502,13 @@ export default function TabOperations({ rawData, userRole }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredTasks.length > 0 ? (
+                      {tasksLoading ? (
+                        <tr>
+                          <td colSpan={6} style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>
+                            Đang tải task...
+                          </td>
+                        </tr>
+                      ) : filteredTasks.length > 0 ? (
                         filteredTasks.map((t) => {
                           const isOverdue = t.status === "overdue";
                           const isOntime = t.status === "ontime";
@@ -634,30 +626,41 @@ export default function TabOperations({ rawData, userRole }) {
                           />
                         </div>
 
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                          <div>
-                            <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>Người Đảm Nhiệm (PIC):</label>
-                            <select
-                              value={newTaskPic}
-                              onChange={(e) => setNewTaskPic(e.target.value)}
-                              style={{ width: "100%", background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 10px", borderRadius: 6, fontSize: 12, marginTop: 4 }}
-                            >
-                              <option value="tutd@ghn.vn">Duy Tú</option>
-                              <option value="diennk@giaohangnhanh.vn">Kim Diện</option>
-                              <option value="datnt2@ghn.vn">Nguyễn Tiến Đạt</option>
-                            </select>
+                        <div>
+                          <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>
+                            Người Đảm Nhiệm (PIC) — chọn nhiều người để giao cùng 1 task cho cả nhóm:
+                          </label>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+                            {Object.entries(PIC_NAMES).map(([email, name]) => {
+                              const checked = newTaskPics.includes(email);
+                              return (
+                                <label
+                                  key={email}
+                                  style={{
+                                    display: "flex", alignItems: "center", gap: 6, cursor: "pointer",
+                                    background: checked ? "rgba(20, 224, 196,0.15)" : "var(--input-bg)",
+                                    border: `1px solid ${checked ? "var(--cyan)" : "var(--border)"}`,
+                                    color: checked ? "var(--cyan)" : "var(--text-secondary)",
+                                    padding: "6px 10px", borderRadius: 6, fontSize: 12, fontWeight: 600,
+                                  }}
+                                >
+                                  <input type="checkbox" checked={checked} onChange={() => toggleNewTaskPic(email)} style={{ margin: 0 }} />
+                                  {name}
+                                </label>
+                              );
+                            })}
                           </div>
+                        </div>
 
-                          <div>
-                            <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>Hạn Chót (Deadline):</label>
-                            <input
-                              type="date"
-                              required
-                              value={newTaskDeadline}
-                              onChange={(e) => setNewTaskDeadline(e.target.value)}
-                              style={{ width: "100%", background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 10px", borderRadius: 6, fontSize: 12, marginTop: 4 }}
-                            />
-                          </div>
+                        <div>
+                          <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>Hạn Chót (Deadline):</label>
+                          <input
+                            type="date"
+                            required
+                            value={newTaskDeadline}
+                            onChange={(e) => setNewTaskDeadline(e.target.value)}
+                            style={{ width: "100%", background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 10px", borderRadius: 6, fontSize: 12, marginTop: 4 }}
+                          />
                         </div>
 
                         <div>
@@ -692,9 +695,10 @@ export default function TabOperations({ rawData, userRole }) {
                           </button>
                           <button
                             type="submit"
-                            style={{ background: "var(--green)", color: "var(--text-primary)", border: "none", padding: "8px 20px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                            disabled={taskSaving || newTaskPics.length === 0}
+                            style={{ background: "var(--green)", color: "var(--text-primary)", border: "none", padding: "8px 20px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: taskSaving ? "not-allowed" : "pointer", opacity: taskSaving || newTaskPics.length === 0 ? 0.6 : 1 }}
                           >
-                            Lưu Task Mới
+                            {taskSaving ? "Đang lưu..." : newTaskPics.length > 1 ? `Lưu ${newTaskPics.length} Task` : "Lưu Task Mới"}
                           </button>
                         </div>
                       </form>
