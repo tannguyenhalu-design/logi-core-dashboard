@@ -752,7 +752,7 @@ function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, 
   const highlightProvinces = sortedProvinces.slice(0, 5).map((p) => p.name);
 
   const routeLines = singleProjectMode
-    ? routeStats.slice(0, 100).map((r) => ({ from: r.from, to: r.to, weight: r.orders, color: "#33D6C0" }))
+    ? routeStats.slice(0, 25).map((r) => ({ from: r.from, to: r.to, weight: r.orders, color: "#33D6C0" }))
     : [];
 
   const inspectData = activeProv ? (provinceDetailsMap[activeProv] || provinceStats.find(p => p.name === activeProv)?.details) : null;
@@ -1100,14 +1100,14 @@ function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, 
   );
 }
 
-export default function TabLTL({ data, selectedProjects = [], userRole }) {
+export default function TabLTL({ data, rawData, selectedProjects = [], userRole }) {
   const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
   const [selectedProvinceOrders, setSelectedProvinceOrders] = useState(null); // stores the clicked province name
   const theme = useTheme();
 
   if (!data) return <TruckLoader />;
 
-  const rawLtl = data.raw?.ltl || [];
+  const rawLtl = rawData?.ltl || [];
 
   const isClient = userRole === "client";
   const singleProjectMode = selectedProjects.length === 1;

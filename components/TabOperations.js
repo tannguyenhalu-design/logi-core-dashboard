@@ -546,34 +546,58 @@ export default function TabOperations({ rawData, userRole }) {
                               </td>
                               <td style={{ padding: "10px 14px", textAlign: "right" }}>
                                 <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                                  <a
-                                    href={(() => {
-                                      const title = encodeURIComponent(`[SD3 Task] ${t.title}`);
-                                      const dateStr = (t.deadline || "").replace(/-/g, "");
-                                      const dates = dateStr ? `${dateStr}T090000/${dateStr}T180000` : "";
-                                      const details = encodeURIComponent(`Nhiệm vụ vận hành SD3 GHN:\n- Tên công việc: ${t.title}\n- Dự án: ${t.project}\n- PIC đảm nhiệm: ${t.picName} (${t.pic})\n- Ghi chú: ${t.notes || "N/A"}`);
-                                      const add = encodeURIComponent(t.pic || "");
-                                      return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&add=${add}`;
-                                    })()}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    title="Thêm lịch Google Calendar & tự động nhắc PIC"
-                                    style={{
-                                      background: "rgba(2, 132, 199, 0.12)",
-                                      border: "1px solid var(--cyan)",
-                                      color: "var(--cyan)",
-                                      padding: "3px 8px",
-                                      borderRadius: 4,
-                                      fontSize: 11,
-                                      textDecoration: "none",
-                                      fontWeight: 600,
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      gap: 3,
-                                    }}
-                                  >
-                                    📅 Lịch Google
-                                  </a>
+                                  {t.calendarLink ? (
+                                    <a
+                                      href={t.calendarLink}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title="Đã tự động tạo lịch & mời PIC qua email — bấm để xem trên Google Calendar"
+                                      style={{
+                                        background: "rgba(16,185,129,0.12)",
+                                        border: "1px solid var(--green)",
+                                        color: "var(--green)",
+                                        padding: "3px 8px",
+                                        borderRadius: 4,
+                                        fontSize: 11,
+                                        textDecoration: "none",
+                                        fontWeight: 600,
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 3,
+                                      }}
+                                    >
+                                      ✓ Đã tạo lịch
+                                    </a>
+                                  ) : (
+                                    <a
+                                      href={(() => {
+                                        const title = encodeURIComponent(`[SD3 Task] ${t.title}`);
+                                        const dateStr = (t.deadline || "").replace(/-/g, "");
+                                        const dates = dateStr ? `${dateStr}T090000/${dateStr}T180000` : "";
+                                        const details = encodeURIComponent(`Nhiệm vụ vận hành SD3 GHN:\n- Tên công việc: ${t.title}\n- Dự án: ${t.project}\n- PIC đảm nhiệm: ${t.picName} (${t.pic})\n- Ghi chú: ${t.notes || "N/A"}`);
+                                        const add = encodeURIComponent(t.pic || "");
+                                        return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&add=${add}`;
+                                      })()}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title="Chưa tự tạo được lịch — bấm để tự thêm thủ công"
+                                      style={{
+                                        background: "rgba(2, 132, 199, 0.12)",
+                                        border: "1px solid var(--cyan)",
+                                        color: "var(--cyan)",
+                                        padding: "3px 8px",
+                                        borderRadius: 4,
+                                        fontSize: 11,
+                                        textDecoration: "none",
+                                        fontWeight: 600,
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 3,
+                                      }}
+                                    >
+                                      📅 Lịch Google
+                                    </a>
+                                  )}
                                   <button
                                     onClick={() => handleToggleTaskStatus(t.id, t.status === "ontime" ? "in_progress" : "ontime")}
                                     style={{ background: "rgba(16,185,129,0.15)", border: "1px solid var(--green)", color: "var(--green)", padding: "3px 8px", borderRadius: 4, fontSize: 11, cursor: "pointer", fontWeight: 600 }}
