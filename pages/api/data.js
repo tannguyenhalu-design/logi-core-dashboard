@@ -1,17 +1,46 @@
 /**
  * pages/api/data.js
- * GET /api/data?months=1,2,3&projects=GTC,ABC
+ * GET /api/data?months=1,2,3&projects=GTC,ABC&filterMode=pickup&viewAsType=cs&viewAsValue=PIC_NAME
  * 
  * Protected endpoint — requires valid session.
- * Fetches Google Sheets, transforms data, returns JSON.
- * If role='client', automatically filters to user's assigned project.
+ * Fetches Google Sheets, filters raw data securely on the backend, 
+ * transforms data, and returns the aggregated JSON.
  */
 import { getSession } from "../../lib/auth";
 import { fetchSheet } from "../../lib/sheets";
+import { isDMClient } from "../../lib/dm-clients";
 import { transformLTL } from "../../lib/transform-ltl";
 import { transformFTL } from "../../lib/transform-ftl";
 import { transformTachTrip } from "../../lib/transform-tach-trip";
 import { transformAIInsights } from "../../lib/transform-ai-insights";
+
+// Helper to filter dates from July 2026 onwards
+const parseDDMMYYYY = (str) => {
+  const m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (!m) return null;
+  return { day: parseInt(m[1]), month: parseInt(m[2]), year: parseInt(m[3]) };
+};
+
+const isFromJuly2026 = (dateStr) => {
+  if (!dateStr) return false;
+  const trimStr = String(dateStr).trim();
+  if (typeof dateStr === "number") {
+    const d = new Date(new Date(1899, 11, 30).getTime() + dateStr * 86400000);
+    return d.getFullYear() > 2026 || (d.getFullYear() === 2026 && d.getMonth() >= 6);
+  }
+  if (/^\d{4}-\d{2}/.test(trimStr)) {
+    const year = parseInt(trimStr.slice(0, 4));
+    const month = parseInt(trimStr.slice(5, 7));
+    return year > 2026 || (year === 2026 && month >= 7);
+  }
+  const dmy = parseDDMMYYYY(trimStr);
+  if (dmy) {
+    return dmy.year > 2026 || (dmy.year === 2026 && dmy.month >= 7);
+  }
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return false;
+  return d.getFullYear() > 2026 || (d.getFullYear() === 2026 && d.getMonth() >= 6);
+};
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
@@ -26,10 +55,14 @@ export default async function handler(req, res) {
 
   const role = session.user.role || "manager";
   const userProject = session.user.project || null;
+  const userPic = session.user.pic || null;
 
   // ── Parse query filters ──
   let months = null;
   let projects = null;
+  let filterMode = req.query.filterMode || "pickup";
+  let viewAsType = req.query.viewAsType || "manager";
+  let viewAsValue = req.query.viewAsValue || null;
 
   if (req.query.months) {
     months = req.query.months
@@ -44,25 +77,58 @@ export default async function handler(req, res) {
     if (projects.length === 0) projects = null;
   }
 
-  // ── Enforce client project restriction ──
+  // ── Enforce client/cs restrictions strictly at Backend ──
   if (role === "client" && userProject) {
     projects = [userProject];
+    viewAsType = "client";
   }
 
   try {
+    const ltlSheetId = process.env.SHEET_ID_LTL;
     // ── Fetch raw data from Google Sheets ──
-    const [rawLTL, rawFTL, masterVehicle, rawDamage] = await Promise.all([
-      fetchSheet("raw_ontime"),
+    const [rawLTL, rawFTL, masterVehicle, rawDamage, rawMapping] = await Promise.all([
+      fetchSheet("raw_ontime", ltlSheetId).catch(() => []),
       fetchSheet("Raw_FTL").catch(() => []),
       fetchSheet("Master data xe").catch(() => []),
-      fetchSheet("raw_damage").catch(() => []),
+      fetchSheet("raw_damage", ltlSheetId).catch(() => []),
+      fetchSheet("mapping", ltlSheetId).catch(() => [])
     ]);
 
+    if (!rawLTL || rawLTL.length === 0) {
+      throw new Error("No LTL data found");
+    }
+
+    // ── 1. Base Filtering (DM Clients + Date >= July 2026) ──
+    let filteredLTL = rawLTL.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"]));
+    let filteredDamage = rawDamage.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"] || r["case_date"]));
+
+    // Build the PIC mapping object
+    const picMapping = {};
+    if (rawMapping) {
+      rawMapping.forEach(row => {
+        if (row.client_name && row.PIC) {
+          picMapping[row.client_name] = row.PIC;
+        }
+      });
+    }
+
+    // ── 2. Apply Security / ViewAs Filtering ──
+    if (role === "manager" && viewAsType === "cs" && viewAsValue) {
+      filteredLTL = filteredLTL.filter(r => picMapping[r.client_name] === viewAsValue);
+      filteredDamage = filteredDamage.filter(r => picMapping[r.client_name] === viewAsValue);
+    } else if (role === "manager" && viewAsType === "project" && viewAsValue) {
+      filteredLTL = filteredLTL.filter(r => r.client_name === viewAsValue);
+      filteredDamage = filteredDamage.filter(r => r.client_name === viewAsValue);
+    } else if (role === "cs" && userPic) {
+      filteredLTL = filteredLTL.filter(r => picMapping[r.client_name] === userPic);
+      filteredDamage = filteredDamage.filter(r => picMapping[r.client_name] === userPic);
+    }
+
     // ── Transform ──
-    const ltlData       = transformLTL(rawLTL, { months, projects }, rawDamage);
+    const ltlData       = transformLTL(filteredLTL, { months, projects, filterMode }, filteredDamage);
     const ftlData       = transformFTL(rawFTL, masterVehicle, { months, projects });
-    const tachTripData  = transformTachTrip(rawLTL);
-    const aiInsights    = transformAIInsights(rawLTL);
+    const tachTripData  = transformTachTrip(filteredLTL);
+    const aiInsights    = transformAIInsights(filteredLTL);
 
     // Filter revenue metrics for unauthorized roles
     const canSeeRevenue = role === "manager" || role === "sd3";
@@ -84,14 +150,16 @@ export default async function handler(req, res) {
       }
     }
 
-    // ── Overview: all-time totals (no filter) ──
-    const overviewLTL = transformLTL(rawLTL, {}, rawDamage);
+    // ── Overview: all-time totals (no project/month filter, but applies security filter) ──
+    const overviewLTL = transformLTL(filteredLTL, { filterMode }, filteredDamage);
     const overviewFTL = transformFTL(rawFTL, masterVehicle, {});
 
     return res.status(200).json({
       ok: true,
-      user: { role, project: userProject },
-      filters: { months, projects },
+      user: { role, project: userProject, pic: userPic },
+      picMapping, // Pass picMapping so the frontend can populate the CS dropdown
+      filters: { months, projects, filterMode },
+      viewAs: { type: viewAsType, value: viewAsValue },
       ltl: ltlData,
       ftl: ftlData,
       tachTrip: tachTripData,

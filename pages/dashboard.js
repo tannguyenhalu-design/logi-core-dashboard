@@ -32,9 +32,6 @@ export default function DashboardPage({ user: initialUser }) {
   const [loading, setLoading] = useState(canSeeLTL);
   const [filtering, setFiltering] = useState(false);
   const [error, setError] = useState(null);
-  const [rawCache, setRawCache] = useState(null);
-  const [tcData, setTcData] = useState(null);
-  const [tcLoading, setTcLoading] = useState(false);
   const [tcError, setTcError] = useState(null);
   // Role-switcher for manager: { type: 'manager'|'pic'|'project', value: string|null }
   const [viewAs, setViewAs] = useState({ type: "manager", value: null });
@@ -59,89 +56,37 @@ export default function DashboardPage({ user: initialUser }) {
       .catch(() => {});
   }, [isManager]);
 
-  // ── Fetch raw data ONCE on mount ──
-  const fetchRaw = useCallback(async (forceRefresh = false) => {
+  // ── Fetch aggregated data from Backend API ──
+  const fetchDashboardData = useCallback(async (months, projects, fMode, viewAsOverride) => {
     setLoading(true);
     setError(null);
     try {
-      const url = forceRefresh 
-        ? `/api/rawdata?refresh=true&t=${Date.now()}` 
-        : `/api/rawdata?t=${Date.now()}`;
-      const res = await fetch(url);
+      const effectiveViewAs = viewAsOverride !== undefined ? viewAsOverride : viewAs;
+      const params = new URLSearchParams();
+      if (months && months.length > 0) params.append("months", months.join(","));
+      if (projects && projects.length > 0) params.append("projects", projects.join(","));
+      if (fMode) params.append("filterMode", fMode);
+      if (effectiveViewAs.type) params.append("viewAsType", effectiveViewAs.type);
+      if (effectiveViewAs.value) params.append("viewAsValue", effectiveViewAs.value);
+      params.append("t", Date.now());
+
+      const res = await fetch(`/api/data?${params.toString()}`);
       if (!res.ok) throw new Error(`API error ${res.status}`);
-      const raw = await res.json();
-      setRawCache(raw);
-      return raw;
+      const data = await res.json();
+      setDashData(data);
     } catch (e) {
       setError(e.message);
-      return null;
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  // ── Apply all transforms client-side ──
-  const applyTransforms = useCallback((raw, months, projects, fMode, overrideViewAs) => {
-    if (!raw) return;
-    setFiltering(true);
-    setTimeout(() => {
-      try {
-        const userSession = raw.user || {};
-        const picMapping = raw.picMapping || {};
-
-        let ltlSource = raw.ltl || [];
-        let damageSource = raw.damage || [];
-
-        // Role-switcher: manager can impersonate a PIC or a project view
-        const effectiveViewAs = overrideViewAs !== undefined ? overrideViewAs : viewAs;
-        if (userSession.role === "manager" && effectiveViewAs.type === "cs" && effectiveViewAs.value) {
-          ltlSource = ltlSource.filter(r => picMapping[r.client_name] === effectiveViewAs.value);
-          damageSource = damageSource.filter(r => picMapping[r.client_name] === effectiveViewAs.value);
-        } else if (userSession.role === "manager" && effectiveViewAs.type === "project" && effectiveViewAs.value) {
-          ltlSource = ltlSource.filter(r => r.client_name === effectiveViewAs.value);
-          damageSource = damageSource.filter(r => r.client_name === effectiveViewAs.value);
-        } else if (userSession.role === "cs" && userSession.pic) {
-          // CS Filtering check (for actual CS users)
-          ltlSource = (raw.ltl || []).filter(r => picMapping[r.client_name] === userSession.pic);
-          damageSource = (raw.damage || []).filter(r => picMapping[r.client_name] === userSession.pic);
-        }
-
-        const mFilter  = months.length > 0 ? months : null;
-        const pFilter  = userSession.role === "client" && userSession.project
-          ? [userSession.project]
-          : projects.length > 0 ? projects : null;
-        const filters  = { months: mFilter, projects: pFilter, filterMode: fMode || "pickup" };
-
-        const ltlData      = transformLTL(ltlSource, filters, damageSource);
-
-        setDashData({
-          ok: true,
-          user:    userSession,
-          picMapping,
-          filters,
-          ltl:     ltlData,
-          overview: {
-            allProjectsLTL: ltlData.allProjects || [],
-          },
-          raw: {
-            ltl: ltlSource,
-            damage: damageSource,
-            user: userSession,
-            picMapping,
-          }
-        });
-      } catch(e) { setError(e.message); }
-      finally    { setFiltering(false); }
-    }, 0);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewAs]);
 
-  // Mount: fetch raw once (only if this user can see the LTL tab at all)
+  // Fetch data on mount and whenever filters change
   useEffect(() => {
     if (!canSeeLTL) return;
-    fetchRaw().then(raw => { if (raw) applyTransforms(raw, [], [], "pickup", { type: "manager", value: null }); });
+    fetchDashboardData(selectedMonths, selectedProjects, filterMode, viewAs);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [selectedMonths, selectedProjects, filterMode, viewAs, canSeeLTL]);
 
   // Tách Chuyến: fetch lazily the first time the user opens that tab
   useEffect(() => {
@@ -159,11 +104,7 @@ export default function DashboardPage({ user: initialUser }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  // Filter change: re-transform client-side
-  useEffect(() => {
-    if (rawCache) applyTransforms(rawCache, selectedMonths, selectedProjects, filterMode);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonths, selectedProjects, filterMode, viewAs]);
+
 
   const allProjects = dashData
     ? (dashData.overview?.allProjectsLTL || []).sort()
