@@ -826,7 +826,7 @@ function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, 
             provinceDetailsMap={provinceDetailsMap}
             viewMode={viewMode}
             onProvinceHover={(prov) => setActiveProv(prov)}
-            onProvinceClick={(prov) => setActiveProv(prov)}
+            onProvinceClick={(prov) => setSelectedProvinceOrders(prov)}
           />
           {singleProjectMode && (
             <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8, textAlign: "center" }}>
@@ -1102,9 +1102,12 @@ function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, 
 
 export default function TabLTL({ data, selectedProjects = [], userRole }) {
   const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
+  const [selectedProvinceOrders, setSelectedProvinceOrders] = useState(null); // stores the clicked province name
   const theme = useTheme();
 
   if (!data) return <TruckLoader />;
+
+  const rawLtl = data.raw?.ltl || [];
 
   const isClient = userRole === "client";
   const singleProjectMode = selectedProjects.length === 1;
@@ -1127,6 +1130,12 @@ export default function TabLTL({ data, selectedProjects = [], userRole }) {
       projects
     );
   };
+
+  const closeProvModal = () => setSelectedProvinceOrders(null);
+  const provOrdersList = selectedProvinceOrders ? rawLtl.filter(r => 
+    String(r.from_province_name || "").trim() === selectedProvinceOrders || 
+    String(r.to_province_name || "").trim() === selectedProvinceOrders
+  ) : [];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -1311,6 +1320,78 @@ export default function TabLTL({ data, selectedProjects = [], userRole }) {
           showClaimsWorkflow={!isClient}
         />
       </div>
+      {/* Detailed Orders Modal */}
+      {selectedProvinceOrders && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+          display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999
+        }} onClick={closeProvModal}>
+          <div style={{
+            background: "var(--bg-panel)", border: "1px solid var(--border)",
+            borderRadius: 12, padding: 24, width: "90%", maxWidth: 800,
+            maxHeight: "85vh", display: "flex", flexDirection: "column",
+            boxShadow: "0 20px 40px rgba(0,0,0,0.4)"
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 18, color: "var(--text-primary)" }}>
+                  📍 Chi tiết đơn hàng: <span style={{ color: "var(--cyan)" }}>{selectedProvinceOrders}</span>
+                </h2>
+                <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
+                  Tổng cộng: {provOrdersList.length} đơn hàng trong bộ lọc hiện tại
+                </div>
+              </div>
+              <button onClick={closeProvModal} style={{
+                background: "none", border: "none", color: "var(--text-muted)",
+                fontSize: 24, cursor: "pointer", lineHeight: 1
+              }}>✕</button>
+            </div>
+            
+            <div style={{ overflowY: "auto", flex: 1, borderRadius: 8, border: "1px solid var(--border)" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
+                <thead style={{ position: "sticky", top: 0, background: "var(--bg-panel)", zIndex: 1 }}>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                    <th style={{ padding: "10px 12px", color: "var(--text-secondary)", fontWeight: 600 }}>Mã Đơn</th>
+                    <th style={{ padding: "10px 12px", color: "var(--text-secondary)", fontWeight: 600 }}>Dự Án</th>
+                    <th style={{ padding: "10px 12px", color: "var(--text-secondary)", fontWeight: 600 }}>Tuyến Đường</th>
+                    <th style={{ padding: "10px 12px", color: "var(--text-secondary)", fontWeight: 600 }}>Trọng Lượng</th>
+                    <th style={{ padding: "10px 12px", color: "var(--text-secondary)", fontWeight: 600 }}>Trạng Thái</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {provOrdersList.length === 0 ? (
+                    <tr><td colSpan="5" style={{ padding: 20, textAlign: "center", color: "var(--text-muted)" }}>Không có đơn hàng nào</td></tr>
+                  ) : (
+                    provOrdersList.map((odr, idx) => {
+                      const isLate = String(odr.odr_success || "").toLowerCase().includes("late");
+                      return (
+                        <tr key={idx} style={{ borderBottom: "1px solid var(--border)", background: idx % 2 === 0 ? "transparent" : "var(--panel-glow)" }}>
+                          <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--text-primary)" }}>{odr.order_code || "N/A"}</td>
+                          <td style={{ padding: "10px 12px", color: "var(--text-muted)" }}>{odr.client_name}</td>
+                          <td style={{ padding: "10px 12px", color: "var(--text-muted)" }}>
+                            <span style={{ color: odr.from_province_name === selectedProvinceOrders ? "var(--cyan)" : "inherit" }}>{odr.from_province_name || "?"}</span>
+                            {" → "}
+                            <span style={{ color: odr.to_province_name === selectedProvinceOrders ? "var(--cyan)" : "inherit" }}>{odr.to_province_name || "?"}</span>
+                          </td>
+                          <td style={{ padding: "10px 12px", color: "var(--text-muted)" }}>{odr.weight ? `${odr.weight} kg` : "-"}</td>
+                          <td style={{ padding: "10px 12px" }}>
+                            {isLate ? (
+                              <span style={{ background: "rgba(244,63,94,0.15)", color: "var(--red)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 }}>Late</span>
+                            ) : (
+                              <span style={{ background: "rgba(16,185,129,0.15)", color: "var(--green)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 }}>Ontime</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

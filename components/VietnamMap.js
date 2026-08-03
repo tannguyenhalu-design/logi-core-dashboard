@@ -65,6 +65,12 @@ export default function VietnamMap({
   const maxRouteWeight = routeLines.length ? Math.max(...routeLines.map((r) => r.weight || 1)) : 1;
   const hoverDetail = hoveredProv ? provinceDetailsMap[hoveredProv] : null;
 
+  // Extract unique colors for arrow markers
+  const arrowColors = [...new Set([
+    ...routeLines.map((r) => r.color || "#33D6C0"),
+    ...Object.values(corridorGroups).map((g) => g.color || "#38bdf8")
+  ])];
+
   return (
     <div style={{ position: "relative", width: "100%", overflow: "hidden", borderRadius: 12, ...style }}>
       <svg
@@ -82,6 +88,14 @@ export default function VietnamMap({
           transition: "background 0.3s ease",
         }}
       >
+        <defs>
+          {arrowColors.map(c => (
+            <marker key={c} id={`arrow-${c.replace("#", "")}`} markerWidth="8" markerHeight="8" refX="10" refY="4" orient="auto">
+              <polygon points="0 0, 8 4, 0 8" fill={c} opacity="0.9" />
+            </marker>
+          ))}
+        </defs>
+
         {/* Other paths (seas, islands, borders) */}
         {PROV_PATHS.other_paths &&
           PROV_PATHS.other_paths.map((d, i) => (
@@ -147,6 +161,7 @@ export default function VietnamMap({
                       stroke={color}
                       strokeWidth="2.2"
                       opacity="0.95"
+                      markerEnd={`url(#arrow-${(color || "#38bdf8").replace("#", "")})`}
                     />
                     <circle cx={pts[1][0]} cy={pts[1][1]} r="3" fill={color} stroke="#0E1420" strokeWidth="0.8" />
                   </g>
@@ -183,6 +198,7 @@ export default function VietnamMap({
                 stroke={r.color || "#33D6C0"}
                 strokeWidth={w}
                 opacity="0.75"
+                markerEnd={`url(#arrow-${(r.color || "#33D6C0").replace("#", "")})`}
               />
               <circle cx={to[0]} cy={to[1]} r="3.5" fill={r.color || "#33D6C0"} stroke="#0E1420" strokeWidth="0.8" />
             </g>
