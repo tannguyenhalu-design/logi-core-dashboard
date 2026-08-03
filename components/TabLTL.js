@@ -702,7 +702,7 @@ function getOntimeBadge(pct) {
 }
 
 // ── Province delivery map + AI insight (Bản đồ phân bố + gợi ý theo tỉnh) ──
-function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, projectSummaries = {}, overallData = {}, singleProjectMode, projectName }) {
+function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, projectSummaries = {}, overallData = {}, singleProjectMode, projectName, onProvinceClick }) {
   const [activeProv, setActiveProv] = useState(null);
   const [viewMode, setViewMode] = useState("orders"); // 'orders' | 'weight' | 'ontime' | 'damage'
 
@@ -752,7 +752,7 @@ function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, 
   const highlightProvinces = sortedProvinces.slice(0, 5).map((p) => p.name);
 
   const routeLines = singleProjectMode
-    ? routeStats.slice(0, 15).map((r) => ({ from: r.from, to: r.to, weight: r.orders, color: "#33D6C0" }))
+    ? routeStats.slice(0, 100).map((r) => ({ from: r.from, to: r.to, weight: r.orders, color: "#33D6C0" }))
     : [];
 
   const inspectData = activeProv ? (provinceDetailsMap[activeProv] || provinceStats.find(p => p.name === activeProv)?.details) : null;
@@ -826,7 +826,7 @@ function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, 
             provinceDetailsMap={provinceDetailsMap}
             viewMode={viewMode}
             onProvinceHover={(prov) => setActiveProv(prov)}
-            onProvinceClick={(prov) => setSelectedProvinceOrders(prov)}
+            onProvinceClick={(prov) => onProvinceClick ? onProvinceClick(prov) : setActiveProv(prov)}
           />
           {singleProjectMode && (
             <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8, textAlign: "center" }}>
@@ -1064,7 +1064,7 @@ function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, 
                     key={p.name}
                     onMouseEnter={() => setActiveProv(p.name)}
                     onMouseLeave={() => setActiveProv(null)}
-                    onClick={() => setActiveProv(p.name)}
+                    onClick={() => onProvinceClick ? onProvinceClick(p.name) : setActiveProv(p.name)}
                     style={{
                       background: isSelected ? "rgba(20, 224, 196, 0.12)" : "var(--panel-bg)",
                       border: isSelected ? "1px solid var(--cyan)" : `1px solid ${pOntime < 80 ? "var(--red)" : pOntime < 90 ? "var(--amber)" : "var(--border)"}`,
@@ -1205,6 +1205,7 @@ export default function TabLTL({ data, selectedProjects = [], userRole }) {
         }}
         singleProjectMode={singleProjectMode}
         projectName={singleProjectMode ? selectedProjects[0] : ""}
+        onProvinceClick={(prov) => setSelectedProvinceOrders(prov)}
       />
 
       {/* 1. Xu hướng Ontime / Late theo tháng (FULL WIDTH 100%) */}

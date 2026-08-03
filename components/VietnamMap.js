@@ -200,6 +200,7 @@ export default function VietnamMap({
                 opacity="0.75"
                 markerEnd={`url(#arrow-${(r.color || "#33D6C0").replace("#", "")})`}
               />
+              <circle cx={from[0]} cy={from[1]} r="2.5" fill="var(--map-ocean, #0E1420)" stroke={r.color || "#33D6C0"} strokeWidth="1.2" />
               <circle cx={to[0]} cy={to[1]} r="3.5" fill={r.color || "#33D6C0"} stroke="#0E1420" strokeWidth="0.8" />
             </g>
           );
