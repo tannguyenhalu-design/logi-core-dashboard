@@ -150,6 +150,17 @@ export default function TabOperations({ rawData, userRole }) {
   // User session state returned from API
   const [currentUser, setCurrentUser] = useState({ role: "manager", pic: null });
 
+  // KPI sync freshness — the sync pipeline depends on someone's laptop +
+  // Chrome session; if it silently stops, the numbers just go stale with
+  // no other signal, so surface "last synced X ago" directly.
+  const [kpiSyncStatus, setKpiSyncStatus] = useState(null);
+  useEffect(() => {
+    fetch("/api/kpi-sync-status")
+      .then((r) => r.json())
+      .then((json) => { if (json.ok) setKpiSyncStatus(json); })
+      .catch(() => {});
+  }, []);
+
   // Modal control states
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProject, setEditingProject] = useState(null); // hold project object currently being edited
@@ -849,7 +860,29 @@ export default function TabOperations({ rawData, userRole }) {
       {/* Revenue breakdown by PIC / status — rolled up from "Doanh Thu Dự Kiến" per project */}
       {canSeeRevenue && totalRevenue > 0 && (
         <div style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", padding: 16, borderRadius: 12 }}>
-          <h4 style={{ margin: "0 0 12px", fontSize: 13, color: "var(--text-primary)" }}>💰 Doanh Thu Dự Kiến — theo PIC & trạng thái</h4>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+            <h4 style={{ margin: 0, fontSize: 13, color: "var(--text-primary)" }}>💰 Doanh Thu Dự Kiến — theo PIC & trạng thái</h4>
+            {kpiSyncStatus && (() => {
+              const { status, hoursAgo, lastSyncAt } = kpiSyncStatus;
+              const color = status === "ok" ? "var(--green)" : status === "stale" ? "var(--amber)" : "var(--red)";
+              const bg = status === "ok" ? "rgba(16,185,129,0.12)" : status === "stale" ? "rgba(245,158,11,0.12)" : "rgba(244,63,94,0.12)";
+              const label = status === "never"
+                ? "Chưa từng đồng bộ KPI"
+                : hoursAgo < 1
+                ? "Đồng bộ KPI: vừa xong"
+                : hoursAgo < 24
+                ? `Đồng bộ KPI: ${Math.round(hoursAgo)}h trước`
+                : `Đồng bộ KPI: ${Math.round(hoursAgo / 24)} ngày trước`;
+              return (
+                <span
+                  title={lastSyncAt ? new Date(lastSyncAt).toLocaleString("vi-VN") : "Chưa có lần đồng bộ nào"}
+                  style={{ fontSize: 11, fontWeight: 600, color, background: bg, padding: "4px 10px", borderRadius: 20 }}
+                >
+                  {status !== "ok" && "⚠️ "}{label}
+                </span>
+              );
+            })()}
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
             <div>
               <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8 }}>Theo PIC</div>
