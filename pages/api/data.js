@@ -128,7 +128,7 @@ export default async function handler(req, res) {
     const ltlData       = transformLTL(filteredLTL, { months, projects, filterMode }, filteredDamage);
     const ftlData       = transformFTL(rawFTL, masterVehicle, { months, projects });
     const tachTripData  = transformTachTrip(filteredLTL);
-    const aiInsights    = transformAIInsights(filteredLTL);
+    const aiInsights    = transformAIInsights(filteredLTL, filteredDamage);
 
     // Filter revenue metrics for unauthorized roles
     const canSeeRevenue = role === "manager" || role === "sd3";
