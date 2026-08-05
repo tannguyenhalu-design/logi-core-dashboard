@@ -44,7 +44,6 @@ export default async function handler(req, res) {
     const tokens = await exchangeCodeForTokens(code);
     const claims = await verifyIdToken(tokens.id_token, flow.nonce);
     const userinfo = await fetchUserInfo(tokens.access_token);
-    console.log("[sso-callback] userinfo:", JSON.stringify(userinfo), "id token claims:", JSON.stringify(claims));
 
     // "sub" is the OIDC subject claim — GHN's own docs show it equal to
     // employee_id in their example token, and it's the one claim
