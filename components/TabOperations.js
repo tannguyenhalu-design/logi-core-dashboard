@@ -101,7 +101,7 @@ export default function TabOperations({ rawData, userRole }) {
         setNewTaskRows([blankTaskRow()]);
         // Assigned to exactly one person? Jump straight to their filtered
         // view instead of leaving the list showing everyone's tasks.
-        const distinctPics = [...new Set(json.tasks.map((t) => t.pic))];
+        const distinctPics = [...new Set(json.tasks.flatMap((t) => (t.pic || "").split(",").map(p => p.trim()).filter(Boolean)))];
         if (distinctPics.length === 1) {
           setTaskPicFilter(distinctPics[0]);
           setPicFilter(distinctPics[0]);
@@ -449,7 +449,7 @@ export default function TabOperations({ rawData, userRole }) {
           {/* Task KPI Summary Cards */}
           {(() => {
             const filteredTasks = tasks.filter((t) => {
-              if (taskPicFilter !== "all" && t.pic !== taskPicFilter) return false;
+              if (taskPicFilter !== "all" && !(t.pic || "").includes(taskPicFilter)) return false;
               if (taskStatusFilter !== "all" && t.status !== taskStatusFilter) return false;
               return true;
             });

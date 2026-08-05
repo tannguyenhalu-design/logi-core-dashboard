@@ -40,9 +40,14 @@ export default async function handler(req, res) {
         }
       }
 
-      const flat = groups.flatMap((g) =>
-        g.pics.map((p) => ({ title: g.title, pic: p.pic, picName: p.picName, project: g.project, deadline: g.deadline, notes: g.notes }))
-      );
+      const flat = groups.map((g) => ({
+        title: g.title,
+        pic: g.pics.map((p) => p.pic).join(", "),
+        picName: g.pics.map((p) => p.picName).join(", "),
+        project: g.project,
+        deadline: g.deadline,
+        notes: g.notes
+      }));
       const created = await createTasks(flat, actor);
 
       await logAction({
