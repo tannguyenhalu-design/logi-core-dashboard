@@ -154,12 +154,17 @@ export function DeltaBadge({ value, unit, invert }) {
 
 export function PeriodComparisonSection({ comparison, compact = false }) {
   if (!comparison) return null;
-  const { currentRangeLabel, previousRangeLabel, overall, clients } = comparison;
-  const warningClients = clients.filter((c) => c.warning);
+  const { currentRangeLabel, previousRangeLabel, overall, clients, warehouses } = comparison;
+  // Filtered to 1 project, the client breakdown is just that 1 project again
+  // (no new info) — the warehouse breakdown is what actually explains *why*
+  // that project's numbers moved, so swap to it instead of going empty.
+  const items = compact ? (warehouses || []) : (clients || []);
+  const groupLabel = compact ? "kho giao hàng" : "khách hàng";
+  const warningItems = items.filter((c) => c.warning);
 
   return (
     <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: compact ? 0 : 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, marginBottom: 16 }}>
         <div>
           <div style={{ fontWeight: 700, fontSize: 14, color: "#EAF0F8", marginBottom: 2 }}>
             📈 So sánh cùng kỳ
@@ -168,33 +173,39 @@ export function PeriodComparisonSection({ comparison, compact = false }) {
             {currentRangeLabel} so với {previousRangeLabel} (7 ngày, lùi 2 ngày đệm để đơn kịp có kết quả)
           </div>
         </div>
-        <div style={{ display: "flex", gap: 16, fontSize: 12 }}>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ color: "var(--text-muted)", fontSize: 10 }}>Số đơn</div>
+        <div style={{ display: "flex", gap: 24 }}>
+          <div style={{
+            background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)",
+            borderRadius: 10, padding: "8px 16px", minWidth: 110, textAlign: "center",
+          }}>
+            <div style={{ color: "var(--text-muted)", fontSize: 10, marginBottom: 3 }}>Số đơn</div>
             <DeltaBadge value={overall.ordersDeltaPct} unit="%" />
           </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ color: "var(--text-muted)", fontSize: 10 }}>Ontime</div>
+          <div style={{
+            background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)",
+            borderRadius: 10, padding: "8px 16px", minWidth: 110, textAlign: "center",
+          }}>
+            <div style={{ color: "var(--text-muted)", fontSize: 10, marginBottom: 3 }}>Ontime</div>
             <DeltaBadge value={overall.ontimeDeltaPoints} unit=" điểm" />
           </div>
         </div>
       </div>
 
-      {compact ? null : clients.length === 0 ? (
+      {items.length === 0 ? (
         <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
           Chưa đủ dữ liệu để so sánh.
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 }}>
-          {clients.map((c) => (
-            <div key={c.client} style={{
+          {items.map((c) => (
+            <div key={c.name} style={{
               background: c.warning ? "rgba(239,68,68,0.06)" : "rgba(255,255,255,0.03)",
               border: `1px solid ${c.warning ? "rgba(239,68,68,0.25)" : "var(--border)"}`,
               borderRadius: 10, padding: "10px 12px",
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                 <span style={{ fontWeight: 600, fontSize: 12.5, color: "#EAF0F8" }}>
-                  {c.warning && "⚠️ "}{c.client}
+                  {c.warning && "⚠️ "}{c.name}
                 </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
@@ -214,9 +225,9 @@ export function PeriodComparisonSection({ comparison, compact = false }) {
         </div>
       )}
 
-      {!compact && warningClients.length > 0 && (
+      {warningItems.length > 0 && (
         <div style={{ marginTop: 12, fontSize: 11, color: "var(--red)" }}>
-          ⚠️ {warningClients.length} khách hàng giảm rõ rệt so với kỳ trước — ưu tiên kiểm tra trước.
+          ⚠️ {warningItems.length} {groupLabel} giảm rõ rệt so với kỳ trước — ưu tiên kiểm tra trước.
         </div>
       )}
     </div>
