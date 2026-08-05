@@ -139,6 +139,90 @@ function CapacitySection({ routes }) {
   );
 }
 
+// ── Tầng 3: So sánh cùng kỳ ── (also used inline in TabLTL.js, near the ontime trend chart)
+export function DeltaBadge({ value, unit, invert }) {
+  if (value == null) return <span style={{ fontSize: 11, color: "var(--text-muted)" }}>—</span>;
+  const good = invert ? value <= 0 : value >= 0;
+  const color = value === 0 ? "var(--text-muted)" : good ? "var(--green)" : "var(--red)";
+  const arrow = value === 0 ? "→" : value > 0 ? "▲" : "▼";
+  return (
+    <span style={{ fontSize: 12, fontWeight: 700, color }}>
+      {arrow} {value > 0 ? "+" : ""}{value}{unit}
+    </span>
+  );
+}
+
+export function PeriodComparisonSection({ comparison }) {
+  if (!comparison) return null;
+  const { currentRangeLabel, previousRangeLabel, overall, clients } = comparison;
+  const warningClients = clients.filter((c) => c.warning);
+
+  return (
+    <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: "#EAF0F8", marginBottom: 2 }}>
+            📈 Tầng 3 — So sánh cùng kỳ
+          </div>
+          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+            {currentRangeLabel} so với {previousRangeLabel} (7 ngày, lùi 2 ngày đệm để đơn kịp có kết quả)
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 16, fontSize: 12 }}>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ color: "var(--text-muted)", fontSize: 10 }}>Số đơn</div>
+            <DeltaBadge value={overall.ordersDeltaPct} unit="%" />
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ color: "var(--text-muted)", fontSize: 10 }}>Ontime</div>
+            <DeltaBadge value={overall.ontimeDeltaPoints} unit=" điểm" />
+          </div>
+        </div>
+      </div>
+
+      {clients.length === 0 ? (
+        <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+          Chưa đủ dữ liệu để so sánh.
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 }}>
+          {clients.map((c) => (
+            <div key={c.client} style={{
+              background: c.warning ? "rgba(239,68,68,0.06)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${c.warning ? "rgba(239,68,68,0.25)" : "var(--border)"}`,
+              borderRadius: 10, padding: "10px 12px",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <span style={{ fontWeight: 600, fontSize: 12.5, color: "#EAF0F8" }}>
+                  {c.warning && "⚠️ "}{c.client}
+                </span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                <span style={{ color: "var(--text-muted)" }}>
+                  Đơn: {c.prev.orders} → {c.cur.orders}
+                </span>
+                <DeltaBadge value={c.ordersDeltaPct} unit="%" />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 3 }}>
+                <span style={{ color: "var(--text-muted)" }}>
+                  Ontime: {c.prev.ontimePct ?? "—"}% → {c.cur.ontimePct ?? "—"}%
+                </span>
+                <DeltaBadge value={c.ontimeDeltaPoints} unit=" điểm" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {warningClients.length > 0 && (
+        <div style={{ marginTop: 12, fontSize: 11, color: "var(--red)" }}>
+          ⚠️ {warningClients.length} khách hàng giảm rõ rệt so với kỳ trước — ưu tiên kiểm tra trước.
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ──
 export default function TabAIInsights({ data }) {
   const [refreshed] = useState(new Date().toLocaleTimeString("vi-VN"));
@@ -152,7 +236,7 @@ export default function TabAIInsights({ data }) {
     );
   }
 
-  const { breakageRoutes, capacityRoutes, avgDmgRate, totalOrders } = insights;
+  const { breakageRoutes, capacityRoutes, avgDmgRate, totalOrders, periodComparison } = insights;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -217,13 +301,8 @@ export default function TabAIInsights({ data }) {
         </div>
       </div>
 
-      {/* Footer note */}
-      <div style={{
-        fontSize: 11, color: "var(--text-muted)", textAlign: "center",
-        padding: "8px 0", borderTop: "1px solid var(--border)", opacity: 0.6,
-      }}>
-        Tầng 3 (đề xuất theo deadline + transit time) — sắp ra mắt sau khi có bảng thời gian vận chuyển
-      </div>
+      {/* Tầng 3 */}
+      <PeriodComparisonSection comparison={periodComparison} />
     </div>
   );
 }

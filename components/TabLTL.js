@@ -9,6 +9,7 @@ import KpiCard from "./KpiCard";
 import TruckLoader from "./TruckLoader";
 import VietnamMap from "./VietnamMap";
 import { downloadCSV } from "../lib/csv-export";
+import { PeriodComparisonSection } from "./TabAIInsights";
 
 Chart.register(ChartDataLabels);
 
@@ -1217,7 +1218,13 @@ export default function TabLTL({ data, rawData, selectedProjects = [], userRole 
         <div style={{ height: 240 }}>
           <OntimeMonthChart ontimeByMonth={data.ontimeByMonth} isWeekly={data.isWeekly} theme={theme} />
         </div>
+        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6, textAlign: "center" }}>
+          ⓘ Cột tháng/tuần gần nhất còn đang chạy — nhiều đơn chưa kịp giao nên % ontime sẽ còn thay đổi. Xem "So sánh cùng kỳ" bên dưới để có góc nhìn ổn định hơn.
+        </div>
       </div>
+
+      {/* 1b. So sánh cùng kỳ — 7 ngày gần nhất vs 7 ngày trước, né lệch do tháng đang chạy chưa đủ dữ liệu */}
+      <PeriodComparisonSection comparison={data.periodComparison} />
 
       {/* 2. Tỷ trọng Số Đơn & Tải Trọng Tấn theo Dự Án (NẰM CHUNG HÀNG 2 CỘT 50/50) */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
