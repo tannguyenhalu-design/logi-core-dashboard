@@ -1,6 +1,11 @@
 /**
- * pages/login.js — GHN SSO v2 (OpenID Connect) login
+ * pages/login.js — GHN SSO v2 (OpenID Connect) login, plus a TEMPORARY
+ * passwordless email fallback (pages/api/auth.js) while GHN SSO
+ * client_id/secret aren't set up yet. Remove the fallback form once
+ * SSO is live — see lib/users.js resolvePasswordlessUser for context.
  */
+import { useState } from "react";
+import { useRouter } from "next/router";
 import Head from "next/head";
 import ThemeToggle from "../components/ThemeToggle";
 
@@ -8,7 +13,34 @@ export async function getServerSideProps({ query }) {
   return { props: { errorMessage: typeof query.error === "string" ? query.error : null } };
 }
 
-export default function LoginPage({ errorMessage }) {
+export default function LoginPage({ errorMessage: ssoError }) {
+  const router = useRouter();
+  const [username, setUsername] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setFormError(null);
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFormError(data.error || "Đăng nhập thất bại. Vui lòng thử lại.");
+        setLoading(false);
+        return;
+      }
+      router.push("/dashboard");
+    } catch (err) {
+      setFormError("Lỗi kết nối. Vui lòng thử lại.");
+      setLoading(false);
+    }
+  };
 
   return (
     <>
@@ -51,7 +83,7 @@ export default function LoginPage({ errorMessage }) {
             </p>
           </div>
 
-          {errorMessage && (
+          {ssoError && (
             <div style={{
               background: "rgba(244,63,94,0.1)",
               border: "1px solid var(--red)",
@@ -62,7 +94,7 @@ export default function LoginPage({ errorMessage }) {
               color: "var(--red)",
               lineHeight: 1.5,
             }}>
-              ⚠️ {errorMessage}
+              ⚠️ {ssoError}
             </div>
           )}
 
@@ -88,6 +120,73 @@ export default function LoginPage({ errorMessage }) {
           >
             Đăng nhập bằng GHN SSO
           </a>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "22px 0" }}>
+            <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Tạm thời trong lúc chờ SSO</span>
+            <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
+          </div>
+
+          {formError && (
+            <div style={{
+              background: "rgba(244,63,94,0.1)",
+              border: "1px solid var(--red)",
+              borderRadius: 8,
+              padding: "10px 14px",
+              marginBottom: 14,
+              fontSize: 13,
+              color: "var(--red)",
+              lineHeight: 1.5,
+            }}>
+              ⚠️ {formError}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit}>
+            <input
+              type="text"
+              placeholder="Email @ghn.vn"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
+              required
+              style={{
+                width: "100%",
+                padding: "12px 14px",
+                marginBottom: 12,
+                background: "var(--input-bg)",
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+                color: "var(--text-primary)",
+                fontSize: 14,
+                fontFamily: "inherit",
+                boxSizing: "border-box",
+              }}
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 12,
+                padding: "12px 20px",
+                background: "var(--input-bg)",
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+                color: "var(--text-primary)",
+                fontSize: 14,
+                fontWeight: 600,
+                fontFamily: "inherit",
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.7 : 1,
+              }}
+            >
+              {loading ? "Đang đăng nhập..." : "Đăng nhập tạm bằng email"}
+            </button>
+          </form>
 
           <p style={{ textAlign: "center", marginTop: 20, fontSize: 11.5, color: "var(--text-muted)", opacity: 0.6 }}>
             Bằng cách đăng nhập, bạn đồng ý với điều khoản sử dụng nội bộ GHN.
