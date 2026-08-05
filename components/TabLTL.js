@@ -1223,42 +1223,48 @@ export default function TabLTL({ data, rawData, selectedProjects = [], userRole 
         </div>
       </div>
 
-      {/* 1b. So sánh cùng kỳ — 7 ngày gần nhất vs 7 ngày trước, né lệch do tháng đang chạy chưa đủ dữ liệu */}
-      <PeriodComparisonSection comparison={data.periodComparison} />
+      {/* 1b. So sánh cùng kỳ — 7 ngày gần nhất vs 7 ngày trước, né lệch do tháng đang chạy chưa đủ dữ liệu.
+          Gọn lại (bỏ danh sách từng khách) khi đang lọc đúng 1 dự án, vì lúc đó chỉ có 1 khách trùng với số tổng. */}
+      <PeriodComparisonSection comparison={data.periodComparison} compact={singleProjectMode} />
 
-      {/* 2. Tỷ trọng Số Đơn & Tải Trọng Tấn theo Dự Án (NẰM CHUNG HÀNG 2 CỘT 50/50) */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-        <div className="chart-panel">
-          <div className="chart-panel-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
-            📦 Tỷ trọng Số Đơn theo Dự Án
-          </div>
-          <div style={{ height: 260 }}>
-            <OrdersProjChart ordersByProject={data.ordersByProject} theme={theme} />
-          </div>
-        </div>
+      {/* 2. Tỷ trọng Số Đơn & Tải Trọng Tấn theo Dự Án — chỉ có ý nghĩa khi so sánh NHIỀU dự án;
+          lọc còn đúng 1 dự án thì khoanh tròn/cột luôn ra 100% một màu, ẩn đi cho gọn (số liệu đã có ở 4 ô KPI đầu trang). */}
+      {!singleProjectMode && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            <div className="chart-panel">
+              <div className="chart-panel-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
+                📦 Tỷ trọng Số Đơn theo Dự Án
+              </div>
+              <div style={{ height: 260 }}>
+                <OrdersProjChart ordersByProject={data.ordersByProject} theme={theme} />
+              </div>
+            </div>
 
-        <div className="chart-panel">
-          <div className="chart-panel-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M2 12h20"/></svg>
-            ⚖️ Tỷ trọng Tải Trọng (Tấn/Kg) theo Dự Án
+            <div className="chart-panel">
+              <div className="chart-panel-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M2 12h20"/></svg>
+                ⚖️ Tỷ trọng Tải Trọng (Tấn/Kg) theo Dự Án
+              </div>
+              <div style={{ height: 260 }}>
+                <WeightProjChart weightByProject={data.weightByProject || {}} theme={theme} />
+              </div>
+            </div>
           </div>
-          <div style={{ height: 260 }}>
-            <WeightProjChart weightByProject={data.weightByProject || {}} theme={theme} />
-          </div>
-        </div>
-      </div>
 
-      {/* Ontime by project (full width for clear label spacing) */}
-      <div className="chart-panel" style={{ width: "100%" }}>
-        <div className="chart-panel-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-          % Ontime theo Dự Án
-        </div>
-        <div style={{ height: 240 }}>
-          <OntimeProjChart ontimeByProject={data.ontimeByProject} theme={theme} />
-        </div>
-      </div>
+          {/* Ontime by project (full width for clear label spacing) */}
+          <div className="chart-panel" style={{ width: "100%" }}>
+            <div className="chart-panel-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              % Ontime theo Dự Án
+            </div>
+            <div style={{ height: 240 }}>
+              <OntimeProjChart ontimeByProject={data.ontimeByProject} theme={theme} />
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Warehouse risk (full width) — internal ops resource planning, not client-facing */}
       {!isClient && (

@@ -152,17 +152,17 @@ export function DeltaBadge({ value, unit, invert }) {
   );
 }
 
-export function PeriodComparisonSection({ comparison }) {
+export function PeriodComparisonSection({ comparison, compact = false }) {
   if (!comparison) return null;
   const { currentRangeLabel, previousRangeLabel, overall, clients } = comparison;
   const warningClients = clients.filter((c) => c.warning);
 
   return (
     <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: compact ? 0 : 14 }}>
         <div>
           <div style={{ fontWeight: 700, fontSize: 14, color: "#EAF0F8", marginBottom: 2 }}>
-            📈 Tầng 3 — So sánh cùng kỳ
+            📈 So sánh cùng kỳ
           </div>
           <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
             {currentRangeLabel} so với {previousRangeLabel} (7 ngày, lùi 2 ngày đệm để đơn kịp có kết quả)
@@ -180,7 +180,7 @@ export function PeriodComparisonSection({ comparison }) {
         </div>
       </div>
 
-      {clients.length === 0 ? (
+      {compact ? null : clients.length === 0 ? (
         <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
           Chưa đủ dữ liệu để so sánh.
         </div>
@@ -214,7 +214,7 @@ export function PeriodComparisonSection({ comparison }) {
         </div>
       )}
 
-      {warningClients.length > 0 && (
+      {!compact && warningClients.length > 0 && (
         <div style={{ marginTop: 12, fontSize: 11, color: "var(--red)" }}>
           ⚠️ {warningClients.length} khách hàng giảm rõ rệt so với kỳ trước — ưu tiên kiểm tra trước.
         </div>
