@@ -1,6 +1,8 @@
 /**
  * components/TabUsers.js — Manager-only: approve accounts & assign roles.
  * Backed by /api/admin-users (Users tab in the projects Google Sheet).
+ * Identity is GHN SSO EmployeeId once someone has logged in at least
+ * once; before that, a manager can pre-provision access by full name.
  */
 import { useState, useEffect } from "react";
 import TruckLoader from "./TruckLoader";
@@ -23,6 +25,10 @@ function defaultTabsForRole(role) {
   if (role === "sd3") return ["ltl", "operations", "tachtrip"];
   if (role === "cs") return ["ltl"];
   return [];
+}
+
+function rowKey(u) {
+  return u.employeeId || `name:${u.name}`;
 }
 
 function TabCheckboxes({ tabs, disabled, onChange }) {
@@ -60,10 +66,10 @@ export default function TabUsers() {
   const [users, setUsers] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [drafts, setDrafts] = useState({}); // email -> { role, pic, project }
-  const [savingEmail, setSavingEmail] = useState(null);
+  const [drafts, setDrafts] = useState({}); // rowKey -> { role, pic, project, tabs }
+  const [savingKey, setSavingKey] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newEmail, setNewEmail] = useState("");
+  const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState("manager");
   const [newPic, setNewPic] = useState("");
   const [newProject, setNewProject] = useState("");
@@ -81,7 +87,7 @@ export default function TabUsers() {
       setUsers(json.users);
       const nextDrafts = {};
       json.users.forEach((u) => {
-        nextDrafts[u.email] = { role: u.role, pic: u.pic || "", project: u.project || "", tabs: u.tabs || [] };
+        nextDrafts[rowKey(u)] = { role: u.role, pic: u.pic || "", project: u.project || "", tabs: u.tabs || [] };
       });
       setDrafts(nextDrafts);
     } catch (e) {
@@ -95,18 +101,26 @@ export default function TabUsers() {
     fetchUsers();
   }, []);
 
-  const updateDraft = (email, patch) => {
-    setDrafts((prev) => ({ ...prev, [email]: { ...prev[email], ...patch } }));
+  const updateDraft = (key, patch) => {
+    setDrafts((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
   };
 
-  const saveUser = async (email) => {
-    const draft = drafts[email];
-    setSavingEmail(email);
+  const saveUser = async (u) => {
+    const key = rowKey(u);
+    const draft = drafts[key];
+    setSavingKey(key);
     try {
       const res = await fetch("/api/admin-users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, role: draft.role, pic: draft.pic, project: draft.project, tabs: draft.tabs }),
+        body: JSON.stringify({
+          employeeId: u.employeeId || undefined,
+          name: u.name,
+          role: draft.role,
+          pic: draft.pic,
+          project: draft.project,
+          tabs: draft.tabs,
+        }),
       });
       const json = await res.json();
       if (!res.ok || !json.ok) throw new Error(json.error || "Lưu thất bại");
@@ -114,15 +128,15 @@ export default function TabUsers() {
     } catch (e) {
       alert("Lỗi lưu: " + e.message);
     } finally {
-      setSavingEmail(null);
+      setSavingKey(null);
     }
   };
 
   const handleAddUser = async (e) => {
     e.preventDefault();
-    const email = newEmail.trim().toLowerCase();
-    if (!email.endsWith("@ghn.vn")) {
-      setAddError("Chỉ chấp nhận email @ghn.vn");
+    const name = newName.trim();
+    if (!name) {
+      setAddError("Vui lòng nhập tên đầy đủ");
       return;
     }
     setAdding(true);
@@ -131,12 +145,12 @@ export default function TabUsers() {
       const res = await fetch("/api/admin-users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, role: newRole, pic: newPic, project: newProject, tabs: newTabs }),
+        body: JSON.stringify({ name, role: newRole, pic: newPic, project: newProject, tabs: newTabs }),
       });
       const json = await res.json();
       if (!res.ok || !json.ok) throw new Error(json.error || "Thêm thất bại");
       setShowAddModal(false);
-      setNewEmail("");
+      setNewName("");
       setNewRole("manager");
       setNewPic("");
       setNewProject("");
@@ -159,7 +173,7 @@ export default function TabUsers() {
         <div>
           <h3 style={{ margin: 0, fontSize: 16, color: "var(--text-primary)" }}>Quản lý người dùng</h3>
           <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "var(--text-muted)" }}>
-            Mọi email @ghn.vn có thể tự đăng ký, nhưng chỉ xem được dữ liệu sau khi được duyệt và gán vai trò ở đây.
+            Đăng nhập qua GHN SSO — bất kỳ ai đăng nhập lần đầu đều vào ở trạng thái chờ duyệt, chỉ xem được dữ liệu sau khi được duyệt và gán vai trò ở đây.
             {pendingCount > 0 && (
               <span style={{ color: "var(--amber)", fontWeight: 600 }}> Đang có {pendingCount} tài khoản chờ duyệt.</span>
             )}
@@ -183,7 +197,7 @@ export default function TabUsers() {
         <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: "2px solid var(--border)" }}>
-              <th style={{ textAlign: "left", padding: "12px 8px" }}>Email</th>
+              <th style={{ textAlign: "left", padding: "12px 8px" }}>Tên</th>
               <th style={{ textAlign: "left", padding: "12px 8px" }}>Vai trò</th>
               <th style={{ textAlign: "left", padding: "12px 8px" }}>Xem được tab</th>
               <th style={{ textAlign: "left", padding: "12px 8px" }}>Tên (khớp mapping SD/CS)</th>
@@ -192,21 +206,27 @@ export default function TabUsers() {
           </thead>
           <tbody>
             {(users || []).map((u) => {
-              const draft = drafts[u.email] || { role: u.role, pic: "", project: "", tabs: u.tabs || [] };
+              const key = rowKey(u);
+              const draft = drafts[key] || { role: u.role, pic: "", project: "", tabs: u.tabs || [] };
               const draftTabs = draft.tabs || [];
               const origTabs = u.tabs || [];
               const tabsChanged = draftTabs.length !== origTabs.length || draftTabs.some((t) => !origTabs.includes(t));
               const dirty =
                 draft.role !== u.role || (draft.pic || "") !== (u.pic || "") || (draft.project || "") !== (u.project || "") || tabsChanged;
               return (
-                <tr key={u.email} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                <tr key={key} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
                   <td style={{ padding: "12px 8px", fontWeight: 600 }}>
-                    {u.email} {u.role === "pending" && <RoleBadge role="pending" />}
+                    {u.name || "(chưa có tên)"} {u.role === "pending" && <RoleBadge role="pending" />}
+                    {!u.employeeId && (
+                      <div style={{ fontSize: 10.5, color: "var(--text-muted)", fontWeight: 400, marginTop: 2 }}>
+                        Chưa đăng nhập lần nào — sẽ tự khớp khi họ đăng nhập GHN SSO
+                      </div>
+                    )}
                   </td>
                   <td style={{ padding: "12px 8px" }}>
                     <select
                       value={draft.role}
-                      onChange={(e) => updateDraft(u.email, { role: e.target.value, tabs: defaultTabsForRole(e.target.value) })}
+                      onChange={(e) => updateDraft(key, { role: e.target.value, tabs: defaultTabsForRole(e.target.value) })}
                       style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 8px", borderRadius: 6, fontSize: 12 }}
                     >
                       <option value="pending">Chờ duyệt</option>
@@ -219,7 +239,7 @@ export default function TabUsers() {
                     <TabCheckboxes
                       tabs={draft.role === "manager" ? ["ltl", "operations"] : draftTabs}
                       disabled={draft.role === "manager"}
-                      onChange={(next) => updateDraft(u.email, { tabs: next })}
+                      onChange={(next) => updateDraft(key, { tabs: next })}
                     />
                   </td>
                   <td style={{ padding: "12px 8px" }}>
@@ -227,15 +247,15 @@ export default function TabUsers() {
                       type="text"
                       value={draft.pic}
                       disabled={draft.role === "pending"}
-                      onChange={(e) => updateDraft(u.email, { pic: e.target.value })}
+                      onChange={(e) => updateDraft(key, { pic: e.target.value })}
                       placeholder="Ví dụ: Duy Tú"
                       style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 8px", borderRadius: 6, fontSize: 12, width: 140 }}
                     />
                   </td>
                   <td style={{ padding: "12px 8px", textAlign: "center" }}>
                     <button
-                      onClick={() => saveUser(u.email)}
-                      disabled={!dirty || savingEmail === u.email}
+                      onClick={() => saveUser(u)}
+                      disabled={!dirty || savingKey === key}
                       style={{
                         background: dirty ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.05)",
                         color: dirty ? "var(--green)" : "var(--text-muted)",
@@ -247,7 +267,7 @@ export default function TabUsers() {
                         cursor: dirty ? "pointer" : "not-allowed",
                       }}
                     >
-                      {savingEmail === u.email ? "Đang lưu..." : "Lưu"}
+                      {savingKey === key ? "Đang lưu..." : "Lưu"}
                     </button>
                   </td>
                 </tr>
@@ -279,10 +299,10 @@ export default function TabUsers() {
 
             <form onSubmit={handleAddUser} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Email @ghn.vn *</label>
+                <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Tên đầy đủ (theo GHN SSO) *</label>
                 <input
-                  type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="vd: tutd@ghn.vn"
+                  type="text" required value={newName} onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Vd: Nguyễn Văn A — phải khớp đúng tên hiển thị khi họ đăng nhập"
                   style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
                 />
               </div>
@@ -319,7 +339,7 @@ export default function TabUsers() {
               </div>
 
               <p style={{ margin: 0, fontSize: 11.5, color: "var(--text-muted)" }}>
-                Người này sẽ tự đặt mật khẩu ở lần đăng nhập đầu tiên bằng chính email trên.
+                Người này sẽ tự vào được ngay khi đăng nhập bằng GHN SSO lần đầu (không cần đặt mật khẩu) — miễn tên khớp đúng.
               </p>
 
               <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 6 }}>

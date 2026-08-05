@@ -1,39 +1,14 @@
 /**
- * pages/login.js — Username/Password Login
+ * pages/login.js — GHN SSO v2 (OpenID Connect) login
  */
-import { useRouter } from "next/router";
-import { useState } from "react";
 import Head from "next/head";
 import ThemeToggle from "../components/ThemeToggle";
 
-export default function LoginPage() {
-  const router = useRouter();
-  const [username, setUsername] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(null);
+export async function getServerSideProps({ query }) {
+  return { props: { errorMessage: typeof query.error === "string" ? query.error : null } };
+}
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setErrorMessage(null);
-    try {
-      const res = await fetch("/api/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setErrorMessage(data.error || "Đăng nhập thất bại. Vui lòng thử lại.");
-        setLoading(false);
-        return;
-      }
-      router.push("/dashboard");
-    } catch (err) {
-      setErrorMessage("Lỗi kết nối. Vui lòng thử lại.");
-      setLoading(false);
-    }
-  };
+export default function LoginPage({ errorMessage }) {
 
   return (
     <>
@@ -72,7 +47,7 @@ export default function LoginPage() {
 
           <div style={{ textAlign: "center", marginBottom: 24 }}>
             <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>
-              Đăng nhập bằng tài khoản nội bộ @ghn.vn
+              Đăng nhập bằng tài khoản GHN nội bộ (SSO)
             </p>
           </div>
 
@@ -91,59 +66,28 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit}>
-            <input
-              type="text"
-              placeholder="Email @ghn.vn"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
-              required
-              style={{
-                width: "100%",
-                padding: "12px 14px",
-                marginBottom: 18,
-                background: "var(--input-bg)",
-                border: "1px solid var(--border)",
-                borderRadius: 10,
-                color: "var(--text-primary)",
-                fontSize: 14,
-                fontFamily: "inherit",
-                boxSizing: "border-box",
-              }}
-            />
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 12,
-                padding: "12px 20px",
-                background: "var(--cyan)",
-                border: "1px solid var(--cyan)",
-                borderRadius: 10,
-                color: "#fff",
-                fontSize: 15,
-                fontWeight: 600,
-                fontFamily: "inherit",
-                cursor: loading ? "not-allowed" : "pointer",
-                transition: "all 0.2s",
-                opacity: loading ? 0.7 : 1,
-              }}
-            >
-              {loading ? (
-                <div style={{
-                  width: 20, height: 20, borderRadius: "50%",
-                  border: "2px solid rgba(255,255,255,0.3)",
-                  borderTop: "2px solid #fff",
-                  animation: "spin 0.8s linear infinite",
-                }} />
-              ) : "Đăng nhập"}
-            </button>
-          </form>
+          <a
+            href="/api/auth/sso-login"
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 12,
+              padding: "12px 20px",
+              background: "var(--cyan)",
+              border: "1px solid var(--cyan)",
+              borderRadius: 10,
+              color: "#fff",
+              fontSize: 15,
+              fontWeight: 600,
+              fontFamily: "inherit",
+              textDecoration: "none",
+              boxSizing: "border-box",
+            }}
+          >
+            Đăng nhập bằng GHN SSO
+          </a>
 
           <p style={{ textAlign: "center", marginTop: 20, fontSize: 11.5, color: "var(--text-muted)", opacity: 0.6 }}>
             Bằng cách đăng nhập, bạn đồng ý với điều khoản sử dụng nội bộ GHN.
