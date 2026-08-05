@@ -32,6 +32,8 @@ export default function DashboardPage({ user: initialUser }) {
   const [loading, setLoading] = useState(canSeeLTL);
   const [filtering, setFiltering] = useState(false);
   const [error, setError] = useState(null);
+  const [tcData, setTcData] = useState(null);
+  const [tcLoading, setTcLoading] = useState(false);
   const [tcError, setTcError] = useState(null);
   // Role-switcher for manager: { type: 'manager'|'pic'|'project', value: string|null }
   const [viewAs, setViewAs] = useState({ type: "manager", value: null });
