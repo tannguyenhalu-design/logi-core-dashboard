@@ -79,52 +79,8 @@ export default function LoginPage({ errorMessage: ssoError }) {
 
           <div style={{ textAlign: "center", marginBottom: 24 }}>
             <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>
-              Đăng nhập bằng tài khoản GHN nội bộ (SSO)
+              Đăng nhập bằng tài khoản nội bộ @ghn.vn
             </p>
-          </div>
-
-          {ssoError && (
-            <div style={{
-              background: "rgba(244,63,94,0.1)",
-              border: "1px solid var(--red)",
-              borderRadius: 8,
-              padding: "10px 14px",
-              marginBottom: 18,
-              fontSize: 13,
-              color: "var(--red)",
-              lineHeight: 1.5,
-            }}>
-              ⚠️ {ssoError}
-            </div>
-          )}
-
-          <a
-            href="/api/auth/sso-login"
-            style={{
-              width: "100%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 12,
-              padding: "12px 20px",
-              background: "var(--cyan)",
-              border: "1px solid var(--cyan)",
-              borderRadius: 10,
-              color: "#fff",
-              fontSize: 15,
-              fontWeight: 600,
-              fontFamily: "inherit",
-              textDecoration: "none",
-              boxSizing: "border-box",
-            }}
-          >
-            Đăng nhập bằng GHN SSO
-          </a>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "22px 0" }}>
-            <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
-            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Tạm thời trong lúc chờ SSO</span>
-            <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
           </div>
 
           {formError && (
@@ -133,7 +89,7 @@ export default function LoginPage({ errorMessage: ssoError }) {
               border: "1px solid var(--red)",
               borderRadius: 8,
               padding: "10px 14px",
-              marginBottom: 14,
+              marginBottom: 18,
               fontSize: 13,
               color: "var(--red)",
               lineHeight: 1.5,
@@ -153,7 +109,7 @@ export default function LoginPage({ errorMessage: ssoError }) {
               style={{
                 width: "100%",
                 padding: "12px 14px",
-                marginBottom: 12,
+                marginBottom: 18,
                 background: "var(--input-bg)",
                 border: "1px solid var(--border)",
                 borderRadius: 10,
@@ -173,20 +129,64 @@ export default function LoginPage({ errorMessage: ssoError }) {
                 justifyContent: "center",
                 gap: 12,
                 padding: "12px 20px",
-                background: "var(--input-bg)",
-                border: "1px solid var(--border)",
+                background: "var(--cyan)",
+                border: "1px solid var(--cyan)",
                 borderRadius: 10,
-                color: "var(--text-primary)",
-                fontSize: 14,
+                color: "#fff",
+                fontSize: 15,
                 fontWeight: 600,
                 fontFamily: "inherit",
                 cursor: loading ? "not-allowed" : "pointer",
                 opacity: loading ? 0.7 : 1,
               }}
             >
-              {loading ? "Đang đăng nhập..." : "Đăng nhập tạm bằng email"}
+              {loading ? "Đang đăng nhập..." : "Đăng nhập"}
             </button>
           </form>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "22px 0" }}>
+            <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Sắp có</span>
+            <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
+          </div>
+
+          {ssoError && (
+            <div style={{
+              background: "rgba(244,63,94,0.1)",
+              border: "1px solid var(--red)",
+              borderRadius: 8,
+              padding: "10px 14px",
+              marginBottom: 14,
+              fontSize: 13,
+              color: "var(--red)",
+              lineHeight: 1.5,
+            }}>
+              ⚠️ {ssoError}
+            </div>
+          )}
+
+          <a
+            href="/api/auth/sso-login"
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 12,
+              padding: "12px 20px",
+              background: "var(--input-bg)",
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              color: "var(--text-muted)",
+              fontSize: 14,
+              fontWeight: 600,
+              fontFamily: "inherit",
+              textDecoration: "none",
+              boxSizing: "border-box",
+            }}
+          >
+            Đăng nhập bằng GHN SSO
+          </a>
 
           <p style={{ textAlign: "center", marginTop: 20, fontSize: 11.5, color: "var(--text-muted)", opacity: 0.6 }}>
             Bằng cách đăng nhập, bạn đồng ý với điều khoản sử dụng nội bộ GHN.
