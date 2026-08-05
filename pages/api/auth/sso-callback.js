@@ -44,9 +44,13 @@ export default async function handler(req, res) {
     const tokens = await exchangeCodeForTokens(code);
     const claims = await verifyIdToken(tokens.id_token, flow.nonce);
     const userinfo = await fetchUserInfo(tokens.access_token);
+    console.log("[sso-callback] userinfo:", JSON.stringify(userinfo), "id token claims:", JSON.stringify(claims));
 
-    const employeeId = String(userinfo.employee_id || claims.employee_id || "").trim();
-    if (!employeeId) throw new Error("GHN SSO không trả về employee_id");
+    // "sub" is the OIDC subject claim — GHN's own docs show it equal to
+    // employee_id in their example token, and it's the one claim
+    // guaranteed present, so it's the primary source, not a fallback.
+    const employeeId = String(claims.sub || userinfo.employee_id || claims.employee_id || userinfo.sub || "").trim();
+    if (!employeeId) throw new Error("GHN SSO không trả về mã định danh nhân viên (sub/employee_id)");
     const name = userinfo.preferred_username || userinfo.name || claims.name || employeeId;
     const email = userinfo.email || claims.email || "";
 
