@@ -40,14 +40,21 @@ export default async function handler(req, res) {
         }
       }
 
-      const flat = groups.map((g) => ({
-        title: g.title,
-        pic: g.pics.map((p) => p.pic).join(", "),
-        picName: g.pics.map((p) => p.picName).join(", "),
-        project: g.project,
-        deadline: g.deadline,
-        notes: g.notes
-      }));
+      // Each group fans out into one row per assignee (own status, own
+      // deadline outcome to track) — they all share a groupId so the UI
+      // can show them back as a single task instead of N unrelated ones.
+      const flat = groups.flatMap((g) => {
+        const groupId = `grp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        return g.pics.map((p) => ({
+          groupId,
+          title: g.title,
+          pic: p.pic,
+          picName: p.picName,
+          project: g.project,
+          deadline: g.deadline,
+          notes: g.notes,
+        }));
+      });
       const created = await createTasks(flat, actor);
 
       await logAction({
