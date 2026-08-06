@@ -2,7 +2,7 @@
  * components/TabLTL.js — LTL Dashboard Tab
  * All charts re-render when `data` prop changes (driven by filter state).
  */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Chart from "chart.js/auto";
 import ChartDataLabels from "chartjs-plugin-datalabels";
 import KpiCard from "./KpiCard";
@@ -757,6 +757,75 @@ function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, 
   const [activeProv, setActiveProv] = useState(null);
   const [viewMode, setViewMode] = useState("orders"); // 'orders' | 'weight' | 'ontime' | 'damage'
 
+  // Hovering a province (map or "Top 8 Tỉnh" list) only needs to update
+  // activeProv, but every derived value below used to get rebuilt from
+  // scratch as brand-new objects/arrays on that same re-render — including
+  // colorMap and routeLines fed straight into VietnamMap, a ~63-path SVG.
+  // Since those were never memoized, VietnamMap (even wrapped in React.memo)
+  // still saw "new" props every single mouse move and had to fully re-render
+  // the whole map on each hover — that's the stutter/lag. Memoizing on the
+  // real inputs (not activeProv) keeps the same object reference across
+  // hover-only re-renders, so React.memo can actually skip the map re-render.
+  const sortedProvinces = useMemo(() => {
+    return [...(provinceStats || [])].sort((a, b) => {
+      const aDet = provinceDetailsMap[a.name] || a.details;
+      const bDet = provinceDetailsMap[b.name] || b.details;
+      if (viewMode === "weight") return (bDet?.totalWeight || a.weight || 0) - (aDet?.totalWeight || b.weight || 0);
+      if (viewMode === "ontime") return (aDet?.ontimePct ?? 100) - (bDet?.ontimePct ?? 100);
+      if (viewMode === "damage") return (bDet?.damageCount || 0) - (aDet?.damageCount || 0);
+      return b.orders - a.orders;
+    });
+  }, [provinceStats, provinceDetailsMap, viewMode]);
+
+  const colorMap = useMemo(() => {
+    const stats = provinceStats || [];
+    const maxOrders = Math.max(...stats.map((p) => p.orders), 1);
+    const maxWeight = Math.max(...stats.map((p) => (provinceDetailsMap[p.name]?.totalWeight || p.weight || 1)), 1);
+    const map = {};
+    stats.forEach((p) => {
+      const pDet = provinceDetailsMap[p.name];
+      if (viewMode === "weight") {
+        const w = pDet?.totalWeight || p.weight || 0;
+        const intensity = Math.min(1, w / maxWeight);
+        map[p.name] = `rgba(13, 148, 136, ${(0.25 + intensity * 0.7).toFixed(2)})`;
+      } else if (viewMode === "ontime") {
+        const ontime = pDet ? pDet.ontimePct : 100;
+        map[p.name] = getOntimeColor(ontime);
+      } else if (viewMode === "damage") {
+        const dmg = pDet ? pDet.damageCount : 0;
+        map[p.name] = dmg > 0 ? "var(--amber)" : "var(--map-unhighlighted)";
+      } else {
+        const intensity = Math.min(1, p.orders / maxOrders);
+        map[p.name] = `rgba(20, 224, 196, ${(0.2 + intensity * 0.75).toFixed(2)})`;
+      }
+    });
+    return map;
+  }, [provinceStats, provinceDetailsMap, viewMode]);
+
+  const topProvinces = useMemo(() => sortedProvinces.slice(0, 8), [sortedProvinces]);
+  // Empty in singleProjectMode (folded in here, not as a `cond ? [] : x`
+  // ternary at the call site — that would allocate a fresh [] every render
+  // and defeat VietnamMap's memoization same as the unmemoized values above).
+  const highlightProvinces = useMemo(
+    () => (singleProjectMode ? [] : sortedProvinces.slice(0, 5).map((p) => p.name)),
+    [singleProjectMode, sortedProvinces]
+  );
+
+  const routeLines = useMemo(() => (
+    singleProjectMode
+      ? (routeStats || []).slice(0, 25).map((r) => ({ from: r.from, to: r.to, weight: r.orders, color: "#33D6C0" }))
+      : []
+  ), [singleProjectMode, routeStats]);
+
+  // Stable callback identities — VietnamMap is memoized, but an inline
+  // arrow function prop is a new reference every render regardless, which
+  // would silently defeat that memoization for hover.
+  const handleProvinceHover = useCallback((prov) => setActiveProv(prov), []);
+  const handleProvinceClick = useCallback(
+    (prov) => (onProvinceClick ? onProvinceClick(prov) : setActiveProv(prov)),
+    [onProvinceClick]
+  );
+
   if (!provinceStats || provinceStats.length === 0) {
     return (
       <div className="chart-panel" style={{ width: "100%" }}>
@@ -766,45 +835,6 @@ function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, 
       </div>
     );
   }
-
-  // Sort provinces based on active viewMode
-  const sortedProvinces = [...provinceStats].sort((a, b) => {
-    const aDet = provinceDetailsMap[a.name] || a.details;
-    const bDet = provinceDetailsMap[b.name] || b.details;
-    if (viewMode === "weight") return (bDet?.totalWeight || a.weight || 0) - (aDet?.totalWeight || b.weight || 0);
-    if (viewMode === "ontime") return (aDet?.ontimePct ?? 100) - (bDet?.ontimePct ?? 100);
-    if (viewMode === "damage") return (bDet?.damageCount || 0) - (aDet?.damageCount || 0);
-    return b.orders - a.orders;
-  });
-
-  const maxOrders = Math.max(...provinceStats.map((p) => p.orders), 1);
-  const maxWeight = Math.max(...provinceStats.map((p) => (provinceDetailsMap[p.name]?.totalWeight || p.weight || 1)), 1);
-
-  const colorMap = {};
-  provinceStats.forEach((p) => {
-    const pDet = provinceDetailsMap[p.name];
-    if (viewMode === "weight") {
-      const w = pDet?.totalWeight || p.weight || 0;
-      const intensity = Math.min(1, w / maxWeight);
-      colorMap[p.name] = `rgba(13, 148, 136, ${(0.25 + intensity * 0.7).toFixed(2)})`;
-    } else if (viewMode === "ontime") {
-      const ontime = pDet ? pDet.ontimePct : 100;
-      colorMap[p.name] = getOntimeColor(ontime);
-    } else if (viewMode === "damage") {
-      const dmg = pDet ? pDet.damageCount : 0;
-      colorMap[p.name] = dmg > 0 ? "var(--amber)" : "var(--map-unhighlighted)";
-    } else {
-      const intensity = Math.min(1, p.orders / maxOrders);
-      colorMap[p.name] = `rgba(20, 224, 196, ${(0.2 + intensity * 0.75).toFixed(2)})`;
-    }
-  });
-
-  const topProvinces = sortedProvinces.slice(0, 8);
-  const highlightProvinces = sortedProvinces.slice(0, 5).map((p) => p.name);
-
-  const routeLines = singleProjectMode
-    ? routeStats.slice(0, 25).map((r) => ({ from: r.from, to: r.to, weight: r.orders, color: "#33D6C0" }))
-    : [];
 
   const inspectData = activeProv ? (provinceDetailsMap[activeProv] || provinceStats.find(p => p.name === activeProv)?.details) : null;
   const projectOverview = singleProjectMode ? projectSummaries[projectName] : null;
@@ -872,12 +902,12 @@ function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, 
         <div style={{ position: "sticky", top: 80, display: "flex", flexDirection: "column", alignItems: "center" }}>
           <VietnamMap
             colorMap={colorMap}
-            highlightProvinces={singleProjectMode ? [] : highlightProvinces}
+            highlightProvinces={highlightProvinces}
             routeLines={routeLines}
             provinceDetailsMap={provinceDetailsMap}
             viewMode={viewMode}
-            onProvinceHover={(prov) => setActiveProv(prov)}
-            onProvinceClick={(prov) => onProvinceClick ? onProvinceClick(prov) : setActiveProv(prov)}
+            onProvinceHover={handleProvinceHover}
+            onProvinceClick={handleProvinceClick}
           />
           {singleProjectMode && (
             <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8, textAlign: "center" }}>

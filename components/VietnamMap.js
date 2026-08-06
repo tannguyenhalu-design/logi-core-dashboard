@@ -2,11 +2,16 @@
  * components/VietnamMap.js — Sleek & Clean Interactive Vietnam SVG map.
  * Renders heatmaps, route lines, and clean province highlights without visual clutter.
  */
-import { useRef, useState } from "react";
+import { memo, useRef, useState } from "react";
 import PROV_PATHS from "../lib/prov-paths.json";
 import CENTROIDS from "../lib/centroids.json";
 
-export default function VietnamMap({
+// Memoized — this renders ~63 SVG province paths, and the parent
+// (ProvinceMapPanel) re-renders on every hover over the "Top 8 Tỉnh" list.
+// Without this, that hover-only state change forced a full map re-render
+// every mouse move (visible as stutter/lag); now it only re-renders when
+// its own props actually change.
+function VietnamMap({
   highlightProvinces = [],
   colorMap = {},
   onProvinceClick,
@@ -251,3 +256,5 @@ export default function VietnamMap({
     </div>
   );
 }
+
+export default memo(VietnamMap);
