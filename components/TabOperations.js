@@ -1009,19 +1009,21 @@ export default function TabOperations({ rawData, userRole }) {
             <thead>
               <tr style={{ borderBottom: "2px solid var(--border)" }}>
                 <th style={{ textAlign: "left", padding: "12px 8px" }}>Tên Dự Án</th>
+                <th style={{ textAlign: "left", padding: "12px 8px" }}>Client ID</th>
                 <th style={{ textAlign: "left", padding: "12px 8px" }}>Đảm Nhiệm (PIC)</th>
                 <th style={{ textAlign: "left", padding: "12px 8px" }}>Mô Hình Vận Hành</th>
                 <th style={{ textAlign: "left", padding: "12px 8px" }}>Công Việc</th>
                 <th style={{ textAlign: "left", padding: "12px 8px" }}>Dự Kiến OB</th>
                 {canSeeRevenue && <th style={{ textAlign: "right", padding: "12px 8px" }}>Doanh Thu Dự Kiến</th>}
                 {canSeeRevenue && <th style={{ textAlign: "right", padding: "12px 8px" }}>Last Mo. NSR</th>}
+                {canSeeRevenue && <th style={{ textAlign: "right", padding: "12px 8px" }} title="Doanh thu thực đạt được so với dự kiến">RR/NSR</th>}
                 <th style={{ textAlign: "right", padding: "12px 8px" }}>Dự Kiến Volume</th>
                 <th style={{ textAlign: "center", padding: "12px 8px" }}>Trạng Thái</th>
                 <th style={{ textAlign: "center", padding: "12px 8px" }}>Tác vụ</th>
               </tr>
             </thead>
             <tbody>
-              {filteredProjects.map((p) => {
+              {filteredProjects.map((p, pIdx) => {
                 const picName = PIC_NAMES[p.pic] || p.pic || "Chưa phân công";
                 
                 let statusColor = "rgba(100,116,139,0.15)";
@@ -1030,15 +1032,28 @@ export default function TabOperations({ rawData, userRole }) {
 
                 const isAssignedPic = p.pic && p.pic === currentUser.pic;
                 const canEdit = isManager || isAssignedPic;
+                const hasNoSop = !p.sopLink;
+
+                // RR/NSR — how much of the expected revenue actually landed
+                const expectedRevenueNum = parseRevenue(p.revenue);
+                const lastMoNsrNum = parseRevenue(p.lastMoNsr);
+                const rrNsrPct = expectedRevenueNum > 0 && p.lastMoNsr ? (lastMoNsrNum / expectedRevenueNum) * 100 : null;
+                const rrNsrColor = rrNsrPct == null ? "var(--text-muted)" : rrNsrPct >= 100 ? "var(--green)" : rrNsrPct >= 70 ? "var(--amber)" : "var(--red)";
 
                 return (
-                  <tr 
-                    key={p.name}
-                    style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+                  <tr
+                    key={`${p.clientId || ""}__${p.name}__${p.pic || ""}__${pIdx}`}
+                    style={{
+                      borderBottom: "1px solid rgba(255,255,255,0.05)",
+                      background: hasNoSop ? "rgba(244,63,94,0.05)" : "transparent",
+                    }}
                     className="hover-row"
                   >
                     <td style={{ padding: "14px 8px", fontWeight: 600, color: "var(--text-primary)" }}>
                       📂 {p.name}
+                    </td>
+                    <td style={{ padding: "14px 8px", color: "var(--text-secondary)", fontSize: 12 }}>
+                      {p.clientId || "—"}
                     </td>
                     <td style={{ padding: "14px 8px", color: "var(--cyan)" }}>
                       👤 {picName}
@@ -1054,12 +1069,21 @@ export default function TabOperations({ rawData, userRole }) {
                     <td style={{ padding: "14px 8px", color: "var(--text-secondary)" }}>
                       {p.expectedOb}
                     </td>
-                    <td style={{ padding: "14px 8px", textAlign: "right", fontWeight: 600 }}>
-                      {formatRevenue(p.revenue)}
-                    </td>
-                    <td style={{ padding: "14px 8px", textAlign: "right", color: "var(--text-secondary)" }}>
-                      {p.lastMoNsr ? formatRevenue(p.lastMoNsr) : "—"}
-                    </td>
+                    {canSeeRevenue && (
+                      <td style={{ padding: "14px 8px", textAlign: "right", fontWeight: 600 }}>
+                        {formatRevenue(p.revenue)}
+                      </td>
+                    )}
+                    {canSeeRevenue && (
+                      <td style={{ padding: "14px 8px", textAlign: "right", color: "var(--text-secondary)" }}>
+                        {p.lastMoNsr ? formatRevenue(p.lastMoNsr) : "—"}
+                      </td>
+                    )}
+                    {canSeeRevenue && (
+                      <td style={{ padding: "14px 8px", textAlign: "right", fontWeight: 600, color: rrNsrColor }}>
+                        {rrNsrPct == null ? "—" : `${Math.round(rrNsrPct)}%`}
+                      </td>
+                    )}
                     <td style={{ padding: "14px 8px", textAlign: "right", color: "var(--text-secondary)" }}>
                       {p.volume || "—"}
                     </td>
@@ -1103,7 +1127,12 @@ export default function TabOperations({ rawData, userRole }) {
                             ⚠️ {p.sopLink} (chưa có link)
                           </span>
                         ) : (
-                          <span style={{ color: "var(--text-muted)", fontSize: 11, padding: "5px 10px" }}>Chưa có SOP</span>
+                          <span style={{
+                            color: "var(--red)", fontSize: 11, fontWeight: 600, padding: "5px 10px",
+                            borderRadius: 6, background: "rgba(244,63,94,0.12)", border: "1px solid rgba(244,63,94,0.25)",
+                          }}>
+                            🔴 Chưa có SOP
+                          </span>
                         )}
                         <button
                           onClick={() => startEditing(p)}
