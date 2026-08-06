@@ -77,6 +77,11 @@ export default async function handler(req, res) {
     if (projects.length === 0) projects = null;
   }
 
+  // Pickup-point filter ("Điểm Lấy Hàng") — a real top-level filter like
+  // months/projects so every panel that reads from transformLTL's `rows`
+  // stays in sync when one is selected, not just the map panel.
+  const origin = req.query.origin ? String(req.query.origin).trim() : null;
+
   // Granularity of the "so sánh cùng kỳ" panel — "mtd" (default: đầu tháng
   // → hôm nay vs cùng khoảng đó tháng trước) or calendar-day-of-month
   // blocks of 1/2/3 weeks compared against the same block last month.
@@ -138,7 +143,7 @@ export default async function handler(req, res) {
     }
 
     // ── Transform ──
-    const ltlData       = transformLTL(filteredLTL, { months, projects, filterMode, periodWeeks }, filteredDamage);
+    const ltlData       = transformLTL(filteredLTL, { months, projects, filterMode, periodWeeks, origin }, filteredDamage);
     const ftlData       = transformFTL(rawFTL, masterVehicle, { months, projects });
     const tachTripData  = transformTachTrip(filteredLTL);
     const aiInsights    = transformAIInsights(filteredLTL, filteredDamage, periodWeeks);

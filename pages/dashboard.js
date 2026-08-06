@@ -29,6 +29,10 @@ export default function DashboardPage({ user: initialUser }) {
   const [selectedProjects, setSelectedProjects] = useState([]);
   const [filterMode, setFilterMode] = useState("pickup");
   const [periodWeeks, setPeriodWeeks] = useState("mtd");
+  // "Điểm Lấy Hàng" (pickup point) filter — only meaningful alongside a
+  // single selected project, cleared whenever the project selection changes
+  // so a stale origin from a previous client doesn't silently carry over.
+  const [selectedOrigin, setSelectedOrigin] = useState(null);
   const [dashData, setDashData] = useState(null);
   const [loading, setLoading] = useState(canSeeLTL);
   const [filtering, setFiltering] = useState(false);
@@ -72,6 +76,7 @@ export default function DashboardPage({ user: initialUser }) {
       if (effectiveViewAs.type) params.append("viewAsType", effectiveViewAs.type);
       if (effectiveViewAs.value) params.append("viewAsValue", effectiveViewAs.value);
       params.append("periodWeeks", pWeeks || periodWeeks);
+      if (selectedOrigin) params.append("origin", selectedOrigin);
       params.append("t", Date.now());
 
       const res = await fetch(`/api/data?${params.toString()}`);
@@ -83,14 +88,20 @@ export default function DashboardPage({ user: initialUser }) {
     } finally {
       setLoading(false);
     }
-  }, [viewAs, periodWeeks]);
+  }, [viewAs, periodWeeks, selectedOrigin]);
+
+  // A pickup-point selection only makes sense for whichever project it came
+  // from — drop it the moment the project selection changes underneath it.
+  useEffect(() => {
+    setSelectedOrigin(null);
+  }, [selectedProjects]);
 
   // Fetch data on mount and whenever filters change
   useEffect(() => {
     if (!canSeeLTL) return;
     fetchDashboardData(selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks, canSeeLTL]);
+  }, [selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks, selectedOrigin, canSeeLTL]);
 
   // Tách Chuyến: fetch lazily the first time the user opens that tab
   useEffect(() => {
@@ -494,7 +505,7 @@ export default function DashboardPage({ user: initialUser }) {
                 {activeTab === "operations" ? (
                   <TabOperations rawData={dashData?.raw} userRole={dashData?.user?.role} />
                 ) : (
-                  !loading && !error && dashData && <TabLTL data={dashData.ltl} rawData={dashData.raw} selectedProjects={selectedProjects} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} />
+                  !loading && !error && dashData && <TabLTL data={dashData.ltl} rawData={dashData.raw} selectedProjects={selectedProjects} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} />
                 )}
               </>
             )}

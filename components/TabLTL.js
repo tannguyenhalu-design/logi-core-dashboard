@@ -754,32 +754,22 @@ function getOntimeBadge(pct) {
 
 // ── Province delivery map + AI insight (Bản đồ phân bố + gợi ý theo tỉnh) ──
 function ProvinceMapPanel({
-  provinceStats: provinceStatsProp, routeStats, provinceDetailsMap: provinceDetailsMapProp = {},
-  originStats = [], originDetailsMap = {},
+  provinceStats, routeStats, provinceDetailsMap = {},
+  originStats = [], selectedOrigin = null, onOriginChange,
   projectSummaries = {}, overallData = {}, singleProjectMode, projectName, onProvinceClick,
 }) {
   const [activeProv, setActiveProv] = useState(null);
   const [viewMode, setViewMode] = useState("orders"); // 'orders' | 'weight' | 'ontime' | 'damage'
-  // A client that ships from several pickup points (e.g. PSD out of both
-  // Bình Dương and Hà Nội) needs performance broken down BY pickup point,
-  // not just by destination — pick one and every stat/list/map color below
-  // swaps to that origin's own destination-side breakdown instead of the
-  // combined one, reusing all the same rendering code (see provinceStats/
-  // provinceDetailsMap reassignment below).
-  const [selectedOrigin, setSelectedOrigin] = useState(null);
 
-  const originFilter = singleProjectMode && selectedOrigin && originDetailsMap[selectedOrigin]
-    ? originDetailsMap[selectedOrigin]
-    : null;
-  const provinceStats = originFilter ? originFilter.provinceStats : provinceStatsProp;
-  const provinceDetailsMap = originFilter ? originFilter.provinceDetailsMap : provinceDetailsMapProp;
-
-  // Switching project (or leaving single-project mode) invalidates whatever
-  // origin/hover selection was active for the previous client.
+  // provinceStats/provinceDetailsMap already come from the backend scoped
+  // to `selectedOrigin` (a real top-level filter — see pages/dashboard.js —
+  // sent to /api/data as `origin`, applied in transformLTL), so every panel
+  // fed by that same API response (trend chart, "so sánh cùng kỳ", damage,
+  // warehouse alerts) stays in sync automatically. This component only
+  // needs to render the picker and clear its own hover state on change.
   useEffect(() => {
-    setSelectedOrigin(null);
     setActiveProv(null);
-  }, [projectName, singleProjectMode]);
+  }, [projectName, singleProjectMode, selectedOrigin]);
 
   // Hovering a province (map or "Top 8 Tỉnh" list) only needs to update
   // activeProv, but every derived value below used to get rebuilt from
@@ -861,10 +851,10 @@ function ProvinceMapPanel({
   }
 
   const inspectData = activeProv ? (provinceDetailsMap[activeProv] || provinceStats.find(p => p.name === activeProv)?.details) : null;
-  // originFilter already carries totalOrders/totalWeight/ontimeCount/lateCount/
-  // ontimePct/damageCount under the same field names as projectSummaries, so
-  // the overview stat grid below needs no changes to read either source.
-  const projectOverview = singleProjectMode ? (originFilter || projectSummaries[projectName]) : null;
+  // projectSummaries is built from the same origin-scoped `rows` as
+  // provinceStats/provinceDetailsMap, so this already reflects selectedOrigin
+  // with no extra branching needed here.
+  const projectOverview = singleProjectMode ? projectSummaries[projectName] : null;
 
   return (
     <div className="chart-panel" style={{ width: "100%" }}>
@@ -1068,10 +1058,10 @@ function ProvinceMapPanel({
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cyan)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   🏢 {singleProjectMode ? `Góc Nhìn Tổng Quan Khách Hàng: ${projectName}` : "Góc Nhìn Tổng Quan Toàn Bộ Dự Án LTL"}
-                  {originFilter && (
+                  {singleProjectMode && selectedOrigin && (
                     <span style={{ fontSize: 11, background: "rgba(20,224,196,0.15)", color: "var(--cyan)", border: "1px solid var(--cyan)", padding: "2px 8px", borderRadius: 4, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
                       🏬 Lấy tại: {selectedOrigin}
-                      <span onClick={() => setSelectedOrigin(null)} style={{ cursor: "pointer", opacity: 0.8 }} title="Bỏ lọc">✕</span>
+                      <span onClick={() => onOriginChange?.(null)} style={{ cursor: "pointer", opacity: 0.8 }} title="Bỏ lọc">✕</span>
                     </span>
                   )}
                   {(() => {
@@ -1132,7 +1122,7 @@ function ProvinceMapPanel({
                         return (
                           <div
                             key={o.name}
-                            onClick={() => setSelectedOrigin(isSel ? null : o.name)}
+                            onClick={() => onOriginChange?.(isSel ? null : o.name)}
                             style={{
                               display: "flex", justifyContent: "space-between", alignItems: "center",
                               fontSize: 11.5, marginBottom: 3, padding: "3px 6px", borderRadius: 4,
@@ -1160,22 +1150,9 @@ function ProvinceMapPanel({
 
                   <div style={{ background: "var(--panel-bg)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)" }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6, textTransform: "uppercase" }}>
-                      🚚 Top Tỉnh Giao Hàng Lớn Nhất{originFilter ? ` (từ ${selectedOrigin})` : ""}:
+                      🚚 Top Tỉnh Giao Hàng Lớn Nhất{selectedOrigin ? ` (từ ${selectedOrigin})` : ""}:
                     </div>
-                    {originFilter ? (
-                      originFilter.provinceStats.length > 0 ? (
-                        originFilter.provinceStats.slice(0, 3).map((p) => (
-                          <div key={p.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 3 }}>
-                            <span style={{ color: "var(--text-primary)" }}>• {p.name}</span>
-                            <b style={{ color: "var(--cyan)" }}>
-                              {p.orders} đơn ({originFilter.totalOrders > 0 ? Math.round((p.orders / originFilter.totalOrders) * 100) : 0}%)
-                            </b>
-                          </div>
-                        ))
-                      ) : (
-                        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Chưa ghi nhận tỉnh giao</div>
-                      )
-                    ) : projectOverview.topProvinces && projectOverview.topProvinces.length > 0 ? (
+                    {projectOverview.topProvinces && projectOverview.topProvinces.length > 0 ? (
                       projectOverview.topProvinces.slice(0, 3).map((p) => (
                         <div key={p.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 3 }}>
                           <span style={{ color: "var(--text-primary)" }}>• {p.name}</span>
@@ -1248,7 +1225,7 @@ function ProvinceMapPanel({
   );
 }
 
-export default function TabLTL({ data, rawData, selectedProjects = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange }) {
+export default function TabLTL({ data, rawData, selectedProjects = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange }) {
   const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
   const [selectedProvinceOrders, setSelectedProvinceOrders] = useState(null); // stores the clicked province name
   const theme = useTheme();
@@ -1355,6 +1332,8 @@ export default function TabLTL({ data, rawData, selectedProjects = [], userRole,
         }}
         singleProjectMode={singleProjectMode}
         projectName={singleProjectMode ? selectedProjects[0] : ""}
+        selectedOrigin={selectedOrigin}
+        onOriginChange={onOriginChange}
         onProvinceClick={(prov) => setSelectedProvinceOrders(prov)}
       />
 
