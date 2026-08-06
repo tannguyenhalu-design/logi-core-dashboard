@@ -140,7 +140,11 @@ function CapacitySection({ routes }) {
 }
 
 // ── Tầng 3: So sánh cùng kỳ ── (also used inline in TabLTL.js, near the ontime trend chart)
-export function DeltaBadge({ value, unit, invert }) {
+export function DeltaBadge({ value, unit, invert, isNew }) {
+  // prev = 0, cur > 0 — "mới phát sinh", không phải "chưa đủ dữ liệu so
+  // sánh". % tăng lúc này là vô cực (chia 0), nên hiện nhãn riêng thay vì
+  // gộp chung với trường hợp thật sự không có gì để so.
+  if (isNew) return <span style={{ fontSize: 12, fontWeight: 700, color: "var(--green)" }}>🆕 Mới</span>;
   if (value == null) return <span style={{ fontSize: 11, color: "var(--text-muted)" }}>—</span>;
   const good = invert ? value <= 0 : value >= 0;
   const color = value === 0 ? "var(--text-muted)" : good ? "var(--green)" : "var(--red)";
@@ -204,7 +208,7 @@ export function PeriodComparisonSection({ comparison, compact = false, periodWee
             borderRadius: 10, padding: "8px 16px", minWidth: 110, textAlign: "center",
           }}>
             <div style={{ color: "var(--text-muted)", fontSize: 10, marginBottom: 3 }}>Số đơn</div>
-            <DeltaBadge value={overall.ordersDeltaPct} unit="%" />
+            <DeltaBadge value={overall.ordersDeltaPct} unit="%" isNew={overall.ordersIsNew} />
           </div>
           <div style={{
             background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)",
@@ -238,7 +242,7 @@ export function PeriodComparisonSection({ comparison, compact = false, periodWee
                 <span style={{ color: "var(--text-muted)" }}>
                   Đơn: {c.prev.orders} → {c.cur.orders}
                 </span>
-                <DeltaBadge value={c.ordersDeltaPct} unit="%" />
+                <DeltaBadge value={c.ordersDeltaPct} unit="%" isNew={c.ordersIsNew} />
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 3 }}>
                 <span style={{ color: "var(--text-muted)" }}>
