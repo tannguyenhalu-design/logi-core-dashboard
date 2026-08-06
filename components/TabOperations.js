@@ -367,20 +367,24 @@ export default function TabOperations({ rawData, userRole }) {
   };
 
   const totalRevenue = filteredProjects.reduce((sum, p) => sum + parseRevenue(p.revenue), 0);
+  const totalRrNsr = filteredProjects.reduce((sum, p) => sum + parseRevenue(p.rrNsr), 0);
   const canSeeRevenue = userRole === "manager" || userRole === "sd3";
 
   const revenueByPic = {};
   const revenueByStatus = {};
   filteredProjects.forEach((p) => {
     const rev = parseRevenue(p.revenue);
+    const rrNsr = parseRevenue(p.rrNsr);
     const picKey = PIC_NAMES[p.pic] || p.pic || "Chưa gán";
-    if (!revenueByPic[picKey]) revenueByPic[picKey] = { revenue: 0, count: 0 };
+    if (!revenueByPic[picKey]) revenueByPic[picKey] = { revenue: 0, rrNsr: 0, count: 0 };
     revenueByPic[picKey].revenue += rev;
+    revenueByPic[picKey].rrNsr += rrNsr;
     revenueByPic[picKey].count += 1;
 
     const statusKey = p.status || "Chưa cập nhật";
-    if (!revenueByStatus[statusKey]) revenueByStatus[statusKey] = { revenue: 0, count: 0 };
+    if (!revenueByStatus[statusKey]) revenueByStatus[statusKey] = { revenue: 0, rrNsr: 0, count: 0 };
     revenueByStatus[statusKey].revenue += rev;
+    revenueByStatus[statusKey].rrNsr += rrNsr;
     revenueByStatus[statusKey].count += 1;
   });
 
@@ -861,7 +865,7 @@ export default function TabOperations({ rawData, userRole }) {
       </div>
 
       {/* Stats Cards Row */}
-      <div className="grid-4">
+      <div className="grid-4" style={canSeeRevenue ? { gridTemplateColumns: "repeat(5, 1fr)" } : undefined}>
         <div style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", padding: 16, borderRadius: 12 }}>
           <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase" }}>Tổng Dự Án</div>
           <div style={{ fontSize: 24, fontWeight: "bold", margin: "6px 0", color: "var(--text-primary)" }}>{totalCount}</div>
@@ -886,13 +890,24 @@ export default function TabOperations({ rawData, userRole }) {
             <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Tổng quy mô doanh thu ước tính</div>
           </div>
         )}
+        {canSeeRevenue && (
+          <div style={{ background: "rgba(16,185,129,0.05)", border: "1px solid rgba(16,185,129,0.15)", padding: 16, borderRadius: 12 }}>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase" }}>Doanh Thu Thực Đạt</div>
+            <div style={{ fontSize: 24, fontWeight: "bold", margin: "6px 0", color: "var(--green)" }}>
+              {totalRrNsr > 0 ? (totalRrNsr / 1000000000).toFixed(1).replace(".0", "") + " Tỷđ" : "0đ"}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+              RR/NSR tháng này{totalRevenue > 0 ? ` — đạt ${((totalRrNsr / totalRevenue) * 100).toFixed(0)}% kế hoạch` : ""}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Revenue breakdown by PIC / status — rolled up from "Doanh Thu Dự Kiến" per project */}
-      {canSeeRevenue && totalRevenue > 0 && (
+      {/* Revenue breakdown by PIC / status — Dự Kiến (per-project target) vs Thực Đạt (RR/NSR actual) */}
+      {canSeeRevenue && (totalRevenue > 0 || totalRrNsr > 0) && (
         <div style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", padding: 16, borderRadius: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-            <h4 style={{ margin: 0, fontSize: 13, color: "var(--text-primary)" }}>💰 Doanh Thu Dự Kiến — theo PIC & trạng thái</h4>
+            <h4 style={{ margin: 0, fontSize: 13, color: "var(--text-primary)" }}>💰 Doanh Thu — theo PIC & trạng thái (Dự kiến vs Thực đạt)</h4>
             {kpiSyncStatus && (() => {
               const { status, hoursAgo, lastSyncAt } = kpiSyncStatus;
               const color = status === "ok" ? "var(--green)" : status === "stale" ? "var(--amber)" : "var(--red)";
@@ -917,21 +932,49 @@ export default function TabOperations({ rawData, userRole }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
             <div>
               <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8 }}>Theo PIC</div>
-              {Object.entries(revenueByPic).sort((a, b) => b[1].revenue - a[1].revenue).map(([pic, v]) => (
-                <div key={pic} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--panel-border-soft)", fontSize: 13 }}>
-                  <span style={{ color: "var(--text-secondary)" }}>{pic} <span style={{ color: "var(--text-muted)", fontSize: 11 }}>({v.count} dự án)</span></span>
-                  <b style={{ color: "var(--cyan)" }}>{formatRevenue(v.revenue)}</b>
-                </div>
-              ))}
+              {Object.entries(revenueByPic).sort((a, b) => b[1].revenue - a[1].revenue).map(([pic, v]) => {
+                const pct = v.revenue > 0 ? Math.round((v.rrNsr / v.revenue) * 100) : null;
+                return (
+                  <div key={pic} style={{ padding: "6px 0", borderBottom: "1px solid var(--panel-border-soft)", fontSize: 13 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ color: "var(--text-secondary)" }}>{pic} <span style={{ color: "var(--text-muted)", fontSize: 11 }}>({v.count} dự án)</span></span>
+                      <b style={{ color: "var(--cyan)" }}>{formatRevenue(v.revenue)}</b>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 2 }}>
+                      <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Thực đạt:</span>
+                      <b style={{ fontSize: 12, color: "var(--green)" }}>{formatRevenue(v.rrNsr)}</b>
+                      {pct !== null && (
+                        <span style={{ fontSize: 11, fontWeight: 600, color: pct >= 100 ? "var(--green)" : pct >= 70 ? "var(--amber)" : "var(--red)" }}>
+                          ({pct}%)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
             <div>
               <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8 }}>Theo trạng thái</div>
-              {Object.entries(revenueByStatus).sort((a, b) => b[1].revenue - a[1].revenue).map(([status, v]) => (
-                <div key={status} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--panel-border-soft)", fontSize: 13 }}>
-                  <span style={{ color: "var(--text-secondary)" }}>{status} <span style={{ color: "var(--text-muted)", fontSize: 11 }}>({v.count} dự án)</span></span>
-                  <b style={{ color: "var(--green)" }}>{formatRevenue(v.revenue)}</b>
-                </div>
-              ))}
+              {Object.entries(revenueByStatus).sort((a, b) => b[1].revenue - a[1].revenue).map(([status, v]) => {
+                const pct = v.revenue > 0 ? Math.round((v.rrNsr / v.revenue) * 100) : null;
+                return (
+                  <div key={status} style={{ padding: "6px 0", borderBottom: "1px solid var(--panel-border-soft)", fontSize: 13 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ color: "var(--text-secondary)" }}>{status} <span style={{ color: "var(--text-muted)", fontSize: 11 }}>({v.count} dự án)</span></span>
+                      <b style={{ color: "var(--cyan)" }}>{formatRevenue(v.revenue)}</b>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 2 }}>
+                      <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Thực đạt:</span>
+                      <b style={{ fontSize: 12, color: "var(--green)" }}>{formatRevenue(v.rrNsr)}</b>
+                      {pct !== null && (
+                        <span style={{ fontSize: 11, fontWeight: 600, color: pct >= 100 ? "var(--green)" : pct >= 70 ? "var(--amber)" : "var(--red)" }}>
+                          ({pct}%)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
