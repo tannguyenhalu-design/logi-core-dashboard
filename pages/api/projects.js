@@ -293,10 +293,27 @@ export default async function handler(req, res) {
       const sheets = google.sheets({ version: "v4", auth });
 
       if (action === "create") {
-        // 1. Append a new project row to Google Sheets
-        await sheets.spreadsheets.values.append({
+        // 1. Add a new project row — targeting an explicit row number
+        // instead of values.append(), which auto-detects the "table" to
+        // append after. That detection gets confused by the sparse,
+        // ragged legacy rows sitting near the bottom of this sheet (gaps
+        // of blank columns before their data) and has landed new rows
+        // 15 columns off from where they belong, with mangled encoding
+        // on top — caught live and cleaned up once already.
+        const existingResp = await sheets.spreadsheets.values.get({
           spreadsheetId: ltlProjectsId,
-          range: "'Data dự án'!A:P",
+          range: "'Data dự án'!B:B",
+        });
+        const existingRows = existingResp.data.values || [];
+        let lastRow = 1; // header is row 1
+        existingRows.forEach((row, i) => {
+          if (i > 0 && String(row[0] || "").trim()) lastRow = i + 1;
+        });
+        const targetRow = lastRow + 1;
+
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: ltlProjectsId,
+          range: `'Data dự án'!A${targetRow}:P${targetRow}`,
           valueInputOption: "USER_ENTERED",
           resource: {
             values: [[
