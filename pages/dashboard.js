@@ -351,13 +351,14 @@ export default function DashboardPage({ user: initialUser }) {
         {/* ── Main content ── */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {/* Header */}
-          <header style={{
-            height: 60, background: "var(--bg-panel)",
+          <header className="dashboard-header" style={{
+            minHeight: 60, background: "var(--bg-panel)",
             borderBottom: "1px solid var(--border)",
             backdropFilter: "blur(12px)",
             display: "flex", alignItems: "center",
             justifyContent: "space-between",
-            padding: "0 24px", gap: 16,
+            flexWrap: "wrap",
+            padding: "10px 24px", gap: 16,
             position: "relative",
             zIndex: 100,
           }}>

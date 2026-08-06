@@ -323,11 +323,29 @@ body {
 }
 .nav-item.active svg { color: var(--cyan); filter: drop-shadow(0 0 6px var(--cyan)); }
 
-/* ── Grid helpers ── */
-.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-.grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
-.grid-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+/* ── Grid helpers ──
+   Bare `1fr` tracks default to a minimum of their content's max-content
+   width (same gotcha as flexbox `min-width:auto`) — a wide table or
+   unbroken text inside can force the whole grid wider than its container
+   instead of shrinking to fit, which is what caused the LTL map panel
+   (250px + 1fr) to overflow ~400px on a narrower window instead of
+   stacking. `minmax(0, 1fr)` removes that implicit floor so tracks can
+   actually shrink; the breakpoints below reduce column count so content
+   doesn't get uselessly squeezed before that point. */
+.grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.grid-2-1 { display: grid; grid-template-columns: 2fr minmax(0, 1fr); gap: 16px; }
+.province-map-grid { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 20px; align-items: start; }
+
+@media (max-width: 900px) {
+  .grid-4, .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-2-1, .province-map-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 680px) {
+  .grid-4, .grid-3, .grid-2 { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* ── Spinner ── */
 .spinner {

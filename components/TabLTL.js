@@ -866,7 +866,7 @@ function ProvinceMapPanel({
         </div>
 
         {/* View Mode Toggle Buttons */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--input-bg)", padding: 3, borderRadius: 8, border: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--input-bg)", padding: 3, borderRadius: 8, border: "1px solid var(--border)", flexWrap: "wrap" }}>
           <button
             onClick={() => setViewMode("orders")}
             style={{
@@ -914,7 +914,7 @@ function ProvinceMapPanel({
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "250px 1fr", gap: 20, alignItems: "start" }}>
+      <div className="province-map-grid">
         {/* Left Column: Compact Map (Sticky on Scroll) */}
         <div style={{ position: "sticky", top: 80, display: "flex", flexDirection: "column", alignItems: "center" }}>
           <VietnamMap
@@ -964,7 +964,7 @@ function ProvinceMapPanel({
                 </span>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
+              <div className="grid-4" style={{ gap: 10, marginBottom: 14 }}>
                 <div style={{ background: "var(--panel-bg)", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }}>
                   <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Tỷ lệ Ontime</div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: getOntimeColor(inspectData.ontimePct) }}>
@@ -1081,7 +1081,7 @@ function ProvinceMapPanel({
                 </span>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
+              <div className="grid-4" style={{ gap: 10, marginBottom: 14 }}>
                 <div style={{ background: "var(--panel-bg)", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }}>
                   <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Tỷ Lệ Ontime Tổng</div>
                   <div style={{ fontSize: 16, fontWeight: 700, color: getOntimeColor(singleProjectMode ? projectOverview?.ontimePct : overallData?.ontimePct) }}>
@@ -1110,7 +1110,7 @@ function ProvinceMapPanel({
 
               {/* Sub-section: Top Origins (click to filter by pickup point) & Key Destination Provinces */}
               {singleProjectMode && projectOverview && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div className="grid-2" style={{ gap: 12 }}>
                   <div style={{ background: "var(--panel-bg)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)" }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6, textTransform: "uppercase" }}>
                       🏬 Điểm Lấy Hàng Chính Của {projectName} (bấm để lọc):
@@ -1176,7 +1176,7 @@ function ProvinceMapPanel({
             <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
               💡 Top 8 Tỉnh ({viewMode === "weight" ? "Xếp theo Tải trọng Tấn" : viewMode === "ontime" ? "Cảnh báo Ontime thấp trước" : viewMode === "damage" ? "Xếp theo Ca Bể Vỡ" : "Xếp theo Số đơn"})
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <div className="grid-2" style={{ gap: 8 }}>
               {topProvinces.map((p) => {
                 const isSelected = activeProv === p.name;
                 const pDet = provinceDetailsMap[p.name] || p.details;
@@ -1363,7 +1363,7 @@ export default function TabLTL({ data, rawData, selectedProjects = [], userRole,
           lọc còn đúng 1 dự án thì khoanh tròn/cột luôn ra 100% một màu, ẩn đi cho gọn (số liệu đã có ở 4 ô KPI đầu trang). */}
       {!singleProjectMode && (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          <div className="grid-2" style={{ gap: 20 }}>
             <div className="chart-panel">
               <div className="chart-panel-title">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
