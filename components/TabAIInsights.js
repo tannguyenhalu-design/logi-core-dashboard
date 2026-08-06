@@ -152,7 +152,7 @@ export function DeltaBadge({ value, unit, invert }) {
   );
 }
 
-export function PeriodComparisonSection({ comparison, compact = false, periodWeeks = 1, onPeriodWeeksChange }) {
+export function PeriodComparisonSection({ comparison, compact = false, periodWeeks = "mtd", onPeriodWeeksChange }) {
   if (!comparison) return null;
   const { currentRangeLabel, previousRangeLabel, overall, clients, warehouses } = comparison;
   // Filtered to 1 project, the client breakdown is just that 1 project again
@@ -161,6 +161,7 @@ export function PeriodComparisonSection({ comparison, compact = false, periodWee
   const items = compact ? (warehouses || []) : (clients || []);
   const groupLabel = compact ? "kho giao hàng" : "khách hàng";
   const warningItems = items.filter((c) => c.warning);
+  const isMtd = periodWeeks === "mtd";
 
   return (
     <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
@@ -170,22 +171,27 @@ export function PeriodComparisonSection({ comparison, compact = false, periodWee
             📈 So sánh cùng kỳ
           </div>
           <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-            {currentRangeLabel} so với {previousRangeLabel} (chỉ so 2 khối đã khép, lùi 2 ngày đệm để đơn kịp có kết quả)
+            {currentRangeLabel} so với {previousRangeLabel} (
+            {isMtd ? "đầu tháng → hôm nay" : "chỉ so 2 khối đã khép"}, lùi 2 ngày đệm để đơn kịp có kết quả)
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           {onPeriodWeeksChange && (
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Khối:</span>
+              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Kỳ:</span>
               <select
                 value={periodWeeks}
-                onChange={(e) => onPeriodWeeksChange(Number(e.target.value))}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  onPeriodWeeksChange(v === "mtd" ? "mtd" : Number(v));
+                }}
                 style={{
                   fontSize: 12, fontWeight: 600, padding: "5px 8px", borderRadius: 6,
                   background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", color: "var(--text-primary)",
                   cursor: "pointer",
                 }}
               >
+                <option value="mtd">Mặc định (đầu tháng)</option>
                 <option value={1}>1 tuần</option>
                 <option value={2}>2 tuần</option>
                 <option value={3}>3 tuần</option>

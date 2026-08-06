@@ -1101,7 +1101,7 @@ function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, 
   );
 }
 
-export default function TabLTL({ data, rawData, selectedProjects = [], userRole, periodWeeks = 1, onPeriodWeeksChange }) {
+export default function TabLTL({ data, rawData, selectedProjects = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange }) {
   const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
   const [selectedProvinceOrders, setSelectedProvinceOrders] = useState(null); // stores the clicked province name
   const theme = useTheme();

@@ -28,7 +28,7 @@ export default function DashboardPage({ user: initialUser }) {
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [selectedProjects, setSelectedProjects] = useState([]);
   const [filterMode, setFilterMode] = useState("pickup");
-  const [periodWeeks, setPeriodWeeks] = useState(1);
+  const [periodWeeks, setPeriodWeeks] = useState("mtd");
   const [dashData, setDashData] = useState(null);
   const [loading, setLoading] = useState(canSeeLTL);
   const [filtering, setFiltering] = useState(false);

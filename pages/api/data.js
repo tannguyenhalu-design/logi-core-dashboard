@@ -77,10 +77,14 @@ export default async function handler(req, res) {
     if (projects.length === 0) projects = null;
   }
 
-  // Granularity of the "so sánh cùng kỳ" panel — calendar-day-of-month
-  // blocks of 1/2/3 weeks, compared against the same block last month.
-  let periodWeeks = parseInt(req.query.periodWeeks, 10);
-  if (![1, 2, 3].includes(periodWeeks)) periodWeeks = 1;
+  // Granularity of the "so sánh cùng kỳ" panel — "mtd" (default: đầu tháng
+  // → hôm nay vs cùng khoảng đó tháng trước) or calendar-day-of-month
+  // blocks of 1/2/3 weeks compared against the same block last month.
+  let periodWeeks = req.query.periodWeeks;
+  if (periodWeeks !== "mtd") {
+    periodWeeks = parseInt(periodWeeks, 10);
+    if (![1, 2, 3].includes(periodWeeks)) periodWeeks = "mtd";
+  }
 
   // ── Enforce client/cs restrictions strictly at Backend ──
   if (role === "client" && userProject) {
