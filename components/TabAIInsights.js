@@ -6,6 +6,10 @@ import { useState } from "react";
 
 // ── Helpers ──
 const fmtN = n => Number(n).toLocaleString("vi-VN");
+const fmtKg = (kg) => {
+  const n = Number(kg) || 0;
+  return n >= 1000 ? `${(n / 1000).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} tấn` : `${n.toLocaleString("vi-VN")} kg`;
+};
 
 function LevelBadge({ level }) {
   const cfg = {
@@ -214,6 +218,13 @@ export function PeriodComparisonSection({ comparison, compact = false, periodWee
             background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)",
             borderRadius: 10, padding: "8px 16px", minWidth: 110, textAlign: "center",
           }}>
+            <div style={{ color: "var(--text-muted)", fontSize: 10, marginBottom: 3 }}>Trọng lượng</div>
+            <DeltaBadge value={overall.weightDeltaPct} unit="%" isNew={overall.weightIsNew} />
+          </div>
+          <div style={{
+            background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)",
+            borderRadius: 10, padding: "8px 16px", minWidth: 110, textAlign: "center",
+          }}>
             <div style={{ color: "var(--text-muted)", fontSize: 10, marginBottom: 3 }}>Ontime</div>
             <DeltaBadge value={overall.ontimeDeltaPoints} unit=" điểm" />
           </div>
@@ -243,6 +254,12 @@ export function PeriodComparisonSection({ comparison, compact = false, periodWee
                   Đơn: {c.prev.orders} → {c.cur.orders}
                 </span>
                 <DeltaBadge value={c.ordersDeltaPct} unit="%" isNew={c.ordersIsNew} />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 3 }}>
+                <span style={{ color: "var(--text-muted)" }}>
+                  KL: {fmtKg(c.prev.weight)} → {fmtKg(c.cur.weight)}
+                </span>
+                <DeltaBadge value={c.weightDeltaPct} unit="%" isNew={c.weightIsNew} />
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 3 }}>
                 <span style={{ color: "var(--text-muted)" }}>

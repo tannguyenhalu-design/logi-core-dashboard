@@ -246,10 +246,12 @@ function OrdersProjChart({ ordersByProject, theme = "dark" }) {
   useChart(ref, () => ({
     type: "doughnut",
     data: {
-      // Short label for legend (prevents 2-column overflow)
+      // Short label for legend (prevents 2-column overflow) — includes the
+      // raw order count now, not just %, so the number is visible without
+      // having to hover for the tooltip.
       labels: entries.map(([p, v]) => {
         const pct = total > 0 ? Math.round((v / total) * 100) : 0;
-        return `${trunc(p)} (${pct}%)`;
+        return `${trunc(p)} ${v.toLocaleString("vi-VN")} đơn (${pct}%)`;
       }),
       datasets: [{
         data: entries.map(([, v]) => v),
@@ -286,7 +288,22 @@ function OrdersProjChart({ ordersByProject, theme = "dark" }) {
             }
           }
         },
-        datalabels: { display: false },
+        // On-slice labels so the number reads at a glance instead of
+        // needing to hover or scan the legend — hidden on slivers too
+        // thin to hold text legibly.
+        datalabels: {
+          display: (ctx) => {
+            const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
+            return sum > 0 && ctx.dataset.data[ctx.dataIndex] / sum >= 0.04;
+          },
+          color: "#0f172a",
+          font: { weight: "bold", size: 11 },
+          formatter: (val, ctx) => {
+            const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
+            const pct = sum > 0 ? Math.round((val / sum) * 100) : 0;
+            return `${pct}%`;
+          },
+        },
       },
     },
   }), [ordersByProject], theme);
@@ -361,7 +378,22 @@ function WeightProjChart({ weightByProject = {}, theme = "dark" }) {
             }
           }
         },
-        datalabels: { display: false },
+        // On-slice labels so the number reads at a glance instead of
+        // needing to hover or scan the legend — hidden on slivers too
+        // thin to hold text legibly.
+        datalabels: {
+          display: (ctx) => {
+            const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
+            return sum > 0 && ctx.dataset.data[ctx.dataIndex] / sum >= 0.04;
+          },
+          color: "#0f172a",
+          font: { weight: "bold", size: 11 },
+          formatter: (val, ctx) => {
+            const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
+            const pct = sum > 0 ? Math.round((val / sum) * 100) : 0;
+            return `${pct}%`;
+          },
+        },
       },
     },
   }), [weightByProject], theme);
