@@ -8,7 +8,7 @@
  */
 import { getSession } from "../../lib/auth";
 import { fetchSheet } from "../../lib/sheets";
-import { isDMClient } from "../../lib/dm-clients";
+import { isDMClient, isLTLRow, FTL_ONLY_CLIENTS } from "../../lib/dm-clients";
 import { transformLTL } from "../../lib/transform-ltl";
 import { transformFTL } from "../../lib/transform-ftl";
 import { transformTachTrip } from "../../lib/transform-tach-trip";
@@ -98,9 +98,13 @@ export default async function handler(req, res) {
       throw new Error("No LTL data found");
     }
 
-    // ── 1. Base Filtering (DM Clients + Date >= July 2026) ──
-    let filteredLTL = rawLTL.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"]));
-    let filteredDamage = rawDamage.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"] || r["case_date"]));
+    // ── 1. Base Filtering (DM Clients + Date >= July 2026 + LTL only) ──
+    // "LTL Dashboard" was including genuine FTL orders — some DM clients
+    // (Aqua B2B, LG Pantos, and the "* FTL"-suffixed names) ship
+    // exclusively via FTL despite matching the DM client list; luong_hang
+    // is the real signal for everyone else. See lib/dm-clients.js.
+    let filteredLTL = rawLTL.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"]) && isLTLRow(r));
+    let filteredDamage = rawDamage.filter(r => isDMClient(r["client_name"]) && isFromJuly2026(r["pickup_time"] || r["case_date"]) && !FTL_ONLY_CLIENTS.has(String(r["client_name"] || "").trim()));
 
     // Build the PIC mapping object
     const picMapping = {};
