@@ -753,9 +753,33 @@ function getOntimeBadge(pct) {
 }
 
 // ── Province delivery map + AI insight (Bản đồ phân bố + gợi ý theo tỉnh) ──
-function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, projectSummaries = {}, overallData = {}, singleProjectMode, projectName, onProvinceClick }) {
+function ProvinceMapPanel({
+  provinceStats: provinceStatsProp, routeStats, provinceDetailsMap: provinceDetailsMapProp = {},
+  originStats = [], originDetailsMap = {},
+  projectSummaries = {}, overallData = {}, singleProjectMode, projectName, onProvinceClick,
+}) {
   const [activeProv, setActiveProv] = useState(null);
   const [viewMode, setViewMode] = useState("orders"); // 'orders' | 'weight' | 'ontime' | 'damage'
+  // A client that ships from several pickup points (e.g. PSD out of both
+  // Bình Dương and Hà Nội) needs performance broken down BY pickup point,
+  // not just by destination — pick one and every stat/list/map color below
+  // swaps to that origin's own destination-side breakdown instead of the
+  // combined one, reusing all the same rendering code (see provinceStats/
+  // provinceDetailsMap reassignment below).
+  const [selectedOrigin, setSelectedOrigin] = useState(null);
+
+  const originFilter = singleProjectMode && selectedOrigin && originDetailsMap[selectedOrigin]
+    ? originDetailsMap[selectedOrigin]
+    : null;
+  const provinceStats = originFilter ? originFilter.provinceStats : provinceStatsProp;
+  const provinceDetailsMap = originFilter ? originFilter.provinceDetailsMap : provinceDetailsMapProp;
+
+  // Switching project (or leaving single-project mode) invalidates whatever
+  // origin/hover selection was active for the previous client.
+  useEffect(() => {
+    setSelectedOrigin(null);
+    setActiveProv(null);
+  }, [projectName, singleProjectMode]);
 
   // Hovering a province (map or "Top 8 Tỉnh" list) only needs to update
   // activeProv, but every derived value below used to get rebuilt from
@@ -837,7 +861,10 @@ function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, 
   }
 
   const inspectData = activeProv ? (provinceDetailsMap[activeProv] || provinceStats.find(p => p.name === activeProv)?.details) : null;
-  const projectOverview = singleProjectMode ? projectSummaries[projectName] : null;
+  // originFilter already carries totalOrders/totalWeight/ontimeCount/lateCount/
+  // ontimePct/damageCount under the same field names as projectSummaries, so
+  // the overview stat grid below needs no changes to read either source.
+  const projectOverview = singleProjectMode ? (originFilter || projectSummaries[projectName]) : null;
 
   return (
     <div className="chart-panel" style={{ width: "100%" }}>
@@ -1039,8 +1066,14 @@ function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, 
               transition: "all 0.2s ease-out",
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cyan)", display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cyan)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   🏢 {singleProjectMode ? `Góc Nhìn Tổng Quan Khách Hàng: ${projectName}` : "Góc Nhìn Tổng Quan Toàn Bộ Dự Án LTL"}
+                  {originFilter && (
+                    <span style={{ fontSize: 11, background: "rgba(20,224,196,0.15)", color: "var(--cyan)", border: "1px solid var(--cyan)", padding: "2px 8px", borderRadius: 4, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                      🏬 Lấy tại: {selectedOrigin}
+                      <span onClick={() => setSelectedOrigin(null)} style={{ cursor: "pointer", opacity: 0.8 }} title="Bỏ lọc">✕</span>
+                    </span>
+                  )}
                   {(() => {
                     const pct = singleProjectMode ? (projectOverview?.ontimePct ?? 100) : (overallData?.ontimePct ?? 100);
                     const badge = getOntimeBadge(pct);
@@ -1085,20 +1118,41 @@ function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, 
                 </div>
               </div>
 
-              {/* Sub-section: Top Origins & Key Destination Provinces */}
+              {/* Sub-section: Top Origins (click to filter by pickup point) & Key Destination Provinces */}
               {singleProjectMode && projectOverview && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div style={{ background: "var(--panel-bg)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)" }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6, textTransform: "uppercase" }}>
-                      🏬 Điểm Lấy Hàng Chính Của {projectName}:
+                      🏬 Điểm Lấy Hàng Chính Của {projectName} (bấm để lọc):
                     </div>
-                    {projectOverview.topOrigins && projectOverview.topOrigins.length > 0 ? (
-                      projectOverview.topOrigins.slice(0, 3).map((o) => (
-                        <div key={o.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 3 }}>
-                          <span style={{ color: "var(--text-primary)" }}>• {o.name}</span>
-                          <b style={{ color: "var(--cyan)" }}>{o.count} đơn ({o.pct}%)</b>
-                        </div>
-                      ))
+                    {originStats && originStats.length > 0 ? (
+                      originStats.slice(0, 5).map((o) => {
+                        const oDet = originDetailsMap[o.name];
+                        const isSel = selectedOrigin === o.name;
+                        return (
+                          <div
+                            key={o.name}
+                            onClick={() => setSelectedOrigin(isSel ? null : o.name)}
+                            style={{
+                              display: "flex", justifyContent: "space-between", alignItems: "center",
+                              fontSize: 11.5, marginBottom: 3, padding: "3px 6px", borderRadius: 4,
+                              cursor: "pointer",
+                              background: isSel ? "rgba(20,224,196,0.15)" : "transparent",
+                              border: isSel ? "1px solid var(--cyan)" : "1px solid transparent",
+                            }}
+                          >
+                            <span style={{ color: "var(--text-primary)" }}>{isSel ? "🎯" : "•"} {o.name}</span>
+                            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <b style={{ color: "var(--cyan)" }}>{o.orders} đơn</b>
+                              {oDet && (
+                                <span style={{ color: getOntimeColor(oDet.ontimePct), fontSize: 10.5, fontWeight: 600 }}>
+                                  {oDet.ontimePct}%
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        );
+                      })
                     ) : (
                       <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Chưa ghi nhận điểm lấy</div>
                     )}
@@ -1106,9 +1160,22 @@ function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, 
 
                   <div style={{ background: "var(--panel-bg)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)" }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6, textTransform: "uppercase" }}>
-                      🚚 Top Tỉnh Giao Hàng Lớn Nhất:
+                      🚚 Top Tỉnh Giao Hàng Lớn Nhất{originFilter ? ` (từ ${selectedOrigin})` : ""}:
                     </div>
-                    {projectOverview.topProvinces && projectOverview.topProvinces.length > 0 ? (
+                    {originFilter ? (
+                      originFilter.provinceStats.length > 0 ? (
+                        originFilter.provinceStats.slice(0, 3).map((p) => (
+                          <div key={p.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 3 }}>
+                            <span style={{ color: "var(--text-primary)" }}>• {p.name}</span>
+                            <b style={{ color: "var(--cyan)" }}>
+                              {p.orders} đơn ({originFilter.totalOrders > 0 ? Math.round((p.orders / originFilter.totalOrders) * 100) : 0}%)
+                            </b>
+                          </div>
+                        ))
+                      ) : (
+                        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Chưa ghi nhận tỉnh giao</div>
+                      )
+                    ) : projectOverview.topProvinces && projectOverview.topProvinces.length > 0 ? (
                       projectOverview.topProvinces.slice(0, 3).map((p) => (
                         <div key={p.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 3 }}>
                           <span style={{ color: "var(--text-primary)" }}>• {p.name}</span>
@@ -1275,6 +1342,8 @@ export default function TabLTL({ data, rawData, selectedProjects = [], userRole,
         provinceStats={data.provinceStats}
         routeStats={data.routeStats}
         provinceDetailsMap={data.provinceDetailsMap || {}}
+        originStats={data.originStats || []}
+        originDetailsMap={data.originDetailsMap || {}}
         projectSummaries={data.projectSummaries || {}}
         overallData={{
           totalOrders: data.totalOrders,
