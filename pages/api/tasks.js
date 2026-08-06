@@ -15,9 +15,18 @@ export default async function handler(req, res) {
   }
   const actor = session.user.name || session.user.email;
 
+  const isManager = session.user.role === "manager";
+  const userEmail = String(session.user.email || "").toLowerCase();
+
   if (req.method === "GET") {
     try {
-      const tasks = await getAllTasks();
+      const allTasks = await getAllTasks();
+      // Non-managers only see tasks they're personally assigned to — a task
+      // given to 3 people shows for all 3 (each has their own row/pic), a
+      // task given to 1 shows only for that 1. Manager keeps full oversight.
+      const tasks = isManager
+        ? allTasks
+        : allTasks.filter((t) => String(t.pic || "").toLowerCase() === userEmail);
       return res.status(200).json({ ok: true, tasks });
     } catch (err) {
       console.error("[/api/tasks] GET error:", err);
@@ -72,10 +81,20 @@ export default async function handler(req, res) {
 
   if (req.method === "PATCH") {
     try {
-      const { id, status } = req.body || {};
+      const { id, status, note } = req.body || {};
       if (!id || !status) return res.status(400).json({ error: "Missing id or status" });
-      const task = await updateTaskStatus(id, status, actor);
-      await logAction({ actor, action: "task.update_status", target: id, details: { status } });
+      // A row can only be updated by the person it's assigned to, or a
+      // manager — otherwise anyone with operations access could mark a
+      // teammate's task done (or reopen it) on their behalf.
+      if (!isManager) {
+        const allTasks = await getAllTasks();
+        const target = allTasks.find((t) => t.id === id);
+        if (!target || String(target.pic || "").toLowerCase() !== userEmail) {
+          return res.status(403).json({ error: "Bạn chỉ có thể cập nhật task của chính mình" });
+        }
+      }
+      const task = await updateTaskStatus(id, status, actor, note);
+      await logAction({ actor, action: "task.update_status", target: id, details: { status, note } });
       return res.status(200).json({ ok: true, task });
     } catch (err) {
       console.error("[/api/tasks] PATCH error:", err);
@@ -84,6 +103,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "DELETE") {
+    if (!isManager) return res.status(403).json({ error: "Chỉ Manager mới có thể xoá task" });
     try {
       const { id } = req.body || {};
       if (!id) return res.status(400).json({ error: "Missing id" });

@@ -39,6 +39,10 @@ export default function TabOperations({ rawData, userRole }) {
   const [taskPicFilter, setTaskPicFilter] = useState("all");
   const [taskStatusFilter, setTaskStatusFilter] = useState("all");
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  // Draft text for the completion-note textarea, keyed by task id — kept
+  // local until the assignee actually submits "Đánh dấu hoàn thành".
+  const [completionDrafts, setCompletionDrafts] = useState({});
+  const [completingId, setCompletingId] = useState(null);
 
   // New task form state — a list of rows so several *different* tasks
   // (own title/deadline/notes) can be created in one save, not just one
@@ -79,9 +83,30 @@ export default function TabOperations({ rawData, userRole }) {
   // tracked row (own status/deadline outcome) but they share a groupId so
   // the table shows them as one task instead of N unrelated duplicates.
   const taskGroupCount = new Set(tasks.map((t) => t.groupId || t.id)).size;
+
+  // On-time/late is derived from the actual completion timestamp vs the
+  // deadline instead of trusting a manually self-declared button — status
+  // itself only tracks "in_progress" vs "done" (còn "ontime"/"overdue" là
+  // giá trị cũ từ trước khi có auto-detect, vẫn coi là "done" để tương
+  // thích ngược). This is what lets the manager actually trust the badge
+  // instead of the PIC just pre-emptively clicking "đúng hạn".
+  function getTaskOutcome(t) {
+    const deadlineEnd = t.deadline ? new Date(`${t.deadline}T23:59:59`) : null;
+    const isCompleted = t.status !== "in_progress";
+    if (!isCompleted) {
+      if (deadlineEnd && !isNaN(deadlineEnd.getTime()) && new Date() > deadlineEnd) return "overdue_open";
+      return "in_progress";
+    }
+    const completedAt = t.updatedAt ? new Date(t.updatedAt) : null;
+    if (!deadlineEnd || !completedAt || isNaN(deadlineEnd.getTime()) || isNaN(completedAt.getTime())) return "done_ontime";
+    return completedAt <= deadlineEnd ? "done_ontime" : "done_late";
+  }
+
   function groupTaskStatus(members) {
-    if (members.some((m) => m.status === "overdue")) return "overdue";
-    if (members.every((m) => m.status === "ontime")) return "ontime";
+    const outcomes = members.map(getTaskOutcome);
+    if (outcomes.includes("overdue_open")) return "overdue_open";
+    if (outcomes.includes("done_late")) return "done_late";
+    if (outcomes.every((o) => o === "done_ontime")) return "done_ontime";
     return "in_progress";
   }
 
@@ -126,19 +151,31 @@ export default function TabOperations({ rawData, userRole }) {
     }
   };
 
-  const handleToggleTaskStatus = async (id, newStatus) => {
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status: newStatus } : t)));
+  const handleToggleTaskStatus = async (id, newStatus, note) => {
+    const now = new Date().toISOString();
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status: newStatus, updatedAt: now, ...(note !== undefined ? { completionNote: note } : {}) } : t)));
     try {
       const res = await fetch("/api/tasks", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, status: newStatus }),
+        body: JSON.stringify({ id, status: newStatus, note }),
       });
       const json = await res.json();
-      if (!json.ok) fetchTasks(); // revert to server truth on failure
+      if (!json.ok) {
+        alert(json.error || "Không thể cập nhật task.");
+        fetchTasks(); // revert to server truth on failure
+      }
     } catch (e) {
       fetchTasks();
     }
+  };
+
+  const handleCompleteTask = async (id) => {
+    const note = (completionDrafts[id] || "").trim();
+    setCompletingId(id);
+    await handleToggleTaskStatus(id, "done", note);
+    setCompletingId(null);
+    setCompletionDrafts((prev) => { const next = { ...prev }; delete next[id]; return next; });
   };
 
   const handleDeleteTask = async (id) => {
@@ -464,7 +501,7 @@ export default function TabOperations({ rawData, userRole }) {
           {(() => {
             const filteredTasks = tasks.filter((t) => {
               if (taskPicFilter !== "all" && t.pic !== taskPicFilter) return false;
-              if (taskStatusFilter !== "all" && t.status !== taskStatusFilter) return false;
+              if (taskStatusFilter !== "all" && getTaskOutcome(t) !== taskStatusFilter) return false;
               return true;
             });
             const taskGroupsMap = new Map();
@@ -475,9 +512,10 @@ export default function TabOperations({ rawData, userRole }) {
             });
             const taskGroups = Array.from(taskGroupsMap.values());
             const totalT = taskGroups.length;
-            const ontimeT = taskGroups.filter((g) => groupTaskStatus(g) === "ontime").length;
+            const ontimeT = taskGroups.filter((g) => groupTaskStatus(g) === "done_ontime").length;
             const inProgT = taskGroups.filter((g) => groupTaskStatus(g) === "in_progress").length;
-            const overdueT = taskGroups.filter((g) => groupTaskStatus(g) === "overdue").length;
+            // "Trễ" gộp cả 2 trường hợp: quá hạn mà chưa xong, và đã xong nhưng trễ hạn.
+            const overdueT = taskGroups.filter((g) => ["overdue_open", "done_late"].includes(groupTaskStatus(g))).length;
             const ontimePct = totalT > 0 ? Math.round((ontimeT / totalT) * 100) : 100;
 
             return (
@@ -532,8 +570,9 @@ export default function TabOperations({ rawData, userRole }) {
                     >
                       <option value="all">Tất cả trạng thái</option>
                       <option value="in_progress">🟡 Đang thực hiện</option>
-                      <option value="ontime">🟢 Đã xong đúng hạn</option>
-                      <option value="overdue">🔴 Trễ hạn (Overdue)</option>
+                      <option value="done_ontime">🟢 Xong đúng hạn</option>
+                      <option value="done_late">🟠 Xong trễ hạn</option>
+                      <option value="overdue_open">🔴 Quá hạn, chưa xong</option>
                     </select>
                   </div>
                 </div>
@@ -562,7 +601,7 @@ export default function TabOperations({ rawData, userRole }) {
                         taskGroups.map((members) => {
                           const first = members[0];
                           const gid = first.groupId || first.id;
-                          const groupIsOverdue = groupTaskStatus(members) === "overdue";
+                          const groupIsOverdue = ["overdue_open", "done_late"].includes(groupTaskStatus(members));
                           return (
                             <tr key={gid} style={{ borderBottom: "1px solid var(--border)", background: groupIsOverdue ? "rgba(244, 63, 94, 0.05)" : "transparent" }}>
                               <td style={{ padding: "10px 14px", fontWeight: 600, color: "var(--text-primary)" }}>
@@ -581,99 +620,133 @@ export default function TabOperations({ rawData, userRole }) {
                                 📅 {first.deadline}
                               </td>
                               <td style={{ padding: "10px 14px" }}>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                  {members.map((m) => (
-                                    <span key={m.id} style={{ fontSize: 11, fontWeight: 600, width: "fit-content", padding: "2px 8px", borderRadius: 4, ...(
-                                      m.status === "ontime"
-                                        ? { background: "rgba(16,185,129,0.15)", color: "var(--green)", border: "1px solid var(--green)" }
-                                        : m.status === "overdue"
-                                        ? { background: "rgba(244,63,94,0.15)", color: "var(--red)", border: "1px solid var(--red)" }
-                                        : { background: "rgba(245,158,11,0.15)", color: "var(--amber)", border: "1px solid var(--amber)" }
-                                    ) }}>
-                                      {m.status === "ontime" ? "🟢 Đúng hạn" : m.status === "overdue" ? "🚨 Trễ hạn" : "🟡 Đang làm"}
-                                    </span>
-                                  ))}
+                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                  {members.map((m) => {
+                                    const outcome = getTaskOutcome(m);
+                                    const badgeStyle = {
+                                      done_ontime: { background: "rgba(16,185,129,0.15)", color: "var(--green)", border: "1px solid var(--green)", label: "🟢 Xong đúng hạn" },
+                                      done_late: { background: "rgba(245,158,11,0.15)", color: "var(--amber)", border: "1px solid var(--amber)", label: "🟠 Xong trễ hạn" },
+                                      overdue_open: { background: "rgba(244,63,94,0.15)", color: "var(--red)", border: "1px solid var(--red)", label: "🚨 Quá hạn, chưa xong" },
+                                      in_progress: { background: "rgba(245,158,11,0.15)", color: "var(--amber)", border: "1px solid var(--amber)", label: "🟡 Đang làm" },
+                                    }[outcome];
+                                    return (
+                                      <div key={m.id}>
+                                        <span style={{ fontSize: 11, fontWeight: 600, width: "fit-content", padding: "2px 8px", borderRadius: 4, ...badgeStyle }}>
+                                          {badgeStyle.label}
+                                        </span>
+                                        {m.completionNote && (
+                                          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3, fontStyle: "italic", maxWidth: 260 }}>
+                                            💬 {m.completionNote}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </td>
                               <td style={{ padding: "10px 14px", textAlign: "right" }}>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-                                  {members.map((m) => (
-                                    <div key={m.id} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
-                                      {members.length > 1 && (
-                                        <span style={{ fontSize: 10.5, color: "var(--text-muted)" }}>{m.picName}:</span>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
+                                  {members.map((m) => {
+                                    const isOwnRow = m.pic === currentUser.email;
+                                    const canAct = isManager || isOwnRow;
+                                    const outcome = getTaskOutcome(m);
+                                    const isDone = outcome === "done_ontime" || outcome === "done_late";
+                                    return (
+                                    <div key={m.id} style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end", width: "100%", maxWidth: 260 }}>
+                                      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                                        {members.length > 1 && (
+                                          <span style={{ fontSize: 10.5, color: "var(--text-muted)" }}>{m.picName}:</span>
+                                        )}
+                                        {m.calendarLink ? (
+                                          <a
+                                            href={m.calendarLink}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            title="Đã tự động tạo lịch & mời PIC qua email — bấm để xem trên Google Calendar"
+                                            style={{
+                                              background: "rgba(16,185,129,0.12)",
+                                              border: "1px solid var(--green)",
+                                              color: "var(--green)",
+                                              padding: "3px 8px",
+                                              borderRadius: 4,
+                                              fontSize: 11,
+                                              textDecoration: "none",
+                                              fontWeight: 600,
+                                              display: "inline-flex",
+                                              alignItems: "center",
+                                              gap: 3,
+                                            }}
+                                          >
+                                            ✓ Đã tạo lịch
+                                          </a>
+                                        ) : (
+                                          <a
+                                            href={(() => {
+                                              const title = encodeURIComponent(`[SD3 Task] ${m.title}`);
+                                              const dateStr = (m.deadline || "").replace(/-/g, "");
+                                              const dates = dateStr ? `${dateStr}T090000/${dateStr}T180000` : "";
+                                              const details = encodeURIComponent(`Nhiệm vụ vận hành SD3 GHN:\n- Tên công việc: ${m.title}\n- Dự án: ${m.project}\n- PIC đảm nhiệm: ${m.picName} (${m.pic})\n- Ghi chú: ${m.notes || "N/A"}`);
+                                              const add = encodeURIComponent(m.pic || "");
+                                              return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&add=${add}`;
+                                            })()}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            title="Chưa tự tạo được lịch — bấm để tự thêm thủ công"
+                                            style={{
+                                              background: "rgba(2, 132, 199, 0.12)",
+                                              border: "1px solid var(--cyan)",
+                                              color: "var(--cyan)",
+                                              padding: "3px 8px",
+                                              borderRadius: 4,
+                                              fontSize: 11,
+                                              textDecoration: "none",
+                                              fontWeight: 600,
+                                              display: "inline-flex",
+                                              alignItems: "center",
+                                              gap: 3,
+                                            }}
+                                          >
+                                            📅 Lịch Google
+                                          </a>
+                                        )}
+                                        {canAct && isDone && (
+                                          <button
+                                            onClick={() => handleToggleTaskStatus(m.id, "in_progress")}
+                                            style={{ background: "rgba(245,158,11,0.15)", border: "1px solid var(--amber)", color: "var(--amber)", padding: "3px 8px", borderRadius: 4, fontSize: 11, cursor: "pointer", fontWeight: 600 }}
+                                          >
+                                            ↺ Mở lại
+                                          </button>
+                                        )}
+                                        {isManager && (
+                                          <button
+                                            onClick={() => handleDeleteTask(m.id)}
+                                            style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-muted)", padding: "3px 6px", borderRadius: 4, fontSize: 11, cursor: "pointer" }}
+                                          >
+                                            🗑️
+                                          </button>
+                                        )}
+                                      </div>
+                                      {canAct && !isDone && (
+                                        <div style={{ display: "flex", gap: 6, width: "100%" }}>
+                                          <input
+                                            type="text"
+                                            value={completionDrafts[m.id] || ""}
+                                            onChange={(e) => setCompletionDrafts((prev) => ({ ...prev, [m.id]: e.target.value }))}
+                                            placeholder="Phản hồi kết quả công việc..."
+                                            style={{ flex: 1, minWidth: 0, fontSize: 11, padding: "4px 8px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 4, color: "var(--text-primary)" }}
+                                          />
+                                          <button
+                                            onClick={() => handleCompleteTask(m.id)}
+                                            disabled={completingId === m.id}
+                                            style={{ background: "rgba(16,185,129,0.15)", border: "1px solid var(--green)", color: "var(--green)", padding: "3px 10px", borderRadius: 4, fontSize: 11, cursor: completingId === m.id ? "default" : "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
+                                          >
+                                            {completingId === m.id ? "..." : "✓ Hoàn thành"}
+                                          </button>
+                                        </div>
                                       )}
-                                      {m.calendarLink ? (
-                                        <a
-                                          href={m.calendarLink}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          title="Đã tự động tạo lịch & mời PIC qua email — bấm để xem trên Google Calendar"
-                                          style={{
-                                            background: "rgba(16,185,129,0.12)",
-                                            border: "1px solid var(--green)",
-                                            color: "var(--green)",
-                                            padding: "3px 8px",
-                                            borderRadius: 4,
-                                            fontSize: 11,
-                                            textDecoration: "none",
-                                            fontWeight: 600,
-                                            display: "inline-flex",
-                                            alignItems: "center",
-                                            gap: 3,
-                                          }}
-                                        >
-                                          ✓ Đã tạo lịch
-                                        </a>
-                                      ) : (
-                                        <a
-                                          href={(() => {
-                                            const title = encodeURIComponent(`[SD3 Task] ${m.title}`);
-                                            const dateStr = (m.deadline || "").replace(/-/g, "");
-                                            const dates = dateStr ? `${dateStr}T090000/${dateStr}T180000` : "";
-                                            const details = encodeURIComponent(`Nhiệm vụ vận hành SD3 GHN:\n- Tên công việc: ${m.title}\n- Dự án: ${m.project}\n- PIC đảm nhiệm: ${m.picName} (${m.pic})\n- Ghi chú: ${m.notes || "N/A"}`);
-                                            const add = encodeURIComponent(m.pic || "");
-                                            return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&add=${add}`;
-                                          })()}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          title="Chưa tự tạo được lịch — bấm để tự thêm thủ công"
-                                          style={{
-                                            background: "rgba(2, 132, 199, 0.12)",
-                                            border: "1px solid var(--cyan)",
-                                            color: "var(--cyan)",
-                                            padding: "3px 8px",
-                                            borderRadius: 4,
-                                            fontSize: 11,
-                                            textDecoration: "none",
-                                            fontWeight: 600,
-                                            display: "inline-flex",
-                                            alignItems: "center",
-                                            gap: 3,
-                                          }}
-                                        >
-                                          📅 Lịch Google
-                                        </a>
-                                      )}
-                                      <button
-                                        onClick={() => handleToggleTaskStatus(m.id, m.status === "ontime" ? "in_progress" : "ontime")}
-                                        style={{ background: "rgba(16,185,129,0.15)", border: "1px solid var(--green)", color: "var(--green)", padding: "3px 8px", borderRadius: 4, fontSize: 11, cursor: "pointer", fontWeight: 600 }}
-                                      >
-                                        {m.status === "ontime" ? "Mở lại" : "✓ Xong đúng hạn"}
-                                      </button>
-                                      <button
-                                        onClick={() => handleToggleTaskStatus(m.id, "overdue")}
-                                        style={{ background: "rgba(244,63,94,0.15)", border: "1px solid var(--red)", color: "var(--red)", padding: "3px 8px", borderRadius: 4, fontSize: 11, cursor: "pointer", fontWeight: 600 }}
-                                      >
-                                        ⚠️ Báo Trễ
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteTask(m.id)}
-                                        style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-muted)", padding: "3px 6px", borderRadius: 4, fontSize: 11, cursor: "pointer" }}
-                                      >
-                                        🗑️
-                                      </button>
                                     </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               </td>
                             </tr>
