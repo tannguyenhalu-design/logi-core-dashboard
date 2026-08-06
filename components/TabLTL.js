@@ -1117,7 +1117,7 @@ function ProvinceMapPanel({
                     </div>
                     {originStats && originStats.length > 0 ? (
                       originStats.slice(0, 5).map((o) => {
-                        const oDet = originDetailsMap[o.name];
+                        const oDet = o.details;
                         const isSel = selectedOrigin === o.name;
                         return (
                           <div
@@ -1320,7 +1320,6 @@ export default function TabLTL({ data, rawData, selectedProjects = [], userRole,
         routeStats={data.routeStats}
         provinceDetailsMap={data.provinceDetailsMap || {}}
         originStats={data.originStats || []}
-        originDetailsMap={data.originDetailsMap || {}}
         projectSummaries={data.projectSummaries || {}}
         overallData={{
           totalOrders: data.totalOrders,
