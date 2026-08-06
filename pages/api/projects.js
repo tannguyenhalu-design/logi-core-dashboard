@@ -1,4 +1,4 @@
-import { getAuth } from "../../lib/sheets";
+import { getAuth, getCached, setCached, invalidateCache } from "../../lib/sheets";
 import { getSession } from "../../lib/auth";
 import { logAction } from "../../lib/audit-log";
 import { google } from "googleapis";
@@ -106,98 +106,112 @@ export default async function handler(req, res) {
 
   if (req.method === "GET") {
     try {
-      // Authenticate Sheets API
-      const auth = getAuth();
-      const sheets = google.sheets({ version: "v4", auth });
+      // The full grid fetch below (includeGridData:true, needed for SOP
+      // hyperlinks/chips) is the heaviest possible Sheets API call and was
+      // being re-run on every single page load/tab open with no caching —
+      // the actual source of the slow "search/load" the user reported
+      // (the in-browser search itself just filters the already-loaded
+      // list). Cache the parsed rows for a short window and invalidate
+      // immediately on any write below, so edits still show up right away.
+      const gridCacheKey = `projects-grid:${ltlProjectsId}`;
+      let sheetProjects = getCached(gridCacheKey);
 
-      // Fetch spreadsheet data with GridData to extract embedded hyperlinks
-      const response = await sheets.spreadsheets.get({
-        spreadsheetId: ltlProjectsId,
-        ranges: ["'Data dự án'!A1:Z100"],
-        includeGridData: true,
-      });
+      if (!sheetProjects) {
+        // Authenticate Sheets API
+        const auth = getAuth();
+        const sheets = google.sheets({ version: "v4", auth });
 
-      const sheet = response.data.sheets[0];
-      const rowData = sheet.data[0].rowData || [];
-      if (rowData.length === 0) {
-        return res.status(200).json({ ok: true, projects: [] });
-      }
-
-      // First row contains headers
-      const headers = (rowData[0].values || []).map(v => String(v.formattedValue || "").trim());
-
-      let volumeIdx = headers.indexOf("Dự kiến Volume");
-      if (volumeIdx === -1) {
-        volumeIdx = headers.indexOf("Dự kiến Vollume");
-      }
-      if (volumeIdx === -1) {
-        const col12Idx = headers.indexOf("Cột 12");
-        if (col12Idx !== -1) {
-          try {
-            await sheets.spreadsheets.values.update({
-              spreadsheetId: ltlProjectsId,
-              range: "'Data dự án'!L1",
-              valueInputOption: "USER_ENTERED",
-              resource: { values: [["Dự kiến Volume"]] },
-            });
-            volumeIdx = col12Idx;
-            headers[volumeIdx] = "Dự kiến Volume";
-          } catch (renameErr) {
-            console.warn("Could not rename cell L1:", renameErr.message);
-          }
-        }
-      }
-
-      // Claim (or create) dedicated columns for the SD3 pipeline fields so they
-      // persist in the Sheet instead of the ephemeral local store (which is wiped
-      // on every Vercel deployment/cold start).
-      const ensureHeader = async (targetName, colLetter, colIdx) => {
-        if (headers[colIdx] === targetName) return colIdx;
-        if (!headers[colIdx] || /^Cột \d+$/.test(headers[colIdx])) {
-          try {
-            await sheets.spreadsheets.values.update({
-              spreadsheetId: ltlProjectsId,
-              range: `'Data dự án'!${colLetter}1`,
-              valueInputOption: "USER_ENTERED",
-              resource: { values: [[targetName]] },
-            });
-            headers[colIdx] = targetName;
-            return colIdx;
-          } catch (renameErr) {
-            console.warn(`Could not set header ${colLetter}1:`, renameErr.message);
-          }
-        }
-        return headers.indexOf(targetName);
-      };
-
-      await ensureHeader("RECAP STATUS", "M", 12);
-      await ensureHeader("RECAP LINK", "N", 13);
-      await ensureHeader("SOP STATUS", "O", 14);
-      await ensureHeader("KICKOFF STATUS", "P", 15);
-      await ensureHeader("Last Mo NSR", "Q", 16);
-      await ensureHeader("RR/NSR", "R", 17);
-
-      const sheetProjects = rowData.slice(1).map(row => {
-        const obj = {};
-        const vals = row.values || [];
-        headers.forEach((h, idx) => {
-          const cell = vals[idx] || {};
-          const text = cell.formattedValue || "";
-          // Cells created via "Insert > Link" as a Google Sheets "smart chip"
-          // (pasting a Doc/Drive URL) store the URL under chipRuns, not the
-          // plain hyperlink field — a whole separate structure from a
-          // =HYPERLINK() formula or a manually-applied cell-level link.
-          const chipLink = cell.chipRuns?.[0]?.chip?.richLinkProperties?.uri || "";
-          const link = cell.hyperlink || chipLink || "";
-
-          if (h === "LINK SOP") {
-            obj[h] = link || text;
-          } else {
-            obj[h] = text;
-          }
+        // Fetch spreadsheet data with GridData to extract embedded hyperlinks
+        const response = await sheets.spreadsheets.get({
+          spreadsheetId: ltlProjectsId,
+          ranges: ["'Data dự án'!A1:R100"],
+          includeGridData: true,
         });
-        return obj;
-      }).filter(p => p["TÊN DỰ ÁN"] && p["TÊN DỰ ÁN"].trim().length > 0);
+
+        const sheet = response.data.sheets[0];
+        const rowData = sheet.data[0].rowData || [];
+        if (rowData.length === 0) {
+          return res.status(200).json({ ok: true, projects: [] });
+        }
+
+        // First row contains headers
+        const headers = (rowData[0].values || []).map(v => String(v.formattedValue || "").trim());
+
+        let volumeIdx = headers.indexOf("Dự kiến Volume");
+        if (volumeIdx === -1) {
+          volumeIdx = headers.indexOf("Dự kiến Vollume");
+        }
+        if (volumeIdx === -1) {
+          const col12Idx = headers.indexOf("Cột 12");
+          if (col12Idx !== -1) {
+            try {
+              await sheets.spreadsheets.values.update({
+                spreadsheetId: ltlProjectsId,
+                range: "'Data dự án'!L1",
+                valueInputOption: "USER_ENTERED",
+                resource: { values: [["Dự kiến Volume"]] },
+              });
+              volumeIdx = col12Idx;
+              headers[volumeIdx] = "Dự kiến Volume";
+            } catch (renameErr) {
+              console.warn("Could not rename cell L1:", renameErr.message);
+            }
+          }
+        }
+
+        // Claim (or create) dedicated columns for the SD3 pipeline fields so they
+        // persist in the Sheet instead of the ephemeral local store (which is wiped
+        // on every Vercel deployment/cold start).
+        const ensureHeader = async (targetName, colLetter, colIdx) => {
+          if (headers[colIdx] === targetName) return colIdx;
+          if (!headers[colIdx] || /^Cột \d+$/.test(headers[colIdx])) {
+            try {
+              await sheets.spreadsheets.values.update({
+                spreadsheetId: ltlProjectsId,
+                range: `'Data dự án'!${colLetter}1`,
+                valueInputOption: "USER_ENTERED",
+                resource: { values: [[targetName]] },
+              });
+              headers[colIdx] = targetName;
+              return colIdx;
+            } catch (renameErr) {
+              console.warn(`Could not set header ${colLetter}1:`, renameErr.message);
+            }
+          }
+          return headers.indexOf(targetName);
+        };
+
+        await ensureHeader("RECAP STATUS", "M", 12);
+        await ensureHeader("RECAP LINK", "N", 13);
+        await ensureHeader("SOP STATUS", "O", 14);
+        await ensureHeader("KICKOFF STATUS", "P", 15);
+        await ensureHeader("Last Mo NSR", "Q", 16);
+        await ensureHeader("RR/NSR", "R", 17);
+
+        sheetProjects = rowData.slice(1).map(row => {
+          const obj = {};
+          const vals = row.values || [];
+          headers.forEach((h, idx) => {
+            const cell = vals[idx] || {};
+            const text = cell.formattedValue || "";
+            // Cells created via "Insert > Link" as a Google Sheets "smart chip"
+            // (pasting a Doc/Drive URL) store the URL under chipRuns, not the
+            // plain hyperlink field — a whole separate structure from a
+            // =HYPERLINK() formula or a manually-applied cell-level link.
+            const chipLink = cell.chipRuns?.[0]?.chip?.richLinkProperties?.uri || "";
+            const link = cell.hyperlink || chipLink || "";
+
+            if (h === "LINK SOP") {
+              obj[h] = link || text;
+            } else {
+              obj[h] = text;
+            }
+          });
+          return obj;
+        }).filter(p => p["TÊN DỰ ÁN"] && p["TÊN DỰ ÁN"].trim().length > 0);
+
+        setCached(gridCacheKey, sheetProjects, 60 * 1000);
+      }
 
       // Merge Google Sheet row data with local dashboard overrides
       const mergedProjects = sheetProjects.map(p => {
@@ -473,6 +487,10 @@ export default async function handler(req, res) {
       } catch (fsErr) {
         console.warn("Could not write local projects-store.json cache:", fsErr.message);
       }
+
+      // Any create/update makes the cached grid stale — drop it so the
+      // next GET (this user's own refresh included) re-fetches fresh data.
+      invalidateCache(`projects-grid:${ltlProjectsId}`);
 
       await logAction({
         actor: session.user.email,
