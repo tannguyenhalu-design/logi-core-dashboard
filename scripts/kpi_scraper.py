@@ -1,7 +1,8 @@
 """
 kpi_scraper.py — cào dữ liệu Plan/RR-NSR từ kpi-dashboard-portal.vercel.app
 qua CDP (Chrome DevTools Protocol), rồi đẩy thẳng lên SD3-Điện Máy Dashboard
-để tự động cập nhật "Doanh Thu Dự Kiến" + "Last Mo. NSR" theo Client ID.
+để tự động cập nhật "Doanh Thu Dự Kiến" + "Last Mo. NSR" + "RR/NSR" (doanh
+thu thực tháng này) theo Client ID.
 
 Trang KPI không dùng thẻ <table> — dữ liệu là 1 grid dạng div. Script này
 đọc document.body.innerText (đã vào đúng view "Client Radar > Client
@@ -29,8 +30,9 @@ phụ thuộc cấu trúc DOM cụ thể nên khá bền với thay đổi giao 
 
 Script tự bấm RADAR > Client Breakdown, đợi bảng load, bóc theo Client ID,
 rồi POST lên API /api/kpi-sync — match đúng dự án theo Client ID và cập
-nhật "Doanh Thu Dự Kiến" (Plan tuần mới nhất) + "Last Mo. NSR". Dự án nào
-không có Client ID khớp sẵn trong Sheet thì bị bỏ qua, không tạo mới.
+nhật "Doanh Thu Dự Kiến" (Plan tuần mới nhất) + "Last Mo. NSR" + "RR/NSR"
+(doanh thu thực tháng này). Dự án nào không có Client ID khớp sẵn trong
+Sheet thì bị bỏ qua, không tạo mới.
 """
 
 import os
@@ -158,6 +160,7 @@ def parse_client_rows(raw_text):
             "name": name,
             "lastMoNsr": parse_money(nums[0]),
             "planRevenue": parse_money(nums[3]),
+            "rrNsr": parse_money(nums[4]),
         })
         i = j + 9
     return records
@@ -225,7 +228,7 @@ def main():
             data = res.json()
             print(f"✅ Đã khớp và cập nhật {data.get('matched', 0)} dự án theo Client ID:")
             for u in data.get("updated", []):
-                print(f"   - {u['name']} (ID {u['clientId']}): Plan={u['planRevenue']}, LastMoNSR={u['lastMoNsr']}")
+                print(f"   - {u['name']} (ID {u['clientId']}): Plan={u['planRevenue']}, LastMoNSR={u['lastMoNsr']}, RR/NSR={u.get('rrNsr')}")
         else:
             print(res.text)
     except Exception as e:

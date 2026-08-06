@@ -1016,8 +1016,7 @@ export default function TabOperations({ rawData, userRole }) {
                 <th style={{ textAlign: "left", padding: "12px 8px" }}>Dự Kiến OB</th>
                 {canSeeRevenue && <th style={{ textAlign: "right", padding: "12px 8px" }}>Doanh Thu Dự Kiến</th>}
                 {canSeeRevenue && <th style={{ textAlign: "right", padding: "12px 8px" }}>Last Mo. NSR</th>}
-                {canSeeRevenue && <th style={{ textAlign: "right", padding: "12px 8px" }} title="Doanh thu thực đạt được so với dự kiến">RR/NSR</th>}
-                <th style={{ textAlign: "right", padding: "12px 8px" }}>Dự Kiến Volume</th>
+                {canSeeRevenue && <th style={{ textAlign: "right", padding: "12px 8px" }} title="Doanh thu thực tế tháng này (từ KPI Portal)">RR/NSR</th>}
                 <th style={{ textAlign: "center", padding: "12px 8px" }}>Trạng Thái</th>
                 <th style={{ textAlign: "center", padding: "12px 8px" }}>Tác vụ</th>
               </tr>
@@ -1033,12 +1032,6 @@ export default function TabOperations({ rawData, userRole }) {
                 const isAssignedPic = p.pic && p.pic === currentUser.pic;
                 const canEdit = isManager || isAssignedPic;
                 const hasNoSop = !p.sopLink;
-
-                // RR/NSR — how much of the expected revenue actually landed
-                const expectedRevenueNum = parseRevenue(p.revenue);
-                const lastMoNsrNum = parseRevenue(p.lastMoNsr);
-                const rrNsrPct = expectedRevenueNum > 0 && p.lastMoNsr ? (lastMoNsrNum / expectedRevenueNum) * 100 : null;
-                const rrNsrColor = rrNsrPct == null ? "var(--text-muted)" : rrNsrPct >= 100 ? "var(--green)" : rrNsrPct >= 70 ? "var(--amber)" : "var(--red)";
 
                 return (
                   <tr
@@ -1080,13 +1073,10 @@ export default function TabOperations({ rawData, userRole }) {
                       </td>
                     )}
                     {canSeeRevenue && (
-                      <td style={{ padding: "14px 8px", textAlign: "right", fontWeight: 600, color: rrNsrColor }}>
-                        {rrNsrPct == null ? "—" : `${Math.round(rrNsrPct)}%`}
+                      <td style={{ padding: "14px 8px", textAlign: "right", fontWeight: 600, color: "var(--cyan)" }}>
+                        {p.rrNsr ? formatRevenue(p.rrNsr) : "—"}
                       </td>
                     )}
-                    <td style={{ padding: "14px 8px", textAlign: "right", color: "var(--text-secondary)" }}>
-                      {p.volume || "—"}
-                    </td>
                     <td style={{ padding: "14px 8px", textAlign: "center" }}>
                       <span style={{ 
                         fontSize: 11, 

@@ -175,6 +175,7 @@ export default async function handler(req, res) {
       await ensureHeader("SOP STATUS", "O", 14);
       await ensureHeader("KICKOFF STATUS", "P", 15);
       await ensureHeader("Last Mo NSR", "Q", 16);
+      await ensureHeader("RR/NSR", "R", 17);
 
       const sheetProjects = rowData.slice(1).map(row => {
         const obj = {};
@@ -238,6 +239,7 @@ export default async function handler(req, res) {
           sopStatus:           local.sopStatus !== undefined ? local.sopStatus : ((p["SOP STATUS"] || "").trim() || defaultSopStatus),
           kickoffStatus:       local.kickoffStatus !== undefined ? local.kickoffStatus : ((p["KICKOFF STATUS"] || "").trim() || defaultKickoffStatus),
           lastMoNsr:           local.lastMoNsr !== undefined ? local.lastMoNsr : (p["Last Mo NSR"] || ""),
+          rrNsr:               local.rrNsr !== undefined ? local.rrNsr : (p["RR/NSR"] || ""),
 
           notes:               local.notes !== undefined ? local.notes : (p["CHECK LIST CÔNG VIỆC"] || ""),
           updatedAt:           local.updatedAt || null,
