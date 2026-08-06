@@ -1101,7 +1101,7 @@ function ProvinceMapPanel({ provinceStats, routeStats, provinceDetailsMap = {}, 
   );
 }
 
-export default function TabLTL({ data, rawData, selectedProjects = [], userRole }) {
+export default function TabLTL({ data, rawData, selectedProjects = [], userRole, periodWeeks = 1, onPeriodWeeksChange }) {
   const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
   const [selectedProvinceOrders, setSelectedProvinceOrders] = useState(null); // stores the clicked province name
   const theme = useTheme();
@@ -1225,7 +1225,12 @@ export default function TabLTL({ data, rawData, selectedProjects = [], userRole 
 
       {/* 1b. So sánh cùng kỳ — 7 ngày gần nhất vs 7 ngày trước, né lệch do tháng đang chạy chưa đủ dữ liệu.
           Gọn lại (bỏ danh sách từng khách) khi đang lọc đúng 1 dự án, vì lúc đó chỉ có 1 khách trùng với số tổng. */}
-      <PeriodComparisonSection comparison={data.periodComparison} compact={singleProjectMode} />
+      <PeriodComparisonSection
+        comparison={data.periodComparison}
+        compact={singleProjectMode}
+        periodWeeks={periodWeeks}
+        onPeriodWeeksChange={onPeriodWeeksChange}
+      />
 
       {/* 2. Tỷ trọng Số Đơn & Tải Trọng Tấn theo Dự Án — chỉ có ý nghĩa khi so sánh NHIỀU dự án;
           lọc còn đúng 1 dự án thì khoanh tròn/cột luôn ra 100% một màu, ẩn đi cho gọn (số liệu đã có ở 4 ô KPI đầu trang). */}

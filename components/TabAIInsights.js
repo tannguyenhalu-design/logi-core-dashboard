@@ -152,7 +152,7 @@ export function DeltaBadge({ value, unit, invert }) {
   );
 }
 
-export function PeriodComparisonSection({ comparison, compact = false }) {
+export function PeriodComparisonSection({ comparison, compact = false, periodWeeks = 1, onPeriodWeeksChange }) {
   if (!comparison) return null;
   const { currentRangeLabel, previousRangeLabel, overall, clients, warehouses } = comparison;
   // Filtered to 1 project, the client breakdown is just that 1 project again
@@ -170,10 +170,29 @@ export function PeriodComparisonSection({ comparison, compact = false }) {
             📈 So sánh cùng kỳ
           </div>
           <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-            {currentRangeLabel} so với {previousRangeLabel} (7 ngày, lùi 2 ngày đệm để đơn kịp có kết quả)
+            {currentRangeLabel} so với {previousRangeLabel} (chỉ so 2 khối đã khép, lùi 2 ngày đệm để đơn kịp có kết quả)
           </div>
         </div>
-        <div style={{ display: "flex", gap: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+          {onPeriodWeeksChange && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Khối:</span>
+              <select
+                value={periodWeeks}
+                onChange={(e) => onPeriodWeeksChange(Number(e.target.value))}
+                style={{
+                  fontSize: 12, fontWeight: 600, padding: "5px 8px", borderRadius: 6,
+                  background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", color: "var(--text-primary)",
+                  cursor: "pointer",
+                }}
+              >
+                <option value={1}>1 tuần</option>
+                <option value={2}>2 tuần</option>
+                <option value={3}>3 tuần</option>
+              </select>
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 24 }}>
           <div style={{
             background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)",
             borderRadius: 10, padding: "8px 16px", minWidth: 110, textAlign: "center",
@@ -187,6 +206,7 @@ export function PeriodComparisonSection({ comparison, compact = false }) {
           }}>
             <div style={{ color: "var(--text-muted)", fontSize: 10, marginBottom: 3 }}>Ontime</div>
             <DeltaBadge value={overall.ontimeDeltaPoints} unit=" điểm" />
+          </div>
           </div>
         </div>
       </div>

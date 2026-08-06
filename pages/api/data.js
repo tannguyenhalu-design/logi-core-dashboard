@@ -77,6 +77,11 @@ export default async function handler(req, res) {
     if (projects.length === 0) projects = null;
   }
 
+  // Granularity of the "so sánh cùng kỳ" panel — calendar-day-of-month
+  // blocks of 1/2/3 weeks, compared against the same block last month.
+  let periodWeeks = parseInt(req.query.periodWeeks, 10);
+  if (![1, 2, 3].includes(periodWeeks)) periodWeeks = 1;
+
   // ── Enforce client/cs restrictions strictly at Backend ──
   if (role === "client" && userProject) {
     projects = [userProject];
@@ -129,10 +134,10 @@ export default async function handler(req, res) {
     }
 
     // ── Transform ──
-    const ltlData       = transformLTL(filteredLTL, { months, projects, filterMode }, filteredDamage);
+    const ltlData       = transformLTL(filteredLTL, { months, projects, filterMode, periodWeeks }, filteredDamage);
     const ftlData       = transformFTL(rawFTL, masterVehicle, { months, projects });
     const tachTripData  = transformTachTrip(filteredLTL);
-    const aiInsights    = transformAIInsights(filteredLTL, filteredDamage);
+    const aiInsights    = transformAIInsights(filteredLTL, filteredDamage, periodWeeks);
 
     // Filter revenue metrics for unauthorized roles
     const canSeeRevenue = role === "manager" || role === "sd3";

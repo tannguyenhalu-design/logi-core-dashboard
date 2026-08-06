@@ -28,6 +28,7 @@ export default function DashboardPage({ user: initialUser }) {
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [selectedProjects, setSelectedProjects] = useState([]);
   const [filterMode, setFilterMode] = useState("pickup");
+  const [periodWeeks, setPeriodWeeks] = useState(1);
   const [dashData, setDashData] = useState(null);
   const [loading, setLoading] = useState(canSeeLTL);
   const [filtering, setFiltering] = useState(false);
@@ -59,7 +60,7 @@ export default function DashboardPage({ user: initialUser }) {
   }, [isManager]);
 
   // ── Fetch aggregated data from Backend API ──
-  const fetchDashboardData = useCallback(async (months, projects, fMode, viewAsOverride) => {
+  const fetchDashboardData = useCallback(async (months, projects, fMode, viewAsOverride, pWeeks) => {
     setLoading(true);
     setError(null);
     try {
@@ -70,6 +71,7 @@ export default function DashboardPage({ user: initialUser }) {
       if (fMode) params.append("filterMode", fMode);
       if (effectiveViewAs.type) params.append("viewAsType", effectiveViewAs.type);
       if (effectiveViewAs.value) params.append("viewAsValue", effectiveViewAs.value);
+      params.append("periodWeeks", pWeeks || periodWeeks);
       params.append("t", Date.now());
 
       const res = await fetch(`/api/data?${params.toString()}`);
@@ -81,14 +83,14 @@ export default function DashboardPage({ user: initialUser }) {
     } finally {
       setLoading(false);
     }
-  }, [viewAs]);
+  }, [viewAs, periodWeeks]);
 
   // Fetch data on mount and whenever filters change
   useEffect(() => {
     if (!canSeeLTL) return;
-    fetchDashboardData(selectedMonths, selectedProjects, filterMode, viewAs);
+    fetchDashboardData(selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonths, selectedProjects, filterMode, viewAs, canSeeLTL]);
+  }, [selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks, canSeeLTL]);
 
   // Tách Chuyến: fetch lazily the first time the user opens that tab
   useEffect(() => {
@@ -396,7 +398,7 @@ export default function DashboardPage({ user: initialUser }) {
               <button
                 onClick={async () => {
                   if (confirm("Đồng bộ dữ liệu trực tiếp từ Google Sheet? (Quá trình này có thể mất 15-20s do tải >50.000 dòng từ Sheet).")) {
-                    await fetchDashboardData(selectedMonths, selectedProjects, filterMode, viewAs);
+                    await fetchDashboardData(selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks);
                     alert("Đồng bộ thành công!");
                   }
                 }}
@@ -492,7 +494,7 @@ export default function DashboardPage({ user: initialUser }) {
                 {activeTab === "operations" ? (
                   <TabOperations rawData={dashData?.raw} userRole={dashData?.user?.role} />
                 ) : (
-                  !loading && !error && dashData && <TabLTL data={dashData.ltl} rawData={dashData.raw} selectedProjects={selectedProjects} userRole={dashData.user?.role} />
+                  !loading && !error && dashData && <TabLTL data={dashData.ltl} rawData={dashData.raw} selectedProjects={selectedProjects} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} />
                 )}
               </>
             )}
