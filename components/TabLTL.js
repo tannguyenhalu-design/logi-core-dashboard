@@ -369,78 +369,6 @@ function WeightProjChart({ weightByProject = {}, theme = "dark" }) {
   return <canvas ref={ref} />;
 }
 
-// ── Damage Regions component ──
-function DamageRegions({ topDamageProvinces, topDamageWarehouses, selectedProvince, selectedWarehouse, onSelectProvince, onSelectWarehouse }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ background: "var(--panel-glow)", padding: 16, borderRadius: 12, border: "1px solid var(--border)", backdropFilter: "blur(8px)" }}>
-        <h4 style={{ margin: "0 0 12px 0", fontSize: 13, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 6 }}>
-          📍 Top 5 Tỉnh/Thành nhận hàng (Click để lọc)
-        </h4>
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {topDamageProvinces.map((p, idx) => {
-            const isSelected = selectedProvince === p.name;
-            return (
-              <li 
-                key={p.name} 
-                onClick={() => onSelectProvince(isSelected ? null : p.name)}
-                style={{ 
-                  display: "flex", 
-                  justifyContent: "space-between", 
-                  padding: "8px 12px", 
-                  borderBottom: idx < 4 ? "1px solid rgba(255,255,255,0.05)" : "none", 
-                  fontSize: 13,
-                  cursor: "pointer",
-                  background: isSelected ? "rgba(244, 63, 94, 0.15)" : "transparent",
-                  borderRadius: 6,
-                  transition: "all 0.2s",
-                  fontWeight: isSelected ? 600 : 400
-                }}
-              >
-                <span style={{ color: "var(--text-primary)" }}>{idx + 1}. {p.name} {isSelected && "🎯"}</span>
-                <span className="text-red" style={{ fontWeight: 600 }}>{p.count} ca</span>
-              </li>
-            );
-          })}
-          {topDamageProvinces.length === 0 && <div style={{ color: "var(--text-muted)", fontSize: 12 }}>Không có dữ liệu bể vỡ.</div>}
-        </ul>
-      </div>
-      <div style={{ background: "var(--panel-glow)", padding: 16, borderRadius: 12, border: "1px solid var(--border)", backdropFilter: "blur(8px)" }}>
-        <h4 style={{ margin: "0 0 12px 0", fontSize: 13, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 6 }}>
-          🏢 Top 5 Kho giao hàng (Click để lọc)
-        </h4>
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {topDamageWarehouses.map((w, idx) => {
-            const isSelected = selectedWarehouse === w.name;
-            return (
-              <li 
-                key={w.name} 
-                onClick={() => onSelectWarehouse(isSelected ? null : w.name)}
-                style={{ 
-                  display: "flex", 
-                  justifyContent: "space-between", 
-                  padding: "8px 12px", 
-                  borderBottom: idx < 4 ? "1px solid rgba(255,255,255,0.05)" : "none", 
-                  fontSize: 13,
-                  cursor: "pointer",
-                  background: isSelected ? "rgba(244, 63, 94, 0.15)" : "transparent",
-                  borderRadius: 6,
-                  transition: "all 0.2s",
-                  fontWeight: isSelected ? 600 : 400
-                }}
-              >
-                <span style={{ color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "80%" }} title={w.name}>{idx + 1}. {w.name} {isSelected && "🎯"}</span>
-                <span className="text-red" style={{ fontWeight: 600 }}>{w.count} ca</span>
-              </li>
-            );
-          })}
-          {topDamageWarehouses.length === 0 && <div style={{ color: "var(--text-muted)", fontSize: 12 }}>Không có dữ liệu bể vỡ.</div>}
-        </ul>
-      </div>
-    </div>
-  );
-}
-
 // ── Detailed damage cases table component ──
 const CLAIM_STATUSES = ["Mới", "Đang xử lý", "Chờ đền bù", "Hoàn tất"];
 const CLAIM_STATUS_CLASS = {
@@ -583,7 +511,7 @@ function DetailedDamageTable({ cases, filter, showClaimsWorkflow = true }) {
 }
 
 // ── Chart: Warehouse risk bar ──
-function WarehouseRiskChart({ warehouseAlerts, theme = "dark" }) {
+function WarehouseRiskChart({ warehouseAlerts, selectedWarehouse, onSelectWarehouse, theme = "dark" }) {
   const ref = useRef(null);
   const ct = CHART_THEME[theme] || CHART_THEME.dark;
 
@@ -595,7 +523,9 @@ function WarehouseRiskChart({ warehouseAlerts, theme = "dark" }) {
         {
           label: "Số ca bể vỡ / hư hỏng",
           data: warehouseAlerts.map((w) => w.broken),
-          backgroundColor: COLORS.amber,
+          backgroundColor: warehouseAlerts.map((w) =>
+            w.warehouse === selectedWarehouse ? COLORS.red : COLORS.amber
+          ),
           borderRadius: 4,
           datalabels: {
             display: true,
@@ -610,6 +540,14 @@ function WarehouseRiskChart({ warehouseAlerts, theme = "dark" }) {
     options: {
       indexAxis: "y", responsive: true, maintainAspectRatio: false,
       layout: { padding: { right: 30 } },
+      onClick: (evt, elements) => {
+        if (!onSelectWarehouse || elements.length === 0) return;
+        const wh = warehouseAlerts[elements[0].index]?.warehouse;
+        if (wh) onSelectWarehouse(wh === selectedWarehouse ? null : wh);
+      },
+      onHover: (evt, elements) => {
+        evt.native.target.style.cursor = elements.length > 0 ? "pointer" : "default";
+      },
       plugins: {
         legend: { display: false },
       },
@@ -618,20 +556,26 @@ function WarehouseRiskChart({ warehouseAlerts, theme = "dark" }) {
         y: { grid: { display: false } },
       },
     },
-  }), [warehouseAlerts], theme);
+  }), [warehouseAlerts, selectedWarehouse], theme);
 
   return <canvas ref={ref} />;
 }
 
 // ── Broken breakdown table ──
-function BrokenTable({ brokenByType, totalBroken, brokenCompensated, brokenResolved, brokenPending, selectedType, onSelectType }) {
+function BrokenTable({ brokenByType, totalBroken, brokenCompensated, brokenResolved, brokenPending, selectedType, onSelectType, topProvince }) {
   const types = Object.keys(brokenByType);
   return (
     <div style={{ overflowX: "auto" }}>
+      {topProvince && (
+        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>
+          📍 Tỉnh nhiều ca nhất: <strong style={{ color: "var(--text-primary)" }}>{topProvince.name}</strong>{" "}
+          <span className="text-red" style={{ fontWeight: 600 }}>({topProvince.count} ca)</span>
+        </div>
+      )}
       {/* Summary badges */}
       <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-        <span 
-          className={`badge bg-red`} 
+        <span
+          className={`badge bg-red`}
           style={{ cursor: "pointer", opacity: !selectedType ? 1 : 0.6, border: !selectedType ? "1px solid #fff" : "none" }}
           onClick={() => onSelectType(null)}
         >
@@ -1271,50 +1215,44 @@ export default function TabLTL({ data, rawData, selectedProjects = [], userRole,
         </>
       )}
 
-      {/* Warehouse risk (full width) — internal ops resource planning, not client-facing */}
+      {/* Warehouse risk — chi tiết, top 10 kho theo số ca bể vỡ/hư hỏng.
+          Click 1 cột để lọc bảng "Chi Tiết Ca Hư Hỏng" bên dưới theo kho đó
+          (thay cho danh sách "Top 5 Kho giao hàng" cũ — cùng 1 số liệu, chỉ
+          khác dạng hiển thị, nên gộp làm một thay vì lặp lại 2 lần). */}
       {!isClient && (
         <div className="chart-panel" style={{ width: "100%" }}>
           <div className="chart-panel-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
-            Top 10 Kho Rủi Ro Cao
+            Top 10 Kho Rủi Ro Cao — Chi Tiết Hư Hỏng
           </div>
           <div style={{ height: 240 }}>
-            <WarehouseRiskChart warehouseAlerts={data.warehouseAlerts} theme={theme} />
+            <WarehouseRiskChart
+              warehouseAlerts={data.warehouseAlerts}
+              selectedWarehouse={damageFilter?.type === "warehouse" ? damageFilter.value : null}
+              onSelectWarehouse={(wh) => setDamageFilter(wh ? { type: "warehouse", value: wh } : null)}
+              theme={theme}
+            />
           </div>
         </div>
       )}
 
-      {/* Area damage & Broken breakdown table */}
-      <div className="grid-2-1">
-        <div className="chart-panel">
-          <div className="chart-panel-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            Bảng Tổng Hợp Ca Hư Hỏng
-          </div>
-          <BrokenTable
-            brokenByType={data.brokenByType || {}}
-            totalBroken={data.totalBroken || 0}
-            brokenCompensated={data.brokenCompensated || 0}
-            brokenResolved={data.brokenResolved || 0}
-            brokenPending={data.brokenPending || 0}
-            selectedType={selectedDamageType}
-            onSelectType={(type) => setDamageFilter(type ? { type: "type", value: type } : null)}
-          />
+      {/* Tổng quan hư hỏng — loại + trạng thái xử lý, cùng tỉnh nhiều ca nhất
+          gộp vào 1 dòng nhỏ (thay cho panel "Top 5 Tỉnh" riêng cũ). */}
+      <div className="chart-panel" style={{ width: "100%" }}>
+        <div className="chart-panel-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Tổng Quan Hư Hỏng
         </div>
-        <div className="chart-panel">
-          <div className="chart-panel-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a10 10 0 0 0-10 10c0 5.25 10 12 10 12s10-6.75 10-12a10 10 0 0 0-10-10z"/></svg>
-            Khu vực Báo Bể Vỡ
-          </div>
-          <DamageRegions
-            topDamageProvinces={data.topDamageProvinces || []}
-            topDamageWarehouses={data.topDamageWarehouses || []}
-            selectedProvince={damageFilter?.type === "province" ? damageFilter.value : null}
-            selectedWarehouse={damageFilter?.type === "warehouse" ? damageFilter.value : null}
-            onSelectProvince={(prov) => setDamageFilter(prov ? { type: "province", value: prov } : null)}
-            onSelectWarehouse={(wh) => setDamageFilter(wh ? { type: "warehouse", value: wh } : null)}
-          />
-        </div>
+        <BrokenTable
+          brokenByType={data.brokenByType || {}}
+          totalBroken={data.totalBroken || 0}
+          brokenCompensated={data.brokenCompensated || 0}
+          brokenResolved={data.brokenResolved || 0}
+          brokenPending={data.brokenPending || 0}
+          selectedType={selectedDamageType}
+          onSelectType={(type) => setDamageFilter(type ? { type: "type", value: type } : null)}
+          topProvince={(data.topDamageProvinces || [])[0]}
+        />
       </div>
 
       {/* Broken details */}
