@@ -7,7 +7,7 @@
  * transforms data, and returns the aggregated JSON.
  */
 import { getSession } from "../../lib/auth";
-import { fetchSheet } from "../../lib/sheets";
+import { fetchSheet, getCached, setCached } from "../../lib/sheets";
 import { isDMClient, isLTLRow, FTL_ONLY_CLIENTS } from "../../lib/dm-clients";
 import { transformLTL } from "../../lib/transform-ltl";
 import { transformFTL } from "../../lib/transform-ftl";
@@ -97,6 +97,18 @@ export default async function handler(req, res) {
     viewAsType = "client";
   }
 
+  // Scope key for everything that depends only on WHO is asking (role/pic/
+  // viewAs), not on which months/projects/origin they're currently filtering
+  // by — used to cache the expensive overview/aiInsights/tachTrip transforms
+  // that were previously recomputed from scratch on every single filter click.
+  const scopeKey = `${role}:${userPic || ""}:${viewAsType}:${viewAsValue || ""}`;
+  const fullKey = `data:full:${scopeKey}:${filterMode}:${periodWeeks}:${origin || ""}:${(months || []).join(",")}:${(projects || []).join(",")}`;
+
+  const cachedFull = getCached(fullKey);
+  if (cachedFull) {
+    return res.status(200).json(cachedFull);
+  }
+
   try {
     const ltlSheetId = process.env.SHEET_ID_LTL;
     // ── Fetch raw data from Google Sheets ──
@@ -142,11 +154,26 @@ export default async function handler(req, res) {
       filteredDamage = filteredDamage.filter(r => picMapping[r.client_name] === userPic);
     }
 
-    // ── Transform ──
+    // ── Transform (per-filter — genuinely depends on months/projects/origin) ──
     const ltlData       = transformLTL(filteredLTL, { months, projects, filterMode, periodWeeks, origin }, filteredDamage);
     const ftlData       = transformFTL(rawFTL, masterVehicle, { months, projects });
-    const tachTripData  = transformTachTrip(filteredLTL);
-    const aiInsights    = transformAIInsights(filteredLTL, filteredDamage, periodWeeks);
+
+    // ── Overview / AI Insights / TachTrip — independent of months/projects/
+    // origin, so cache per (role, pic, viewAs) scope instead of recomputing
+    // on every filter click. Shares the sheets-fetch cache TTL (5 min).
+    const tachTripKey = `data:tachTrip:${scopeKey}`;
+    let tachTripData = getCached(tachTripKey);
+    if (!tachTripData) {
+      tachTripData = transformTachTrip(filteredLTL);
+      setCached(tachTripKey, tachTripData);
+    }
+
+    const aiInsightsKey = `data:aiInsights:${scopeKey}:${periodWeeks}`;
+    let aiInsights = getCached(aiInsightsKey);
+    if (!aiInsights) {
+      aiInsights = transformAIInsights(filteredLTL, filteredDamage, periodWeeks);
+      setCached(aiInsightsKey, aiInsights);
+    }
 
     // Filter revenue metrics for unauthorized roles
     const canSeeRevenue = role === "manager" || role === "sd3";
@@ -168,21 +195,14 @@ export default async function handler(req, res) {
       }
     }
 
-    // ── Overview: all-time totals (no project/month filter, but applies security filter) ──
-    const overviewLTL = transformLTL(filteredLTL, { filterMode }, filteredDamage);
-    const overviewFTL = transformFTL(rawFTL, masterVehicle, {});
-
-    return res.status(200).json({
-      ok: true,
-      user: { role, project: userProject, pic: userPic },
-      picMapping, // Pass picMapping so the frontend can populate the CS dropdown
-      filters: { months, projects, filterMode },
-      viewAs: { type: viewAsType, value: viewAsValue },
-      ltl: ltlData,
-      ftl: ftlData,
-      tachTrip: tachTripData,
-      aiInsights,
-      overview: {
+    // ── Overview: all-time totals (no project/month filter, but applies
+    // security filter) — same cache-by-scope treatment as above.
+    const overviewKey = `data:overview:${scopeKey}:${filterMode}`;
+    let overview = getCached(overviewKey);
+    if (!overview) {
+      const overviewLTL = transformLTL(filteredLTL, { filterMode }, filteredDamage);
+      const overviewFTL = transformFTL(rawFTL, masterVehicle, {});
+      overview = {
         ltl: {
           totalOrders: overviewLTL.totalOrders,
           totalWeight: overviewLTL.totalWeight,
@@ -194,10 +214,29 @@ export default async function handler(req, res) {
           totalOrders: overviewFTL.totalOrders,
           totalWeight: overviewFTL.totalWeight,
         },
+      };
+      setCached(overviewKey, overview);
+    }
+
+    const responseBody = {
+      ok: true,
+      user: { role, project: userProject, pic: userPic },
+      picMapping, // Pass picMapping so the frontend can populate the CS dropdown
+      filters: { months, projects, filterMode },
+      viewAs: { type: viewAsType, value: viewAsValue },
+      ltl: ltlData,
+      ftl: ftlData,
+      tachTrip: tachTripData,
+      aiInsights,
+      overview: {
+        ...overview,
         allProjectsLTL: ltlData.allProjects,
         allProjectsFTL: ftlData.allProjects,
       },
-    });
+    };
+
+    setCached(fullKey, responseBody);
+    return res.status(200).json(responseBody);
   } catch (err) {
     console.error("[/api/data] Error:", err);
     return res.status(500).json({ error: "Internal server error", detail: err.message });
