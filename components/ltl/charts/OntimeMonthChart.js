@@ -6,24 +6,27 @@ export default function OntimeMonthChart({ ontimeByMonth, isWeekly, theme = "dar
   const months = Object.keys(ontimeByMonth).sort((a, b) => a - b);
   const ct = CHART_THEME[theme] || CHART_THEME.dark;
 
+  const totals = months.map((m) => (ontimeByMonth[m]?.ontime || 0) + (ontimeByMonth[m]?.late || 0));
+  // null for the first bar (nothing to compare against) or when the prior
+  // period had zero orders (a %, not a "new" flag, would be misleading).
+  const deltaPctFor = (idx) => {
+    if (idx === 0 || totals[idx - 1] <= 0) return null;
+    return Math.round(((totals[idx] - totals[idx - 1]) / totals[idx - 1]) * 100);
+  };
+
   useChart(ref, () => ({
     type: "bar",
     data: {
       labels: months.map((m, idx) => {
-        const info = ontimeByMonth[m];
-        const total = (info?.ontime || 0) + (info?.late || 0);
+        const total = totals[idx];
         const shortTotal = total >= 1000 ? (total / 1000).toFixed(1).replace(".0", "") + "K" : total;
         const labelPrefix = isWeekly ? `Tuần ${m}` : `T${m}`;
-        if (idx === 0) {
+        const deltaPct = deltaPctFor(idx);
+        if (deltaPct === null) {
           return [labelPrefix, `${shortTotal} đơn`];
-        } else {
-          const prevM = months[idx - 1];
-          const prevInfo = ontimeByMonth[prevM];
-          const prevTotal = (prevInfo?.ontime || 0) + (prevInfo?.late || 0);
-          const diffPct = prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : 0;
-          const sign = diffPct >= 0 ? "+" : "";
-          return [labelPrefix, `${shortTotal} đơn (${sign}${diffPct}%)`];
         }
+        const sign = deltaPct >= 0 ? "+" : "";
+        return [labelPrefix, `${shortTotal} đơn (${sign}${deltaPct}%)`];
       }),
       datasets: [
         {
@@ -49,6 +52,36 @@ export default function OntimeMonthChart({ ontimeByMonth, isWeekly, theme = "dar
             font: { weight: "bold", size: 10 },
             formatter: (v) => v.toLocaleString("vi-VN"),
           }
+        },
+        {
+          // Invisible dataset stacked on top, purely to anchor a
+          // week/month-over-week order-count delta% badge right above each
+          // bar — the most direct answer to "how much did volume change".
+          label: "Δ đơn",
+          data: months.map(() => 0),
+          backgroundColor: "transparent",
+          stack: "s",
+          datalabels: {
+            display: (ctx) => deltaPctFor(ctx.dataIndex) !== null,
+            anchor: "end", align: "top", offset: 6,
+            color: (ctx) => {
+              const d = deltaPctFor(ctx.dataIndex);
+              return d >= 0 ? COLORS.green : COLORS.red;
+            },
+            backgroundColor: ct.tooltipBg,
+            borderColor: (ctx) => {
+              const d = deltaPctFor(ctx.dataIndex);
+              return d >= 0 ? COLORS.green : COLORS.red;
+            },
+            borderWidth: 1,
+            borderRadius: 4,
+            padding: { top: 2, bottom: 2, left: 5, right: 5 },
+            font: { weight: "bold", size: 10 },
+            formatter: (v, ctx) => {
+              const d = deltaPctFor(ctx.dataIndex);
+              return `${d >= 0 ? "▲+" : "▼"}${d}%`;
+            },
+          },
         },
         {
           label: "% Ontime",
@@ -82,7 +115,8 @@ export default function OntimeMonthChart({ ontimeByMonth, isWeekly, theme = "dar
         },
       },
       plugins: {
-        legend: { position: "bottom", labels: { color: ct.muted, boxWidth: 12 } },
+        legend: { position: "bottom", labels: { color: ct.muted, boxWidth: 12, filter: (item) => item.text !== "Δ đơn" } },
+        tooltip: { filter: (item) => item.dataset.label !== "Δ đơn" },
         datalabels: { display: false }, // defaults to false, overridden in datasets
       },
     },

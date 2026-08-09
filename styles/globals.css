@@ -72,7 +72,7 @@
   --bg-surface: #ffffff;
   --bg-panel: #ffffff;
   --border: #cbd5e1;
-  --border-hover: #d9540a;
+  --border-hover: #9a3412;
 
   --text-primary: #0f172a;
   --text-secondary: #334155;
@@ -82,16 +82,21 @@
      adjust here if there's an exact brand hex on file). Every call site
      that used to hardcode the dark theme's teal now derives from this via
      rgba(var(--brand-rgb), X), so light mode is orange everywhere the
-     app used to force teal regardless of theme. */
-  --brand-rgb: 242, 101, 34;
-  --cyan: #f26522;
-  --cyan-glow: rgba(242, 101, 34, 0.12);
+     app used to force teal regardless of theme. Deliberately a deeper,
+     less saturated orange than the button/logo orange in GHN's own
+     tools — that neon-bright shade reads fine on a dark background but
+     is glaring when used as plain body text on white, and this variable
+     doubles as both. --amber (warning) is pushed toward yellow so the
+     two don't blur together at a glance in small badges/icons. */
+  --brand-rgb: 194, 65, 12;
+  --cyan: #c2410c;
+  --cyan-glow: rgba(194, 65, 12, 0.12);
   --green: #15803d;
   --green-glow: rgba(21, 128, 61, 0.12);
   --red: #dc2626;
   --red-glow: rgba(220, 38, 38, 0.12);
-  --amber: #d97706;
-  --amber-glow: rgba(217, 119, 6, 0.12);
+  --amber: #a16207;
+  --amber-glow: rgba(161, 98, 7, 0.12);
   --purple: #6d28d9;
   --purple-glow: rgba(109, 40, 217, 0.12);
 
@@ -117,8 +122,8 @@
   --shadow-strong: rgba(15, 23, 42, 0.12);
   --body-bg-color: #f1f5f9;
   --body-bg-image:
-    radial-gradient(circle at 10% 20%, rgba(2, 132, 199, 0.05), transparent 45%),
-    radial-gradient(circle at 90% 80%, rgba(109, 40, 217, 0.05), transparent 45%);
+    radial-gradient(circle at 10% 20%, rgba(var(--brand-rgb), 0.05), transparent 45%),
+    radial-gradient(circle at 90% 80%, rgba(109, 40, 217, 0.04), transparent 45%);
 
   /* Map Variables */
   --map-ocean: #e2e8f0;
@@ -126,6 +131,25 @@
   --map-unhighlighted: #94a3b8;
   --map-neutral-data: #64748b;
   --map-stroke: #ffffff;
+}
+
+/* GHN's own internal tools (Lastmile etc.) keep the nav rail dark even in
+   their light theme — white content, dark sidebar, orange for active/CTA.
+   Scoping the override to a class instead of a hardcoded style in
+   dashboard.js means every element already using var(--text-primary) etc.
+   inside the sidebar picks up readable light-on-dark colors automatically,
+   with zero changes needed at each individual call site. Dark theme is
+   untouched — this only kicks in under [data-theme="light"]. */
+:root[data-theme="light"] .app-sidebar {
+  --bg-panel: #17191d;
+  --bg-surface: #17191d;
+  --border: rgba(255, 255, 255, 0.08);
+  --text-primary: #f1f5f9;
+  --text-secondary: #a8adb8;
+  --text-muted: #6b7280;
+  --panel-glow: rgba(255, 255, 255, 0.06);
+  --input-bg: rgba(255, 255, 255, 0.06);
+  --dropdown-bg: #1f2227;
 }
 
 html, body { height: 100%; }

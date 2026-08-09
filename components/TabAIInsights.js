@@ -180,7 +180,9 @@ export function PeriodComparisonSection({ comparison, compact = false, periodWee
           </div>
           <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
             {currentRangeLabel} so với {previousRangeLabel} (
-            {isMtd ? "đầu tháng → hôm nay" : "chỉ so 2 khối đã khép"}, lùi 2 ngày đệm để đơn kịp có kết quả)
+            {isMtd
+              ? "đầu tháng → đúng hôm nay, đơn chưa giao thì chưa tính vào % ontime"
+              : "chỉ so 2 khối tuần đã khép, lùi 2 ngày đệm để đơn kịp có kết quả"})
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
