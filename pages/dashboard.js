@@ -11,8 +11,8 @@ import ThemeToggle from "../components/ThemeToggle";
 import dynamic from "next/dynamic";
 import { transformLTL } from "../lib/transform-ltl";
 
-const TabLTL        = dynamic(() => import("../components/TabLTL"),        { ssr: false });
-const TabOperations = dynamic(() => import("../components/TabOperations"), { ssr: false });
+const LTLDashboard  = dynamic(() => import("../components/ltl/LTLDashboard"), { ssr: false });
+const OperationsDashboard = dynamic(() => import("../components/operations/OperationsDashboard"), { ssr: false });
 const TabTachTrip   = dynamic(() => import("../components/TabTachTrip"),   { ssr: false });
 const TabUsers      = dynamic(() => import("../components/TabUsers"),      { ssr: false });
 const TabAuditLog   = dynamic(() => import("../components/TabAuditLog"),   { ssr: false });
@@ -504,9 +504,9 @@ export default function DashboardPage({ user: initialUser }) {
                 )}
 
                 {activeTab === "operations" ? (
-                  <TabOperations rawData={dashData?.raw} userRole={dashData?.user?.role} />
+                  <OperationsDashboard rawData={dashData?.raw} userRole={dashData?.user?.role} />
                 ) : (
-                  !loading && !error && dashData && <TabLTL data={dashData.ltl} rawData={dashData.raw} selectedProjects={selectedProjects} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} />
+                  !loading && !error && dashData && <LTLDashboard data={dashData.ltl} rawData={dashData.raw} selectedProjects={selectedProjects} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} />
                 )}
               </>
             )}
