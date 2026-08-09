@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import Chart from "chart.js/auto";
+import ChartDataLabels from "chartjs-plugin-datalabels";
+
+// chart.js/auto only registers Chart.js's own controllers/scales/elements —
+// third-party plugins like datalabels still need an explicit Chart.register()
+// call, or every `datalabels: {...}` option across every chart silently does
+// nothing (the split from the old monolithic TabLTL.js dropped this).
+Chart.register(ChartDataLabels);
 
 export const CHART_THEME = {
   dark: {
@@ -7,7 +14,7 @@ export const CHART_THEME = {
     muted: "#94a3b8",
     grid: "rgba(255,255,255,0.05)",
     tooltipBg: "rgba(15,23,42,0.95)",
-    tooltipBorder: "rgba(20, 224, 196, 0.3)",
+    tooltipBorder: "rgba(var(--brand-rgb),0.3)",
     tooltipTitle: "#ffffff",
     tooltipBody: "#f1f5f9",
     legend: "#ffffff",
@@ -25,7 +32,7 @@ export const CHART_THEME = {
 };
 
 export const COLORS = {
-  cyan: "#14e0c4", green: "#10b981", red: "#f43f5e",
+  cyan: "var(--cyan)", green: "#10b981", red: "#f43f5e",
   amber: "#f59e0b", purple: "#8b5cf6",
 };
 

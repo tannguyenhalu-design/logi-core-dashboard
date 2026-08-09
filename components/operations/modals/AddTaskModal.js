@@ -101,7 +101,7 @@ export default function AddTaskModal({ onClose, onSuccess }) {
                         key={email}
                         style={{
                           display: "flex", alignItems: "center", gap: 6, cursor: "pointer",
-                          background: checked ? "rgba(20, 224, 196,0.15)" : "var(--input-bg)",
+                          background: checked ? "rgba(var(--brand-rgb),0.15)" : "var(--input-bg)",
                           border: `1px solid ${checked ? "var(--cyan)" : "var(--border)"}`,
                           color: checked ? "var(--cyan)" : "var(--text-secondary)",
                           padding: "6px 10px", borderRadius: 6, fontSize: 12, fontWeight: 600,

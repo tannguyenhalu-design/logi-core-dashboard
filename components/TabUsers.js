@@ -54,7 +54,7 @@ function TabCheckboxes({ tabs, disabled, onChange }) {
 
 function RoleBadge({ role }) {
   const color = role === "pending" ? "var(--amber)" : role === "manager" ? "var(--cyan)" : role === "sd3" ? "var(--blue)" : role === "cs" ? "var(--green)" : "var(--purple)";
-  const bg = role === "pending" ? "rgba(245,158,11,0.15)" : role === "manager" ? "rgba(20,224,196,0.15)" : role === "sd3" ? "rgba(59,130,246,0.15)" : role === "cs" ? "rgba(16,185,129,0.15)" : "rgba(139,92,246,0.15)";
+  const bg = role === "pending" ? "rgba(245,158,11,0.15)" : role === "manager" ? "rgba(var(--brand-rgb),0.15)" : role === "sd3" ? "rgba(59,130,246,0.15)" : role === "cs" ? "rgba(16,185,129,0.15)" : "rgba(139,92,246,0.15)";
   return (
     <span style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 20, background: bg, color }}>
       {ROLE_LABELS[role] || role}

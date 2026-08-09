@@ -60,7 +60,7 @@ function VietnamMap({
       }
       if (pDetail.ontimePct < 80) return "rgba(244, 63, 94, 0.75)"; // Red (<80%)
       if (pDetail.ontimePct < 90) return "rgba(245, 158, 11, 0.75)"; // Yellow/Amber (80-90%)
-      return "rgba(20, 224, 196, 0.55)"; // Green/Cyan (>=90%)
+      return "rgba(var(--brand-rgb),0.55)"; // Green/Cyan (>=90%)
     }
 
     if (highlightProvinces.includes(name)) return "#33D6C0";
@@ -235,7 +235,7 @@ function VietnamMap({
           <div style={{ fontWeight: 700, fontSize: 12, color: hoverDetail && hoverDetail.ontimePct < 90 ? "#f43f5e" : "var(--cyan)", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
             <span>📍 {hoveredProv}</span>
             {hoverDetail && (
-              <span style={{ fontSize: 10.5, background: hoverDetail.ontimePct < 90 ? "rgba(244,63,94,0.2)" : "rgba(20,224,196,0.15)", padding: "1px 6px", borderRadius: 4, color: hoverDetail.ontimePct < 90 ? "#f43f5e" : "var(--cyan)" }}>
+              <span style={{ fontSize: 10.5, background: hoverDetail.ontimePct < 90 ? "rgba(244,63,94,0.2)" : "rgba(var(--brand-rgb),0.15)", padding: "1px 6px", borderRadius: 4, color: hoverDetail.ontimePct < 90 ? "#f43f5e" : "var(--cyan)" }}>
                 {hoverDetail.totalOrders} đơn · {(hoverDetail.totalWeight / 1000).toFixed(1)} tấn
               </span>
             )}

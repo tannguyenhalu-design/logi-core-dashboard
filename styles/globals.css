@@ -16,6 +16,11 @@
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
 
+  /* RGB triplet so every hardcoded rgba(20, 224, 196, X) call site in the
+     app can be parametrized to rgba(var(--brand-rgb), X) — the light
+     theme below swaps this to GHN's brand orange, and every one of those
+     call sites follows automatically instead of staying teal in light mode. */
+  --brand-rgb: 20, 224, 196;
   --cyan: #14e0c4;
   --cyan-glow: rgba(20, 224, 196, 0.2);
   --green: #10b981;
@@ -67,14 +72,20 @@
   --bg-surface: #ffffff;
   --bg-panel: #ffffff;
   --border: #cbd5e1;
-  --border-hover: #0284c7;
+  --border-hover: #d9540a;
 
   --text-primary: #0f172a;
   --text-secondary: #334155;
   --text-muted: #64748b;
 
-  --cyan: #0284c7;
-  --cyan-glow: rgba(2, 132, 199, 0.12);
+  /* GHN brand orange (approximated from the company's internal tools —
+     adjust here if there's an exact brand hex on file). Every call site
+     that used to hardcode the dark theme's teal now derives from this via
+     rgba(var(--brand-rgb), X), so light mode is orange everywhere the
+     app used to force teal regardless of theme. */
+  --brand-rgb: 242, 101, 34;
+  --cyan: #f26522;
+  --cyan-glow: rgba(242, 101, 34, 0.12);
   --green: #15803d;
   --green-glow: rgba(21, 128, 61, 0.12);
   --red: #dc2626;

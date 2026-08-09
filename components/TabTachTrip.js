@@ -642,7 +642,7 @@ export default function TabTachTrip({ tcData }) {
       <div style={{
         ...panelStyle,
         borderLeft: "3px solid var(--cyan)",
-        background: "linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, rgba(20, 224, 196, 0.02) 100%)",
+        background: "linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, rgba(var(--brand-rgb), 0.02) 100%)",
         boxShadow: "0 8px 32px 0 rgba(6, 182, 212, 0.05)",
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>

@@ -134,7 +134,7 @@ export default function FilterBar({
               padding: "6px 12px", fontSize: 12, border: "none", cursor: "pointer",
               fontFamily: "inherit", fontWeight: filterMode === opt.value ? 600 : 400,
               background: filterMode === opt.value
-                ? (opt.value === "delivered" ? "rgba(16,185,129,0.2)" : "rgba(20, 224, 196,0.2)")
+                ? (opt.value === "delivered" ? "rgba(16,185,129,0.2)" : "rgba(var(--brand-rgb),0.2)")
                 : "transparent",
               color: filterMode === opt.value
                 ? (opt.value === "delivered" ? "var(--green)" : "var(--blue)")

@@ -16,7 +16,7 @@ export default function OrdersProjChart({ ordersByProject, theme = "dark" }) {
   const total = entries.reduce((s, [, v]) => s + v, 0);
   const fullNames = entries.map(([p]) => p);
 
-  const palette = ["#14e0c4","#8b5cf6","#10b981","#f59e0b","#f43f5e","#ec4899","#06b6d4","#84cc16","#a855f7","#0ea5e9","#64748b"];
+  const palette = ["var(--cyan)","#8b5cf6","#10b981","#f59e0b","#f43f5e","#ec4899","#06b6d4","#84cc16","#a855f7","#0ea5e9","#64748b"];
 
   useChart(ref, () => ({
     type: "doughnut",

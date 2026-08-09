@@ -44,7 +44,7 @@ export default function ProvinceMapPanel({
         map[p.name] = dmg > 0 ? "var(--amber)" : "var(--map-unhighlighted)";
       } else {
         const intensity = Math.min(1, p.orders / maxOrders);
-        map[p.name] = `rgba(20, 224, 196, ${(0.2 + intensity * 0.75).toFixed(2)})`;
+        map[p.name] = `rgba(var(--brand-rgb), ${(0.2 + intensity * 0.75).toFixed(2)})`;
       }
     });
     return map;
@@ -276,7 +276,7 @@ export default function ProvinceMapPanel({
                 <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cyan)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   🏢 {singleProjectMode ? `Góc Nhìn Tổng Quan Khách Hàng: ${projectName}` : "Góc Nhìn Tổng Quan Toàn Bộ Dự Án LTL"}
                   {singleProjectMode && selectedOrigin && (
-                    <span style={{ fontSize: 11, background: "rgba(20,224,196,0.15)", color: "var(--cyan)", border: "1px solid var(--cyan)", padding: "2px 8px", borderRadius: 4, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ fontSize: 11, background: "rgba(var(--brand-rgb),0.15)", color: "var(--cyan)", border: "1px solid var(--cyan)", padding: "2px 8px", borderRadius: 4, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
                       🏬 Lấy tại: {selectedOrigin}
                       <span onClick={() => onOriginChange?.(null)} style={{ cursor: "pointer", opacity: 0.8 }} title="Bỏ lọc">✕</span>
                     </span>
@@ -343,7 +343,7 @@ export default function ProvinceMapPanel({
                               display: "flex", justifyContent: "space-between", alignItems: "center",
                               fontSize: 11.5, marginBottom: 3, padding: "3px 6px", borderRadius: 4,
                               cursor: "pointer",
-                              background: isSel ? "rgba(20,224,196,0.15)" : "transparent",
+                              background: isSel ? "rgba(var(--brand-rgb),0.15)" : "transparent",
                               border: isSel ? "1px solid var(--cyan)" : "1px solid transparent",
                             }}
                           >
@@ -406,7 +406,7 @@ export default function ProvinceMapPanel({
                     onMouseLeave={() => setActiveProv(null)}
                     onClick={() => onProvinceClick ? onProvinceClick(p.name) : setActiveProv(p.name)}
                     style={{
-                      background: isSelected ? "rgba(20, 224, 196, 0.12)" : "var(--panel-bg)",
+                      background: isSelected ? "rgba(var(--brand-rgb),0.12)" : "var(--panel-bg)",
                       border: isSelected ? "1px solid var(--cyan)" : `1px solid ${pOntime < 80 ? "var(--red)" : pOntime < 90 ? "var(--amber)" : "var(--border)"}`,
                       borderRadius: 8,
                       padding: "8px 12px",

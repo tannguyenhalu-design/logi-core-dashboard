@@ -102,14 +102,14 @@ export default function ProjectTable({ filteredProjects, loading, canSeeRevenue,
                           target="_blank"
                           rel="noreferrer"
                           style={{
-                            background: "rgba(20, 224, 196,0.15)",
+                            background: "rgba(var(--brand-rgb),0.15)",
                             color: "var(--cyan)",
                             padding: "5px 10px",
                             borderRadius: 6,
                             fontSize: 11,
                             fontWeight: 600,
                             textDecoration: "none",
-                            border: "1px solid rgba(20, 224, 196,0.2)"
+                            border: "1px solid rgba(var(--brand-rgb),0.2)"
                           }}
                         >
                           Mở SOP 🔗

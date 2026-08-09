@@ -18,7 +18,7 @@ export default function WeightProjChart({ weightByProject = {}, theme = "dark" }
   const total = entries.reduce((s, [, v]) => s + v, 0);
   const fullNames = entries.map(([p]) => p);
 
-  const palette = ["#06b6d4","#f59e0b","#10b981","#8b5cf6","#f43f5e","#14e0c4","#ec4899","#84cc16","#a855f7","#0ea5e9","#64748b"];
+  const palette = ["#06b6d4","#f59e0b","#10b981","#8b5cf6","#f43f5e","var(--cyan)","#ec4899","#84cc16","#a855f7","#0ea5e9","#64748b"];
 
   useChart(ref, () => ({
     type: "doughnut",

@@ -19,7 +19,7 @@ export default function ProjectStatsCards({ totalCount, inProgressCount, doneCou
         <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Dự án đã bàn giao và chạy ổn định</div>
       </div>
       {canSeeRevenue && (
-        <div style={{ background: "rgba(20, 224, 196,0.05)", border: "1px solid rgba(20, 224, 196,0.15)", padding: 16, borderRadius: 12 }}>
+        <div style={{ background: "rgba(var(--brand-rgb),0.05)", border: "1px solid rgba(var(--brand-rgb),0.15)", padding: 16, borderRadius: 12 }}>
           <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase" }}>Doanh Thu Dự Kiến</div>
           <div style={{ fontSize: 24, fontWeight: "bold", margin: "6px 0", color: "var(--cyan)" }}>
             {totalRevenue > 0 ? (totalRevenue / 1000000000).toFixed(1).replace(".0", "") + " Tỷđ" : "0đ"}

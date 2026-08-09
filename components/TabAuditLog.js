@@ -15,7 +15,7 @@ const ACTION_LABELS = {
 function ActionBadge({ action }) {
   const isUser = action.startsWith("user.");
   const color = isUser ? "var(--purple)" : "var(--cyan)";
-  const bg = isUser ? "rgba(139,92,246,0.15)" : "rgba(20,224,196,0.15)";
+  const bg = isUser ? "rgba(139,92,246,0.15)" : "rgba(var(--brand-rgb),0.15)";
   return (
     <span style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 20, background: bg, color, whiteSpace: "nowrap" }}>
       {ACTION_LABELS[action] || action}

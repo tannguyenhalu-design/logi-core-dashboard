@@ -104,29 +104,23 @@ export default function TaskTable({ taskGroups, tasksLoading, currentUser, isMan
                       )}
                     </td>
                     <td style={{ padding: "10px 14px", textAlign: "right" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end", marginLeft: "auto", maxWidth: 260 }}>
-                        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", marginLeft: "auto", maxWidth: 260 }}>
+                        {/* Secondary actions — icon-only so they don't compete visually
+                            with the primary "Hoàn thành" action below. */}
+                        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                           {m.calendarLink ? (
                             <a
                               href={m.calendarLink}
                               target="_blank"
                               rel="noopener noreferrer"
-                              title="Đã tự động tạo lịch & mời PIC qua email — bấm để xem trên Google Calendar"
+                              title="Đã thêm vào lịch chung SD3-Điện Máy (không tự gửi email cho PIC) — bấm để xem trên Google Calendar"
                               style={{
-                                background: "rgba(16,185,129,0.12)",
-                                border: "1px solid var(--green)",
-                                color: "var(--green)",
-                                padding: "3px 8px",
-                                borderRadius: 4,
-                                fontSize: 11,
-                                textDecoration: "none",
-                                fontWeight: 600,
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: 3,
+                                background: "rgba(16,185,129,0.12)", border: "1px solid var(--green)", color: "var(--green)",
+                                width: 24, height: 24, borderRadius: 4, textDecoration: "none",
+                                display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12,
                               }}
                             >
-                              ✓ Đã tạo lịch
+                              📅
                             </a>
                           ) : (
                             <a
@@ -140,36 +134,30 @@ export default function TaskTable({ taskGroups, tasksLoading, currentUser, isMan
                               })()}
                               target="_blank"
                               rel="noopener noreferrer"
-                              title="Chưa tự tạo được lịch — bấm để tự thêm thủ công"
+                              title="Chưa tự tạo được lịch — bấm để tự thêm thủ công vào Google Calendar của bạn"
                               style={{
-                                background: "rgba(2, 132, 199, 0.12)",
-                                border: "1px solid var(--cyan)",
-                                color: "var(--cyan)",
-                                padding: "3px 8px",
-                                borderRadius: 4,
-                                fontSize: 11,
-                                textDecoration: "none",
-                                fontWeight: 600,
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: 3,
+                                background: "rgba(var(--brand-rgb),0.12)", border: "1px solid var(--cyan)", color: "var(--cyan)",
+                                width: 24, height: 24, borderRadius: 4, textDecoration: "none",
+                                display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12,
                               }}
                             >
-                              📅 Lịch Google
+                              📅
                             </a>
                           )}
                           {canAct && isDone && (
                             <button
                               onClick={() => handleToggleTaskStatus(m.id, "in_progress")}
-                              style={{ background: "rgba(245,158,11,0.15)", border: "1px solid var(--amber)", color: "var(--amber)", padding: "3px 8px", borderRadius: 4, fontSize: 11, cursor: "pointer", fontWeight: 600 }}
+                              title="Mở lại task"
+                              style={{ background: "rgba(245,158,11,0.15)", border: "1px solid var(--amber)", color: "var(--amber)", width: 24, height: 24, borderRadius: 4, cursor: "pointer", fontSize: 12 }}
                             >
-                              ↺ Mở lại
+                              ↺
                             </button>
                           )}
                           {isManager && (
                             <button
                               onClick={() => handleDeleteTask(m.id)}
-                              style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-muted)", padding: "3px 6px", borderRadius: 4, fontSize: 11, cursor: "pointer" }}
+                              title="Xoá task"
+                              style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-muted)", width: 24, height: 24, borderRadius: 4, cursor: "pointer", fontSize: 12 }}
                             >
                               🗑️
                             </button>

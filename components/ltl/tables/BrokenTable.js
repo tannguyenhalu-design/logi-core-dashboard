@@ -44,8 +44,8 @@ export default function BrokenTable({ brokenByType, totalBroken, brokenCompensat
                 onClick={() => onSelectType(isSelected ? null : t)}
                 style={{ 
                   cursor: "pointer", 
-                  background: isSelected ? "rgba(20, 224, 196, 0.15)" : "transparent",
-                  borderLeft: isSelected ? "3px solid var(--blue)" : "none"
+                  background: isSelected ? "rgba(var(--brand-rgb), 0.15)" : "transparent",
+                  borderLeft: isSelected ? "3px solid var(--cyan)" : "none"
                 }}
               >
                 <td style={{ fontWeight: isSelected ? 600 : 400 }}>{t} {isSelected && "🎯"}</td>

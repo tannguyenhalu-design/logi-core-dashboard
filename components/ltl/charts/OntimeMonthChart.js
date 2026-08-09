@@ -1,6 +1,5 @@
 import React, { useRef } from "react";
 import { useChart, CHART_THEME, COLORS } from "./chartUtils";
-import "chartjs-plugin-datalabels"; // Ensure datalabels plugin is registered globally
 
 export default function OntimeMonthChart({ ontimeByMonth, isWeekly, theme = "dark" }) {
   const ref = useRef(null);
@@ -31,6 +30,7 @@ export default function OntimeMonthChart({ ontimeByMonth, isWeekly, theme = "dar
           label: "Ontime",
           data: months.map((m) => ontimeByMonth[m]?.ontime || 0),
           backgroundColor: COLORS.green, stack: "s",
+          maxBarThickness: 64,
           datalabels: {
             display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 400,
             color: "#fff",
@@ -42,6 +42,7 @@ export default function OntimeMonthChart({ ontimeByMonth, isWeekly, theme = "dar
           label: "Late",
           data: months.map((m) => ontimeByMonth[m]?.late || 0),
           backgroundColor: COLORS.red, stack: "s",
+          maxBarThickness: 64,
           datalabels: {
             display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 400,
             color: "#fff",

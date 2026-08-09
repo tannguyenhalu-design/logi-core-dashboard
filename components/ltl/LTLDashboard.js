@@ -132,7 +132,7 @@ export default function LTLDashboard({ data, rawData, selectedProjects = [], use
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           Xu hướng Ontime / Late theo {data.isWeekly ? "tuần" : "tháng"}
         </div>
-        <div style={{ height: 240 }}>
+        <div style={{ height: 320 }}>
           <OntimeMonthChart ontimeByMonth={data.ontimeByMonth} isWeekly={data.isWeekly} theme={theme} />
         </div>
         <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6, textAlign: "center" }}>
