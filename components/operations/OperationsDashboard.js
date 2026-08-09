@@ -29,6 +29,7 @@ export default function OperationsDashboard({ rawData, userRole }) {
   
   const [currentUser, setCurrentUser] = useState({ role: "manager", pic: null });
   const [kpiSyncStatus, setKpiSyncStatus] = useState(null);
+  const [ontimeByProject, setOntimeByProject] = useState({});
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
@@ -70,6 +71,13 @@ export default function OperationsDashboard({ rawData, userRole }) {
     fetch("/api/kpi-sync-status")
       .then((r) => r.json())
       .then((json) => { if (json.ok) setKpiSyncStatus(json); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/ontime-by-project")
+      .then((r) => r.json())
+      .then((json) => { if (json.ok) setOntimeByProject(json.ontimeByProject || {}); })
       .catch(() => {});
   }, []);
 
@@ -152,6 +160,18 @@ export default function OperationsDashboard({ rawData, userRole }) {
 
   const revenueByPic = {};
   const revenueByStatus = {};
+  // Ontime % per PIC — weighted (not averaged) across their projects, so a
+  // 9-project PIC's 90% isn't diluted the same as a 1-project PIC's 90%.
+  // Joined by project name against the LTL sheet's client_name (case/space
+  // insensitive — the two sheets don't always agree on casing, e.g. "AQUA
+  // B2C" here vs "Aqua B2C" there). A project whose name doesn't match
+  // anything there at all (genuinely different naming, or no LTL volume
+  // yet) is simply left out of the ontime total rather than guessed.
+  const ontimeByProjectNormalized = {};
+  Object.entries(ontimeByProject).forEach(([name, v]) => {
+    ontimeByProjectNormalized[name.trim().toLowerCase()] = v;
+  });
+  const ontimeByPic = {};
   filteredProjects.forEach((p) => {
     const rev = parseRevenue(p.revenue);
     const rrNsr = parseRevenue(p.rrNsr);
@@ -166,6 +186,14 @@ export default function OperationsDashboard({ rawData, userRole }) {
     revenueByStatus[statusKey].revenue += rev;
     revenueByStatus[statusKey].rrNsr += rrNsr;
     revenueByStatus[statusKey].count += 1;
+
+    const projOntime = ontimeByProjectNormalized[String(p.name || "").trim().toLowerCase()];
+    if (projOntime) {
+      if (!ontimeByPic[picKey]) ontimeByPic[picKey] = { ontime: 0, late: 0, projectsWithData: 0 };
+      ontimeByPic[picKey].ontime += projOntime.ontime || 0;
+      ontimeByPic[picKey].late += projOntime.late || 0;
+      ontimeByPic[picKey].projectsWithData += 1;
+    }
   });
 
   const exportProjectsCSV = () => {
@@ -324,9 +352,10 @@ export default function OperationsDashboard({ rawData, userRole }) {
           />
 
           {canSeeRevenue && (totalRevenue > 0 || totalRrNsr > 0) && (
-            <RevenueCards 
-              totalRevenue={totalRevenue} totalRrNsr={totalRrNsr} 
-              kpiSyncStatus={kpiSyncStatus} revenueByPic={revenueByPic} revenueByStatus={revenueByStatus} 
+            <RevenueCards
+              totalRevenue={totalRevenue} totalRrNsr={totalRrNsr}
+              kpiSyncStatus={kpiSyncStatus} revenueByPic={revenueByPic} revenueByStatus={revenueByStatus}
+              ontimeByPic={ontimeByPic}
             />
           )}
 

@@ -8,39 +8,11 @@
  */
 import { getSession } from "../../lib/auth";
 import { fetchSheet, getCached, setCached } from "../../lib/sheets";
-import { isDMClient, isLTLRow, FTL_ONLY_CLIENTS } from "../../lib/dm-clients";
+import { isDMClient, isLTLRow, isFromJuly2026, FTL_ONLY_CLIENTS } from "../../lib/dm-clients";
 import { transformLTL } from "../../lib/transform-ltl";
 import { transformFTL } from "../../lib/transform-ftl";
 import { transformTachTrip } from "../../lib/transform-tach-trip";
 import { transformAIInsights } from "../../lib/transform-ai-insights";
-
-// Helper to filter dates from July 2026 onwards
-const parseDDMMYYYY = (str) => {
-  const m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-  if (!m) return null;
-  return { day: parseInt(m[1]), month: parseInt(m[2]), year: parseInt(m[3]) };
-};
-
-const isFromJuly2026 = (dateStr) => {
-  if (!dateStr) return false;
-  const trimStr = String(dateStr).trim();
-  if (typeof dateStr === "number") {
-    const d = new Date(new Date(1899, 11, 30).getTime() + dateStr * 86400000);
-    return d.getFullYear() > 2026 || (d.getFullYear() === 2026 && d.getMonth() >= 6);
-  }
-  if (/^\d{4}-\d{2}/.test(trimStr)) {
-    const year = parseInt(trimStr.slice(0, 4));
-    const month = parseInt(trimStr.slice(5, 7));
-    return year > 2026 || (year === 2026 && month >= 7);
-  }
-  const dmy = parseDDMMYYYY(trimStr);
-  if (dmy) {
-    return dmy.year > 2026 || (dmy.year === 2026 && dmy.month >= 7);
-  }
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return false;
-  return d.getFullYear() > 2026 || (d.getFullYear() === 2026 && d.getMonth() >= 6);
-};
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {

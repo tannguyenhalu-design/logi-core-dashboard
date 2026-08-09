@@ -22,7 +22,15 @@ export default function TaskTable({ taskGroups, tasksLoading, currentUser, isMan
 
   return (
     <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: 10 }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, textAlign: "left" }}>
+      <table style={{ width: "100%", minWidth: 1000, borderCollapse: "collapse", fontSize: 12.5, textAlign: "left", tableLayout: "fixed" }}>
+        <colgroup>
+          <col style={{ width: "23%" }} />
+          <col style={{ width: "15%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "11%" }} />
+          <col style={{ width: "17%" }} />
+          <col style={{ width: "20%" }} />
+        </colgroup>
         <thead>
           <tr style={{ background: "var(--table-header-bg)", color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>
             <th style={{ padding: "10px 14px" }}>Tên Task / Công Việc</th>
@@ -72,21 +80,21 @@ export default function TaskTable({ taskGroups, tasksLoading, currentUser, isMan
                         {first.notes && <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 400, marginTop: 2 }}>{first.notes}</div>}
                       </td>
                     )}
-                    <td style={{ padding: "10px 14px", color: "var(--cyan)", fontWeight: 600, whiteSpace: "nowrap" }}>
+                    <td style={{ padding: "10px 14px", color: "var(--cyan)", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={m.picName}>
                       👤 {m.picName}
                     </td>
                     {idx === 0 && (
-                      <td rowSpan={members.length} style={{ ...sharedCellStyle, color: "var(--text-secondary)" }}>
+                      <td rowSpan={members.length} style={{ ...sharedCellStyle, color: "var(--text-secondary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={first.project}>
                         {first.project}
                       </td>
                     )}
                     {idx === 0 && (
-                      <td rowSpan={members.length} style={{ ...sharedCellStyle, fontWeight: 700, color: "var(--text-primary)" }}>
+                      <td rowSpan={members.length} style={{ ...sharedCellStyle, fontWeight: 700, color: "var(--text-primary)", whiteSpace: "nowrap" }}>
                         📅 {first.deadline}
                       </td>
                     )}
                     <td style={{ padding: "10px 14px" }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, width: "fit-content", padding: "2px 8px", borderRadius: 4, ...badgeStyle }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, width: "fit-content", padding: "2px 8px", borderRadius: 4, whiteSpace: "nowrap", display: "inline-block", ...badgeStyle }}>
                         {badgeStyle.label}
                       </span>
                       {m.completionNote && (
