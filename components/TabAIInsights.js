@@ -170,6 +170,13 @@ export function PeriodComparisonSection({ comparison, declineAlerts = [], compac
   const groupLabel = compact ? "kho giao hàng" : "khách hàng";
   const warningItems = items.filter((c) => c.warning);
   const isMtd = periodWeeks === "mtd";
+  // Cards needing attention (⚠️) grouped together first instead of scattered
+  // among the healthy ones — the backend order (worst ontime delta first)
+  // still applies within each group, just warning status now wins first.
+  const sortedItems = [...items].sort((a, b) => {
+    if (a.warning !== b.warning) return a.warning ? -1 : 1;
+    return (a.ontimeDeltaPoints ?? 0) - (b.ontimeDeltaPoints ?? 0);
+  });
 
   return (
     <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
@@ -271,13 +278,13 @@ export function PeriodComparisonSection({ comparison, declineAlerts = [], compac
         </div>
       )}
 
-      {items.length === 0 ? (
+      {sortedItems.length === 0 ? (
         <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
           Chưa đủ dữ liệu để so sánh.
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 }}>
-          {items.map((c) => (
+          {sortedItems.map((c) => (
             <div key={c.name} style={{
               background: c.warning ? "rgba(239,68,68,0.06)" : "rgba(255,255,255,0.03)",
               border: `1px solid ${c.warning ? "rgba(239,68,68,0.25)" : "var(--border)"}`,

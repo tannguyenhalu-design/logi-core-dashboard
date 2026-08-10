@@ -18,7 +18,7 @@ export default function OntimeProjChart({ ontimeByProject, theme = "dark" }) {
           return t > 0 ? Math.round((o / t) * 1000) / 10 : 0;
         }),
         backgroundColor: projs.map((_, i) =>
-          [COLORS.cyan, COLORS.green, COLORS.purple, COLORS.amber, COLORS.red][i % 5]
+          [ct.cyan, COLORS.green, COLORS.purple, COLORS.amber, COLORS.red][i % 5]
         ),
         borderRadius: 6,
       }],
