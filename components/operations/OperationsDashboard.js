@@ -339,7 +339,7 @@ export default function OperationsDashboard({ rawData, userRole }) {
                 ⬇️ Xuất CSV
               </button>
               <div style={{ background: "rgba(var(--brand-rgb),0.1)", border: "1px solid rgba(var(--brand-rgb),0.2)", padding: "8px 12px", borderRadius: 8, fontSize: 13 }}>
-                👤 Vai trò: <strong style={{ color: "var(--cyan)" }}>{isManager ? "Manager (Xem toàn bộ)" : "Chuyên viên SD"}</strong>
+                👤 Vai trò: <strong style={{ color: "var(--cyan)" }}>{isManager ? "Manager (Xem toàn bộ)" : currentUser.role === "cs" ? "CS" : "Chuyên viên SD"}</strong>
                 {currentUser.pic && <span> | Tên: <strong style={{ color: "var(--green)" }}>{PIC_NAMES[currentUser.pic] || currentUser.pic}</strong></span>}
               </div>
             </div>

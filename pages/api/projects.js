@@ -270,6 +270,26 @@ export default async function handler(req, res) {
 
       const projectsResult = mergedProjects.length > 0 ? mergedProjects : FALLBACK_PROJECTS;
 
+      // Revenue is per-owner, not team-wide — a non-manager only sees
+      // financial figures (revenue/lastMoNsr/rrNsr) on projects they're
+      // personally the PIC for. This used to only be a client-side column
+      // hide (canSeeRevenue in OperationsDashboard.js), which still shipped
+      // every project's real numbers in the API response — inspectable via
+      // devtools, and fully visible the moment a non-manager widened the
+      // "Lọc theo PIC" filter to a colleague. Redacting here closes that
+      // regardless of what the frontend does with it.
+      if (userRole !== "manager") {
+        projectsResult.forEach((p) => {
+          const isOwn = p.pic && String(p.pic).toLowerCase() === userEmail;
+          const canSeeThisRevenue = userRole === "sd3" && isOwn;
+          if (!canSeeThisRevenue) {
+            p.revenue = "";
+            p.lastMoNsr = "";
+            p.rrNsr = "";
+          }
+        });
+      }
+
       return res.status(200).json({
         ok: true, 
         projects: projectsResult,
