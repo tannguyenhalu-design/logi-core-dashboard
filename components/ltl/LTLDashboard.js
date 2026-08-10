@@ -142,6 +142,7 @@ export default function LTLDashboard({ data, rawData, selectedProjects = [], use
 
       <PeriodComparisonSection
         comparison={data.periodComparison}
+        declineAlerts={data.declineAlerts}
         compact={singleProjectMode}
         periodWeeks={periodWeeks}
         onPeriodWeeksChange={onPeriodWeeksChange}

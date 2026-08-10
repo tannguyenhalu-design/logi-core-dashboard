@@ -160,7 +160,7 @@ export function DeltaBadge({ value, unit, invert, isNew }) {
   );
 }
 
-export function PeriodComparisonSection({ comparison, compact = false, periodWeeks = "mtd", onPeriodWeeksChange }) {
+export function PeriodComparisonSection({ comparison, declineAlerts = [], compact = false, periodWeeks = "mtd", onPeriodWeeksChange }) {
   if (!comparison) return null;
   const { currentRangeLabel, previousRangeLabel, overall, clients, warehouses } = comparison;
   // Filtered to 1 project, the client breakdown is just that 1 project again
@@ -233,6 +233,26 @@ export function PeriodComparisonSection({ comparison, compact = false, periodWee
           </div>
         </div>
       </div>
+
+      {!compact && declineAlerts.length > 0 && (
+        <div style={{
+          background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)",
+          borderRadius: 10, padding: "12px 14px", marginBottom: 14,
+        }}>
+          <div style={{ fontWeight: 700, fontSize: 12.5, color: "var(--red)", marginBottom: 8 }}>
+            🚨 {declineAlerts.length} khách hàng giảm số đơn liên tục {declineAlerts[0].weeksDeclining} tuần gần nhất — ưu tiên kiểm tra vận hành
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {declineAlerts.map((a) => (
+              <div key={a.client} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, flexWrap: "wrap", gap: 8 }}>
+                <span style={{ color: "#EAF0F8", fontWeight: 600 }}>{a.client}</span>
+                <span style={{ color: "var(--text-muted)" }}>{a.weeklyCounts.join(" → ")} đơn/tuần</span>
+                <span style={{ color: "var(--red)", fontWeight: 700 }}>{a.totalDeclinePct}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {items.length === 0 ? (
         <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
