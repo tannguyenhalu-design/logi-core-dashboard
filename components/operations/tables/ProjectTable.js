@@ -10,7 +10,29 @@ export default function ProjectTable({ filteredProjects, loading, canSeeRevenue,
           <TruckLoader />
         </div>
       ) : (
-        <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table className="data-table" style={{
+          width: "100%", minWidth: canSeeRevenue ? 1300 : 950,
+          borderCollapse: "collapse", tableLayout: "fixed",
+        }}>
+          {/* table-layout:fixed + explicit widths — the "Tác vụ" column is
+              position:sticky (always-visible SOP/edit buttons, see below),
+              which only renders correctly without overlapping neighboring
+              cells when every column has a predictable, fixed width; with
+              the browser's default auto layout the sticky cell just draws
+              on top of whatever cell happens to occupy that screen position. */}
+          <colgroup>
+            <col style={{ width: canSeeRevenue ? "16%" : "22%" }} />
+            <col style={{ width: canSeeRevenue ? "7%" : "8%" }} />
+            <col style={{ width: canSeeRevenue ? "10%" : "14%" }} />
+            <col style={{ width: canSeeRevenue ? "8%" : "11%" }} />
+            <col style={{ width: canSeeRevenue ? "9%" : "13%" }} />
+            <col style={{ width: canSeeRevenue ? "8%" : "10%" }} />
+            {canSeeRevenue && <col style={{ width: "8%" }} />}
+            {canSeeRevenue && <col style={{ width: "8%" }} />}
+            {canSeeRevenue && <col style={{ width: "8%" }} />}
+            <col style={{ width: canSeeRevenue ? "7%" : "8%" }} />
+            <col style={{ width: canSeeRevenue ? "11%" : "14%" }} />
+          </colgroup>
           <thead>
             <tr style={{ borderBottom: "2px solid var(--border)" }}>
               <th style={{ textAlign: "left", padding: "12px 8px" }}>Tên Dự Án</th>
@@ -23,13 +45,19 @@ export default function ProjectTable({ filteredProjects, loading, canSeeRevenue,
               {canSeeRevenue && <th style={{ textAlign: "right", padding: "12px 8px" }}>Last Mo. NSR</th>}
               {canSeeRevenue && <th style={{ textAlign: "right", padding: "12px 8px" }} title="Doanh thu thực tế tháng này (từ KPI Portal)">RR/NSR</th>}
               <th style={{ textAlign: "center", padding: "12px 8px" }}>Trạng Thái</th>
-              <th style={{ textAlign: "center", padding: "12px 8px" }}>Tác vụ</th>
+              <th style={{
+                textAlign: "center", padding: "12px 8px",
+                position: "sticky", right: 0, background: "var(--panel-bg-strong)",
+                boxShadow: "-4px 0 6px -4px rgba(0,0,0,0.4)",
+              }}>
+                Tác vụ
+              </th>
             </tr>
           </thead>
           <tbody>
             {filteredProjects.map((p, pIdx) => {
               const picName = PIC_NAMES[p.pic] || p.pic || "Chưa phân công";
-              
+
               let statusColor = "rgba(100,116,139,0.15)";
               if (p.status === "Đang thực hiện") statusColor = "rgba(245,158,11,0.2)";
               if (p.status === "Done") statusColor = "rgba(16,185,129,0.2)";
@@ -47,55 +75,63 @@ export default function ProjectTable({ filteredProjects, loading, canSeeRevenue,
                   }}
                   className="hover-row"
                 >
-                  <td style={{ padding: "14px 8px", fontWeight: 600, color: "var(--text-primary)" }}>
+                  <td style={{ padding: "14px 8px", fontWeight: 600, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={p.name}>
                     📂 {p.name}
                   </td>
-                  <td style={{ padding: "14px 8px", color: "var(--text-secondary)", fontSize: 12 }}>
+                  <td style={{ padding: "14px 8px", color: "var(--text-secondary)", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {p.clientId || "—"}
                   </td>
-                  <td style={{ padding: "14px 8px", color: "var(--cyan)" }}>
+                  <td style={{ padding: "14px 8px", color: "var(--cyan)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={picName}>
                     👤 {picName}
                   </td>
-                  <td style={{ padding: "14px 8px" }}>
-                    <span style={{ fontSize: 11, background: "var(--panel-glow)", padding: "4px 8px", borderRadius: 4, color: "var(--text-secondary)" }}>
+                  <td style={{ padding: "14px 8px", overflow: "hidden" }}>
+                    <span style={{ fontSize: 11, background: "var(--panel-glow)", padding: "4px 8px", borderRadius: 4, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
                       {p.model}
                     </span>
                   </td>
-                  <td style={{ padding: "14px 8px", color: "var(--text-secondary)" }}>
+                  <td style={{ padding: "14px 8px", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={p.job}>
                     {p.job}
                   </td>
-                  <td style={{ padding: "14px 8px", color: "var(--text-secondary)" }}>
+                  <td style={{ padding: "14px 8px", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {p.expectedOb}
                   </td>
                   {canSeeRevenue && (
-                    <td style={{ padding: "14px 8px", textAlign: "right", fontWeight: 600 }}>
+                    <td style={{ padding: "14px 8px", textAlign: "right", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {formatRevenue(p.revenue)}
                     </td>
                   )}
                   {canSeeRevenue && (
-                    <td style={{ padding: "14px 8px", textAlign: "right", color: "var(--text-secondary)" }}>
+                    <td style={{ padding: "14px 8px", textAlign: "right", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {p.lastMoNsr ? formatRevenue(p.lastMoNsr) : "—"}
                     </td>
                   )}
                   {canSeeRevenue && (
-                    <td style={{ padding: "14px 8px", textAlign: "right", fontWeight: 600, color: "var(--cyan)" }}>
+                    <td style={{ padding: "14px 8px", textAlign: "right", fontWeight: 600, color: "var(--cyan)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {p.rrNsr ? formatRevenue(p.rrNsr) : "—"}
                     </td>
                   )}
-                  <td style={{ padding: "14px 8px", textAlign: "center" }}>
-                    <span style={{ 
-                      fontSize: 11, 
-                      fontWeight: 600, 
-                      padding: "4px 8px", 
-                      borderRadius: 20, 
-                      background: statusColor, 
-                      color: p.status === "Done" ? "var(--green)" : "var(--amber)"
+                  <td style={{ padding: "14px 8px", textAlign: "center", overflow: "hidden" }}>
+                    <span style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: "4px 8px",
+                      borderRadius: 20,
+                      background: statusColor,
+                      color: p.status === "Done" ? "var(--green)" : "var(--amber)",
+                      whiteSpace: "nowrap",
                     }}>
                       {p.status}
                     </span>
                   </td>
-                  <td style={{ padding: "14px 8px", textAlign: "center" }}>
-                    <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+                  <td style={{
+                    padding: "14px 8px", textAlign: "center",
+                    position: "sticky", right: 0,
+                    background: hasNoSop
+                      ? "linear-gradient(rgba(244,63,94,0.12), rgba(244,63,94,0.12)), var(--panel-bg-strong)"
+                      : "var(--panel-bg-strong)",
+                    boxShadow: "-4px 0 6px -4px rgba(0,0,0,0.4)",
+                  }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
                       {/^https?:\/\//i.test(p.sopLink || "") ? (
                         <a
                           href={p.sopLink}
@@ -109,22 +145,27 @@ export default function ProjectTable({ filteredProjects, loading, canSeeRevenue,
                             fontSize: 11,
                             fontWeight: 600,
                             textDecoration: "none",
-                            border: "1px solid rgba(var(--brand-rgb),0.2)"
+                            border: "1px solid rgba(var(--brand-rgb),0.2)",
+                            whiteSpace: "nowrap",
                           }}
                         >
                           Mở SOP 🔗
                         </a>
                       ) : p.sopLink ? (
                         <span
-                          title="Ô LINK SOP trên Sheet chỉ có tên/nhãn, không có URL thật — mở Sheet, bấm chuột phải vào ô này > Insert link để gắn lại link đầy đủ."
-                          style={{ color: "var(--amber)", fontSize: 11, padding: "5px 10px", cursor: "help" }}
+                          title={`${p.sopLink} — ô LINK SOP trên Sheet chỉ có tên/nhãn, không có URL thật. Mở Sheet, bấm chuột phải vào ô này > Insert link để gắn lại link đầy đủ.`}
+                          style={{
+                            color: "var(--amber)", fontSize: 10.5, padding: "4px 8px", cursor: "help",
+                            maxWidth: 130, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                          }}
                         >
-                          ⚠️ {p.sopLink} (chưa có link)
+                          ⚠️ chưa có link
                         </span>
                       ) : (
                         <span style={{
                           color: "var(--red)", fontSize: 11, fontWeight: 600, padding: "5px 10px",
                           borderRadius: 6, background: "rgba(244,63,94,0.12)", border: "1px solid rgba(244,63,94,0.25)",
+                          whiteSpace: "nowrap",
                         }}>
                           🔴 Chưa có SOP
                         </span>
@@ -139,7 +180,8 @@ export default function ProjectTable({ filteredProjects, loading, canSeeRevenue,
                           borderRadius: 6,
                           fontSize: 11,
                           fontWeight: 600,
-                          cursor: "pointer"
+                          cursor: "pointer",
+                          whiteSpace: "nowrap",
                         }}
                       >
                         {canEdit ? "Chỉnh Sửa ✏️" : "Xem Chi Tiết 🔍"}
