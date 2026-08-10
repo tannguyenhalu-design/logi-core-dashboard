@@ -2,7 +2,7 @@
  * components/TabAIInsights.js
  * Tab AI Insights — Tầng 1: Bể vỡ theo tuyến, Tầng 2: Đề xuất tách chuyến
  */
-import { useState } from "react";
+import { useState, Fragment } from "react";
 
 // ── Helpers ──
 const fmtN = n => Number(n).toLocaleString("vi-VN");
@@ -242,12 +242,29 @@ export function PeriodComparisonSection({ comparison, declineAlerts = [], compac
           <div style={{ fontWeight: 700, fontSize: 12.5, color: "var(--red)", marginBottom: 8 }}>
             🚨 {declineAlerts.length} khách hàng giảm số đơn liên tục {declineAlerts[0].weeksDeclining} tuần gần nhất — ưu tiên kiểm tra vận hành
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {declineAlerts.map((a) => (
-              <div key={a.client} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, flexWrap: "wrap", gap: 8 }}>
-                <span style={{ color: "#EAF0F8", fontWeight: 600 }}>{a.client}</span>
-                <span style={{ color: "var(--text-muted)" }}>{a.weeklyCounts.join(" → ")} đơn/tuần</span>
-                <span style={{ color: "var(--red)", fontWeight: 700 }}>{a.totalDeclinePct}%</span>
+              <div key={a.client} style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "8px 10px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ color: "#EAF0F8", fontWeight: 600, fontSize: 12.5 }}>{a.client}</span>
+                  <span style={{ color: "var(--red)", fontWeight: 700, fontSize: 12.5 }}>{a.totalDeclinePct}% qua {a.weeklyBreakdown.length} tuần</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  {a.weeklyBreakdown.map((w, i) => (
+                    <Fragment key={w.label}>
+                      {i > 0 && <span style={{ color: "var(--text-muted)", fontSize: 12 }}>→</span>}
+                      <div style={{ textAlign: "center", flex: 1, background: "rgba(0,0,0,0.15)", borderRadius: 6, padding: "4px 6px" }}>
+                        <div style={{ fontSize: 10, color: "var(--text-muted)" }}>{w.label}</div>
+                        <div style={{
+                          fontSize: 13, fontWeight: 700,
+                          color: i === a.weeklyBreakdown.length - 1 ? "var(--red)" : "#EAF0F8",
+                        }}>
+                          {w.count} đơn
+                        </div>
+                      </div>
+                    </Fragment>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
