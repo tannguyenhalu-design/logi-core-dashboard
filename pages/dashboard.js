@@ -485,7 +485,7 @@ export default function DashboardPage({ user: initialUser }) {
                   <div style={{
                     position: "absolute", top: 12, right: 24, zIndex: 10,
                     display: "flex", alignItems: "center", gap: 6,
-                    fontSize: 11, color: "var(--blue)",
+                    fontSize: 11, color: "var(--cyan)",
                     background: "rgba(var(--brand-rgb),0.1)", border: "1px solid rgba(var(--brand-rgb),0.2)",
                     borderRadius: 20, padding: "4px 10px",
                   }}>

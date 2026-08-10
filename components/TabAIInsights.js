@@ -179,7 +179,7 @@ export function PeriodComparisonSection({ comparison, declineAlerts = [], compac
   });
 
   return (
-    <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
+    <div style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, marginBottom: 16 }}>
         <div>
           <div style={{ fontWeight: 700, fontSize: 14, color: "#EAF0F8", marginBottom: 2 }}>
@@ -374,7 +374,7 @@ export default function TabAIInsights({ data }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         {/* Tầng 1 */}
         <div style={{
-          background: "var(--card-bg)", border: "1px solid var(--border)",
+          background: "var(--panel-glow)", border: "1px solid var(--border)",
           borderRadius: 14, padding: 16,
         }}>
           <div style={{ marginBottom: 14 }}>
@@ -390,7 +390,7 @@ export default function TabAIInsights({ data }) {
 
         {/* Tầng 2 */}
         <div style={{
-          background: "var(--card-bg)", border: "1px solid var(--border)",
+          background: "var(--panel-glow)", border: "1px solid var(--border)",
           borderRadius: 14, padding: 16,
         }}>
           <div style={{ marginBottom: 14 }}>

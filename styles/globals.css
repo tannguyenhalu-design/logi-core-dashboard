@@ -31,6 +31,8 @@
   --amber-glow: rgba(245, 158, 11, 0.2);
   --purple: #8b5cf6;
   --purple-glow: rgba(139, 92, 246, 0.2);
+  --blue: #3b82f6;
+  --blue-glow: rgba(59, 130, 246, 0.2);
 
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -99,6 +101,8 @@
   --amber-glow: rgba(161, 98, 7, 0.12);
   --purple: #6d28d9;
   --purple-glow: rgba(109, 40, 217, 0.12);
+  --blue: #2563eb;
+  --blue-glow: rgba(37, 99, 235, 0.12);
 
   --radius-sm: 8px;
   --radius-md: 12px;

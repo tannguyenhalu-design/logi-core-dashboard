@@ -137,7 +137,7 @@ export default function FilterBar({
                 ? (opt.value === "delivered" ? "rgba(16,185,129,0.2)" : "rgba(var(--brand-rgb),0.2)")
                 : "transparent",
               color: filterMode === opt.value
-                ? (opt.value === "delivered" ? "var(--green)" : "var(--blue)")
+                ? (opt.value === "delivered" ? "var(--green)" : "var(--cyan)")
                 : "var(--text-muted)",
               transition: "all 0.15s",
             }}

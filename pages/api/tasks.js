@@ -4,7 +4,7 @@
  * store (see lib/tasks.js), not per-browser localStorage.
  */
 import { getSession } from "../../lib/auth";
-import { getAllTasks, createTasks, updateTaskStatus, deleteTask } from "../../lib/tasks";
+import { getAllTasks, createTasks, updateTaskStatus, updateTaskDetails, deleteTask } from "../../lib/tasks";
 import { logAction } from "../../lib/audit-log";
 
 export default async function handler(req, res) {
@@ -80,6 +80,37 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "PATCH") {
+    if (req.body?.action === "editDetails") {
+      try {
+        const { groupId, title, project, deadline, notes } = req.body || {};
+        if (!groupId) return res.status(400).json({ error: "Missing groupId" });
+        if (title !== undefined && !String(title).trim()) {
+          return res.status(400).json({ error: "Tên task không được để trống" });
+        }
+        if (deadline !== undefined && !deadline) {
+          return res.status(400).json({ error: "Hạn chót không được để trống" });
+        }
+        // Title/deadline/notes are shared across the whole group — anyone
+        // in the group (or a manager) can edit them, not just whoever
+        // happens to own the specific row id (there isn't one row id that
+        // "owns" shared content).
+        if (!isManager) {
+          const allTasks = await getAllTasks();
+          const groupMembers = allTasks.filter((t) => (t.groupId || t.id) === groupId);
+          const isMember = groupMembers.some((t) => String(t.pic || "").toLowerCase() === userEmail);
+          if (!isMember) {
+            return res.status(403).json({ error: "Bạn chỉ có thể sửa task của chính mình" });
+          }
+        }
+        const tasks = await updateTaskDetails(groupId, { title, project, deadline, notes }, actor);
+        await logAction({ actor, action: "task.edit_details", target: groupId, details: { title, project, deadline, notes } });
+        return res.status(200).json({ ok: true, tasks });
+      } catch (err) {
+        console.error("[/api/tasks] PATCH editDetails error:", err);
+        return res.status(500).json({ error: err.message });
+      }
+    }
+
     try {
       const { id, status, note } = req.body || {};
       if (!id || !status) return res.status(400).json({ error: "Missing id or status" });

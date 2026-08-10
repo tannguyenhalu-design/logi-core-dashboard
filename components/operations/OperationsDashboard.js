@@ -9,6 +9,7 @@ import ProjectFilters from "./filters/ProjectFilters";
 import TaskTable from "./tables/TaskTable";
 import ProjectTable from "./tables/ProjectTable";
 import AddTaskModal from "./modals/AddTaskModal";
+import EditTaskModal from "./modals/EditTaskModal";
 import AddProjectModal from "./modals/AddProjectModal";
 import EditProjectModal from "./modals/EditProjectModal";
 
@@ -26,6 +27,7 @@ export default function OperationsDashboard({ rawData, userRole }) {
   const [taskPicFilter, setTaskPicFilter] = useState("all");
   const [taskStatusFilter, setTaskStatusFilter] = useState("all");
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [editingTaskGroup, setEditingTaskGroup] = useState(null);
   
   const [currentUser, setCurrentUser] = useState({ role: "manager", pic: null });
   const [kpiSyncStatus, setKpiSyncStatus] = useState(null);
@@ -287,14 +289,15 @@ export default function OperationsDashboard({ rawData, userRole }) {
             taskStatusFilter={taskStatusFilter} setTaskStatusFilter={setTaskStatusFilter} 
           />
 
-          <TaskTable 
-            taskGroups={taskGroups} tasksLoading={tasksLoading} 
-            currentUser={currentUser} isManager={isManager} 
-            handleToggleTaskStatus={handleToggleTaskStatus} handleDeleteTask={handleDeleteTask} 
+          <TaskTable
+            taskGroups={taskGroups} tasksLoading={tasksLoading}
+            currentUser={currentUser} isManager={isManager}
+            handleToggleTaskStatus={handleToggleTaskStatus} handleDeleteTask={handleDeleteTask}
+            onEditTask={(members) => setEditingTaskGroup(members)}
           />
 
           {showAddTaskModal && (
-            <AddTaskModal 
+            <AddTaskModal
               onClose={() => setShowAddTaskModal(false)}
               onSuccess={(newTasks, distinctPics) => {
                 setTasks((prev) => [...newTasks, ...prev]);
@@ -303,6 +306,18 @@ export default function OperationsDashboard({ rawData, userRole }) {
                   setTaskPicFilter(distinctPics[0]);
                   setPicFilter(distinctPics[0]);
                 }
+              }}
+            />
+          )}
+
+          {editingTaskGroup && (
+            <EditTaskModal
+              members={editingTaskGroup}
+              onClose={() => setEditingTaskGroup(null)}
+              onSuccess={(updatedTasks) => {
+                const byId = new Map(updatedTasks.map((t) => [t.id, t]));
+                setTasks((prev) => prev.map((t) => byId.has(t.id) ? byId.get(t.id) : t));
+                setEditingTaskGroup(null);
               }}
             />
           )}

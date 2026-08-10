@@ -8,7 +8,7 @@ const OUTCOME_BADGE = {
   in_progress: { background: "rgba(245,158,11,0.15)", color: "var(--amber)", border: "1px solid var(--amber)", label: "🟡 Đang làm" },
 };
 
-export default function TaskTable({ taskGroups, tasksLoading, currentUser, isManager, handleToggleTaskStatus, handleDeleteTask }) {
+export default function TaskTable({ taskGroups, tasksLoading, currentUser, isManager, handleToggleTaskStatus, handleDeleteTask, onEditTask }) {
   const [completionDrafts, setCompletionDrafts] = useState({});
   const [completingId, setCompletingId] = useState(null);
 
@@ -61,6 +61,7 @@ export default function TaskTable({ taskGroups, tasksLoading, currentUser, isMan
                 const isDone = outcome === "done_ontime" || outcome === "done_late";
                 const isLastInGroup = idx === members.length - 1;
                 const rowIsOverdue = outcome === "overdue_open" || outcome === "done_late";
+                const canEditDetails = isManager || members.some((mm) => mm.pic === currentUser.email);
                 const sharedCellStyle = {
                   padding: "10px 14px",
                   verticalAlign: "top",
@@ -76,7 +77,22 @@ export default function TaskTable({ taskGroups, tasksLoading, currentUser, isMan
                   >
                     {idx === 0 && (
                       <td rowSpan={members.length} style={{ ...sharedCellStyle, fontWeight: 600, color: "var(--text-primary)" }}>
-                        {first.title}
+                        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6 }}>
+                          <span>{first.title}</span>
+                          {canEditDetails && onEditTask && (
+                            <button
+                              onClick={() => onEditTask(members)}
+                              title="Sửa nội dung / hạn chót"
+                              style={{
+                                background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-muted)",
+                                width: 20, height: 20, minWidth: 20, borderRadius: 4, cursor: "pointer", fontSize: 11,
+                                flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                              }}
+                            >
+                              ✏️
+                            </button>
+                          )}
+                        </div>
                         {first.notes && <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 400, marginTop: 2 }}>{first.notes}</div>}
                       </td>
                     )}
