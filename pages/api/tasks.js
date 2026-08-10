@@ -82,7 +82,7 @@ export default async function handler(req, res) {
   if (req.method === "PATCH") {
     if (req.body?.action === "editDetails") {
       try {
-        const { groupId, title, project, deadline, notes } = req.body || {};
+        const { groupId, title, project, deadline, notes, pics } = req.body || {};
         if (!groupId) return res.status(400).json({ error: "Missing groupId" });
         if (title !== undefined && !String(title).trim()) {
           return res.status(400).json({ error: "Tên task không được để trống" });
@@ -93,8 +93,13 @@ export default async function handler(req, res) {
         // Title/deadline/notes are shared across the whole group — anyone
         // in the group (or a manager) can edit them, not just whoever
         // happens to own the specific row id (there isn't one row id that
-        // "owns" shared content).
+        // "owns" shared content). Reassigning WHO is on the task is more
+        // sensitive (deletes/creates rows, touches other people's calendar
+        // invites) — manager-only, regardless of group membership.
         if (!isManager) {
+          if (Array.isArray(pics)) {
+            return res.status(403).json({ error: "Chỉ Manager mới có thể đổi người phụ trách" });
+          }
           const allTasks = await getAllTasks();
           const groupMembers = allTasks.filter((t) => (t.groupId || t.id) === groupId);
           const isMember = groupMembers.some((t) => String(t.pic || "").toLowerCase() === userEmail);
@@ -102,8 +107,11 @@ export default async function handler(req, res) {
             return res.status(403).json({ error: "Bạn chỉ có thể sửa task của chính mình" });
           }
         }
-        const tasks = await updateTaskDetails(groupId, { title, project, deadline, notes }, actor);
-        await logAction({ actor, action: "task.edit_details", target: groupId, details: { title, project, deadline, notes } });
+        if (Array.isArray(pics) && pics.length === 0) {
+          return res.status(400).json({ error: "Task cần ít nhất 1 người phụ trách" });
+        }
+        const tasks = await updateTaskDetails(groupId, { title, project, deadline, notes, pics }, actor);
+        await logAction({ actor, action: "task.edit_details", target: groupId, details: { title, project, deadline, notes, pics: pics?.map((p) => p.pic) } });
         return res.status(200).json({ ok: true, tasks });
       } catch (err) {
         console.error("[/api/tasks] PATCH editDetails error:", err);

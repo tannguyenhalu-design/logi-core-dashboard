@@ -14,12 +14,15 @@ export default function ProjectTable({ filteredProjects, loading, canSeeRevenue,
           width: "100%", minWidth: canSeeRevenue ? 1300 : 950,
           borderCollapse: "collapse", tableLayout: "fixed",
         }}>
-          {/* table-layout:fixed + explicit widths — the "Tác vụ" column is
-              position:sticky (always-visible SOP/edit buttons, see below),
-              which only renders correctly without overlapping neighboring
-              cells when every column has a predictable, fixed width; with
-              the browser's default auto layout the sticky cell just draws
-              on top of whatever cell happens to occupy that screen position. */}
+          {/* table-layout:fixed + explicit narrow widths — keeps the whole
+              table within ~1300px (with revenue) / ~950px (without), so it
+              fits without horizontal scrolling on any normal laptop/desktop
+              window and the SOP/edit buttons in the last column are simply
+              always on-screen already. (An earlier version tried
+              position:sticky on the last column instead — table cells don't
+              reliably support sticky across browsers/zoom levels, and it
+              was overlapping neighboring columns in production — a fixed
+              narrow layout is the more robust fix.) */}
           <colgroup>
             <col style={{ width: canSeeRevenue ? "16%" : "22%" }} />
             <col style={{ width: canSeeRevenue ? "7%" : "8%" }} />
@@ -45,11 +48,7 @@ export default function ProjectTable({ filteredProjects, loading, canSeeRevenue,
               {canSeeRevenue && <th style={{ textAlign: "right", padding: "12px 8px" }}>Last Mo. NSR</th>}
               {canSeeRevenue && <th style={{ textAlign: "right", padding: "12px 8px" }} title="Doanh thu thực tế tháng này (từ KPI Portal)">RR/NSR</th>}
               <th style={{ textAlign: "center", padding: "12px 8px" }}>Trạng Thái</th>
-              <th style={{
-                textAlign: "center", padding: "12px 8px",
-                position: "sticky", right: 0, background: "var(--panel-bg-strong)",
-                boxShadow: "-4px 0 6px -4px rgba(0,0,0,0.4)",
-              }}>
+              <th style={{ textAlign: "center", padding: "12px 8px" }}>
                 Tác vụ
               </th>
             </tr>
@@ -123,14 +122,7 @@ export default function ProjectTable({ filteredProjects, loading, canSeeRevenue,
                       {p.status}
                     </span>
                   </td>
-                  <td style={{
-                    padding: "14px 8px", textAlign: "center",
-                    position: "sticky", right: 0,
-                    background: hasNoSop
-                      ? "linear-gradient(rgba(244,63,94,0.12), rgba(244,63,94,0.12)), var(--panel-bg-strong)"
-                      : "var(--panel-bg-strong)",
-                    boxShadow: "-4px 0 6px -4px rgba(0,0,0,0.4)",
-                  }}>
+                  <td style={{ padding: "14px 8px", textAlign: "center" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
                       {/^https?:\/\//i.test(p.sopLink || "") ? (
                         <a

@@ -1,7 +1,7 @@
 export const PIC_NAMES = {
   "tutd@ghn.vn": "Duy Tú",
   "diennk@giaohangnhanh.vn": "Kim Diện",
-  "datnt2@ghn.vn": "Nguyễn Tiến Đạt"
+  "datnt2@ghn.vn": "Nguyễn Thành Đạt"
 };
 
 export function formatRevenue(val) {

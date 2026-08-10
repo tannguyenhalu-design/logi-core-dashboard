@@ -313,10 +313,18 @@ export default function OperationsDashboard({ rawData, userRole }) {
           {editingTaskGroup && (
             <EditTaskModal
               members={editingTaskGroup}
+              isManager={isManager}
               onClose={() => setEditingTaskGroup(null)}
-              onSuccess={(updatedTasks) => {
-                const byId = new Map(updatedTasks.map((t) => [t.id, t]));
-                setTasks((prev) => prev.map((t) => byId.has(t.id) ? byId.get(t.id) : t));
+              onSuccess={(updatedTasks, groupId) => {
+                // updatedTasks is the full, authoritative row set for this
+                // group after the save — replacing (not merging) every row
+                // that used to belong to the group is what correctly
+                // reflects assignees that got added or removed, not just
+                // ones that had their shared fields updated in place.
+                setTasks((prev) => [
+                  ...prev.filter((t) => (t.groupId || t.id) !== groupId),
+                  ...updatedTasks,
+                ]);
                 setEditingTaskGroup(null);
               }}
             />

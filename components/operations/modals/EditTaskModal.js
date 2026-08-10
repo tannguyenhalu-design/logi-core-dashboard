@@ -1,17 +1,23 @@
 import React, { useState } from 'react';
+import { PIC_NAMES } from '../utils';
 
-export default function EditTaskModal({ members, onClose, onSuccess }) {
+export default function EditTaskModal({ members, isManager, onClose, onSuccess }) {
   const first = members[0];
   const groupId = first.groupId || first.id;
   const [title, setTitle] = useState(first.title || "");
   const [project, setProject] = useState(first.project || "");
   const [deadline, setDeadline] = useState(first.deadline || "");
   const [notes, setNotes] = useState(first.notes || "");
+  const [pics, setPics] = useState(members.map((m) => m.pic));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
   const picNames = members.map((m) => m.picName).join(", ");
-  const canSave = title.trim() && deadline && !saving;
+  const canSave = title.trim() && deadline && pics.length > 0 && !saving;
+
+  const togglePic = (email) => {
+    setPics((prev) => prev.includes(email) ? prev.filter((p) => p !== email) : [...prev, email]);
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -19,21 +25,28 @@ export default function EditTaskModal({ members, onClose, onSuccess }) {
     setSaving(true);
     setError(null);
     try {
+      const body = {
+        action: "editDetails",
+        groupId,
+        title: title.trim(),
+        project,
+        deadline,
+        notes,
+      };
+      // Only send pics when the manager actually has the picker (and thus
+      // could have changed it) — sending it as a non-manager gets rejected
+      // server-side anyway, but this keeps the request honest either way.
+      if (isManager) {
+        body.pics = pics.map((email) => ({ pic: email, picName: PIC_NAMES[email] || email }));
+      }
       const res = await fetch("/api/tasks", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "editDetails",
-          groupId,
-          title: title.trim(),
-          project,
-          deadline,
-          notes,
-        }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       if (json.ok) {
-        onSuccess(json.tasks);
+        onSuccess(json.tasks, groupId);
       } else {
         setError(json.error || "Không thể lưu thay đổi.");
       }
@@ -49,7 +62,11 @@ export default function EditTaskModal({ members, onClose, onSuccess }) {
       <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 24, width: 480, maxWidth: "92vw", maxHeight: "85vh", display: "flex", flexDirection: "column", boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}>
         <h3 style={{ margin: "0 0 4px 0", color: "var(--text-primary)", fontSize: 16 }}>✏️ Sửa Task</h3>
         <p style={{ margin: "0 0 16px 0", fontSize: 12, color: "var(--text-muted)" }}>
-          Giao cho: <strong style={{ color: "var(--cyan)" }}>{picNames}</strong> — sửa nội dung/hạn chót áp dụng cho tất cả người trong task này. Muốn đổi người phụ trách thì xoá task cũ và tạo task mới.
+          {isManager ? (
+            <>Đang giao cho: <strong style={{ color: "var(--cyan)" }}>{picNames}</strong> — sửa nội dung/hạn chót/người phụ trách áp dụng ngay cho task này.</>
+          ) : (
+            <>Giao cho: <strong style={{ color: "var(--cyan)" }}>{picNames}</strong> — sửa nội dung/hạn chót áp dụng cho tất cả người trong task này. Muốn đổi người phụ trách thì nhờ Manager sửa.</>
+          )}
         </p>
         <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: 12, overflowY: "auto", paddingRight: 4 }}>
           <div>
@@ -61,6 +78,35 @@ export default function EditTaskModal({ members, onClose, onSuccess }) {
               style={{ width: "100%", background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 10px", borderRadius: 6, fontSize: 13, marginTop: 4 }}
             />
           </div>
+
+          {isManager && (
+            <div>
+              <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>Người Đảm Nhiệm:</label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+                {Object.entries(PIC_NAMES).map(([email, name]) => {
+                  const checked = pics.includes(email);
+                  return (
+                    <label
+                      key={email}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 6, cursor: "pointer",
+                        background: checked ? "rgba(var(--brand-rgb),0.15)" : "var(--input-bg)",
+                        border: `1px solid ${checked ? "var(--cyan)" : "var(--border)"}`,
+                        color: checked ? "var(--cyan)" : "var(--text-secondary)",
+                        padding: "6px 10px", borderRadius: 6, fontSize: 12, fontWeight: 600,
+                      }}
+                    >
+                      <input type="checkbox" checked={checked} onChange={() => togglePic(email)} style={{ margin: 0 }} />
+                      {name}
+                    </label>
+                  );
+                })}
+              </div>
+              <p style={{ margin: "6px 0 0 0", fontSize: 11, color: "var(--text-muted)" }}>
+                Bỏ chọn ai thì xoá task của người đó (kể cả tiến độ đã làm); thêm người mới thì họ bắt đầu từ "Đang thực hiện".
+              </p>
+            </div>
+          )}
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
