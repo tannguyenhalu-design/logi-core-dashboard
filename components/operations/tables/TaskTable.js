@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { getTaskOutcome } from '../utils';
+import { emailsMatch } from '../../../lib/pic-aliases';
 
 const OUTCOME_BADGE = {
   done_ontime: { background: "rgba(16,185,129,0.15)", color: "var(--green)", border: "1px solid var(--green)", label: "🟢 Xong đúng hạn" },
@@ -56,12 +57,12 @@ export default function TaskTable({ taskGroups, tasksLoading, currentUser, isMan
               return members.map((m, idx) => {
                 const outcome = getTaskOutcome(m);
                 const badgeStyle = OUTCOME_BADGE[outcome];
-                const isOwnRow = m.pic === currentUser.email;
+                const isOwnRow = emailsMatch(m.pic, currentUser.email);
                 const canAct = isManager || isOwnRow;
                 const isDone = outcome === "done_ontime" || outcome === "done_late";
                 const isLastInGroup = idx === members.length - 1;
                 const rowIsOverdue = outcome === "overdue_open" || outcome === "done_late";
-                const canEditDetails = isManager || members.some((mm) => mm.pic === currentUser.email);
+                const canEditDetails = isManager || members.some((mm) => emailsMatch(mm.pic, currentUser.email));
                 const sharedCellStyle = {
                   padding: "10px 14px",
                   verticalAlign: "top",
