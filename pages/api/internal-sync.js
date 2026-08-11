@@ -12,7 +12,7 @@ export const config = {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
 
-  const { tabName, data } = req.body;
+  const { tabName, data, clearFirst } = req.body;
   if (!tabName || !data || !Array.isArray(data)) {
     return res.status(400).json({ error: "Invalid payload. Expected { tabName, data: [][] }" });
   }
@@ -33,14 +33,16 @@ export default async function handler(req, res) {
       });
     }
 
-    // Clear existing data
-    await sheets.spreadsheets.values.clear({
-      spreadsheetId,
-      range: `'${tabName}'!A:ZZ`,
-    });
+    // Clear existing data if requested
+    if (clearFirst) {
+      await sheets.spreadsheets.values.clear({
+        spreadsheetId,
+        range: `'${tabName}'!A:ZZ`,
+      });
+    }
 
     // Write new data
-    await sheets.spreadsheets.values.update({
+    await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: `'${tabName}'!A1`,
       valueInputOption: "USER_ENTERED",
