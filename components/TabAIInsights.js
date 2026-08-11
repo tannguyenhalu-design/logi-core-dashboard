@@ -241,14 +241,14 @@ export function PeriodComparisonSection({ comparison, declineAlerts = [], compac
         </div>
       </div>
 
-      {!compact && (
-        <div style={{ marginBottom: 14 }}>
+      <div style={{ marginBottom: 14 }}>
           <AINarrativePanel
             insights={{
               currentRangeLabel,
               previousRangeLabel,
               overall,
-              decliningClients: declineAlerts.map((a) => ({
+              breakdownBy: groupLabel,
+              decliningClients: compact ? [] : declineAlerts.map((a) => ({
                 client: a.client,
                 totalDeclinePct: a.totalDeclinePct,
                 weeksDeclining: a.weeksDeclining,
@@ -262,7 +262,6 @@ export function PeriodComparisonSection({ comparison, declineAlerts = [], compac
             }}
           />
         </div>
-      )}
 
       {!compact && declineAlerts.length > 0 && (
         <div style={{
