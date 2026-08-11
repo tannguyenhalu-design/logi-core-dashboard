@@ -4,6 +4,14 @@ export const PIC_NAMES = {
   "datnt2@ghn.vn": "Nguyễn Thành Đạt"
 };
 
+// Some Users-sheet "PIC Name" entries are typed as a shorter form than the
+// canonical PIC_NAMES value (e.g. "Thành Đạt" instead of "Nguyễn Thành
+// Đạt") — this maps known short-form aliases to the same canonical name so
+// resolvePicName() still lines them up with the project-side value.
+const NAME_ALIASES = {
+  "Thành Đạt": "Nguyễn Thành Đạt",
+};
+
 // Projects tag their PIC by email ("diennk@giaohangnhanh.vn"), but a user
 // account's own "pic" field comes from the Users sheet's "PIC Name" column
 // — which, true to its name, is often filled in with a display name
@@ -11,10 +19,11 @@ export const PIC_NAMES = {
 // for identity (picFilter, isAssignedPic, ...) silently matches nothing
 // even when they refer to the same person — this resolves either form to
 // the display name so both sides compare on the same footing. Values that
-// aren't a known email (i.e. already a name) pass through unchanged.
+// aren't a known email or alias (i.e. already the canonical name) pass
+// through unchanged.
 export function resolvePicName(pic) {
   if (!pic) return pic;
-  return PIC_NAMES[pic] || pic;
+  return PIC_NAMES[pic] || NAME_ALIASES[pic] || pic;
 }
 
 export function formatRevenue(val) {
