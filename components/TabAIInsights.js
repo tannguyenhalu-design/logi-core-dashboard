@@ -241,6 +241,29 @@ export function PeriodComparisonSection({ comparison, declineAlerts = [], compac
         </div>
       </div>
 
+      {!compact && (
+        <div style={{ marginBottom: 14 }}>
+          <AINarrativePanel
+            insights={{
+              currentRangeLabel,
+              previousRangeLabel,
+              overall,
+              decliningClients: declineAlerts.map((a) => ({
+                client: a.client,
+                totalDeclinePct: a.totalDeclinePct,
+                weeksDeclining: a.weeksDeclining,
+              })),
+              warningItems: warningItems.map((c) => ({
+                name: c.name,
+                ordersDeltaPct: c.ordersDeltaPct,
+                weightDeltaPct: c.weightDeltaPct,
+                ontimeDeltaPoints: c.ontimeDeltaPoints,
+              })),
+            }}
+          />
+        </div>
+      )}
+
       {!compact && declineAlerts.length > 0 && (
         <div style={{
           background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)",
@@ -327,6 +350,65 @@ export function PeriodComparisonSection({ comparison, declineAlerts = [], compac
   );
 }
 
+// ── AI narrative (real Claude call, on-demand) ──
+function AINarrativePanel({ insights }) {
+  const [narrative, setNarrative] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleGenerate = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/ai-narrative", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ insights }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setNarrative(json.narrative);
+      } else {
+        setError(json.error || "Không tạo được nhận định.");
+      }
+    } catch (e) {
+      setError("Lỗi kết nối, vui lòng thử lại.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{
+      background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.25)",
+      borderRadius: 14, padding: "16px 20px",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: narrative || error ? 10 : 0 }}>
+        <div style={{ fontWeight: 700, fontSize: 13.5, color: "#EAF0F8" }}>
+          🤖 Nhận định AI
+        </div>
+        <button
+          onClick={handleGenerate}
+          disabled={loading}
+          style={{
+            background: "rgba(139,92,246,0.15)", color: "#a78bfa", border: "1px solid rgba(139,92,246,0.35)",
+            padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+            cursor: loading ? "default" : "pointer", whiteSpace: "nowrap",
+          }}
+        >
+          {loading ? "Đang phân tích..." : narrative ? "↺ Phân tích lại" : "✨ Tạo nhận định"}
+        </button>
+      </div>
+      {error && <div style={{ fontSize: 12, color: "var(--red)" }}>{error}</div>}
+      {narrative && (
+        <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6 }}>
+          {narrative}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ──
 export default function TabAIInsights({ data }) {
   const [refreshed] = useState(new Date().toLocaleTimeString("vi-VN"));
@@ -369,6 +451,8 @@ export default function TabAIInsights({ data }) {
           <span style={{ color: "var(--text-secondary)" }}>{refreshed}</span>
         </div>
       </div>
+
+      <AINarrativePanel insights={{ breakageRoutes, capacityRoutes, avgDmgRate, totalOrders, periodComparison }} />
 
       {/* 2-column grid */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
