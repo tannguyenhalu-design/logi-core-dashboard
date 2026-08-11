@@ -62,7 +62,10 @@ export default function TaskTable({ taskGroups, tasksLoading, currentUser, isMan
                 const isDone = outcome === "done_ontime" || outcome === "done_late";
                 const isLastInGroup = idx === members.length - 1;
                 const rowIsOverdue = outcome === "overdue_open" || outcome === "done_late";
-                const canEditDetails = isManager || members.some((mm) => emailsMatch(mm.pic, currentUser.email));
+                // Editing task content (title/deadline/notes/PIC) is manager-only —
+                // the assignee's own recourse is the completion-note "phản hồi" input
+                // below, not rewriting the task itself.
+                const canEditDetails = isManager;
                 const sharedCellStyle = {
                   padding: "10px 14px",
                   verticalAlign: "top",

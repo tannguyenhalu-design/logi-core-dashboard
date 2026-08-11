@@ -91,22 +91,11 @@ export default async function handler(req, res) {
         if (deadline !== undefined && !deadline) {
           return res.status(400).json({ error: "Hạn chót không được để trống" });
         }
-        // Title/deadline/notes are shared across the whole group — anyone
-        // in the group (or a manager) can edit them, not just whoever
-        // happens to own the specific row id (there isn't one row id that
-        // "owns" shared content). Reassigning WHO is on the task is more
-        // sensitive (deletes/creates rows, touches other people's calendar
-        // invites) — manager-only, regardless of group membership.
+        // Editing task content (title/deadline/notes/PIC) is manager-only —
+        // an assignee's own recourse is the completion-note "phản hồi" on
+        // the regular status-update path below, not rewriting the task.
         if (!isManager) {
-          if (Array.isArray(pics)) {
-            return res.status(403).json({ error: "Chỉ Manager mới có thể đổi người phụ trách" });
-          }
-          const allTasks = await getAllTasks();
-          const groupMembers = allTasks.filter((t) => (t.groupId || t.id) === groupId);
-          const isMember = groupMembers.some((t) => emailsMatch(t.pic, userEmail));
-          if (!isMember) {
-            return res.status(403).json({ error: "Bạn chỉ có thể sửa task của chính mình" });
-          }
+          return res.status(403).json({ error: "Chỉ Manager mới có thể sửa nội dung task" });
         }
         if (Array.isArray(pics) && pics.length === 0) {
           return res.status(400).json({ error: "Task cần ít nhất 1 người phụ trách" });
