@@ -2,7 +2,7 @@ import { useState } from "react";
 import KpiCard from "../../components/KpiCard";
 import TruckLoader from "../../components/TruckLoader";
 import { downloadCSV } from "../../lib/csv-export";
-import { PeriodComparisonSection } from "../../components/TabAIInsights";
+import { PeriodComparisonSection, BreakageAlertSection } from "../../components/TabAIInsights";
 import { useTheme } from "./charts/chartUtils";
 import { fmt } from "./utils";
 
@@ -16,7 +16,7 @@ import ProvinceMapPanel from "./cards/ProvinceMapPanel";
 import BrokenTable from "./tables/BrokenTable";
 import DetailedDamageTable from "./tables/DetailedDamageTable";
 
-export default function LTLDashboard({ data, rawData, selectedProjects = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange }) {
+export default function LTLDashboard({ data, rawData, aiInsights, selectedProjects = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange }) {
   const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
   const [selectedProvinceOrders, setSelectedProvinceOrders] = useState(null);
   const theme = useTheme();
@@ -198,6 +198,20 @@ export default function LTLDashboard({ data, rawData, selectedProjects = [], use
               theme={theme}
             />
           </div>
+        </div>
+      )}
+
+      {!isClient && aiInsights && (
+        <div className="chart-panel" style={{ width: "100%" }}>
+          <div className="chart-panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+            Cảnh Báo Bể Vỡ Theo Tuyến
+          </div>
+          <BreakageAlertSection
+            routes={aiInsights.breakageRoutes}
+            avgDmgRate={aiInsights.avgDmgRate}
+            totalOrders={aiInsights.totalOrders}
+          />
         </div>
       )}
 

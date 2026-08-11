@@ -101,6 +101,25 @@ function BreakageSection({ routes, avgDmgRate }) {
   );
 }
 
+// Used directly inside LTLDashboard.js — "Tầng 1" (per-route breakage rate)
+// plus an AI narrative call, same on-demand pattern as PeriodComparisonSection's.
+export function BreakageAlertSection({ routes = [], avgDmgRate = 0, totalOrders = 0 }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <AINarrativePanel
+        insights={{
+          totalOrders,
+          avgDmgRate,
+          breakageRoutes: routes.map((r) => ({
+            route: r.route, damaged: r.damaged, total: r.total, rate: r.rate, vsAvg: r.vsAvg,
+          })),
+        }}
+      />
+      <BreakageSection routes={routes} avgDmgRate={avgDmgRate} />
+    </div>
+  );
+}
+
 // ── Tầng 2: Capacity ──
 function CapacitySection({ routes }) {
   if (!routes || routes.length === 0) {

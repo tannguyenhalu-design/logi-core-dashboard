@@ -506,7 +506,7 @@ export default function DashboardPage({ user: initialUser }) {
                 {activeTab === "operations" ? (
                   <OperationsDashboard rawData={dashData?.raw} userRole={dashData?.user?.role} />
                 ) : (
-                  !loading && !error && dashData && <LTLDashboard data={dashData.ltl} rawData={dashData.raw} selectedProjects={selectedProjects} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} />
+                  !loading && !error && dashData && <LTLDashboard data={dashData.ltl} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} />
                 )}
               </>
             )}
