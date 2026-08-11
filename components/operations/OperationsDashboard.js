@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { downloadCSV } from "../../lib/csv-export";
-import { PIC_NAMES, getTaskOutcome, groupTaskStatus } from "./utils";
+import { PIC_NAMES, getTaskOutcome, groupTaskStatus, resolvePicName } from "./utils";
 import TaskKpiCards from "./cards/TaskKpiCards";
 import ProjectStatsCards from "./cards/ProjectStatsCards";
 import RevenueCards from "./cards/RevenueCards";
@@ -85,9 +85,18 @@ export default function OperationsDashboard({ rawData, userRole }) {
 
   useEffect(() => {
     if (currentUser.role === "sd3" && currentUser.pic) {
-      setPicFilter(currentUser.pic);
+      // currentUser.pic may be an email or a display name (see resolvePicName)
+      // — the filter dropdown's options are keyed by the email used in the
+      // project data, so resolve to whichever project-pic email actually
+      // matches this person instead of setting the filter to a value that
+      // matches no option (silently showing zero projects with no way for
+      // an sd3 user to fix it themselves — that dropdown is disabled for them).
+      const myName = resolvePicName(currentUser.pic);
+      const projectPics = [...new Set(projects.map((p) => p.pic).filter(Boolean))];
+      const matchingEmail = projectPics.find((email) => resolvePicName(email) === myName);
+      setPicFilter(matchingEmail || currentUser.pic);
     }
-  }, [currentUser]);
+  }, [currentUser, projects]);
 
   const taskGroupCount = new Set(tasks.map((t) => t.groupId || t.id)).size;
 
@@ -142,7 +151,7 @@ export default function OperationsDashboard({ rawData, userRole }) {
       const picName = String(PIC_NAMES[p.pic] || "").toLowerCase();
       if (!name.includes(q) && !checklist.includes(q) && !notes.includes(q) && !sla.includes(q) && !picEmail.includes(q) && !picName.includes(q)) return false;
     }
-    if (picFilter !== "all" && p.pic !== picFilter) return false;
+    if (picFilter !== "all" && resolvePicName(p.pic) !== resolvePicName(picFilter)) return false;
     if (modelFilter !== "all" && p.model !== modelFilter) return false;
     if (statusFilter !== "all" && p.status !== statusFilter) return false;
     return true;

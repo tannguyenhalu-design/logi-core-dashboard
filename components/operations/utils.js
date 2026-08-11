@@ -4,6 +4,19 @@ export const PIC_NAMES = {
   "datnt2@ghn.vn": "Nguyễn Thành Đạt"
 };
 
+// Projects tag their PIC by email ("diennk@giaohangnhanh.vn"), but a user
+// account's own "pic" field comes from the Users sheet's "PIC Name" column
+// — which, true to its name, is often filled in with a display name
+// ("Kim Diện") instead of the email. Comparing those two forms directly
+// for identity (picFilter, isAssignedPic, ...) silently matches nothing
+// even when they refer to the same person — this resolves either form to
+// the display name so both sides compare on the same footing. Values that
+// aren't a known email (i.e. already a name) pass through unchanged.
+export function resolvePicName(pic) {
+  if (!pic) return pic;
+  return PIC_NAMES[pic] || pic;
+}
+
 export function formatRevenue(val) {
   if (!val) return "—";
   const numStr = String(val).replace(/[^\d]/g, "");

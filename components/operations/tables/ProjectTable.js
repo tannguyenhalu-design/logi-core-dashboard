@@ -1,6 +1,6 @@
 import React from 'react';
 import TruckLoader from '../../TruckLoader';
-import { PIC_NAMES, formatRevenue } from '../utils';
+import { PIC_NAMES, formatRevenue, resolvePicName } from '../utils';
 
 export default function ProjectTable({ filteredProjects, loading, canSeeRevenue, currentUser, isManager, onEditProject }) {
   return (
@@ -61,7 +61,7 @@ export default function ProjectTable({ filteredProjects, loading, canSeeRevenue,
               if (p.status === "Đang thực hiện") statusColor = "rgba(245,158,11,0.2)";
               if (p.status === "Done") statusColor = "rgba(16,185,129,0.2)";
 
-              const isAssignedPic = p.pic && p.pic === currentUser.pic;
+              const isAssignedPic = p.pic && resolvePicName(p.pic) === resolvePicName(currentUser.pic);
               const canEdit = isManager || isAssignedPic;
               const hasNoSop = !p.sopLink;
 
