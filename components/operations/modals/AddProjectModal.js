@@ -74,6 +74,7 @@ export default function AddProjectModal({ onClose, onSuccess, canSeeRevenue }) {
                 <option value="tutd@ghn.vn">Duy Tú (tutd@ghn.vn)</option>
                 <option value="diennk@giaohangnhanh.vn">Kim Diện (diennk@giaohangnhanh.vn)</option>
                 <option value="datnt2@ghn.vn">Nguyễn Thành Đạt (datnt2@ghn.vn)</option>
+                <option value="vidt4@giaohangnhanh.vn">Thúy Vi (vidt4@giaohangnhanh.vn)</option>
               </select>
             </div>
 

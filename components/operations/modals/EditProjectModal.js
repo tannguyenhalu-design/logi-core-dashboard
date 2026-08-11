@@ -161,6 +161,7 @@ export default function EditProjectModal({ editingProject, onClose, onSuccess, i
                   <option value="tutd@ghn.vn">Duy Tú</option>
                   <option value="diennk@giaohangnhanh.vn">Kim Diện</option>
                   <option value="datnt2@ghn.vn">Nguyễn Thành Đạt</option>
+                  <option value="vidt4@giaohangnhanh.vn">Thúy Vi</option>
                 </select>
               </div>
 

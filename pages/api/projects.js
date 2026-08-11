@@ -1,6 +1,7 @@
 import { getAuth, getCached, setCached, invalidateCache } from "../../lib/sheets";
 import { getSession } from "../../lib/auth";
 import { logAction } from "../../lib/audit-log";
+import { emailsMatch } from "../../lib/pic-aliases";
 import { google } from "googleapis";
 import fs from "fs";
 import path from "path";
@@ -280,7 +281,7 @@ export default async function handler(req, res) {
       // regardless of what the frontend does with it.
       if (userRole !== "manager") {
         projectsResult.forEach((p) => {
-          const isOwn = p.pic && String(p.pic).toLowerCase() === userEmail;
+          const isOwn = p.pic && emailsMatch(p.pic, userEmail);
           const canSeeThisRevenue = userRole === "sd3" && isOwn;
           if (!canSeeThisRevenue) {
             p.revenue = "";

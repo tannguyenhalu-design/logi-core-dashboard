@@ -1,7 +1,8 @@
 export const PIC_NAMES = {
   "tutd@ghn.vn": "Duy Tú",
   "diennk@giaohangnhanh.vn": "Kim Diện",
-  "datnt2@ghn.vn": "Nguyễn Thành Đạt"
+  "datnt2@ghn.vn": "Nguyễn Thành Đạt",
+  "vidt4@giaohangnhanh.vn": "Thúy Vi"
 };
 
 // Some Users-sheet "PIC Name" entries are typed as a shorter form than the

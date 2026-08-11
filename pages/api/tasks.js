@@ -6,6 +6,7 @@
 import { getSession } from "../../lib/auth";
 import { getAllTasks, createTasks, updateTaskStatus, updateTaskDetails, deleteTask } from "../../lib/tasks";
 import { logAction } from "../../lib/audit-log";
+import { emailsMatch } from "../../lib/pic-aliases";
 
 export default async function handler(req, res) {
   const session = await getSession(req, res);
@@ -26,7 +27,7 @@ export default async function handler(req, res) {
       // task given to 1 shows only for that 1. Manager keeps full oversight.
       const tasks = isManager
         ? allTasks
-        : allTasks.filter((t) => String(t.pic || "").toLowerCase() === userEmail);
+        : allTasks.filter((t) => emailsMatch(t.pic, userEmail));
       return res.status(200).json({ ok: true, tasks });
     } catch (err) {
       console.error("[/api/tasks] GET error:", err);
@@ -102,7 +103,7 @@ export default async function handler(req, res) {
           }
           const allTasks = await getAllTasks();
           const groupMembers = allTasks.filter((t) => (t.groupId || t.id) === groupId);
-          const isMember = groupMembers.some((t) => String(t.pic || "").toLowerCase() === userEmail);
+          const isMember = groupMembers.some((t) => emailsMatch(t.pic, userEmail));
           if (!isMember) {
             return res.status(403).json({ error: "Bạn chỉ có thể sửa task của chính mình" });
           }
@@ -128,7 +129,7 @@ export default async function handler(req, res) {
       if (!isManager) {
         const allTasks = await getAllTasks();
         const target = allTasks.find((t) => t.id === id);
-        if (!target || String(target.pic || "").toLowerCase() !== userEmail) {
+        if (!target || !emailsMatch(target.pic, userEmail)) {
           return res.status(403).json({ error: "Bạn chỉ có thể cập nhật task của chính mình" });
         }
       }
