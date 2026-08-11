@@ -369,7 +369,7 @@ export function PeriodComparisonSection({ comparison, declineAlerts = [], compac
 }
 
 // ── AI narrative (real Claude call, on-demand) ──
-function AINarrativePanel({ insights }) {
+export function AINarrativePanel({ insights }) {
   const [narrative, setNarrative] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);

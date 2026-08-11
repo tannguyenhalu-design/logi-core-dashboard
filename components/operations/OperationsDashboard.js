@@ -12,6 +12,7 @@ import AddTaskModal from "./modals/AddTaskModal";
 import EditTaskModal from "./modals/EditTaskModal";
 import AddProjectModal from "./modals/AddProjectModal";
 import EditProjectModal from "./modals/EditProjectModal";
+import { AINarrativePanel } from "../TabAIInsights";
 
 export default function OperationsDashboard({ rawData, userRole }) {
   const [projects, setProjects] = useState([]);
@@ -377,11 +378,28 @@ export default function OperationsDashboard({ rawData, userRole }) {
             </div>
           </div>
 
-          <ProjectStatsCards 
-            totalCount={totalCount} inProgressCount={inProgressCount} 
-            doneCount={doneCount} canSeeRevenue={canSeeRevenue} 
-            totalRevenue={totalRevenue} totalRrNsr={totalRrNsr} 
+          <ProjectStatsCards
+            totalCount={totalCount} inProgressCount={inProgressCount}
+            doneCount={doneCount} canSeeRevenue={canSeeRevenue}
+            totalRevenue={totalRevenue} totalRrNsr={totalRrNsr}
           />
+
+          {currentUser.role === "sd3" && (
+            <AINarrativePanel
+              insights={{
+                picName: PIC_NAMES[currentUser.pic] || currentUser.pic,
+                totalProjects: totalCount,
+                projectsInProgress: inProgressCount,
+                projectsDone: doneCount,
+                projectsMissingSOP: filteredProjects.filter((p) => !p.sopLink).length,
+                taskStatusCounts: taskGroups.reduce((acc, members) => {
+                  const s = groupTaskStatus(members);
+                  acc[s] = (acc[s] || 0) + 1;
+                  return acc;
+                }, {}),
+              }}
+            />
+          )}
 
           {canSeeRevenue && (totalRevenue > 0 || totalRrNsr > 0) && (
             <RevenueCards
