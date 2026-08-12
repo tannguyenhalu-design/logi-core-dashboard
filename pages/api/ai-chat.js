@@ -26,7 +26,7 @@ export default async function handler(req, res) {
   const session = await getSession(req, res);
   if (!session?.user) return res.status(401).json({ error: "Unauthorized" });
 
-  const { message } = req.body || {};
+  const { message, history = [] } = req.body || {};
   if (!message || !message.trim()) {
     return res.status(400).json({ error: "Vui lòng nhập câu hỏi" });
   }

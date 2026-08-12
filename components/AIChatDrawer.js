@@ -33,7 +33,13 @@ export default function AIChatDrawer() {
       const res = await fetch("/api/ai-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: q }),
+        body: JSON.stringify({
+          message: q,
+          history: messages.slice(-6).map((m) => ({
+            role: m.sender === "user" ? "user" : "model",
+            text: m.text,
+          })),
+        }),
       });
       const json = await res.json();
       if (json.ok) {
