@@ -16,6 +16,7 @@ const OperationsDashboard = dynamic(() => import("../components/operations/Opera
 const TabTachTrip   = dynamic(() => import("../components/TabTachTrip"),   { ssr: false });
 const TabUsers      = dynamic(() => import("../components/TabUsers"),      { ssr: false });
 const TabAuditLog   = dynamic(() => import("../components/TabAuditLog"),   { ssr: false });
+const AIChatDrawer  = dynamic(() => import("../components/AIChatDrawer"),  { ssr: false });
 
 export default function DashboardPage({ user: initialUser }) {
   const user = initialUser || {};
@@ -513,6 +514,7 @@ export default function DashboardPage({ user: initialUser }) {
           </main>
         </div>
       </div>
+      <AIChatDrawer />
     </>
   );
 }
