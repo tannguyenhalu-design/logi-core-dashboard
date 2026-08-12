@@ -57,12 +57,22 @@ export default async function handler(req, res) {
       rawProjects.forEach((row) => {
         const name = String(row["TÊN DỰ ÁN"] || row["Client name"] || row["Tên dự án"] || "").trim();
         const pic = String(row["ĐẢM NHIỆM"] || row["PIC SD"] || row["PIC"] || "Chưa gán").trim();
-        const revenue = String(row["Doanh Thu dự kiến"] || row["Doanh thu dự kiến"] || "0").trim();
+        const revenueTarget = String(row["Doanh Thu dự kiến"] || row["Doanh thu dự kiến"] || "0").trim();
+        const lastMoNSR = String(row["Last Mo NSR"] || "0").trim();
+        const actualNSR = String(row["RR/NSR"] || "0").trim();
         const model = String(row["MÔ HÌNH VẬN HÀNH"] || row["Mô hình vận hành"] || "").trim();
         const status = String(row["TRẠNG THÁI"] || row["Trạng thái"] || "").trim();
 
         if (name) {
-          projectsList.push({ name, pic, revenue, model, status });
+          projectsList.push({
+            name,
+            pic,
+            doanhThuDuKien: revenueTarget,
+            doanhThuThucTeThangNay: actualNSR,
+            doanhThuThucTeThangTruoc: lastMoNSR,
+            model,
+            status,
+          });
           if (!picSummary[pic]) picSummary[pic] = { count: 0, projects: [] };
           picSummary[pic].count++;
           picSummary[pic].projects.push(name);
@@ -206,45 +216,47 @@ export default async function handler(req, res) {
     }
 
     if (!replyText) {
-      const msgLower = message.toLowerCase();
+      const removeAccents = (str) =>
+        String(str || "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/đ/g, "d")
+          .replace(/Đ/g, "D")
+          .toLowerCase();
+
+      const msgClean = removeAccents(message);
       const matchDate = message.match(/(\d{1,2})[\/\-](\d{1,2})/);
       let dateStr = "";
       if (matchDate) {
         dateStr = `${matchDate[1].padStart(2, '0')}/${matchDate[2].padStart(2, '0')}`;
       }
 
-      // Combine current message + history text to preserve multi-turn context (e.g. follow-up 'doanh thu bao nhiêu r')
-      const fullContextText = (history.map(h => h.text).join(' ') + ' ' + message).toLowerCase();
-
-      // 1. Check Project Name matching (explicit in message or from history)
-      let matchedProject = projectsList.find(p => p.name && msgLower.includes(p.name.toLowerCase()));
-      if (!matchedProject) {
-        // Search backwards in history for last mentioned project
-        for (let i = history.length - 1; i >= 0; i--) {
-          const prevText = history[i].text.toLowerCase();
-          const p = projectsList.find(proj => proj.name && prevText.includes(proj.name.toLowerCase()));
-          if (p) {
-            matchedProject = p;
-            break;
-          }
-        }
-      }
+      // 1. Check Project Name matching (unaccented substring / word match e.g. "lg", "aqua", "casper", "hong dat")
+      const matchedProjects = projectsList.filter((p) => {
+        if (!p.name) return false;
+        const pClean = removeAccents(p.name);
+        return msgClean.includes(pClean) || pClean.split(" ").some((w) => w.length >= 2 && msgClean.includes(w));
+      });
 
       // 2. Check Client Name matching from LTL orders
-      let matchedClient = statsContext.thongKeTungKhachHang.find(c => msgLower.includes(c.name.toLowerCase()));
-      if (!matchedClient && matchedProject) {
-        matchedClient = statsContext.thongKeTungKhachHang.find(c => c.name.toLowerCase().includes(matchedProject.name.toLowerCase()) || matchedProject.name.toLowerCase().includes(c.name.toLowerCase()));
-      }
+      const matchedClient = statsContext.thongKeTungKhachHang.find((c) => {
+        const cClean = removeAccents(c.name);
+        return msgClean.includes(cClean) || cClean.split(" ").some((w) => w.length >= 2 && msgClean.includes(w));
+      });
 
       // 3. Check PIC SD matching
       const picKeys = Object.keys(statsContext.phanPhanCongPIC);
-      const matchedPic = picKeys.find(p => msgLower.includes(p.toLowerCase()));
+      const matchedPic = picKeys.find((p) => msgClean.includes(removeAccents(p)));
 
-      if (matchedProject && (msgLower.includes("doanh thu") || msgLower.includes("tiền") || msgLower.includes("bao nhiêu"))) {
-        replyText = `Dạ Chủ nhân, dự án "${matchedProject.name}" do chuyên viên ${matchedProject.pic} phụ trách đang có Doanh thu dự kiến là ${matchedProject.revenue}đ (Mô hình: ${matchedProject.model || 'LTL B2B'}, Trạng thái: ${matchedProject.status}).`;
-      } else if (matchedProject) {
-        const orderStats = matchedClient ? ` Đã giao được ${matchedClient.orders} đơn (tổng sản lượng ${matchedClient.weightTon} tấn, Ontime đạt ${matchedClient.ontimePct}).` : "";
-        replyText = `Dạ Chủ nhân, dự án "${matchedProject.name}" do chuyên viên ${matchedProject.pic} phụ trách (Doanh thu dự kiến: ${matchedProject.revenue}đ, Mô hình: ${matchedProject.model || 'LTL B2B'}, Trạng thái: ${matchedProject.status}).${orderStats}`;
+      if (matchedProjects.length > 0) {
+        const details = matchedProjects.map((p) => {
+          const revStr = p.doanhThuThucTeThangNay && p.doanhThuThucTeThangNay !== "0"
+            ? `Doanh thu thực tế (RR/NSR): ${p.doanhThuThucTeThangNay}đ (Chỉ tiêu dự kiến: ${p.doanhThuDuKien}đ)`
+            : `Doanh thu dự kiến: ${p.doanhThuDuKien}đ`;
+          return `- **${p.name}** (PIC: ${p.pic}): ${revStr}, Mô hình: ${p.model || 'LTL B2B'}, Trạng thái: ${p.status}`;
+        }).join("\n");
+
+        replyText = `Dạ Chủ nhân, hệ thống ghi nhận ${matchedProjects.length} dự án liên quan đến truy vấn của Chủ nhân:\n${details}`;
       } else if (matchedPic) {
         const info = statsContext.phanPhanCongPIC[matchedPic];
         replyText = `Dạ Chủ nhân, chuyên viên ${matchedPic} hiện đang phụ trách ${info.count} dự án (${info.projects.join(', ')}).`;
@@ -254,7 +266,7 @@ export default async function handler(req, res) {
         replyText = `Riêng ngày ${dateStr}, khu vực Hồ Chí Minh ghi nhận xử lý ${hcmOrdersByDate[dateStr]} đơn điện máy.`;
       } else if (dateStr && ordersByDate[dateStr]) {
         replyText = `Riêng ngày ${dateStr}, toàn hệ thống ghi nhận xử lý ${ordersByDate[dateStr]} đơn điện máy.`;
-      } else if (msgLower.includes("hồ chí minh") || msgLower.includes("hcm")) {
+      } else if (msgClean.includes("ho chi minh") || msgClean.includes("hcm")) {
         replyText = `Khu vực Hồ Chí Minh hiện tại ghi nhận khoảng ${hcmDailyAvg} đơn điện máy/ngày (tổng ${hcmOrders.length} đơn tháng này, sản lượng ${(hcmOrders.reduce((s, r) => s + (parseFloat(r.weight) || 0), 0) / 1000).toFixed(1)} tấn).`;
       } else {
         replyText = `Đầy tớ ghi nhận tổng cộng ${totalOrders} đơn điện máy trong tháng (tỷ lệ Ontime đạt ${statsContext.tyLeOntimeChung}, tổng sản lượng ${statsContext.tongSanLuongTan} tấn).`;
