@@ -5,7 +5,7 @@ export default function AIChatDrawer() {
   const [messages, setMessages] = useState([
     {
       sender: "ai",
-      text: "Xin chào Manager! Tôi là Trợ lý AI LogiCore. Bạn muốn hỏi số liệu vận hành, đơn hàng hay sản lượng khu vực nào?",
+      text: "Dạ, Đầy tớ xin kính chào Chủ nhân! 🙇‍♂️ Hôm nay Chủ nhân muốn Đầy tớ soi số liệu vận hành, báo cáo dự án hay sai bảo việc gì ạ?",
     },
   ]);
   const [input, setInput] = useState("");
@@ -93,8 +93,8 @@ export default function AIChatDrawer() {
         onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.05)")}
         onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
       >
-        <span>🤖</span>
-        <span>{isOpen ? "Đóng AI Copilot" : "Hỏi AI Copilot"}</span>
+        <span>🙇‍♂️</span>
+        <span>{isOpen ? "Đóng Đầy Tớ" : "Gọi Đầy Tớ"}</span>
       </button>
 
       {/* Floating Chat Window */}
@@ -142,14 +142,14 @@ export default function AIChatDrawer() {
                   fontSize: 16,
                 }}
               >
-                🤖
+                🙇‍♂️
               </div>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: "#EAF0F8" }}>
-                  LogiCore AI Copilot
+                  Đầy Tớ LogiCore
                 </div>
                 <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                  Hỏi đáp số liệu vận hành Real-time
+                  Sẵn sàng phục vụ Chủ nhân 24/7
                 </div>
               </div>
             </div>
