@@ -13,7 +13,6 @@ import WeightProjChart from "./charts/WeightProjChart";
 import WarehouseRiskChart from "./charts/WarehouseRiskChart";
 
 import ProvinceMapPanel from "./cards/ProvinceMapPanel";
-import BrokenTable from "./tables/BrokenTable";
 import DetailedDamageTable from "./tables/DetailedDamageTable";
 
 export default function LTLDashboard({ data, rawData, aiInsights, selectedProjects = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange }) {
@@ -215,22 +214,7 @@ export default function LTLDashboard({ data, rawData, aiInsights, selectedProjec
         </div>
       )}
 
-      <div className="chart-panel" style={{ width: "100%" }}>
-        <div className="chart-panel-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          Tổng Quan Hư Hỏng
-        </div>
-        <BrokenTable
-          brokenByType={data.brokenByType || {}}
-          totalBroken={data.totalBroken || 0}
-          brokenCompensated={data.brokenCompensated || 0}
-          brokenResolved={data.brokenResolved || 0}
-          brokenPending={data.brokenPending || 0}
-          selectedType={selectedDamageType}
-          onSelectType={(type) => setDamageFilter(type ? { type: "type", value: type } : null)}
-          topProvince={(data.topDamageProvinces || [])[0]}
-        />
-      </div>
+
 
       <div className="chart-panel">
         <div className="chart-panel-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

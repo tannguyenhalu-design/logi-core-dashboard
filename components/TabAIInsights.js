@@ -256,6 +256,13 @@ export function PeriodComparisonSection({ comparison, declineAlerts = [], compac
             <div style={{ color: "var(--text-muted)", fontSize: 10, marginBottom: 3 }}>Ontime</div>
             <DeltaBadge value={overall.ontimeDeltaPoints} unit=" điểm" />
           </div>
+          <div style={{
+            background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)",
+            borderRadius: 10, padding: "8px 16px", minWidth: 110, textAlign: "center",
+          }}>
+            <div style={{ color: "var(--text-muted)", fontSize: 10, marginBottom: 3 }}>Hư hỏng</div>
+            <DeltaBadge value={overall.damageDeltaPct} unit="%" invert isNew={overall.damageIsNew} />
+          </div>
           </div>
         </div>
       </div>
@@ -354,6 +361,14 @@ export function PeriodComparisonSection({ comparison, declineAlerts = [], compac
                 </span>
                 <DeltaBadge value={c.ontimeDeltaPoints} unit=" điểm" />
               </div>
+              {(c.cur.damageCount > 0 || c.prev.damageCount > 0) && (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 3 }}>
+                  <span style={{ color: "var(--text-muted)" }}>
+                    Hư hỏng: {c.prev.damageCount} ca → {c.cur.damageCount} ca
+                  </span>
+                  <DeltaBadge value={c.damageDeltaPct} unit="%" invert isNew={c.damageIsNew} />
+                </div>
+              )}
             </div>
           ))}
         </div>
