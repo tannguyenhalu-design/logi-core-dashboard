@@ -103,7 +103,7 @@ export default async function handler(req, res) {
     console.error("Failed to read projects-store.json", err);
   }
 
-  const ltlProjectsId = process.env.GOOGLE_SHEET_ID_PROJECTS || process.env.SHEET_ID_PROJECTS || "161bW-xyPTEBXOLjC0eLjpf0FIBm1QB8YFWXwgo4nWVQ";
+  const ltlProjectsId = process.env.GOOGLE_SHEET_ID_PROJECTS || process.env.SHEET_ID_PROJECTS || process.env.GOOGLE_SHEET_ID || "161bW-xyPTEBXOLjC0eLjpf0FIBm1QB8YFWXwgo4nWVQ";
 
   if (req.method === "GET") {
     try {
