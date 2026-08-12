@@ -59,37 +59,30 @@ export default async function handler(req, res) {
 
   if (req.method === "POST") {
     try {
-      const { name, employeeId, role, pic, project, tabs } = req.body || {};
+      const { name, employeeId, oldName, oldEmployeeId, role, pic, project, tabs } = req.body || {};
       if (!role) return res.status(400).json({ error: "Thiếu vai trò" });
       if (!["pending", "manager", "sd3", "cs"].includes(role)) {
         return res.status(400).json({ error: "Vai trò không hợp lệ" });
       }
       const normalizedTabs = Array.isArray(tabs) ? tabs.filter((t) => ["ltl", "operations", "tachtrip"].includes(t)) : undefined;
 
-      const normalizedName = String(name || "").trim();
-      const normalizedEmployeeId = String(employeeId || "").trim();
-      if (!normalizedName && !normalizedEmployeeId) {
-        return res.status(400).json({ error: "Vui lòng nhập Mã số nhân viên hoặc Họ tên" });
-      }
+      const targetEmpId = String(oldEmployeeId || employeeId || "").trim();
+      const targetName = String(oldName || name || "").trim();
 
       let existing = null;
-      if (normalizedEmployeeId) {
-        existing = await findUserByEmployeeId(normalizedEmployeeId);
-      }
-      if (!existing && normalizedName) {
-        existing = await findUserByName(normalizedName);
-      }
+      if (targetEmpId) existing = await findUserByEmployeeId(targetEmpId);
+      if (!existing && targetName) existing = await findUserByName(targetName);
 
       if (existing) {
-        await updateUserRole({ employeeId: existing.employeeId || normalizedEmployeeId, name: existing.name || normalizedName }, { role, pic, project, tabs: normalizedTabs, updatedBy: session.user.email || session.user.name });
+        await updateUserRole({ employeeId: existing.employeeId || targetEmpId, name: existing.name || targetName }, { employeeId, name, role, pic, project, tabs: normalizedTabs, updatedBy: session.user.email || session.user.name });
       } else {
-        await createUserWithRole(normalizedName, { employeeId: normalizedEmployeeId, role, pic, project, tabs: normalizedTabs, updatedBy: session.user.email || session.user.name });
+        await createUserWithRole(name || employeeId, { employeeId, role, pic, project, tabs: normalizedTabs, updatedBy: session.user.email || session.user.name });
       }
 
       await logAction({
         actor: session.user.email || session.user.name,
         action: existing ? "user.role_update" : "user.create",
-        target: normalizedEmployeeId || normalizedName,
+        target: employeeId || name,
         details: { role, pic, project, tabs: normalizedTabs },
       });
 

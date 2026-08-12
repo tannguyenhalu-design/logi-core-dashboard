@@ -88,7 +88,14 @@ export default function TabUsers() {
       setUsers(json.users);
       const nextDrafts = {};
       json.users.forEach((u) => {
-        nextDrafts[rowKey(u)] = { role: u.role, pic: u.pic || "", project: u.project || "", tabs: u.tabs || [] };
+        nextDrafts[rowKey(u)] = {
+          employeeId: u.employeeId || "",
+          name: u.name || "",
+          role: u.role,
+          pic: u.pic || "",
+          project: u.project || "",
+          tabs: u.tabs || [],
+        };
       });
       setDrafts(nextDrafts);
     } catch (e) {
@@ -119,8 +126,10 @@ export default function TabUsers() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          employeeId: u.employeeId,
-          name: u.name,
+          oldEmployeeId: u.employeeId,
+          oldName: u.name,
+          employeeId: draft.employeeId,
+          name: draft.name,
           role: draft.role,
           pic: draft.pic,
           project: draft.project,
@@ -242,34 +251,83 @@ export default function TabUsers() {
           <tbody>
             {(users || []).map((u) => {
               const key = rowKey(u);
-              const draft = drafts[key] || { role: u.role, pic: u.pic || "", project: u.project || "", tabs: u.tabs || [] };
-              const isManager = draft.role === "manager";
-              const isPending = draft.role === "pending";
+              const draft = drafts[key] || {
+                employeeId: u.employeeId || "",
+                name: u.name || "",
+                role: u.role,
+                pic: u.pic || "",
+                project: u.project || "",
+                tabs: u.tabs || [],
+              };
 
               const dirty =
+                draft.employeeId !== (u.employeeId || "") ||
+                draft.name !== (u.name || "") ||
                 draft.role !== u.role ||
                 draft.pic !== (u.pic || "") ||
-                draft.project !== (u.project || "") ||
                 JSON.stringify(draft.tabs.sort()) !== JSON.stringify((u.tabs || []).sort());
 
               return (
                 <tr key={key} style={{ borderBottom: "1px solid var(--border)" }}>
-                  <td style={{ padding: "12px 14px", fontFamily: "monospace", color: "var(--brand-glow)", fontWeight: 600 }}>
-                    {u.employeeId || "Chưa tạo"}
+                  {/* Col 1: Mã NV */}
+                  <td style={{ padding: "10px 12px" }}>
+                    <input
+                      type="text"
+                      value={draft.employeeId}
+                      onChange={(e) => updateDraft(key, { employeeId: e.target.value })}
+                      placeholder="Mã NV"
+                      style={{
+                        background: "var(--panel-glow)",
+                        border: "1px solid var(--border)",
+                        color: "var(--brand-glow)",
+                        fontWeight: 600,
+                        fontFamily: "monospace",
+                        padding: "6px 8px",
+                        borderRadius: 6,
+                        fontSize: 12,
+                        width: "100%",
+                      }}
+                    />
                   </td>
-                  <td style={{ padding: "12px 14px", fontWeight: 600, color: "var(--text-primary)" }}>
-                    {u.name || u.email || "Chưa cập nhật"}
+
+                  {/* Col 2: Tên theo SSO */}
+                  <td style={{ padding: "10px 12px" }}>
+                    <input
+                      type="text"
+                      value={draft.name}
+                      onChange={(e) => updateDraft(key, { name: e.target.value })}
+                      placeholder="Họ tên SSO"
+                      style={{
+                        background: "var(--panel-glow)",
+                        border: "1px solid var(--border)",
+                        color: "var(--text-primary)",
+                        fontWeight: 600,
+                        padding: "6px 8px",
+                        borderRadius: 6,
+                        fontSize: 12.5,
+                        width: "100%",
+                      }}
+                    />
                   </td>
-                  <td style={{ padding: "12px 14px" }}>
+
+                  {/* Col 3: Vai trò */}
+                  <td style={{ padding: "10px 12px" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <RoleBadge role={u.role} />
+                      <RoleBadge role={draft.role} />
                       <select
                         value={draft.role}
                         onChange={(e) => {
                           const r = e.target.value;
                           updateDraft(key, { role: r, tabs: defaultTabsForRole(r) });
                         }}
-                        style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "4px 8px", borderRadius: 6, fontSize: 12 }}
+                        style={{
+                          background: "var(--panel-glow)",
+                          border: "1px solid var(--border)",
+                          color: "var(--text-primary)",
+                          padding: "4px 8px",
+                          borderRadius: 6,
+                          fontSize: 12,
+                        }}
                       >
                         <option value="pending">Chờ duyệt</option>
                         <option value="manager">Quản trị</option>
@@ -278,45 +336,53 @@ export default function TabUsers() {
                       </select>
                     </div>
                   </td>
-                  <td style={{ padding: "12px 14px" }}>
-                    {isManager ? (
-                      <span style={{ fontSize: 12, color: "var(--cyan)", fontWeight: 600 }}>Quản trị: Xem tất cả Tab</span>
-                    ) : isPending ? (
-                      <span style={{ fontSize: 12, color: "var(--amber)" }}>Chờ phê duyệt vai trò</span>
-                    ) : (
-                      <TabCheckboxes
-                        tabs={draft.tabs}
-                        disabled={false}
-                        onChange={(next) => updateDraft(key, { tabs: next })}
-                      />
-                    )}
+
+                  {/* Col 4: Xem được tab nào */}
+                  <td style={{ padding: "10px 12px" }}>
+                    <TabCheckboxes
+                      tabs={draft.tabs}
+                      disabled={false}
+                      onChange={(next) => updateDraft(key, { tabs: next })}
+                    />
                   </td>
-                  <td style={{ padding: "12px 14px" }}>
+
+                  {/* Col 5: Tên thường gọi (PIC) */}
+                  <td style={{ padding: "10px 12px" }}>
                     <input
                       type="text"
                       value={draft.pic}
                       onChange={(e) => updateDraft(key, { pic: e.target.value })}
                       placeholder="Ví dụ: Thủy Vi, Duy Tú"
-                      style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 10px", borderRadius: 6, fontSize: 12.5, width: "100%" }}
+                      style={{
+                        background: "var(--panel-glow)",
+                        border: "1px solid var(--border)",
+                        color: "var(--text-primary)",
+                        padding: "6px 10px",
+                        borderRadius: 6,
+                        fontSize: 12.5,
+                        width: "100%",
+                      }}
                     />
                   </td>
-                  <td style={{ padding: "12px 14px", textAlign: "center" }}>
+
+                  {/* Col 6: Thao tác */}
+                  <td style={{ padding: "10px 12px", textAlign: "center" }}>
                     <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
                       <button
                         onClick={() => saveUser(u)}
-                        disabled={!dirty || savingKey === key}
+                        disabled={savingKey === key}
                         style={{
-                          background: dirty ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.05)",
-                          color: dirty ? "var(--green)" : "var(--text-muted)",
-                          border: `1px solid ${dirty ? "rgba(16,185,129,0.2)" : "rgba(255,255,255,0.05)"}`,
+                          background: dirty ? "var(--green)" : "rgba(16,185,129,0.15)",
+                          color: dirty ? "#fff" : "var(--green)",
+                          border: "1px solid rgba(16,185,129,0.3)",
                           padding: "6px 12px",
                           borderRadius: 6,
                           fontSize: 12,
                           fontWeight: 600,
-                          cursor: dirty ? "pointer" : "not-allowed",
+                          cursor: "pointer",
                         }}
                       >
-                        {savingKey === key ? "Đang lưu..." : "Lưu"}
+                        {savingKey === key ? "Đang lưu..." : "💾 Lưu"}
                       </button>
                       <button
                         onClick={() => handleDeleteUser(u)}
