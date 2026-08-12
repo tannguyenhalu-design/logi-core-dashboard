@@ -53,20 +53,13 @@ export default async function handler(req, res) {
     // 1. Projects & PIC Context
     const projectsList = [];
     const picSummary = {};
-    if (Array.isArray(rawProjects) && rawProjects.length > 1) {
-      const headers = rawProjects[0].map((h) => String(h || "").trim());
-      const nameIdx = headers.findIndex(h => h === "TÊN DỰ ÁN" || h === "Client name" || h === "Tên dự án");
-      const picIdx = headers.findIndex(h => h === "ĐẢM NHIỆM" || h === "PIC SD" || h === "PIC");
-      const revIdx = headers.findIndex(h => h === "Doanh Thu dự kiến" || h === "Doanh thu dự kiến");
-      const modelIdx = headers.findIndex(h => h === "MÔ HÌNH VẬN HÀNH" || h === "Mô hình vận hành");
-      const statusIdx = headers.findIndex(h => h === "TRẠNG THÁI" || h === "Trạng thái");
-
-      rawProjects.slice(1).forEach((row) => {
-        const name = String(row[nameIdx] || "").trim();
-        const pic = String(row[picIdx] || "Chưa gán").trim();
-        const revenue = String(row[revIdx] || "0").trim();
-        const model = String(row[modelIdx] || "").trim();
-        const status = String(row[statusIdx] || "").trim();
+    if (Array.isArray(rawProjects)) {
+      rawProjects.forEach((row) => {
+        const name = String(row["TÊN DỰ ÁN"] || row["Client name"] || row["Tên dự án"] || "").trim();
+        const pic = String(row["ĐẢM NHIỆM"] || row["PIC SD"] || row["PIC"] || "Chưa gán").trim();
+        const revenue = String(row["Doanh Thu dự kiến"] || row["Doanh thu dự kiến"] || "0").trim();
+        const model = String(row["MÔ HÌNH VẬN HÀNH"] || row["Mô hình vận hành"] || "").trim();
+        const status = String(row["TRẠNG THÁI"] || row["Trạng thái"] || "").trim();
 
         if (name) {
           projectsList.push({ name, pic, revenue, model, status });
@@ -220,11 +213,18 @@ export default async function handler(req, res) {
         dateStr = `${matchDate[1].padStart(2, '0')}/${matchDate[2].padStart(2, '0')}`;
       }
 
-      // 1. Check if client name mentioned (e.g. Casper, Aqua, Cellphones, Hisense...)
+      // Check PIC matching (e.g. Hồng Đạt, Nguyễn Thành Đạt, Đạt, Duy Tú, Kim Diện)
+      const picKeys = Object.keys(statsContext.phanPhanCongPIC);
+      const matchedPic = picKeys.find(p => msgLower.includes(p.toLowerCase()) || (p.toLowerCase().includes("đạt") && (msgLower.includes("đạt") || msgLower.includes("hồng đạt"))));
+
+      // Check client name mentioned (e.g. Casper, Aqua, Cellphones, Hisense...)
       const matchedClient = statsContext.thongKeTungKhachHang.find(c => msgLower.includes(c.name.toLowerCase()));
 
-      if (matchedClient) {
-        replyText = `Khách hàng ${matchedClient.name} từ đầu tháng đến nay đã giao được ${matchedClient.orders} đơn (tổng sản lượng ${matchedClient.weightTon} tấn, tỷ lệ Ontime đạt ${matchedClient.ontimePct}).`;
+      if (matchedPic) {
+        const info = statsContext.phanPhanCongPIC[matchedPic];
+        replyText = `Dạ Chủ nhân, chuyên viên ${matchedPic} hiện đang phụ trách ${info.count} dự án (${info.projects.join(', ')}).`;
+      } else if (matchedClient) {
+        replyText = `Dạ Chủ nhân, đối tác ${matchedClient.name} từ đầu tháng đến nay đã giao được ${matchedClient.orders} đơn (tổng sản lượng ${matchedClient.weightTon} tấn, tỷ lệ Ontime đạt ${matchedClient.ontimePct}).`;
       } else if (dateStr && hcmOrdersByDate[dateStr]) {
         replyText = `Riêng ngày ${dateStr}, khu vực Hồ Chí Minh ghi nhận xử lý ${hcmOrdersByDate[dateStr]} đơn điện máy.`;
       } else if (dateStr && ordersByDate[dateStr]) {
@@ -232,7 +232,7 @@ export default async function handler(req, res) {
       } else if (msgLower.includes("hồ chí minh") || msgLower.includes("hcm")) {
         replyText = `Khu vực Hồ Chí Minh hiện tại ghi nhận khoảng ${hcmDailyAvg} đơn điện máy/ngày (tổng ${hcmOrders.length} đơn tháng này, sản lượng ${(hcmOrders.reduce((s, r) => s + (parseFloat(r.weight) || 0), 0) / 1000).toFixed(1)} tấn).`;
       } else {
-        replyText = `Hệ thống ghi nhận tổng cộng ${totalOrders} đơn điện máy trong tháng (tỷ lệ Ontime đạt ${statsContext.tyLeOntimeChung}, tổng sản lượng ${statsContext.tongSanLuongTan} tấn).`;
+        replyText = `Đầy tớ ghi nhận tổng cộng ${totalOrders} đơn điện máy trong tháng (tỷ lệ Ontime đạt ${statsContext.tyLeOntimeChung}, tổng sản lượng ${statsContext.tongSanLuongTan} tấn).`;
       }
     }
 
