@@ -279,15 +279,12 @@ export default async function handler(req, res) {
       // devtools, and fully visible the moment a non-manager widened the
       // "Lọc theo PIC" filter to a colleague. Redacting here closes that
       // regardless of what the frontend does with it.
-      if (userRole !== "manager") {
+      // Revenue is visible to manager and sd3 roles; redacted for cs/client
+      if (userRole !== "manager" && userRole !== "sd3") {
         projectsResult.forEach((p) => {
-          const isOwn = p.pic && emailsMatch(p.pic, userEmail);
-          const canSeeThisRevenue = userRole === "sd3" && isOwn;
-          if (!canSeeThisRevenue) {
-            p.revenue = "";
-            p.lastMoNsr = "";
-            p.rrNsr = "";
-          }
+          p.revenue = "";
+          p.lastMoNsr = "";
+          p.rrNsr = "";
         });
       }
 

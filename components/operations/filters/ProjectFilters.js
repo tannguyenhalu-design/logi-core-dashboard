@@ -22,8 +22,7 @@ export default function ProjectFilters({ searchQuery, setSearchQuery, picFilter,
         <select 
           value={picFilter} 
           onChange={(e) => setPicFilter(e.target.value)}
-          disabled={currentUser.role === "sd3"}
-          style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, cursor: currentUser.role === "sd3" ? "not-allowed" : "pointer" }}
+          style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, cursor: "pointer" }}
         >
           <option value="all">Tất cả PIC</option>
           {uniquePics.map(email => (
