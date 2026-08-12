@@ -144,7 +144,7 @@ export default async function handler(req, res) {
 
     const statsContext = {
       tongSoDuAnSystem: projectsList.length,
-      danhSachDuAn: projectsList.slice(0, 20),
+      danhSachDuAn: projectsList,
       phanPhanCongPIC: picSummary,
       tongSoDonSystem: totalOrders,
       tongSanLuongKg: Math.round(totalWeight),
@@ -213,14 +213,20 @@ export default async function handler(req, res) {
         dateStr = `${matchDate[1].padStart(2, '0')}/${matchDate[2].padStart(2, '0')}`;
       }
 
-      // Check PIC matching (e.g. Hồng Đạt, Nguyễn Thành Đạt, Đạt, Duy Tú, Kim Diện)
-      const picKeys = Object.keys(statsContext.phanPhanCongPIC);
-      const matchedPic = picKeys.find(p => msgLower.includes(p.toLowerCase()) || (p.toLowerCase().includes("đạt") && (msgLower.includes("đạt") || msgLower.includes("hồng đạt"))));
+      // 1. Check Project Name matching (e.g. Hồng Đạt, Hồng Đạt MXT, Hồng Đạt FTL, Casper, Aqua...)
+      const matchedProject = projectsList.find(p => p.name && msgLower.includes(p.name.toLowerCase()));
 
-      // Check client name mentioned (e.g. Casper, Aqua, Cellphones, Hisense...)
+      // 2. Check Client Name matching from LTL orders
       const matchedClient = statsContext.thongKeTungKhachHang.find(c => msgLower.includes(c.name.toLowerCase()));
 
-      if (matchedPic) {
+      // 3. Check PIC SD matching (e.g. Duy Tú, Kim Diện, Nguyễn Thành Đạt)
+      const picKeys = Object.keys(statsContext.phanPhanCongPIC);
+      const matchedPic = picKeys.find(p => msgLower.includes(p.toLowerCase()));
+
+      if (matchedProject) {
+        const orderStats = matchedClient ? ` Đã giao được ${matchedClient.orders} đơn (tổng sản lượng ${matchedClient.weightTon} tấn, Ontime đạt ${matchedClient.ontimePct}).` : "";
+        replyText = `Dạ Chủ nhân, dự án "${matchedProject.name}" do chuyên viên ${matchedProject.pic} phụ trách (Doanh thu dự kiến: ${matchedProject.revenue}đ, Mô hình: ${matchedProject.model || 'LTL B2B'}, Trạng thái: ${matchedProject.status}).${orderStats}`;
+      } else if (matchedPic) {
         const info = statsContext.phanPhanCongPIC[matchedPic];
         replyText = `Dạ Chủ nhân, chuyên viên ${matchedPic} hiện đang phụ trách ${info.count} dự án (${info.projects.join(', ')}).`;
       } else if (matchedClient) {
