@@ -1,5 +1,24 @@
 import { useState, useRef, useEffect } from "react";
 
+// Convert simple markdown to safe HTML for chat bubble rendering
+function renderMarkdown(text) {
+  if (!text) return "";
+  return text
+    // Escape HTML special chars first
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    // **bold**
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    // `code`
+    .replace(/`(.+?)`/g, "<code style='background:rgba(139,92,246,0.2);padding:1px 5px;border-radius:4px;font-size:11px'>$1</code>")
+    // Bullet points: lines starting with "- "
+    .replace(/^- (.+)$/gm, "<li>$1</li>")
+    .replace(/(<li>.*<\/li>)/gs, "<ul style='margin:6px 0;padding-left:16px'>$1</ul>")
+    // Line breaks
+    .replace(/\n/g, "<br/>");
+}
+
 export default function AIChatDrawer() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
@@ -199,7 +218,11 @@ export default function AIChatDrawer() {
                   lineHeight: 1.5,
                 }}
               >
-                {m.text}
+                {m.sender === "ai" ? (
+                  <span dangerouslySetInnerHTML={{ __html: renderMarkdown(m.text) }} />
+                ) : (
+                  m.text
+                )}
               </div>
             ))}
 
