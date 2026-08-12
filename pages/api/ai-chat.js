@@ -181,21 +181,14 @@ export default async function handler(req, res) {
         .map(([name, s]) => ({ name, orders: s.orders, weightTon: (s.weight / 1000).toFixed(1) }))
     };
 
-    // Construct multi-turn contents prompt
-    const contents = [
-      {
-        role: "user",
-        parts: [{ text: `DƯ LIỆU VẬN HÀNH THỰC TẾ VÀ DỰ ÁN (CƠ SỞ DỮ LIỆU TỰ ĐỘNG):\n${JSON.stringify(statsContext, null, 2)}` }]
-      },
-      ...history.map((h) => ({
-        role: h.role === "user" ? "user" : "model",
-        parts: [{ text: h.text }]
-      })),
-      {
-        role: "user",
-        parts: [{ text: `CÂU HỎI MỚI CỦA MANAGER: "${message}"` }]
-      }
-    ];
+    // Format full conversation history & data into systemInstruction & prompt string
+    let historyFormatted = "";
+    if (Array.isArray(history) && history.length > 0) {
+      historyFormatted = "\n\nLỊCH SỬ HỘI THOẠI TRƯỚC ĐÓ GIỮA QUẢN LÝ VÀ AI:\n" +
+        history.map(h => `${h.role === 'user' ? 'Quản lý' : 'AI Agent'}: ${h.text}`).join("\n");
+    }
+
+    const fullPrompt = `CƠ SỞ DỮ LIỆU THỰC TẾ VẬN HÀNH VÀ DỰ ÁN:\n${JSON.stringify(statsContext, null, 2)}${historyFormatted}\n\nCÂU HỎI MỚI CỦA QUẢN LÝ (GỒM NGÔN NGỮ TỰ NHIÊN / VIẾT TẮT / LỖI CHÍNH TẢ / HỎI TIẾP): "${message}"\n\nHãy phân tích và trả lời trực tiếp câu hỏi mới nhất của Quản lý.`;
 
     const models = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.5-flash"];
     let replyText = "";
@@ -205,7 +198,7 @@ export default async function handler(req, res) {
       try {
         const resp = await ai.models.generateContent({
           model,
-          contents,
+          contents: fullPrompt,
           config: {
             systemInstruction: SYSTEM_PROMPT,
             temperature: 0.2,
@@ -219,16 +212,23 @@ export default async function handler(req, res) {
     }
 
     if (!replyText) {
+      const msgLower = message.toLowerCase();
       const matchDate = message.match(/(\d{1,2})[\/\-](\d{1,2})/);
       let dateStr = "";
       if (matchDate) {
         dateStr = `${matchDate[1].padStart(2, '0')}/${matchDate[2].padStart(2, '0')}`;
       }
-      if (dateStr && hcmOrdersByDate[dateStr]) {
+
+      // 1. Check if client name mentioned (e.g. Casper, Aqua, Cellphones, Hisense...)
+      const matchedClient = statsContext.thongKeTungKhachHang.find(c => msgLower.includes(c.name.toLowerCase()));
+
+      if (matchedClient) {
+        replyText = `Khách hàng ${matchedClient.name} từ đầu tháng đến nay đã giao được ${matchedClient.orders} đơn (tổng sản lượng ${matchedClient.weightTon} tấn, tỷ lệ Ontime đạt ${matchedClient.ontimePct}).`;
+      } else if (dateStr && hcmOrdersByDate[dateStr]) {
         replyText = `Riêng ngày ${dateStr}, khu vực Hồ Chí Minh ghi nhận xử lý ${hcmOrdersByDate[dateStr]} đơn điện máy.`;
       } else if (dateStr && ordersByDate[dateStr]) {
         replyText = `Riêng ngày ${dateStr}, toàn hệ thống ghi nhận xử lý ${ordersByDate[dateStr]} đơn điện máy.`;
-      } else if (message.toLowerCase().includes("hồ chí minh") || message.toLowerCase().includes("hcm")) {
+      } else if (msgLower.includes("hồ chí minh") || msgLower.includes("hcm")) {
         replyText = `Khu vực Hồ Chí Minh hiện tại ghi nhận khoảng ${hcmDailyAvg} đơn điện máy/ngày (tổng ${hcmOrders.length} đơn tháng này, sản lượng ${(hcmOrders.reduce((s, r) => s + (parseFloat(r.weight) || 0), 0) / 1000).toFixed(1)} tấn).`;
       } else {
         replyText = `Hệ thống ghi nhận tổng cộng ${totalOrders} đơn điện máy trong tháng (tỷ lệ Ontime đạt ${statsContext.tyLeOntimeChung}, tổng sản lượng ${statsContext.tongSanLuongTan} tấn).`;
