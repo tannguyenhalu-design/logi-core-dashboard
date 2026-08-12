@@ -195,32 +195,30 @@ export default async function handler(req, res) {
           headers.forEach((h, idx) => {
             const cell = vals[idx] || {};
             const text = cell.formattedValue || "";
-            // Cells created via "Insert > Link" as a Google Sheets "smart chip"
-            // (pasting a Doc/Drive URL) store the URL under chipRuns, not the
-            // plain hyperlink field — a whole separate structure from a
-            // =HYPERLINK() formula or a manually-applied cell-level link.
             const chipLink = cell.chipRuns?.[0]?.chip?.richLinkProperties?.uri || "";
             const link = cell.hyperlink || chipLink || "";
 
-            if (h === "LINK SOP") {
+            if (h === "LINK SOP" || h === "Link SOP") {
               obj[h] = link || text;
             } else {
               obj[h] = text;
             }
           });
           return obj;
-        }).filter(p => p["TÊN DỰ ÁN"] && p["TÊN DỰ ÁN"].trim().length > 0);
+        }).filter(p => {
+          const name = p["TÊN DỰ ÁN"] || p["Client name"] || p["Client Name"] || p["Tên dự án"];
+          return name && String(name).trim().length > 0;
+        });
 
         setCached(gridCacheKey, sheetProjects, 60 * 1000);
       }
 
-      // Merge Google Sheet row data with local dashboard overrides
       const mergedProjects = sheetProjects.map(p => {
-        const name = String(p["TÊN DỰ ÁN"] || "").trim();
+        const name = String(p["TÊN DỰ ÁN"] || p["Client name"] || p["Client Name"] || p["Tên dự án"] || "").trim();
         const local = store.projects[name] || {};
 
-        const sheetStatus = String(p["TRẠNG THÁI"] || "").trim();
-        const sheetSopLink = String(p["LINK SOP"] || "").trim();
+        const sheetStatus = String(p["TRẠNG THÁI"] || p["Trạng thái"] || p["Status"] || "").trim();
+        const sheetSopLink = String(p["LINK SOP"] || p["Link SOP"] || p["SOP Link"] || "").trim();
 
         let defaultRecapStatus = "Chưa thực hiện";
         let defaultSopStatus = "Chưa thực hiện";
@@ -237,26 +235,26 @@ export default async function handler(req, res) {
 
         return {
           name,
-          clientId:            p["Clinet ID"] || "",
-          checklist:           local.notes !== undefined ? local.notes : (p["CHECK LIST CÔNG VIỆC"] || ""),
-          pic:                 local.pic !== undefined ? local.pic : (p["ĐẢM NHIỆM"] || ""),
-          status:              local.status !== undefined ? local.status : (p["TRẠNG THÁI"] || "Đang thực hiện"),
-          job:                 local.job !== undefined ? local.job : (p["CÔNG VIỆC"] || ""),
+          clientId:            p["Clinet ID"] || p["Client ID"] || p["Client ID "] || "",
+          checklist:           local.notes !== undefined ? local.notes : (p["CHECK LIST CÔNG VIỆC"] || p["Checklist"] || ""),
+          pic:                 local.pic !== undefined ? local.pic : (p["ĐẢM NHIỆM"] || p["PIC SD"] || p["PIC"] || ""),
+          status:              local.status !== undefined ? local.status : (p["TRẠNG THÁI"] || p["Trạng thái"] || "Đang thực hiện"),
+          job:                 local.job !== undefined ? local.job : (p["CÔNG VIỆC"] || p["Công việc"] || ""),
           expectedOb:          local.expectedOb !== undefined ? local.expectedOb : (p["Dự kiến OB "] || p["Dự kiến OB"] || ""),
-          revenue:             local.revenue !== undefined ? local.revenue : (p["Doanh Thu dự kiến"] || ""),
+          revenue:             local.revenue !== undefined ? local.revenue : (p["Doanh Thu dự kiến"] || p["Doanh thu dự kiến"] || ""),
           sopLink:             local.sopLink !== undefined ? local.sopLink : sheetSopLink,
-          model:               local.model !== undefined ? local.model : (p["MÔ HÌNH VẬN HÀNH"] || ""),
-          slaLogic:            p["Logic SLA"] || "",
-          volume:              local.volume !== undefined ? local.volume : (p["Dự kiến Volume"] || p["Dự kiến Vollume"] || p["Cột 12"] || ""),
+          model:               local.model !== undefined ? local.model : (p["MÔ HÌNH VẬN HÀNH"] || p["Mô hình vận hành"] || p["Mô hình"] || ""),
+          slaLogic:            p["Logic SLA"] || p["SLA Logic"] || "",
+          volume:              local.volume !== undefined ? local.volume : (p["Dự kiến Volume"] || p["Dự kiến Vollume"] || p["Cột 12"] || p["Volume"] || ""),
           
           recapStatus:         local.recapStatus !== undefined ? local.recapStatus : ((p["RECAP STATUS"] || "").trim() || defaultRecapStatus),
           recapLink:           local.recapLink !== undefined ? local.recapLink : (p["RECAP LINK"] || "").trim(),
           sopStatus:           local.sopStatus !== undefined ? local.sopStatus : ((p["SOP STATUS"] || "").trim() || defaultSopStatus),
           kickoffStatus:       local.kickoffStatus !== undefined ? local.kickoffStatus : ((p["KICKOFF STATUS"] || "").trim() || defaultKickoffStatus),
-          lastMoNsr:           local.lastMoNsr !== undefined ? local.lastMoNsr : (p["Last Mo NSR"] || ""),
-          rrNsr:               local.rrNsr !== undefined ? local.rrNsr : (p["RR/NSR"] || ""),
+          lastMoNsr:           local.lastMoNsr !== undefined ? local.lastMoNsr : (p["Last Mo NSR"] || p["Last Mo. NSR"] || ""),
+          rrNsr:               local.rrNsr !== undefined ? local.rrNsr : (p["RR/NSR"] || p["RR / NSR"] || ""),
 
-          notes:               local.notes !== undefined ? local.notes : (p["CHECK LIST CÔNG VIỆC"] || ""),
+          notes:               local.notes !== undefined ? local.notes : (p["CHECK LIST CÔNG VIỆC"] || p["Checklist"] || ""),
           updatedAt:           local.updatedAt || null,
           updatedBy:           local.updatedBy || null,
         };
