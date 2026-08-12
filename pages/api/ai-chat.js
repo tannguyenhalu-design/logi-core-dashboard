@@ -3,6 +3,14 @@ import { fetchSheet } from "../../lib/sheets";
 import { isDMClient, isLTLRow, isFromJuly2026 } from "../../lib/dm-clients";
 import { parseDate } from "../../lib/transform-ltl";
 import { GoogleGenAI } from "@google/genai";
+import {
+  removeAccents,
+  queryOrders,
+  getProjectPerformance,
+  getDamageAndRiskReport,
+  createTaskForStaff,
+  predictRevenueTarget,
+} from "../../lib/ai-agent-tools";
 
 let client;
 function getClient() {
@@ -16,14 +24,19 @@ function getClient() {
 const SYSTEM_PROMPT = `Bạn tên là "Tiểu Đệ SD3" (AI Agent trợ lý vận hành B2B Điện Máy GHN).
 Bạn tôn kính gọi người dùng (user) là "Đại Ca" và xưng là "Tiểu Đệ".
 
-TƯ DUY THÔNG MINH HỎI LẠI KHI CẦU THÔNG TIN BỊ TRÙNG (CLARIFICATION REASONING):
-- Khi Đại Ca hỏi một tên thương hiệu/dự án chung (ví dụ: "LG", "Hồng Đạt", "Aqua") mà khớp với NHIỀU DỰ ÁN CÙNG LÚC (như LG Electronics South - FTL và LG LTL):
-  -> Hãy KÍNH CẨN HỎI LẠI ĐẠI CA cụ thể xem Đại Ca muốn kiểm tra dự án FTL hay LTL, ĐỒNG THỜI báo cáo tóm tắt ngắn số liệu thực tế (RR/NSR) của từng dự án để Đại Ca nắm tổng thể ngay!
+BẠN SỞ HỮU 5 CÁNH TAY CÔNG CỤ THỰC THI CHUYÊN SÂU (AGENTIC TOOLS ENGINE):
+1. queryOrders: Tra cứu, lọc đơn hàng LTL theo kho, vùng miền, ngày, trạng thái delivery.
+2. getProjectPerformance: Soi chi tiết Doanh thu thực tế (RR/NSR), Doanh thu dự kiến, mô hình LTL/FTL và PIC từng dự án.
+3. getDamageAndRiskReport: Truy vấn các ca hư hỏng đền bù và tuyến đường rủi ro.
+4. createTaskForStaff: LẬP TỨC TẠO TASK GIAO VIỆC CHO NHÂN VIÊN (Duy Tú, Kim Diện, Đạt...) vào bảng Task Tracker & Google Calendar.
+5. predictRevenueTarget: TÍNH TOÁN DỰ BÁO RUN-RATE KHẢ NĂNG HOÀN THÀNH KPI DOANH THU CUỐI THÁNG.
+
+TƯ DUY HỎI LẠI KHI CẦU THÔNG TIN BỊ TRÙNG:
+- Khi Đại Ca hỏi một từ khóa chung (như "LG", "Hồng Đạt") có nhiều dự án FTL & LTL, hãy kính cẩn báo cáo số liệu tóm tắt và hỏi lại Đại Ca muốn soi dự án nào cụ thể.
 
 QUY TẮC PHỤC VỤ ĐẠI CA:
 1. Xưng hô: "Tiểu Đệ" - "Đại Ca".
-2. Dữ liệu thực tế 100%: Dùng chính xác Doanh thu thực tế (RR/NSR), Doanh thu dự kiến, sản lượng đơn, Ontime %, kho giao/nhận...
-3. Văn phong: Lễ phép, thông minh, sắc bén, chuyên nghiệp.`;
+2. Số liệu chuẩn 100%, sắc bén, hỗ trợ tối đa cho công việc của Đại Ca.`;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
@@ -229,6 +242,36 @@ export default async function handler(req, res) {
 
       // Stop 2-letter false positive matching (e.g. 'da' from 'Da Nang' matching 'mat day')
       const stopWords = new Set(["da", "co", "la", "in", "to", "at", "on", "an", "of", "or", "and"]);
+
+      // 5. Agentic Action Execution: Task Creation Intent
+      const isCreateTaskIntent = /tạo task|giao task|giao việc|nhắc nhở|lập task/i.test(message);
+      if (isCreateTaskIntent) {
+        const picMatch = message.match(/(?:cho|giao|nhắc)\s+([A-Za-z0-9àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ\s]+?)(?=\s+thực hiện|\s+kiểm tra|\s+trước|\s+deadline|\s+làm|$)/i);
+        const assignee = picMatch ? picMatch[1].trim() : "Duy Tú";
+        const titleMatch = message.replace(/tạo task|giao task|giao việc|nhắc nhở|lập task/gi, "").trim();
+
+        try {
+          await createTaskForStaff({
+            title: titleMatch || "Kiểm tra vận hành SD3",
+            picName: assignee,
+            notes: `Tạo tự động qua AI Agent từ chỉ đạo của ${session.user.name || 'Đại Ca'}`,
+          }, session.user.name || session.user.email);
+
+          replyText = `Dạ Đại Ca, Tiểu Đệ đã lập tức tạo Task **"${titleMatch || 'Kiểm tra vận hành SD3'}"** giao cho **${assignee}** và ghi nhận vào bảng Quản lý Task & Google Calendar thành công rồi ạ! 🚀`;
+        } catch (e) {
+          console.error("Task creation error:", e);
+        }
+      }
+
+      // 6. Agentic Action Execution: Predictive Run-rate Revenue Engine
+      const isPredictIntent = /dự báo|dự kiến cuối tháng|chạy run rate|dự đoán|bao nhiêu % kpi/i.test(message);
+      if (!replyText && isPredictIntent) {
+        const predictions = predictRevenueTarget(projectsList, { clientOrProject: message });
+        if (predictions.length > 0) {
+          const details = predictions.map(p => `- **${p.projectName}**: Hiện đạt ${p.doanhThuThucTeHienTai}đ (Tiến độ tháng ${p.monthProgressPct}). Dự báo cuối tháng đạt **${p.duBaoCuoiThang}** (Đạt **${p.kpiCompletionPct}** KPI).`).join("\n");
+          replyText = `Dạ Đại Ca, Tiểu Đệ vừa chạy mô hình Run-rate dự báo doanh thu cuối tháng cho Đại Ca:\n${details}`;
+        }
+      }
 
       // 1. Check Project Name matching (exact unaccented project name match or whole 3+ letter word match)
       const matchedProjects = projectsList.filter((p) => {
