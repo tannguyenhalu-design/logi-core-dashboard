@@ -44,10 +44,13 @@ export default async function handler(req, res) {
     let deliveredCount = 0;
     let ontimeCount = 0;
     
-    // Group by destination warehouse / province
+    // Group by destination warehouse / province & date
     const hcmOrders = [];
     const hanoiOrders = [];
     const clientStats = {};
+    const ordersByDate = {};
+    const hcmOrdersByDate = {};
+    const hanoiOrdersByDate = {};
 
     filteredLTL.forEach((r) => {
       const w = parseFloat(r["weight"]) || 0;
@@ -55,6 +58,19 @@ export default async function handler(req, res) {
       const giao = String(r["kho_giao"] || r["warehouse_giao"] || "").toLowerCase();
       const lay = String(r["kho_lay"] || r["warehouse_lay"] || "").toLowerCase();
       const client = String(r["client_name"] || "").trim();
+
+      const pTime = r["pickup_time"];
+      const d = parseDate(pTime);
+      let dateKey = "";
+      if (d) {
+        const dd = String(d.getDate()).padStart(2, "0");
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        dateKey = `${dd}/${mm}`;
+      }
+
+      if (dateKey) {
+        ordersByDate[dateKey] = (ordersByDate[dateKey] || 0) + 1;
+      }
 
       if (client) {
         if (!clientStats[client]) clientStats[client] = { orders: 0, weight: 0 };
@@ -64,9 +80,11 @@ export default async function handler(req, res) {
 
       if (giao.includes("hồ chí minh") || giao.includes("hcm") || giao.includes("sài gòn") || lay.includes("hcm") || lay.includes("hồ chí minh")) {
         hcmOrders.push(r);
+        if (dateKey) hcmOrdersByDate[dateKey] = (hcmOrdersByDate[dateKey] || 0) + 1;
       }
       if (giao.includes("hà nội") || giao.includes("hn") || lay.includes("hà nội") || lay.includes("hn")) {
         hanoiOrders.push(r);
+        if (dateKey) hanoiOrdersByDate[dateKey] = (hanoiOrdersByDate[dateKey] || 0) + 1;
       }
 
       const st = String(r["status"] || "").toLowerCase();
@@ -88,13 +106,16 @@ export default async function handler(req, res) {
       khuVucHCM: {
         tongSoDonThang: hcmOrders.length,
         trungBinhDonMotNgay: hcmDailyAvg,
-        tongTrongLuong: (hcmOrders.reduce((s, r) => s + (parseFloat(r.weight) || 0), 0) / 1000).toFixed(1) + " tấn"
+        tongTrongLuong: (hcmOrders.reduce((s, r) => s + (parseFloat(r.weight) || 0), 0) / 1000).toFixed(1) + " tấn",
+        chiTietTungNgayHCM: hcmOrdersByDate
       },
       khuVucHaNoi: {
         tongSoDonThang: hanoiOrders.length,
         trungBinhDonMotNgay: hanoiDailyAvg,
-        tongTrongLuong: (hanoiOrders.reduce((s, r) => s + (parseFloat(r.weight) || 0), 0) / 1000).toFixed(1) + " tấn"
+        tongTrongLuong: (hanoiOrders.reduce((s, r) => s + (parseFloat(r.weight) || 0), 0) / 1000).toFixed(1) + " tấn",
+        chiTietTungNgayHN: hanoiOrdersByDate
       },
+      chiTietNgayToanHeThong: ordersByDate,
       topKhachHang: Object.entries(clientStats)
         .sort((a, b) => b[1].orders - a[1].orders)
         .slice(0, 5)
@@ -123,7 +144,16 @@ export default async function handler(req, res) {
     }
 
     if (!replyText) {
-      if (message.toLowerCase().includes("hồ chí minh") || message.toLowerCase().includes("hcm")) {
+      const matchDate = message.match(/(\d{1,2})[\/\-](\d{1,2})/);
+      let dateStr = "";
+      if (matchDate) {
+        dateStr = `${matchDate[1].padStart(2, '0')}/${matchDate[2].padStart(2, '0')}`;
+      }
+      if (dateStr && hcmOrdersByDate[dateStr]) {
+        replyText = `Riêng ngày ${dateStr}, khu vực Hồ Chí Minh ghi nhận xử lý ${hcmOrdersByDate[dateStr]} đơn điện máy.`;
+      } else if (dateStr && ordersByDate[dateStr]) {
+        replyText = `Riêng ngày ${dateStr}, toàn hệ thống ghi nhận xử lý ${ordersByDate[dateStr]} đơn điện máy.`;
+      } else if (message.toLowerCase().includes("hồ chí minh") || message.toLowerCase().includes("hcm")) {
         replyText = `Khu vực Hồ Chí Minh hiện tại ghi nhận khoảng ${hcmDailyAvg} đơn điện máy/ngày (tổng ${hcmOrders.length} đơn tháng này, sản lượng ${(hcmOrders.reduce((s, r) => s + (parseFloat(r.weight) || 0), 0) / 1000).toFixed(1)} tấn).`;
       } else {
         replyText = `Hệ thống ghi nhận tổng cộng ${totalOrders} đơn điện máy trong tháng (tỷ lệ Ontime đạt ${statsContext.tyLeOntimeChung}, tổng sản lượng ${statsContext.tongSanLuongTan} tấn).`;
