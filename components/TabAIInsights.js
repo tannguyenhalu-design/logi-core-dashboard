@@ -368,7 +368,12 @@ export function AINarrativePanel({ insights }) {
       if (json.ok) {
         setNarrative(json.narrative);
       } else {
-        setError(json.error || "Không tạo được nhận định.");
+        const rawErr = typeof json.error === "string" ? json.error : JSON.stringify(json.error);
+        if (rawErr.includes("429") || rawErr.includes("quota") || rawErr.includes("Quota")) {
+          setError("⚠️ Hệ thống Gemini AI đang quá tải giới hạn lượt gọi (Rate Limit). Vui lòng thử lại sau ít phút.");
+        } else {
+          setError("⚠️ Chưa thể tạo nhận định AI lúc này. Vui lòng thử lại.");
+        }
       }
     } catch (e) {
       setError("Lỗi kết nối, vui lòng thử lại.");
