@@ -69,6 +69,7 @@ export default function TabUsers() {
   const [drafts, setDrafts] = useState({}); // rowKey -> { role, pic, project, tabs }
   const [savingKey, setSavingKey] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [newEmployeeId, setNewEmployeeId] = useState("");
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState("manager");
   const [newPic, setNewPic] = useState("");
@@ -102,19 +103,23 @@ export default function TabUsers() {
   }, []);
 
   const updateDraft = (key, patch) => {
-    setDrafts((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+    setDrafts((prev) => ({
+      ...prev,
+      [key]: { ...(prev[key] || {}), ...patch },
+    }));
   };
 
   const saveUser = async (u) => {
     const key = rowKey(u);
     const draft = drafts[key];
+    if (!draft) return;
     setSavingKey(key);
     try {
       const res = await fetch("/api/admin-users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          employeeId: u.employeeId || undefined,
+          employeeId: u.employeeId,
           name: u.name,
           role: draft.role,
           pic: draft.pic,
@@ -123,10 +128,10 @@ export default function TabUsers() {
         }),
       });
       const json = await res.json();
-      if (!res.ok || !json.ok) throw new Error(json.error || "Lưu thất bại");
+      if (!res.ok || !json.ok) throw new Error(json.error || "Lỗi lưu");
       await fetchUsers();
     } catch (e) {
-      alert("Lỗi lưu: " + e.message);
+      alert("Lỗi: " + e.message);
     } finally {
       setSavingKey(null);
     }
@@ -134,9 +139,8 @@ export default function TabUsers() {
 
   const handleAddUser = async (e) => {
     e.preventDefault();
-    const name = newName.trim();
-    if (!name) {
-      setAddError("Vui lòng nhập tên đầy đủ");
+    if (!newEmployeeId.trim() && !newName.trim()) {
+      setAddError("Vui lòng nhập Mã số nhân viên hoặc Họ tên");
       return;
     }
     setAdding(true);
@@ -145,114 +149,142 @@ export default function TabUsers() {
       const res = await fetch("/api/admin-users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, role: newRole, pic: newPic, project: newProject, tabs: newTabs }),
+        body: JSON.stringify({
+          employeeId: newEmployeeId.trim(),
+          name: newName.trim(),
+          role: newRole,
+          pic: newPic.trim(),
+          project: newProject.trim(),
+          tabs: newRole === "manager" ? ["ltl", "operations", "tachtrip"] : newTabs,
+        }),
       });
       const json = await res.json();
-      if (!res.ok || !json.ok) throw new Error(json.error || "Thêm thất bại");
-      setShowAddModal(false);
+      if (!res.ok || !json.ok) throw new Error(json.error || "Lỗi thêm người dùng");
+      setNewEmployeeId("");
       setNewName("");
-      setNewRole("manager");
       setNewPic("");
       setNewProject("");
+      setNewRole("manager");
       setNewTabs(defaultTabsForRole("manager"));
+      setShowAddModal(false);
       await fetchUsers();
-    } catch (e) {
-      setAddError(e.message);
+    } catch (err) {
+      setAddError(err.message);
     } finally {
       setAdding(false);
     }
   };
 
-  if (loading) return <TruckLoader />;
-
-  const pendingCount = (users || []).filter((u) => u.role === "pending").length;
+  if (loading) {
+    return <TruckLoader text="Đang tải danh sách người dùng..." />;
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", padding: "16px 20px", borderRadius: 12, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+      {/* Header Bar */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--card-bg)", padding: "16px 20px", borderRadius: 12, border: "1px solid var(--border)" }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: 16, color: "var(--text-primary)" }}>Quản lý người dùng</h3>
-          <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "var(--text-muted)" }}>
-            Đăng nhập qua GHN SSO — bất kỳ ai đăng nhập lần đầu đều vào ở trạng thái chờ duyệt, chỉ xem được dữ liệu sau khi được duyệt và gán vai trò ở đây.
-            {pendingCount > 0 && (
-              <span style={{ color: "var(--amber)", fontWeight: 600 }}> Đang có {pendingCount} tài khoản chờ duyệt.</span>
-            )}
+          <h3 style={{ margin: 0, fontSize: 16, color: "var(--text-primary)" }}>👥 Phân quyền & Quản lý Người dùng</h3>
+          <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
+            Dành cho Quản trị viên cấp quyền truy cập các Tab và gán tên PIC cho nhân sự.
           </p>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
-          style={{ background: "var(--cyan)", color: "#04211d", border: "none", padding: "8px 16px", borderRadius: 6, fontWeight: 700, cursor: "pointer", fontSize: 13, whiteSpace: "nowrap" }}
+          onClick={() => {
+            setNewEmployeeId("");
+            setNewName("");
+            setNewPic("");
+            setNewProject("");
+            setAddError(null);
+            setShowAddModal(true);
+          }}
+          style={{ background: "var(--brand-glow)", color: "#fff", border: "none", padding: "9px 18px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
         >
-          + Thêm người dùng
+          ➕ Thêm người dùng
         </button>
       </div>
 
       {error && (
-        <div style={{ background: "rgba(244,63,94,0.1)", border: "1px solid var(--red)", borderRadius: 10, padding: 16, color: "var(--red)" }}>
+        <div style={{ background: "rgba(244,63,94,0.1)", border: "1px solid var(--red)", borderRadius: 10, padding: 14, color: "var(--red)", fontSize: 13 }}>
           Lỗi: {error}
         </div>
       )}
 
-      <div style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 20px", overflowX: "auto" }}>
-        <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+      {/* Table */}
+      <div style={{ background: "var(--card-bg)", borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
           <thead>
-            <tr style={{ borderBottom: "2px solid var(--border)" }}>
-              <th style={{ textAlign: "left", padding: "12px 8px" }}>Tên</th>
-              <th style={{ textAlign: "left", padding: "12px 8px" }}>Vai trò</th>
-              <th style={{ textAlign: "left", padding: "12px 8px" }}>Xem được tab</th>
-              <th style={{ textAlign: "left", padding: "12px 8px" }}>Tên (khớp mapping SD/CS)</th>
-              <th style={{ textAlign: "center", padding: "12px 8px" }}>Tác vụ</th>
+            <tr style={{ background: "var(--panel-glow)", borderBottom: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+              <th style={{ padding: "12px 14px", width: "10%" }}>Mã NV</th>
+              <th style={{ padding: "12px 14px", width: "20%" }}>Tên theo SSO</th>
+              <th style={{ padding: "12px 14px", width: "15%" }}>Vai trò</th>
+              <th style={{ padding: "12px 14px", width: "25%" }}>Xem được tab nào?</th>
+              <th style={{ padding: "12px 14px", width: "18%" }}>Tên thường gọi (PIC)</th>
+              <th style={{ padding: "12px 14px", textAlign: "center", width: "12%" }}>Thao tác</th>
             </tr>
           </thead>
           <tbody>
             {(users || []).map((u) => {
               const key = rowKey(u);
-              const draft = drafts[key] || { role: u.role, pic: "", project: "", tabs: u.tabs || [] };
-              const draftTabs = draft.tabs || [];
-              const origTabs = u.tabs || [];
-              const tabsChanged = draftTabs.length !== origTabs.length || draftTabs.some((t) => !origTabs.includes(t));
+              const draft = drafts[key] || { role: u.role, pic: u.pic || "", project: u.project || "", tabs: u.tabs || [] };
+              const isManager = draft.role === "manager";
+              const isPending = draft.role === "pending";
+
               const dirty =
-                draft.role !== u.role || (draft.pic || "") !== (u.pic || "") || (draft.project || "") !== (u.project || "") || tabsChanged;
+                draft.role !== u.role ||
+                draft.pic !== (u.pic || "") ||
+                draft.project !== (u.project || "") ||
+                JSON.stringify(draft.tabs.sort()) !== JSON.stringify((u.tabs || []).sort());
+
               return (
-                <tr key={key} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                  <td style={{ padding: "12px 8px", fontWeight: 600 }}>
-                    {u.name || "(chưa có tên)"} {u.role === "pending" && <RoleBadge role="pending" />}
-                    {!u.employeeId && (
-                      <div style={{ fontSize: 10.5, color: "var(--text-muted)", fontWeight: 400, marginTop: 2 }}>
-                        Chưa đăng nhập lần nào — sẽ tự khớp khi họ đăng nhập GHN SSO
-                      </div>
+                <tr key={key} style={{ borderBottom: "1px solid var(--border)" }}>
+                  <td style={{ padding: "12px 14px", fontFamily: "monospace", color: "var(--brand-glow)", fontWeight: 600 }}>
+                    {u.employeeId || "Chưa tạo"}
+                  </td>
+                  <td style={{ padding: "12px 14px", fontWeight: 600, color: "var(--text-primary)" }}>
+                    {u.name || u.email || "Chưa cập nhật"}
+                  </td>
+                  <td style={{ padding: "12px 14px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <RoleBadge role={u.role} />
+                      <select
+                        value={draft.role}
+                        onChange={(e) => {
+                          const r = e.target.value;
+                          updateDraft(key, { role: r, tabs: defaultTabsForRole(r) });
+                        }}
+                        style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "4px 8px", borderRadius: 6, fontSize: 12 }}
+                      >
+                        <option value="pending">Chờ duyệt</option>
+                        <option value="manager">Quản trị</option>
+                        <option value="sd3">Chuyên viên SD</option>
+                        <option value="cs">CS</option>
+                      </select>
+                    </div>
+                  </td>
+                  <td style={{ padding: "12px 14px" }}>
+                    {isManager ? (
+                      <span style={{ fontSize: 12, color: "var(--cyan)", fontWeight: 600 }}>Quản trị: Xem tất cả Tab</span>
+                    ) : isPending ? (
+                      <span style={{ fontSize: 12, color: "var(--amber)" }}>Chờ phê duyệt vai trò</span>
+                    ) : (
+                      <TabCheckboxes
+                        tabs={draft.tabs}
+                        disabled={false}
+                        onChange={(next) => updateDraft(key, { tabs: next })}
+                      />
                     )}
                   </td>
-                  <td style={{ padding: "12px 8px" }}>
-                    <select
-                      value={draft.role}
-                      onChange={(e) => updateDraft(key, { role: e.target.value, tabs: defaultTabsForRole(e.target.value) })}
-                      style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 8px", borderRadius: 6, fontSize: 12 }}
-                    >
-                      <option value="pending">Chờ duyệt</option>
-                      <option value="manager">Quản trị</option>
-                      <option value="sd3">Chuyên viên SD</option>
-                      <option value="cs">CS</option>
-                    </select>
-                  </td>
-                  <td style={{ padding: "12px 8px" }}>
-                    <TabCheckboxes
-                      tabs={draft.role === "manager" ? ["ltl", "operations"] : draftTabs}
-                      disabled={draft.role === "manager"}
-                      onChange={(next) => updateDraft(key, { tabs: next })}
-                    />
-                  </td>
-                  <td style={{ padding: "12px 8px" }}>
+                  <td style={{ padding: "12px 14px" }}>
                     <input
                       type="text"
                       value={draft.pic}
-                      disabled={draft.role === "pending"}
                       onChange={(e) => updateDraft(key, { pic: e.target.value })}
-                      placeholder="Ví dụ: Duy Tú"
-                      style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 8px", borderRadius: 6, fontSize: 12, width: 140 }}
+                      placeholder="Ví dụ: Thủy Vi, Duy Tú"
+                      style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "6px 10px", borderRadius: 6, fontSize: 12.5, width: "100%" }}
                     />
                   </td>
-                  <td style={{ padding: "12px 8px", textAlign: "center" }}>
+                  <td style={{ padding: "12px 14px", textAlign: "center" }}>
                     <button
                       onClick={() => saveUser(u)}
                       disabled={!dirty || savingKey === key}
@@ -283,11 +315,12 @@ export default function TabUsers() {
         )}
       </div>
 
+      {/* Modal Form Add User */}
       {showAddModal && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
-          <div style={{ background: "var(--input-bg)", border: "1px solid var(--border)", padding: 24, borderRadius: 16, width: "90%", maxWidth: 420, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 10px 25px rgba(0,0,0,0.5)" }}>
+          <div style={{ background: "var(--input-bg)", border: "1px solid var(--border)", padding: 24, borderRadius: 16, width: "90%", maxWidth: 440, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 10px 25px rgba(0,0,0,0.5)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h4 style={{ margin: 0, fontSize: 16, color: "var(--text-primary)" }}>➕ Thêm người dùng</h4>
+              <h4 style={{ margin: 0, fontSize: 16, color: "var(--text-primary)" }}>➕ Thêm người dùng mới</h4>
               <button onClick={() => setShowAddModal(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 20, cursor: "pointer" }}>&times;</button>
             </div>
 
@@ -298,49 +331,66 @@ export default function TabUsers() {
             )}
 
             <form onSubmit={handleAddUser} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {/* Field 1: Mã số nhân viên */}
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Tên đầy đủ (theo GHN SSO) *</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>1. Mã số nhân viên (Employee ID)</label>
                 <input
-                  type="text" required value={newName} onChange={(e) => setNewName(e.target.value)}
-                  placeholder="Vd: Nguyễn Văn A — phải khớp đúng tên hiển thị khi họ đăng nhập"
+                  type="text"
+                  value={newEmployeeId}
+                  onChange={(e) => setNewEmployeeId(e.target.value)}
+                  placeholder="Ví dụ: 3182352 hoặc 3117379"
                   style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
                 />
               </div>
 
+              {/* Field 2: Tên theo SSO */}
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Vai trò</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>2. Tên theo GHN SSO (Họ và tên đầy đủ) *</label>
+                <input
+                  type="text"
+                  required
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Ví dụ: Diệp Thủy Vi hoặc Nguyễn Thành Tân"
+                  style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                />
+              </div>
+
+              {/* Field 3: Tên thường gọi (PIC) */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>3. Tên thường gọi / PIC (khớp với Sheet Mapping)</label>
+                <input
+                  type="text"
+                  value={newPic}
+                  onChange={(e) => setNewPic(e.target.value)}
+                  placeholder="Ví dụ: Thủy Vi, Duy Tú, Kim Diện"
+                  style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
+                />
+              </div>
+
+              {/* Field 4: Vai trò */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>4. Vai trò</label>
                 <select
                   value={newRole}
                   onChange={(e) => { setNewRole(e.target.value); setNewTabs(defaultTabsForRole(e.target.value)); }}
                   style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
                 >
-                  <option value="manager">Quản trị</option>
+                  <option value="manager">Quản trị (Manager)</option>
                   <option value="sd3">Chuyên viên SD</option>
                   <option value="cs">CS</option>
                 </select>
               </div>
 
+              {/* Field 5: Xem được tab nào */}
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Xem được tab</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>5. Xem được tab nào?</label>
                 <TabCheckboxes
-                  tabs={newRole === "manager" ? ["ltl", "operations"] : newTabs}
+                  tabs={newRole === "manager" ? ["ltl", "operations", "tachtrip"] : newTabs}
                   disabled={newRole === "manager"}
                   onChange={setNewTabs}
                 />
               </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Tên (khớp sheet mapping SD/CS)</label>
-                <input
-                  type="text" value={newPic} onChange={(e) => setNewPic(e.target.value)}
-                  placeholder="Ví dụ: Duy Tú"
-                  style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", color: "var(--text-primary)", padding: "8px 12px", borderRadius: 6, fontSize: 13 }}
-                />
-              </div>
-
-              <p style={{ margin: 0, fontSize: 11.5, color: "var(--text-muted)" }}>
-                Người này sẽ tự vào được ngay khi đăng nhập bằng GHN SSO lần đầu (không cần đặt mật khẩu) — miễn tên khớp đúng.
-              </p>
 
               <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 6 }}>
                 <button
