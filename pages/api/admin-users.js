@@ -6,7 +6,7 @@
  * access by full name (see lib/users.js resolveSSOUser for the link-up).
  */
 import { getSession } from "../../lib/auth";
-import { getAllUsers, updateUserRole, createUserWithRole, findUserByName } from "../../lib/users";
+import { getAllUsers, updateUserRole, createUserWithRole, findUserByName, findUserByEmployeeId, deleteUser } from "../../lib/users";
 import { logAction } from "../../lib/audit-log";
 
 export default async function handler(req, res) {
@@ -36,6 +36,23 @@ export default async function handler(req, res) {
       });
     } catch (err) {
       console.error("[/api/admin-users] GET error:", err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  if (req.method === "DELETE") {
+    try {
+      const { employeeId, name } = req.body || {};
+      await deleteUser({ employeeId, name });
+      await logAction({
+        actor: session.user.email || session.user.name,
+        action: "user.delete",
+        target: employeeId || name,
+        details: { employeeId, name },
+      });
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      console.error("[/api/admin-users] DELETE error:", err);
       return res.status(500).json({ error: err.message });
     }
   }

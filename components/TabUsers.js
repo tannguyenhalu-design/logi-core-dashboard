@@ -137,6 +137,22 @@ export default function TabUsers() {
     }
   };
 
+  const handleDeleteUser = async (u) => {
+    if (!confirm(`Đại Ca có chắc chắn muốn xóa tài khoản "${u.name || u.employeeId}" khỏi hệ thống không?`)) return;
+    try {
+      const res = await fetch("/api/admin-users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employeeId: u.employeeId, name: u.name }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error || "Lỗi xóa người dùng");
+      await fetchUsers();
+    } catch (e) {
+      alert("Lỗi xóa: " + e.message);
+    }
+  };
+
   const handleAddUser = async (e) => {
     e.preventDefault();
     if (!newEmployeeId.trim() && !newName.trim()) {
@@ -285,22 +301,39 @@ export default function TabUsers() {
                     />
                   </td>
                   <td style={{ padding: "12px 14px", textAlign: "center" }}>
-                    <button
-                      onClick={() => saveUser(u)}
-                      disabled={!dirty || savingKey === key}
-                      style={{
-                        background: dirty ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.05)",
-                        color: dirty ? "var(--green)" : "var(--text-muted)",
-                        border: `1px solid ${dirty ? "rgba(16,185,129,0.2)" : "rgba(255,255,255,0.05)"}`,
-                        padding: "6px 14px",
-                        borderRadius: 6,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: dirty ? "pointer" : "not-allowed",
-                      }}
-                    >
-                      {savingKey === key ? "Đang lưu..." : "Lưu"}
-                    </button>
+                    <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+                      <button
+                        onClick={() => saveUser(u)}
+                        disabled={!dirty || savingKey === key}
+                        style={{
+                          background: dirty ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.05)",
+                          color: dirty ? "var(--green)" : "var(--text-muted)",
+                          border: `1px solid ${dirty ? "rgba(16,185,129,0.2)" : "rgba(255,255,255,0.05)"}`,
+                          padding: "6px 12px",
+                          borderRadius: 6,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: dirty ? "pointer" : "not-allowed",
+                        }}
+                      >
+                        {savingKey === key ? "Đang lưu..." : "Lưu"}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(u)}
+                        title="Xóa người dùng này khỏi hệ thống"
+                        style={{
+                          background: "rgba(244,63,94,0.15)",
+                          color: "var(--red)",
+                          border: "1px solid rgba(244,63,94,0.3)",
+                          padding: "6px 10px",
+                          borderRadius: 6,
+                          fontSize: 12,
+                          cursor: "pointer",
+                        }}
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
