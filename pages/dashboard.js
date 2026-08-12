@@ -16,6 +16,7 @@ const OperationsDashboard = dynamic(() => import("../components/operations/Opera
 const TabTachTrip   = dynamic(() => import("../components/TabTachTrip"),   { ssr: false });
 const TabUsers      = dynamic(() => import("../components/TabUsers"),      { ssr: false });
 const TabAuditLog   = dynamic(() => import("../components/TabAuditLog"),   { ssr: false });
+const TabBrain      = dynamic(() => import("../components/TabBrain"),      { ssr: false });
 const AIChatDrawer  = dynamic(() => import("../components/AIChatDrawer"),  { ssr: false });
 
 export default function DashboardPage({ user: initialUser }) {
@@ -247,6 +248,21 @@ export default function DashboardPage({ user: initialUser }) {
                 Nhật Ký Hoạt Động
               </div>
             )}
+            {user.role === "manager" && (
+              <div
+                className={`nav-item ${activeTab === "brain" ? "active" : ""}`}
+                onClick={() => setActiveTab("brain")}
+                style={{
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
+                  color: activeTab === "brain" ? "#fff" : "var(--text-muted)",
+                  background: activeTab === "brain" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
+                }}
+              >
+                <span style={{ fontSize: 16 }}>🧠</span>
+                Bộ Não Tiểu Đệ
+              </div>
+            )}
           </nav>
 
           {/* ── Role Switcher (Manager only) ── */}
@@ -456,6 +472,8 @@ export default function DashboardPage({ user: initialUser }) {
               </div>
             ) : activeTab === "users" ? (
               <TabUsers />
+            ) : activeTab === "brain" ? (
+              <TabBrain />
             ) : activeTab === "auditlog" ? (
               <TabAuditLog />
             ) : activeTab === "tachtrip" ? (

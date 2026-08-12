@@ -11,6 +11,7 @@ import {
   createTaskForStaff,
   predictRevenueTarget,
 } from "../../lib/ai-agent-tools";
+import { loadBrainContext, extractInsightsFromChat, saveBrainInsights } from "../../lib/ai-brain";
 
 let client;
 function getClient() {
@@ -204,6 +205,9 @@ export default async function handler(req, res) {
         .map(([name, s]) => ({ name, orders: s.orders, weightTon: (s.weight / 1000).toFixed(1) }))
     };
 
+    // Load brain context (fire concurrently with data fetch already done above)
+    const brainContext = await loadBrainContext().catch(() => "");
+
     // Format full conversation history & data into systemInstruction & prompt string
     let historyFormatted = "";
     if (Array.isArray(history) && history.length > 0) {
@@ -211,6 +215,7 @@ export default async function handler(req, res) {
         history.map(h => `${h.role === 'user' ? 'Quản lý' : 'AI Agent'}: ${h.text}`).join("\n");
     }
 
+    const systemWithBrain = SYSTEM_PROMPT + brainContext;
     const fullPrompt = `CƠ SỞ DỮ LIỆU THỰC TẾ VẬN HÀNH VÀ DỰ ÁN:\n${JSON.stringify(statsContext, null, 2)}${historyFormatted}\n\nCÂU HỎI MỚI CỦA QUẢN LÝ (GỒM NGÔN NGỮ TỰ NHIÊN / VIẾT TẮT / LỖI CHÍNH TẢ / HỎI TIẾP): "${message}"\n\nHãy phân tích và trả lời trực tiếp câu hỏi mới nhất của Quản lý.`;
 
     const models = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.5-flash"];
@@ -223,7 +228,7 @@ export default async function handler(req, res) {
           model,
           contents: fullPrompt,
           config: {
-            systemInstruction: SYSTEM_PROMPT,
+            systemInstruction: systemWithBrain,
             temperature: 0.2,
           },
         });
@@ -341,6 +346,24 @@ export default async function handler(req, res) {
       } else {
         replyText = `Cha chả câu hỏi Đại Ca đưa ra hóc búa quá! 🙇‍♂️ Chiêu này cao cường vượt tầm nội công dữ liệu hiện tại của Tiểu Đệ. Để em ghi nhận lại gửi cho Trưởng Lão nhà em nghiên cứu rồi tiếp chiêu Đại Ca sau nha! Hoặc Đại Ca có muốn em tạo Task giao nhân sự kiểm tra không ạ?`;
       }
+    }
+
+    // ── Fire-and-forget: extract & save insights from this exchange ────────────
+    if (replyText) {
+      extractInsightsFromChat({
+        message,
+        reply: replyText,
+        userName: session.user.name || session.user.email,
+        projectsList,
+      })
+        .then((insights) => {
+          if (insights.length > 0) {
+            return saveBrainInsights(
+              insights.map((i) => ({ ...i, source: session.user.email || "chat" }))
+            );
+          }
+        })
+        .catch((e) => console.warn("[ai-chat] brain save error:", e.message));
     }
 
     return res.status(200).json({ ok: true, reply: replyText, stats: statsContext });
