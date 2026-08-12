@@ -289,42 +289,8 @@ export function PeriodComparisonSection({ comparison, declineAlerts = [], compac
           />
         </div>
 
-      {!compact && declineAlerts.length > 0 && (
-        <div style={{
-          background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)",
-          borderRadius: 10, padding: "12px 14px", marginBottom: 14,
-        }}>
-          <div style={{ fontWeight: 700, fontSize: 12.5, color: "var(--red)", marginBottom: 8 }}>
-            🚨 {declineAlerts.length} khách hàng giảm số đơn liên tục {declineAlerts[0].weeksDeclining} tuần gần nhất — ưu tiên kiểm tra vận hành
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {declineAlerts.map((a) => (
-              <div key={a.client} style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "8px 10px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                  <span style={{ color: "#EAF0F8", fontWeight: 600, fontSize: 12.5 }}>{a.client}</span>
-                  <span style={{ color: "var(--red)", fontWeight: 700, fontSize: 12.5 }}>{a.totalDeclinePct}% qua {a.weeklyBreakdown.length} tuần</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  {a.weeklyBreakdown.map((w, i) => (
-                    <Fragment key={w.label}>
-                      {i > 0 && <span style={{ color: "var(--text-muted)", fontSize: 12 }}>→</span>}
-                      <div style={{ textAlign: "center", flex: 1, background: "rgba(0,0,0,0.15)", borderRadius: 6, padding: "4px 6px" }}>
-                        <div style={{ fontSize: 10, color: "var(--text-muted)" }}>{w.label}</div>
-                        <div style={{
-                          fontSize: 13, fontWeight: 700,
-                          color: i === a.weeklyBreakdown.length - 1 ? "var(--red)" : "#EAF0F8",
-                        }}>
-                          {w.count} đơn
-                        </div>
-                      </div>
-                    </Fragment>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+
+
 
       {sortedItems.length === 0 ? (
         <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
