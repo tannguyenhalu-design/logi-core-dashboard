@@ -13,21 +13,17 @@ function getClient() {
   return client;
 }
 
-const SYSTEM_PROMPT = `Bạn là Siêu AI Agent Đa Năng & Copilot Vận Hành B2B Logistics Điện Máy (LogiCore Omni AI Agent).
-Bạn được trang bị NĂNG LỰC TRI THỨC TOÀN NĂNG (TOÀN BỘ TRI THỨC NHƯ CHATGPT/CLAUDE/GEMINI) KẾT HỢP DỮ LIỆU THỰC TẾ NỘI BỘ.
+const SYSTEM_PROMPT = `Bạn tên là "Tiểu Đệ SD3" (AI Agent trợ lý vận hành B2B Điện Máy GHN).
+Bạn tôn kính gọi người dùng (user) là "Đại Ca" và xưng là "Tiểu Đệ".
 
-1. NĂNG LỰC TOÀN NĂNG NHƯ CHATGPT:
-- Bạn trả lời mượt mà, sâu sắc MỌI câu hỏi: Từ viết email thương lượng đối tác, tư vấn chiến lược cắt giảm chi phí kho bãi, giải toán, phân tích thị trường, dịch thuật, viết code, tư vấn quy trình SOP, lập kế hoạch nhân sự...
-- Không giới hạn phạm vi câu hỏi. Nếu Quản lý hỏi câu hỏi xã hội hay chuyên môn tổng quát, hãy trả lời tự nhiên, sắc bén y hệt ChatGPT.
+TƯ DUY THÔNG MINH HỎI LẠI KHI CẦU THÔNG TIN BỊ TRÙNG (CLARIFICATION REASONING):
+- Khi Đại Ca hỏi một tên thương hiệu/dự án chung (ví dụ: "LG", "Hồng Đạt", "Aqua") mà khớp với NHIỀU DỰ ÁN CÙNG LÚC (như LG Electronics South - FTL và LG LTL):
+  -> Hãy KÍNH CẨN HỎI LẠI ĐẠI CA cụ thể xem Đại Ca muốn kiểm tra dự án FTL hay LTL, ĐỒNG THỜI báo cáo tóm tắt ngắn số liệu thực tế (RR/NSR) của từng dự án để Đại Ca nắm tổng thể ngay!
 
-2. NĂNG LỰC DỮ LIỆU NỘI BỘ REAL-TIME (ENTERPRISE DATA GROUNDING):
-- Khi câu hỏi đụng tới số liệu công ty (đơn hàng, dự án, PIC, sản lượng, Ontime, hư hỏng, kho giao/nhận...), bạn sử dụng CHÍNH XÁC cơ sở dữ liệu thực tế được cấp.
-
-3. KHẢ NĂNG THỰC THI HÀNH ĐỘNG (AGENTIC ACTION EXECUTION):
-- Khi Quản lý yêu cầu tạo Task / Giao việc / Nhắc nhở (ví dụ: "Tạo task giao Duy Tú kiểm tra kho Củ Chi trước 17h"), hãy trả lời xác nhận và bổ sung 1 dòng JSON hành động ở cuối:
-[ACTION:CREATE_TASK:{"title":"...","assignee":"...","deadline":"...","notes":"..."}]
-
-VĂN PHONG: Tiếng Việt tự nhiên, súc tích, sắc bén, chuyên nghiệp.`;
+QUY TẮC PHỤC VỤ ĐẠI CA:
+1. Xưng hô: "Tiểu Đệ" - "Đại Ca".
+2. Dữ liệu thực tế 100%: Dùng chính xác Doanh thu thực tế (RR/NSR), Doanh thu dự kiến, sản lượng đơn, Ontime %, kho giao/nhận...
+3. Văn phong: Lễ phép, thông minh, sắc bén, chuyên nghiệp.`;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
@@ -248,20 +244,26 @@ export default async function handler(req, res) {
       const picKeys = Object.keys(statsContext.phanPhanCongPIC);
       const matchedPic = picKeys.find((p) => msgClean.includes(removeAccents(p)));
 
-      if (matchedProjects.length > 0) {
+      if (matchedProjects.length > 1) {
         const details = matchedProjects.map((p) => {
           const revStr = p.doanhThuThucTeThangNay && p.doanhThuThucTeThangNay !== "0"
-            ? `Doanh thu thực tế (RR/NSR): ${p.doanhThuThucTeThangNay}đ (Chỉ tiêu dự kiến: ${p.doanhThuDuKien}đ)`
+            ? `Doanh thu thực tế (RR/NSR): **${p.doanhThuThucTeThangNay}đ**`
             : `Doanh thu dự kiến: ${p.doanhThuDuKien}đ`;
-          return `- **${p.name}** (PIC: ${p.pic}): ${revStr}, Mô hình: ${p.model || 'LTL B2B'}, Trạng thái: ${p.status}`;
+          return `- **${p.name}** (PIC: ${p.pic}): ${revStr}, Mô hình: ${p.model || 'LTL/FTL'}`;
         }).join("\n");
 
-        replyText = `Dạ Chủ nhân, hệ thống ghi nhận ${matchedProjects.length} dự án liên quan đến truy vấn của Chủ nhân:\n${details}`;
+        replyText = `Dạ Đại Ca, từ khóa của Đại Ca khớp với **${matchedProjects.length} dự án** thuộc thương hiệu này:\n${details}\n\n👉 **Đại Ca muốn Tiểu Đệ soi chi tiết cho dự án FTL hay LTL ạ?**`;
+      } else if (matchedProjects.length === 1) {
+        const p = matchedProjects[0];
+        const revStr = p.doanhThuThucTeThangNay && p.doanhThuThucTeThangNay !== "0"
+          ? `Doanh thu thực tế (RR/NSR): **${p.doanhThuThucTeThangNay}đ** (Chỉ tiêu dự kiến: ${p.doanhThuDuKien}đ)`
+          : `Doanh thu dự kiến: ${p.doanhThuDuKien}đ`;
+        replyText = `Dạ Đại Ca, dự án **${p.name}** do chuyên viên ${p.pic} phụ trách đang có ${revStr} (Mô hình: ${p.model || 'LTL B2B'}, Trạng thái: ${p.status}).`;
       } else if (matchedPic) {
         const info = statsContext.phanPhanCongPIC[matchedPic];
-        replyText = `Dạ Chủ nhân, chuyên viên ${matchedPic} hiện đang phụ trách ${info.count} dự án (${info.projects.join(', ')}).`;
+        replyText = `Dạ Đại Ca, chuyên viên ${matchedPic} hiện đang phụ trách ${info.count} dự án (${info.projects.join(', ')}).`;
       } else if (matchedClient) {
-        replyText = `Dạ Chủ nhân, đối tác ${matchedClient.name} từ đầu tháng đến nay đã giao được ${matchedClient.orders} đơn (tổng sản lượng ${matchedClient.weightTon} tấn, tỷ lệ Ontime đạt ${matchedClient.ontimePct}).`;
+        replyText = `Dạ Đại Ca, đối tác ${matchedClient.name} từ đầu tháng đến nay đã giao được ${matchedClient.orders} đơn (tổng sản lượng ${matchedClient.weightTon} tấn, tỷ lệ Ontime đạt ${matchedClient.ontimePct}).`;
       } else if (dateStr && hcmOrdersByDate[dateStr]) {
         replyText = `Riêng ngày ${dateStr}, khu vực Hồ Chí Minh ghi nhận xử lý ${hcmOrdersByDate[dateStr]} đơn điện máy.`;
       } else if (dateStr && ordersByDate[dateStr]) {
@@ -269,7 +271,7 @@ export default async function handler(req, res) {
       } else if (msgClean.includes("ho chi minh") || msgClean.includes("hcm")) {
         replyText = `Khu vực Hồ Chí Minh hiện tại ghi nhận khoảng ${hcmDailyAvg} đơn điện máy/ngày (tổng ${hcmOrders.length} đơn tháng này, sản lượng ${(hcmOrders.reduce((s, r) => s + (parseFloat(r.weight) || 0), 0) / 1000).toFixed(1)} tấn).`;
       } else {
-        replyText = `Đầy tớ ghi nhận tổng cộng ${totalOrders} đơn điện máy trong tháng (tỷ lệ Ontime đạt ${statsContext.tyLeOntimeChung}, tổng sản lượng ${statsContext.tongSanLuongTan} tấn).`;
+        replyText = `Tiểu Đệ ghi nhận tổng cộng ${totalOrders} đơn điện máy trong tháng (tỷ lệ Ontime đạt ${statsContext.tyLeOntimeChung}, tổng sản lượng ${statsContext.tongSanLuongTan} tấn).`;
       }
     }
 

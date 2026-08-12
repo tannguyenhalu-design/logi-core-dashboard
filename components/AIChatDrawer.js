@@ -5,7 +5,7 @@ export default function AIChatDrawer() {
   const [messages, setMessages] = useState([
     {
       sender: "ai",
-      text: "Dạ, Đầy tớ xin kính chào Chủ nhân! 🙇‍♂️ Hôm nay Chủ nhân muốn Đầy tớ soi số liệu vận hành, báo cáo dự án hay sai bảo việc gì ạ?",
+      text: "Dạ, Tiểu Đệ SD3 xin bái chào Đại Ca! 🙇‍♂️ Hôm nay Đại Ca muốn Tiểu Đệ soi số liệu vận hành, báo cáo dự án hay sai bảo việc gì ạ?",
     },
   ]);
   const [input, setInput] = useState("");
@@ -94,7 +94,7 @@ export default function AIChatDrawer() {
         onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
       >
         <span>🙇‍♂️</span>
-        <span>{isOpen ? "Đóng Đầy Tớ" : "Gọi Đầy Tớ"}</span>
+        <span>{isOpen ? "Đóng Tiểu Đệ" : "Gọi Tiểu Đệ SD3"}</span>
       </button>
 
       {/* Floating Chat Window */}
@@ -125,7 +125,7 @@ export default function AIChatDrawer() {
               background: "rgba(139, 92, 246, 0.12)",
               borderBottom: "1px solid rgba(139, 92, 246, 0.2)",
               display: "flex",
-              justify: "space-between",
+              justifyContent: "space-between",
               alignItems: "center",
             }}
           >
@@ -146,10 +146,10 @@ export default function AIChatDrawer() {
               </div>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: "#EAF0F8" }}>
-                  Đầy Tớ LogiCore
+                  Tiểu Đệ SD3
                 </div>
                 <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                  Sẵn sàng phục vụ Chủ nhân 24/7
+                  Sẵn sàng phục vụ Đại Ca 24/7
                 </div>
               </div>
             </div>
