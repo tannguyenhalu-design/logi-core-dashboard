@@ -213,17 +213,36 @@ export default async function handler(req, res) {
         dateStr = `${matchDate[1].padStart(2, '0')}/${matchDate[2].padStart(2, '0')}`;
       }
 
-      // 1. Check Project Name matching (e.g. Hồng Đạt, Hồng Đạt MXT, Hồng Đạt FTL, Casper, Aqua...)
-      const matchedProject = projectsList.find(p => p.name && msgLower.includes(p.name.toLowerCase()));
+      // Combine current message + history text to preserve multi-turn context (e.g. follow-up 'doanh thu bao nhiêu r')
+      const fullContextText = (history.map(h => h.text).join(' ') + ' ' + message).toLowerCase();
+
+      // 1. Check Project Name matching (explicit in message or from history)
+      let matchedProject = projectsList.find(p => p.name && msgLower.includes(p.name.toLowerCase()));
+      if (!matchedProject) {
+        // Search backwards in history for last mentioned project
+        for (let i = history.length - 1; i >= 0; i--) {
+          const prevText = history[i].text.toLowerCase();
+          const p = projectsList.find(proj => proj.name && prevText.includes(proj.name.toLowerCase()));
+          if (p) {
+            matchedProject = p;
+            break;
+          }
+        }
+      }
 
       // 2. Check Client Name matching from LTL orders
-      const matchedClient = statsContext.thongKeTungKhachHang.find(c => msgLower.includes(c.name.toLowerCase()));
+      let matchedClient = statsContext.thongKeTungKhachHang.find(c => msgLower.includes(c.name.toLowerCase()));
+      if (!matchedClient && matchedProject) {
+        matchedClient = statsContext.thongKeTungKhachHang.find(c => c.name.toLowerCase().includes(matchedProject.name.toLowerCase()) || matchedProject.name.toLowerCase().includes(c.name.toLowerCase()));
+      }
 
-      // 3. Check PIC SD matching (e.g. Duy Tú, Kim Diện, Nguyễn Thành Đạt)
+      // 3. Check PIC SD matching
       const picKeys = Object.keys(statsContext.phanPhanCongPIC);
       const matchedPic = picKeys.find(p => msgLower.includes(p.toLowerCase()));
 
-      if (matchedProject) {
+      if (matchedProject && (msgLower.includes("doanh thu") || msgLower.includes("tiền") || msgLower.includes("bao nhiêu"))) {
+        replyText = `Dạ Chủ nhân, dự án "${matchedProject.name}" do chuyên viên ${matchedProject.pic} phụ trách đang có Doanh thu dự kiến là ${matchedProject.revenue}đ (Mô hình: ${matchedProject.model || 'LTL B2B'}, Trạng thái: ${matchedProject.status}).`;
+      } else if (matchedProject) {
         const orderStats = matchedClient ? ` Đã giao được ${matchedClient.orders} đơn (tổng sản lượng ${matchedClient.weightTon} tấn, Ontime đạt ${matchedClient.ontimePct}).` : "";
         replyText = `Dạ Chủ nhân, dự án "${matchedProject.name}" do chuyên viên ${matchedProject.pic} phụ trách (Doanh thu dự kiến: ${matchedProject.revenue}đ, Mô hình: ${matchedProject.model || 'LTL B2B'}, Trạng thái: ${matchedProject.status}).${orderStats}`;
       } else if (matchedPic) {
