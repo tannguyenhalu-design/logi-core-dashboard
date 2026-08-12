@@ -521,9 +521,27 @@ export default function DashboardPage({ user: initialUser }) {
 
 export async function getServerSideProps({ req, res }) {
   const { getSession } = await import("../lib/auth");
+  const { findUserByEmployeeId } = await import("../lib/users");
   const session = await getSession(req, res);
   if (!session?.user) {
     return { redirect: { destination: "/login", permanent: false } };
   }
+
+  // Live session re-validation: if manager approved the user's role on the Users sheet,
+  // sync the new role/tabs into the active cookie session so they get in on reload.
+  if (session.user.employeeId) {
+    try {
+      const dbUser = await findUserByEmployeeId(session.user.employeeId);
+      if (dbUser && (dbUser.role !== session.user.role || JSON.stringify(dbUser.tabs) !== JSON.stringify(session.user.tabs))) {
+        session.user.role = dbUser.role;
+        session.user.pic = dbUser.pic || session.user.pic;
+        session.user.tabs = dbUser.tabs || [];
+        await session.save();
+      }
+    } catch (e) {
+      // fallback to existing session if sheet read fails
+    }
+  }
+
   return { props: { user: session.user } };
 }
