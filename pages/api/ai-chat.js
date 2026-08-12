@@ -227,24 +227,39 @@ export default async function handler(req, res) {
         dateStr = `${matchDate[1].padStart(2, '0')}/${matchDate[2].padStart(2, '0')}`;
       }
 
-      // 1. Check Project Name matching (unaccented substring / word match e.g. "lg", "aqua", "casper", "hong dat")
+      // Stop 2-letter false positive matching (e.g. 'da' from 'Da Nang' matching 'mat day')
+      const stopWords = new Set(["da", "co", "la", "in", "to", "at", "on", "an", "of", "or", "and"]);
+
+      // 1. Check Project Name matching (exact unaccented project name match or whole 3+ letter word match)
       const matchedProjects = projectsList.filter((p) => {
         if (!p.name) return false;
         const pClean = removeAccents(p.name);
-        return msgClean.includes(pClean) || pClean.split(" ").some((w) => w.length >= 2 && msgClean.includes(w));
+        if (msgClean.includes(pClean)) return true;
+        const words = pClean.split(/\s+/).filter(w => w.length >= 3 && !stopWords.has(w));
+        return words.some(w => new RegExp(`\\b${w}\\b`, 'i').test(msgClean));
       });
 
       // 2. Check Client Name matching from LTL orders
       const matchedClient = statsContext.thongKeTungKhachHang.find((c) => {
         const cClean = removeAccents(c.name);
-        return msgClean.includes(cClean) || cClean.split(" ").some((w) => w.length >= 2 && msgClean.includes(w));
+        if (msgClean.includes(cClean)) return true;
+        const words = cClean.split(/\s+/).filter(w => w.length >= 3 && !stopWords.has(w));
+        return words.some(w => new RegExp(`\\b${w}\\b`, 'i').test(msgClean));
       });
 
       // 3. Check PIC SD matching
       const picKeys = Object.keys(statsContext.phanPhanCongPIC);
-      const matchedPic = picKeys.find((p) => msgClean.includes(removeAccents(p)));
+      const matchedPic = picKeys.find((p) => {
+        const pClean = removeAccents(p);
+        return pClean.length >= 3 && new RegExp(`\\b${pClean}\\b`, 'i').test(msgClean);
+      });
 
-      if (matchedProjects.length > 1) {
+      // 4. Banter / Chitchat detection (e.g. "thằng mất dạy", "chào", "kaka", "dở hơi")
+      const isChitchat = /măt day|mat day|chui|dở|do hoi|kaka|kkk|chao|helo|hi|nha|oi/i.test(msgClean);
+
+      if (isChitchat && matchedProjects.length === 0) {
+        replyText = `Dạ Đại Ca nguôi giận ạ! 🙇‍♂️ Tiểu Đệ có chỗ nào làm chưa phải Đại Ca cứ dạy bảo, Tiểu Đệ xin lập tức sửa đổi phục vụ Đại Ca chu đáo hơn ạ!`;
+      } else if (matchedProjects.length > 1) {
         const details = matchedProjects.map((p) => {
           const revStr = p.doanhThuThucTeThangNay && p.doanhThuThucTeThangNay !== "0"
             ? `Doanh thu thực tế (RR/NSR): **${p.doanhThuThucTeThangNay}đ**`
