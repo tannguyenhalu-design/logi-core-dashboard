@@ -241,8 +241,65 @@ export default async function handler(req, res) {
         dateStr = `${matchDate[1].padStart(2, '0')}/${matchDate[2].padStart(2, '0')}`;
       }
 
-      // Stop 2-letter false positive matching (e.g. 'da' from 'Da Nang' matching 'mat day')
-      const stopWords = new Set(["da", "co", "la", "in", "to", "at", "on", "an", "of", "or", "and"]);
+      // Stop words — prevent operational terms from matching project names
+      // e.g. "hu hong" (hư hỏng) matching project "Hong Dat"
+      const stopWords = new Set([
+        // English articles
+        "da", "co", "la", "in", "to", "at", "on", "an", "of", "or", "and",
+        // Operational terms that must NOT match project names
+        "hong",   // from "hư hỏng" → "hu hong"
+        "vong",   // from "vòng"
+        "hang",   // from "hàng hóa"
+        "hao",    // from "hao hụt"
+        "be",     // from "bể vỡ"
+        "vo",     // from "vỡ"
+        "mat",    // from "mất"
+        "chay",   // from "chạy"
+        "ngay",   // from "ngày"
+        "thang",  // from "tháng"
+        "nam",    // from "năm"
+        "van",    // from "vận"
+        "don",    // from "đơn"
+        "ton",    // from "tấn"
+        "gia",    // from "giá"
+        "phi",    // from "phí"
+      ]);
+
+      // 0. Damage/breakage query detection — MUST run BEFORE project matching
+      const isDamageQuery = /hư hỏng|hư hong|be vo|bể vỡ|hỏng hóc|thiệt hại|bồi thường|claim|khiếu nại|ghi nhớ.*hư|hư.*ghi nhớ/i.test(message);
+      if (!replyText && isDamageQuery) {
+        // Fetch damage claims data
+        try {
+          const dmgFetch = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/damage-claims`, {
+            headers: { cookie: req.headers.cookie || '' },
+          }).catch(() => null);
+          const dmgJson = dmgFetch ? await dmgFetch.json().catch(() => null) : null;
+          const cases = dmgJson?.claims || [];
+
+          // Also save to brain memory if user asked to "ghi nhớ"
+          const isMemorizeRequest = /ghi nhớ|ghi nho|nhớ lại|nho lai/i.test(message);
+          if (isMemorizeRequest) {
+            saveBrainInsights([{
+              type: 'correction',
+              topic: 'terminology hư hỏng = bể vỡ',
+              insight: 'Trong hệ thống SD3: "hư hỏng" và "bể vỡ" là cùng một loại sự cố (damage claim). Không được match từ này với tên dự án.',
+              confidence: 0.95,
+              source: session.user.email || 'chat',
+            }]).catch(() => {});
+          }
+
+          if (cases.length > 0) {
+            const summary = cases.slice(0, 8).map((c) =>
+              `- **${c.project || c.client || 'N/A'}**: ${c.type || 'Hư hỏng/Bể vỡ'} · ${c.status || 'Đang xử lý'} · ${c.amount ? c.amount + 'đ' : 'Chưa định giá'}`
+            ).join('\n');
+            replyText = `Dạ Đại Ca, đây là các case hư hỏng/bể vỡ trong hệ thống:\n${summary}\n\n📋 Tổng ${cases.length} case đang được theo dõi. Đại Ca muốn xem chi tiết case nào ạ?`;
+          } else {
+            replyText = `Dạ Đại Ca, Tiểu Đệ đã ghi nhớ: **hư hỏng = bể vỡ** là cùng 1 loại sự cố! 📝\n\nHiện chưa có case hư hỏng/bể vỡ nào được ghi nhận trong hệ thống. Đại Ca muốn Tiểu Đệ tạo form ghi nhận case mới không ạ?`;
+          }
+        } catch (dmgErr) {
+          replyText = `Dạ Đại Ca, Tiểu Đệ đã ghi nhớ: **hư hỏng = bể vỡ** là cùng 1 loại sự cố! 📝\n\nĐại Ca có thể vào tab **Hư Hỏng** để xem và nhập case chi tiết hơn ạ.`;
+        }
+      }
 
       // 5. Agentic Action Execution: Task Creation Intent
       const isCreateTaskIntent = /tạo task|giao task|giao việc|nhắc nhở|lập task/i.test(message);
