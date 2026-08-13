@@ -9,7 +9,7 @@
 import { getSession } from "../../lib/auth";
 import { fetchSheet, getCached, setCached } from "../../lib/sheets";
 import { isDMClient, isLTLRow, isFromJuly2026, FTL_ONLY_CLIENTS } from "../../lib/dm-clients";
-import { transformLTL } from "../../lib/transform-ltl";
+import { transformLTL, parseDate } from "../../lib/transform-ltl";
 import { transformFTL } from "../../lib/transform-ftl";
 import { transformTachTrip } from "../../lib/transform-tach-trip";
 import { transformAIInsights } from "../../lib/transform-ai-insights";
@@ -136,15 +136,8 @@ export default async function handler(req, res) {
       const toMs   = dateTo   ? new Date(dateTo + "T23:59:59").getTime() : Infinity;
 
       const inRange = (dateStr) => {
-        if (!dateStr) return false;
-        // pickup_time is usually "DD/MM/YYYY HH:mm:ss" or ISO
-        let d;
-        if (/^\d{2}\/\d{2}\/\d{4}/.test(dateStr)) {
-          const [dd, mm, yyyy] = dateStr.split("/");
-          d = new Date(`${yyyy}-${mm}-${dd}`);
-        } else {
-          d = new Date(dateStr);
-        }
+        const d = parseDate(dateStr);
+        if (!d) return false;
         const ms = d.getTime();
         return !isNaN(ms) && ms >= fromMs && ms <= toMs;
       };
