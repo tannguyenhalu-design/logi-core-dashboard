@@ -134,7 +134,7 @@ export default function DashboardPage({ user: initialUser }) {
   return (
     <>
       <Head>
-        <title>SD3-Điện Máy Dashboard</title>
+        <title>SD3- Dashboard Điện Máy</title>
         <meta name="description" content="Hệ thống theo dõi vận hành logistics điện máy" />
       </Head>
 
@@ -160,8 +160,8 @@ export default function DashboardPage({ user: initialUser }) {
               </svg>
             </div>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>SD3-Điện Máy</div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Dashboard</div>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>SD3- Dashboard Điện Máy</div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)" }}></div>
             </div>
           </div>
 
@@ -390,7 +390,7 @@ export default function DashboardPage({ user: initialUser }) {
                   : activeTab === "operations" ? "Vận hành SD3"
                   : activeTab === "tachtrip" ? "Tách Chuyến"
                   : activeTab === "auditlog" ? "Nhật Ký Hoạt Động"
-                  : "SD3-Điện Máy"}
+                  : "SD3- Dashboard Điện Máy"}
               </div>
               {isManager && viewAs.type !== "manager" && (
                 <div style={{

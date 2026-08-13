@@ -32,7 +32,7 @@ export default function LTLDashboard({ data, rawData, aiInsights, selectedProjec
   const exportSummaryCSV = () => {
     const projects = Object.values(data.projectSummaries || {}).sort((a, b) => b.totalOrders - a.totalOrders);
     downloadCSV(
-      `LTL_bao_cao_${new Date().toISOString().slice(0, 10)}.csv`,
+      `SD3- Dashboard Điện Máy - ${new Date().toISOString().slice(0, 10)}.csv`,
       [
         { label: "Dự án", value: "name" },
         { label: "Số đơn", value: "totalOrders" },
