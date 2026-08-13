@@ -2,7 +2,6 @@ import { getSession } from "../../lib/auth";
 import { fetchSheet } from "../../lib/sheets";
 import { isDMClient, isLTLRow, isFromJuly2026 } from "../../lib/dm-clients";
 import { parseDate } from "../../lib/transform-ltl";
-import { GoogleGenAI } from "@google/genai";
 import {
   removeAccents,
   queryOrders,
@@ -12,15 +11,7 @@ import {
   predictRevenueTarget,
 } from "../../lib/ai-agent-tools";
 import { loadBrainContext, extractInsightsFromChat, saveBrainInsights } from "../../lib/ai-brain";
-
-let client;
-function getClient() {
-  if (!client) {
-    if (!process.env.GEMINI_API_KEY) throw new Error("Missing GEMINI_API_KEY");
-    client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  }
-  return client;
-}
+import { generateWithFallback } from "../../lib/ai-providers";
 
 const SYSTEM_PROMPT = `Bạn tên là "Tiểu Đệ SD3" (AI Agent trợ lý vận hành B2B Điện Máy GHN).
 Bạn tôn kính gọi người dùng (user) là "Đại Ca" và xưng là "Tiểu Đệ".
@@ -218,25 +209,20 @@ export default async function handler(req, res) {
     const systemWithBrain = SYSTEM_PROMPT + brainContext;
     const fullPrompt = `CƠ SỞ DỮ LIỆU THỰC TẾ VẬN HÀNH VÀ DỰ ÁN:\n${JSON.stringify(statsContext, null, 2)}${historyFormatted}\n\nCÂU HỎI MỚI CỦA QUẢN LÝ (GỒM NGÔN NGỮ TỰ NHIÊN / VIẾT TẮT / LỖI CHÍNH TẢ / HỎI TIẾP): "${message}"\n\nHãy phân tích và trả lời trực tiếp câu hỏi mới nhất của Quản lý.`;
 
-    const models = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.5-flash"];
+    const models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b"];
     let replyText = "";
-    const ai = getClient();
+    let usedProvider = "";
 
-    for (const model of models) {
-      try {
-        const resp = await ai.models.generateContent({
-          model,
-          contents: fullPrompt,
-          config: {
-            systemInstruction: systemWithBrain,
-            temperature: 0.2,
-          },
-        });
-        replyText = (resp.text || "").trim();
-        if (replyText) break;
-      } catch (err) {
-        console.warn(`[ai-chat] Model ${model} failed:`, err.message);
-      }
+    try {
+      const result = await generateWithFallback({
+        systemPrompt: systemWithBrain,
+        userPrompt: fullPrompt,
+        temperature: 0.2,
+      });
+      replyText = result.text;
+      usedProvider = result.provider;
+    } catch (providerErr) {
+      console.warn("[ai-chat] All providers failed, using rule-based fallback:", providerErr.message);
     }
 
     if (!replyText) {

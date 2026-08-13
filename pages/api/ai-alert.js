@@ -7,16 +7,7 @@
  */
 import { getSession } from "../../lib/auth";
 import { fetchSheet } from "../../lib/sheets";
-import { GoogleGenAI } from "@google/genai";
-
-let _client;
-function getClient() {
-  if (!_client) {
-    if (!process.env.GEMINI_API_KEY) throw new Error("Missing GEMINI_API_KEY");
-    _client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  }
-  return _client;
-}
+import { generateWithFallback } from "../../lib/ai-providers";
 
 function parseMoney(val) {
   if (!val) return 0;
@@ -154,13 +145,12 @@ Chi tiết:
 ${alertLines}`;
 
       try {
-        const ai = getClient();
-        const resp = await ai.models.generateContent({
-          model: "gemini-1.5-flash",
-          contents: prompt,
-          config: { temperature: 0.3 },
+        const result = await generateWithFallback({
+          systemPrompt: "Bạn là Tiểu Đệ SD3, trợ lý vận hành B2B Điện Máy GHN. Xưng 'Tiểu Đệ', gọi 'Đại Ca'. Trả lời ngắn gọn, có cấu trúc bullet, dùng emoji.",
+          userPrompt: prompt,
+          temperature: 0.3,
         });
-        aiSummary = (resp.text || "").trim();
+        aiSummary = result.text;
       } catch (e) {
         // Fallback summary without AI
         aiSummary = `Dạ Đại Ca, Tiểu Đệ vừa scan hệ thống! 🔍\n- 🔴 **${criticalCount} dự án** chưa có doanh thu tháng này\n- ⚠️ **${warningCount} dự án** đang chậm KPI\n- ✅ **${goodCount} dự án** đang đúng tiến độ\n\nĐại Ca muốn Tiểu Đệ zoom vào dự án nào cần action gấp không ạ?`;
