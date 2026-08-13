@@ -6,18 +6,15 @@
     },
     {
       "path": "/api/cron/cache-refresh",
-      "schedule": "0 2 * * *",
-      "comment": "09:00 ICT (UTC+7)"
+      "schedule": "0 2 * * *"
     },
     {
       "path": "/api/cron/cache-refresh",
-      "schedule": "0 6 * * *",
-      "comment": "13:00 ICT (UTC+7)"
+      "schedule": "0 6 * * *"
     },
     {
       "path": "/api/cron/cache-refresh",
-      "schedule": "0 11 * * *",
-      "comment": "18:00 ICT (UTC+7)"
+      "schedule": "0 11 * * *"
     }
   ]
 }
