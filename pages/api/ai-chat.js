@@ -209,187 +209,98 @@ export default async function handler(req, res) {
     const systemWithBrain = SYSTEM_PROMPT + brainContext;
     const fullPrompt = `CƠ SỞ DỮ LIỆU THỰC TẾ VẬN HÀNH VÀ DỰ ÁN:\n${JSON.stringify(statsContext, null, 2)}${historyFormatted}\n\nCÂU HỎI MỚI CỦA QUẢN LÝ (GỒM NGÔN NGỮ TỰ NHIÊN / VIẾT TẮT / LỖI CHÍNH TẢ / HỎI TIẾP): "${message}"\n\nHãy phân tích và trả lời trực tiếp câu hỏi mới nhất của Quản lý.`;
 
-    const models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b"];
-    let replyText = "";
-    let usedProvider = "";
+    // === MULTI-AGENT ARCHITECTURE START ===
 
+    // 1. Router Agent (Phân luồng intent bằng Llama/Gemini Flash)
+    const routerPrompt = `Bạn là Router Agent của hệ thống SD3.
+Dựa vào câu hỏi của user: "${message}"
+Hãy phân loại vào MỘT trong các intent sau:
+- DAMAGE_QUERY (hỏi về bồi thường, hư hỏng, bể vỡ, khiếu nại)
+- TASK_CREATION (yêu cầu tạo task, giao task, giao việc, nhắc nhở)
+- PREDICTION (hỏi về dự báo, run-rate, tiến độ KPI cuối tháng)
+- DATA_QUERY (hỏi về doanh thu, số liệu, đơn hàng, kho bãi, dự án)
+- CHITCHAT (chào hỏi, giao tiếp phiếm, mắng mỏ, khen ngợi)
+
+Trả về CHỈ JSON theo format: {"intent": "TÊN_INTENT", "extractedName": "Tên người/dự án nếu có, hoặc rỗng"}`;
+    
+    let intentInfo = { intent: "DATA_QUERY", extractedName: "" };
     try {
+      const routerRes = await generateFast({
+        systemPrompt: "Chỉ trả về JSON hợp lệ, không có text nào khác.",
+        userPrompt: routerPrompt,
+        temperature: 0.1,
+      });
+      const match = routerRes.text.match(/\{[\s\S]*\}/);
+      if (match) {
+        intentInfo = JSON.parse(match[0]);
+      }
+    } catch (e) {
+      console.warn("[Router Agent] Failed, fallback to DATA_QUERY", e.message);
+    }
+
+    let expertContext = "";
+
+    // 2. Expert Agents (Xử lý chuyên môn dựa theo phân luồng)
+    if (intentInfo.intent === "DAMAGE_QUERY") {
+      try {
+        const dmgFetch = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/damage-claims`, {
+          headers: { cookie: req.headers.cookie || '' },
+        }).catch(() => null);
+        const dmgJson = dmgFetch ? await dmgFetch.json().catch(() => null) : null;
+        const cases = dmgJson?.claims || [];
+        if (cases.length > 0) {
+          expertContext = `Dữ liệu Hư hỏng/Bể vỡ từ hệ thống: Đang theo dõi ${cases.length} cases. Chi tiết top 8 case mới nhất: \n` + cases.slice(0, 8).map(c => `- Dự án [${c.project || c.client || 'N/A'}]: ${c.type || 'Bể vỡ'} - Trạng thái: ${c.status || 'Đang xử lý'} - Số tiền: ${c.amount ? c.amount + 'đ' : 'Chưa định giá'}`).join('\n');
+        } else {
+          expertContext = `Hệ thống hiện chưa ghi nhận case hư hỏng/bể vỡ nào. Hãy đề xuất tạo form ghi nhận case mới.`;
+        }
+      } catch (e) {
+        expertContext = "Lỗi: Không thể lấy dữ liệu hư hỏng lúc này.";
+      }
+    } else if (intentInfo.intent === "TASK_CREATION") {
+      const assignee = intentInfo.extractedName || "Duy Tú";
+      const titleMatch = message.replace(/tạo task|giao task|giao việc|nhắc nhở|lập task/gi, "").trim();
+      try {
+        await createTaskForStaff({
+          title: titleMatch || "Kiểm tra vận hành SD3",
+          picName: assignee,
+          notes: `Tạo tự động qua AI Agent từ chỉ đạo của ${session.user.name || 'Đại Ca'}`,
+        }, session.user.name || session.user.email);
+        expertContext = `Đã giao task/công việc thành công: tiêu đề "${titleMatch || 'Kiểm tra vận hành SD3'}" cho nhân sự tên "${assignee}". Đã ghi nhận vào Quản lý Task & Google Calendar.`;
+      } catch (e) {
+        expertContext = "Lỗi: Hệ thống không thể tạo task lúc này.";
+      }
+    } else if (intentInfo.intent === "PREDICTION") {
+      const predictions = predictRevenueTarget(projectsList, { clientOrProject: message });
+      if (predictions.length > 0) {
+        expertContext = "Kết quả dự báo Run-rate (tiến độ cuối tháng): \n" + predictions.map(p => `- ${p.projectName}: Hiện đạt ${p.doanhThuThucTeHienTai}đ. Dự báo cuối tháng đạt ${p.duBaoCuoiThang} (Tiến độ hoàn thành KPI: ${p.kpiCompletionPct}).`).join("\n");
+      } else {
+        expertContext = "Hệ thống Prediction Model không tìm thấy đủ dữ liệu để dự báo cho yêu cầu này.";
+      }
+    } else if (intentInfo.intent === "CHITCHAT") {
+      expertContext = "Người dùng đang giao tiếp phiếm, khen ngợi, hoặc mắng mỏ. Hãy phản hồi theo ngữ cảnh một cách lịch sự, nhún nhường, vui vẻ (dùng xưng hô Tiểu Đệ - Đại Ca), không cần nhắc về số liệu nếu không liên quan.";
+    } else {
+      expertContext = "Đây là câu hỏi Data Query thông thường. Hãy tự dùng Cơ sở dữ liệu Vận hành & Dự án để phân tích và trả lời trực tiếp.";
+    }
+
+    // 3. Synthesizer Agent (Não Tổng Hợp - Tạo phản hồi cuối cùng)
+    let replyText = "";
+    try {
+      const systemWithBrain = SYSTEM_PROMPT + brainContext;
+      const synthesizerPrompt = `CƠ SỞ DỮ LIỆU DỰ ÁN & VẬN HÀNH (Tham khảo nếu cần):\n${JSON.stringify(statsContext, null, 2)}\n\nLỊCH SỬ HỘI THOẠI TRƯỚC ĐÓ:${historyFormatted}\n\nTHÔNG TIN ĐƯỢC CHUYÊN GIA (EXPERT) CUNG CẤP:\n${expertContext}\n\nCÂU HỎI MỚI NHẤT CỦA ĐẠI CA: "${message}"\n\nNHIỆM VỤ:\nDựa vào "Thông tin được chuyên gia cung cấp" và Cơ sở dữ liệu, hãy đóng vai Tiểu Đệ SD3 để trả lời câu hỏi của Đại Ca. 
+- Nếu có dữ liệu từ Chuyên gia, PHẢI sử dụng dữ liệu đó làm câu trả lời chính.
+- Trả lời thẳng vào vấn đề, dùng cấu trúc bullet point, chèn emoji. Luôn kết thúc bằng 1 call-to-action (câu hỏi gợi mở).`;
+      
       const result = await generateWithFallback({
         systemPrompt: systemWithBrain,
-        userPrompt: fullPrompt,
+        userPrompt: synthesizerPrompt,
         temperature: 0.2,
       });
       replyText = result.text;
-      usedProvider = result.provider;
     } catch (providerErr) {
-      console.warn("[ai-chat] All providers failed, using rule-based fallback:", providerErr.message);
+      console.warn("[ai-chat] All providers failed:", providerErr.message);
+      replyText = "Cha chả câu hỏi Đại Ca đưa ra hóc búa quá! 🙇‍♂️ Tiểu Đệ tạm thời mất kết nối với các Chuyên Gia, Đại Ca thử lại sau nhé!";
     }
-
-    if (!replyText) {
-      const removeAccents = (str) =>
-        String(str || "")
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/đ/g, "d")
-          .replace(/Đ/g, "D")
-          .toLowerCase();
-
-      const msgClean = removeAccents(message);
-      const matchDate = message.match(/(\d{1,2})[\/\-](\d{1,2})/);
-      let dateStr = "";
-      if (matchDate) {
-        dateStr = `${matchDate[1].padStart(2, '0')}/${matchDate[2].padStart(2, '0')}`;
-      }
-
-      // Stop words — prevent operational terms from matching project names
-      // e.g. "hu hong" (hư hỏng) matching project "Hong Dat"
-      const stopWords = new Set([
-        // English articles
-        "da", "co", "la", "in", "to", "at", "on", "an", "of", "or", "and",
-        // Operational terms that must NOT match project names
-        "hong",   // from "hư hỏng" → "hu hong"
-        "vong",   // from "vòng"
-        "hang",   // from "hàng hóa"
-        "hao",    // from "hao hụt"
-        "be",     // from "bể vỡ"
-        "vo",     // from "vỡ"
-        "mat",    // from "mất"
-        "chay",   // from "chạy"
-        "ngay",   // from "ngày"
-        "thang",  // from "tháng"
-        "nam",    // from "năm"
-        "van",    // from "vận"
-        "don",    // from "đơn"
-        "ton",    // from "tấn"
-        "gia",    // from "giá"
-        "phi",    // from "phí"
-      ]);
-
-      // 0. Damage/breakage query detection — MUST run BEFORE project matching
-      const isDamageQuery = /hư hỏng|hư hong|be vo|bể vỡ|hỏng hóc|thiệt hại|bồi thường|claim|khiếu nại|ghi nhớ.*hư|hư.*ghi nhớ/i.test(message);
-      if (!replyText && isDamageQuery) {
-        // Fetch damage claims data
-        try {
-          const dmgFetch = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/damage-claims`, {
-            headers: { cookie: req.headers.cookie || '' },
-          }).catch(() => null);
-          const dmgJson = dmgFetch ? await dmgFetch.json().catch(() => null) : null;
-          const cases = dmgJson?.claims || [];
-
-          // Also save to brain memory if user asked to "ghi nhớ"
-          const isMemorizeRequest = /ghi nhớ|ghi nho|nhớ lại|nho lai/i.test(message);
-          if (isMemorizeRequest) {
-            saveBrainInsights([{
-              type: 'correction',
-              topic: 'terminology hư hỏng = bể vỡ',
-              insight: 'Trong hệ thống SD3: "hư hỏng" và "bể vỡ" là cùng một loại sự cố (damage claim). Không được match từ này với tên dự án.',
-              confidence: 0.95,
-              source: session.user.email || 'chat',
-            }]).catch(() => {});
-          }
-
-          if (cases.length > 0) {
-            const summary = cases.slice(0, 8).map((c) =>
-              `- **${c.project || c.client || 'N/A'}**: ${c.type || 'Hư hỏng/Bể vỡ'} · ${c.status || 'Đang xử lý'} · ${c.amount ? c.amount + 'đ' : 'Chưa định giá'}`
-            ).join('\n');
-            replyText = `Dạ Đại Ca, đây là các case hư hỏng/bể vỡ trong hệ thống:\n${summary}\n\n📋 Tổng ${cases.length} case đang được theo dõi. Đại Ca muốn xem chi tiết case nào ạ?`;
-          } else {
-            replyText = `Dạ Đại Ca, Tiểu Đệ đã ghi nhớ: **hư hỏng = bể vỡ** là cùng 1 loại sự cố! 📝\n\nHiện chưa có case hư hỏng/bể vỡ nào được ghi nhận trong hệ thống. Đại Ca muốn Tiểu Đệ tạo form ghi nhận case mới không ạ?`;
-          }
-        } catch (dmgErr) {
-          replyText = `Dạ Đại Ca, Tiểu Đệ đã ghi nhớ: **hư hỏng = bể vỡ** là cùng 1 loại sự cố! 📝\n\nĐại Ca có thể vào tab **Hư Hỏng** để xem và nhập case chi tiết hơn ạ.`;
-        }
-      }
-
-      // 5. Agentic Action Execution: Task Creation Intent
-      const isCreateTaskIntent = /tạo task|giao task|giao việc|nhắc nhở|lập task/i.test(message);
-      if (isCreateTaskIntent) {
-        const picMatch = message.match(/(?:cho|giao|nhắc)\s+([A-Za-z0-9àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ\s]+?)(?=\s+thực hiện|\s+kiểm tra|\s+trước|\s+deadline|\s+làm|$)/i);
-        const assignee = picMatch ? picMatch[1].trim() : "Duy Tú";
-        const titleMatch = message.replace(/tạo task|giao task|giao việc|nhắc nhở|lập task/gi, "").trim();
-
-        try {
-          await createTaskForStaff({
-            title: titleMatch || "Kiểm tra vận hành SD3",
-            picName: assignee,
-            notes: `Tạo tự động qua AI Agent từ chỉ đạo của ${session.user.name || 'Đại Ca'}`,
-          }, session.user.name || session.user.email);
-
-          replyText = `Dạ Đại Ca, Tiểu Đệ đã lập tức tạo Task **"${titleMatch || 'Kiểm tra vận hành SD3'}"** giao cho **${assignee}** và ghi nhận vào bảng Quản lý Task & Google Calendar thành công rồi ạ! 🚀`;
-        } catch (e) {
-          console.error("Task creation error:", e);
-        }
-      }
-
-      // 6. Agentic Action Execution: Predictive Run-rate Revenue Engine
-      const isPredictIntent = /dự báo|dự kiến cuối tháng|chạy run rate|dự đoán|bao nhiêu % kpi/i.test(message);
-      if (!replyText && isPredictIntent) {
-        const predictions = predictRevenueTarget(projectsList, { clientOrProject: message });
-        if (predictions.length > 0) {
-          const details = predictions.map(p => `- **${p.projectName}**: Hiện đạt ${p.doanhThuThucTeHienTai}đ (Tiến độ tháng ${p.monthProgressPct}). Dự báo cuối tháng đạt **${p.duBaoCuoiThang}** (Đạt **${p.kpiCompletionPct}** KPI).`).join("\n");
-          replyText = `Dạ Đại Ca, Tiểu Đệ vừa chạy mô hình Run-rate dự báo doanh thu cuối tháng cho Đại Ca:\n${details}`;
-        }
-      }
-
-      // 1. Check Project Name matching (exact unaccented project name match or whole 3+ letter word match)
-      const matchedProjects = projectsList.filter((p) => {
-        if (!p.name) return false;
-        const pClean = removeAccents(p.name);
-        if (msgClean.includes(pClean)) return true;
-        const words = pClean.split(/\s+/).filter(w => w.length >= 3 && !stopWords.has(w));
-        return words.some(w => new RegExp(`\\b${w}\\b`, 'i').test(msgClean));
-      });
-
-      // 2. Check Client Name matching from LTL orders
-      const matchedClient = statsContext.thongKeTungKhachHang.find((c) => {
-        const cClean = removeAccents(c.name);
-        if (msgClean.includes(cClean)) return true;
-        const words = cClean.split(/\s+/).filter(w => w.length >= 3 && !stopWords.has(w));
-        return words.some(w => new RegExp(`\\b${w}\\b`, 'i').test(msgClean));
-      });
-
-      // 3. Check PIC SD matching
-      const picKeys = Object.keys(statsContext.phanPhanCongPIC);
-      const matchedPic = picKeys.find((p) => {
-        const pClean = removeAccents(p);
-        return pClean.length >= 3 && new RegExp(`\\b${pClean}\\b`, 'i').test(msgClean);
-      });
-
-      // 4. Banter / Chitchat detection (e.g. "thằng mất dạy", "chào", "kaka", "dở hơi")
-      const isChitchat = /măt day|mat day|chui|dở|do hoi|kaka|kkk|chao|helo|hi|nha|oi/i.test(msgClean);
-
-      if (isChitchat && matchedProjects.length === 0) {
-        replyText = `Dạ Đại Ca nguôi giận ạ! 🙇‍♂️ Tiểu Đệ có chỗ nào làm chưa phải Đại Ca cứ dạy bảo, Tiểu Đệ xin lập tức sửa đổi phục vụ Đại Ca chu đáo hơn ạ!`;
-      } else if (matchedProjects.length > 1) {
-        const details = matchedProjects.map((p) => {
-          const revStr = p.doanhThuThucTeThangNay && p.doanhThuThucTeThangNay !== "0"
-            ? `Doanh thu thực tế (RR/NSR): **${p.doanhThuThucTeThangNay}đ**`
-            : `Doanh thu dự kiến: ${p.doanhThuDuKien}đ`;
-          return `- **${p.name}** (PIC: ${p.pic}): ${revStr}, Mô hình: ${p.model || 'LTL/FTL'}`;
-        }).join("\n");
-
-        replyText = `Dạ Đại Ca, từ khóa của Đại Ca khớp với **${matchedProjects.length} dự án** thuộc thương hiệu này:\n${details}\n\n👉 **Đại Ca muốn Tiểu Đệ soi chi tiết cho dự án FTL hay LTL ạ?**`;
-      } else if (matchedProjects.length === 1) {
-        const p = matchedProjects[0];
-        const revStr = p.doanhThuThucTeThangNay && p.doanhThuThucTeThangNay !== "0"
-          ? `Doanh thu thực tế (RR/NSR): **${p.doanhThuThucTeThangNay}đ** (Chỉ tiêu dự kiến: ${p.doanhThuDuKien}đ)`
-          : `Doanh thu dự kiến: ${p.doanhThuDuKien}đ`;
-        replyText = `Dạ Đại Ca, dự án **${p.name}** do chuyên viên ${p.pic} phụ trách đang có ${revStr} (Mô hình: ${p.model || 'LTL B2B'}, Trạng thái: ${p.status}).`;
-      } else if (matchedPic) {
-        const info = statsContext.phanPhanCongPIC[matchedPic];
-        replyText = `Dạ Đại Ca, chuyên viên ${matchedPic} hiện đang phụ trách ${info.count} dự án (${info.projects.join(', ')}).`;
-      } else if (matchedClient) {
-        replyText = `Dạ Đại Ca, đối tác ${matchedClient.name} từ đầu tháng đến nay đã giao được ${matchedClient.orders} đơn (tổng sản lượng ${matchedClient.weightTon} tấn, tỷ lệ Ontime đạt ${matchedClient.ontimePct}).`;
-      } else if (dateStr && hcmOrdersByDate[dateStr]) {
-        replyText = `Riêng ngày ${dateStr}, khu vực Hồ Chí Minh ghi nhận xử lý ${hcmOrdersByDate[dateStr]} đơn điện máy.`;
-      } else if (dateStr && ordersByDate[dateStr]) {
-        replyText = `Riêng ngày ${dateStr}, toàn hệ thống ghi nhận xử lý ${ordersByDate[dateStr]} đơn điện máy.`;
-      } else if (msgClean.includes("ho chi minh") || msgClean.includes("hcm")) {
-        replyText = `Khu vực Hồ Chí Minh hiện tại ghi nhận khoảng ${hcmDailyAvg} đơn điện máy/ngày (tổng ${hcmOrders.length} đơn tháng này, sản lượng ${(hcmOrders.reduce((s, r) => s + (parseFloat(r.weight) || 0), 0) / 1000).toFixed(1)} tấn).`;
-      } else {
-        replyText = `Cha chả câu hỏi Đại Ca đưa ra hóc búa quá! 🙇‍♂️ Chiêu này cao cường vượt tầm nội công dữ liệu hiện tại của Tiểu Đệ. Để em ghi nhận lại gửi cho Trưởng Lão nhà em nghiên cứu rồi tiếp chiêu Đại Ca sau nha! Hoặc Đại Ca có muốn em tạo Task giao nhân sự kiểm tra không ạ?`;
-      }
-    }
+    // === MULTI-AGENT ARCHITECTURE END ===
 
     // ── Fire-and-forget: extract & save insights from this exchange ────────────
     if (replyText) {
