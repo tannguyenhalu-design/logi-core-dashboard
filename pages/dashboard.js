@@ -68,7 +68,7 @@ export default function DashboardPage({ user: initialUser }) {
   }, [isManager]);
 
   // ── Fetch aggregated data from Backend API ──
-  const fetchDashboardData = useCallback(async (months, projects, fMode, viewAsOverride, pWeeks) => {
+  const fetchDashboardData = useCallback(async (months, projects, fMode, viewAsOverride, pWeeks, dFrom, dTo) => {
     setLoading(true);
     setError(null);
     try {
@@ -81,8 +81,8 @@ export default function DashboardPage({ user: initialUser }) {
       if (effectiveViewAs.value) params.append("viewAsValue", effectiveViewAs.value);
       params.append("periodWeeks", pWeeks || periodWeeks);
       if (selectedOrigin) params.append("origin", selectedOrigin);
-      if (dateFrom) params.append("dateFrom", dateFrom);
-      if (dateTo)   params.append("dateTo", dateTo);
+      if (dFrom) params.append("dateFrom", dFrom);
+      if (dTo)   params.append("dateTo", dTo);
       params.append("t", Date.now());
 
       const res = await fetch(`/api/data?${params.toString()}`);
@@ -105,7 +105,7 @@ export default function DashboardPage({ user: initialUser }) {
   // Fetch data on mount and whenever filters change
   useEffect(() => {
     if (!canSeeLTL) return;
-    fetchDashboardData(selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks);
+    fetchDashboardData(selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks, dateFrom, dateTo);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks, selectedOrigin, dateFrom, dateTo, canSeeLTL]);
 
