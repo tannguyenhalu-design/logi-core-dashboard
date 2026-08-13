@@ -11,7 +11,8 @@ import {
   predictRevenueTarget,
 } from "../../lib/ai-agent-tools";
 import { loadBrainContext, extractInsightsFromChat, saveBrainInsights } from "../../lib/ai-brain";
-import { generateWithFallback } from "../../lib/ai-providers";
+import { generateWithFallback, generateFast } from "../../lib/ai-providers";
+import { getAllClaims } from "../../lib/damage-claims";
 
 const SYSTEM_PROMPT = `Bạn tên là "Tiểu Đệ SD3" (AI Agent trợ lý vận hành B2B Điện Máy GHN).
 Bạn tôn kính gọi người dùng (user) là "Đại Ca" và xưng là "Tiểu Đệ".
@@ -243,18 +244,10 @@ Trả về CHỈ JSON theo format: {"intent": "TÊN_INTENT", "extractedName": "T
     // 2. Expert Agents (Xử lý chuyên môn dựa theo phân luồng)
     if (intentInfo.intent === "DAMAGE_QUERY") {
       try {
-        const dmgFetch = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/damage-claims`, {
-          headers: { cookie: req.headers.cookie || '' },
-        }).catch(() => null);
-        const dmgJson = dmgFetch ? await dmgFetch.json().catch(() => null) : null;
-        const cases = dmgJson?.claims || [];
-        if (cases.length > 0) {
-          expertContext = `Dữ liệu Hư hỏng/Bể vỡ từ hệ thống: Đang theo dõi ${cases.length} cases. Chi tiết top 8 case mới nhất: \n` + cases.slice(0, 8).map(c => `- Dự án [${c.project || c.client || 'N/A'}]: ${c.type || 'Bể vỡ'} - Trạng thái: ${c.status || 'Đang xử lý'} - Số tiền: ${c.amount ? c.amount + 'đ' : 'Chưa định giá'}`).join('\n');
-        } else {
-          expertContext = `Hệ thống hiện chưa ghi nhận case hư hỏng/bể vỡ nào. Hãy đề xuất tạo form ghi nhận case mới.`;
-        }
+        const claims = await getAllClaims();
+        expertContext = "DỮ LIỆU TỪ CHUYÊN GIA DAMAGE_QUERY (BỂ VỠ/HƯ HỎNG):\n" + JSON.stringify(claims, null, 2);
       } catch (e) {
-        expertContext = "Lỗi: Không thể lấy dữ liệu hư hỏng lúc này.";
+        expertContext = "Chuyên gia DAMAGE_QUERY báo cáo: Không thể lấy dữ liệu hư hỏng lúc này.";
       }
     } else if (intentInfo.intent === "TASK_CREATION") {
       const assignee = intentInfo.extractedName || "Duy Tú";
