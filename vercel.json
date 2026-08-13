@@ -3,6 +3,21 @@
     {
       "path": "/api/cron/backup",
       "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/cache-refresh",
+      "schedule": "0 2 * * *",
+      "comment": "09:00 ICT (UTC+7)"
+    },
+    {
+      "path": "/api/cron/cache-refresh",
+      "schedule": "0 6 * * *",
+      "comment": "13:00 ICT (UTC+7)"
+    },
+    {
+      "path": "/api/cron/cache-refresh",
+      "schedule": "0 11 * * *",
+      "comment": "18:00 ICT (UTC+7)"
     }
   ]
 }

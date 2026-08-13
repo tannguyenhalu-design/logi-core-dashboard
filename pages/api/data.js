@@ -36,6 +36,10 @@ export default async function handler(req, res) {
   let viewAsType = req.query.viewAsType || "manager";
   let viewAsValue = req.query.viewAsValue || null;
 
+  // Date range filter (dateFrom / dateTo in format YYYY-MM-DD)
+  const dateFrom = req.query.dateFrom ? String(req.query.dateFrom).trim() : null;
+  const dateTo   = req.query.dateTo   ? String(req.query.dateTo).trim()   : null;
+
   if (req.query.months) {
     months = req.query.months
       .split(",")
@@ -74,7 +78,7 @@ export default async function handler(req, res) {
   // by — used to cache the expensive overview/aiInsights/tachTrip transforms
   // that were previously recomputed from scratch on every single filter click.
   const scopeKey = `${role}:${userPic || ""}:${viewAsType}:${viewAsValue || ""}`;
-  const fullKey = `data:full:${scopeKey}:${filterMode}:${periodWeeks}:${origin || ""}:${(months || []).join(",")}:${(projects || []).join(",")}`;
+  const fullKey = `data:full:${scopeKey}:${filterMode}:${periodWeeks}:${origin || ""}:${(months || []).join(",")}:${(projects || []).join(",")}:${dateFrom || ""}:${dateTo || ""}`;
 
   const cachedFull = getCached(fullKey);
   if (cachedFull) {
@@ -124,6 +128,29 @@ export default async function handler(req, res) {
     } else if (role === "cs" && userPic) {
       filteredLTL = filteredLTL.filter(r => picMapping[r.client_name] === userPic);
       filteredDamage = filteredDamage.filter(r => picMapping[r.client_name] === userPic);
+    }
+
+    // ── 2b. Date range filter (dateFrom / dateTo) ────────────────────────────
+    if (dateFrom || dateTo) {
+      const fromMs = dateFrom ? new Date(dateFrom).getTime() : 0;
+      const toMs   = dateTo   ? new Date(dateTo + "T23:59:59").getTime() : Infinity;
+
+      const inRange = (dateStr) => {
+        if (!dateStr) return false;
+        // pickup_time is usually "DD/MM/YYYY HH:mm:ss" or ISO
+        let d;
+        if (/^\d{2}\/\d{2}\/\d{4}/.test(dateStr)) {
+          const [dd, mm, yyyy] = dateStr.split("/");
+          d = new Date(`${yyyy}-${mm}-${dd}`);
+        } else {
+          d = new Date(dateStr);
+        }
+        const ms = d.getTime();
+        return !isNaN(ms) && ms >= fromMs && ms <= toMs;
+      };
+
+      filteredLTL    = filteredLTL.filter(r    => inRange(r["pickup_time"] || r["date"]));
+      filteredDamage = filteredDamage.filter(r  => inRange(r["pickup_time"] || r["case_date"]));
     }
 
     // ── Transform (per-filter — genuinely depends on months/projects/origin) ──
@@ -193,8 +220,8 @@ export default async function handler(req, res) {
     const responseBody = {
       ok: true,
       user: { role, project: userProject, pic: userPic },
-      picMapping, // Pass picMapping so the frontend can populate the CS dropdown
-      filters: { months, projects, filterMode },
+      picMapping,
+      filters: { months, projects, filterMode, dateFrom, dateTo },
       viewAs: { type: viewAsType, value: viewAsValue },
       ltl: ltlData,
       ftl: ftlData,

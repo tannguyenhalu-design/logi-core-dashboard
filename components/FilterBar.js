@@ -111,9 +111,51 @@ export default function FilterBar({
   selectedProjects, onProjectsChange,
   availableProjects, userRole, userProject,
   filterMode, onFilterModeChange,
+  dateFrom, dateTo, onDateChange,
 }) {
   const projectOptions = availableProjects.map((p) => ({ value: p, label: p }));
   const isClientLocked = userRole === "client";
+
+  // Quick date preset helpers
+  const setPreset = (preset) => {
+    const now = new Date();
+    const toISO = (d) => d.toISOString().slice(0, 10);
+    const today = toISO(now);
+    if (preset === "today") {
+      onDateChange(today, today);
+    } else if (preset === "3d") {
+      const from = new Date(now); from.setDate(from.getDate() - 2);
+      onDateChange(toISO(from), today);
+    } else if (preset === "7d") {
+      const from = new Date(now); from.setDate(from.getDate() - 6);
+      onDateChange(toISO(from), today);
+    } else if (preset === "month") {
+      const from = new Date(now.getFullYear(), now.getMonth(), 1);
+      onDateChange(toISO(from), today);
+    } else {
+      onDateChange("", ""); // clear
+    }
+  };
+
+  const isPresetActive = (preset) => {
+    const now = new Date();
+    const toISO = (d) => d.toISOString().slice(0, 10);
+    const today = toISO(now);
+    if (preset === "today") return dateFrom === today && dateTo === today;
+    if (preset === "3d") { const f = new Date(now); f.setDate(f.getDate()-2); return dateFrom === toISO(f) && dateTo === today; }
+    if (preset === "7d") { const f = new Date(now); f.setDate(f.getDate()-6); return dateFrom === toISO(f) && dateTo === today; }
+    if (preset === "month") { const f = new Date(now.getFullYear(), now.getMonth(), 1); return dateFrom === toISO(f) && dateTo === today; }
+    if (preset === "all") return !dateFrom && !dateTo;
+    return false;
+  };
+
+  const presets = [
+    { key: "today", label: "Hôm nay" },
+    { key: "3d",    label: "3 ngày" },
+    { key: "7d",    label: "7 ngày" },
+    { key: "month", label: "Tháng này" },
+    { key: "all",   label: "Tất cả" },
+  ];
 
   return (
     <div className="filter-bar">
@@ -163,6 +205,60 @@ export default function FilterBar({
         locked={isClientLocked}
         placeholder="Tất cả dự án"
       />
+
+      {/* Date range picker */}
+      {onDateChange && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          {/* Quick presets */}
+          <div style={{
+            display: "flex", background: "var(--panel-glow)",
+            border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", flexShrink: 0,
+          }}>
+            {presets.map((p) => (
+              <button
+                key={p.key}
+                onClick={() => setPreset(p.key)}
+                style={{
+                  padding: "6px 10px", fontSize: 11.5, border: "none", cursor: "pointer",
+                  fontFamily: "inherit", fontWeight: isPresetActive(p.key) ? 700 : 400,
+                  background: isPresetActive(p.key) ? "rgba(var(--brand-rgb),0.2)" : "transparent",
+                  color: isPresetActive(p.key) ? "var(--cyan)" : "var(--text-muted)",
+                  transition: "all 0.15s",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Custom date inputs */}
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <input
+              type="date"
+              value={dateFrom || ""}
+              onChange={(e) => onDateChange(e.target.value, dateTo || "")}
+              style={{
+                background: "var(--panel-glow)", border: "1px solid var(--border)",
+                color: "var(--text-primary)", borderRadius: 7, padding: "5px 8px",
+                fontSize: 12, outline: "none", cursor: "pointer",
+              }}
+            />
+            <span style={{ color: "var(--text-muted)", fontSize: 11 }}>→</span>
+            <input
+              type="date"
+              value={dateTo || ""}
+              onChange={(e) => onDateChange(dateFrom || "", e.target.value)}
+              style={{
+                background: "var(--panel-glow)", border: "1px solid var(--border)",
+                color: "var(--text-primary)", borderRadius: 7, padding: "5px 8px",
+                fontSize: 12, outline: "none", cursor: "pointer",
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {isClientLocked && (
         <span style={{ fontSize: 12, color: "var(--text-muted)", alignSelf: "center" }}>
           🔒 Giới hạn: {userProject}

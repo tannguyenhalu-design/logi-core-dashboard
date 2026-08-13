@@ -31,6 +31,8 @@ export default function DashboardPage({ user: initialUser }) {
   const [selectedProjects, setSelectedProjects] = useState([]);
   const [filterMode, setFilterMode] = useState("pickup");
   const [periodWeeks, setPeriodWeeks] = useState("mtd");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   // "Điểm Lấy Hàng" (pickup point) filter — only meaningful alongside a
   // single selected project, cleared whenever the project selection changes
   // so a stale origin from a previous client doesn't silently carry over.
@@ -79,6 +81,8 @@ export default function DashboardPage({ user: initialUser }) {
       if (effectiveViewAs.value) params.append("viewAsValue", effectiveViewAs.value);
       params.append("periodWeeks", pWeeks || periodWeeks);
       if (selectedOrigin) params.append("origin", selectedOrigin);
+      if (dateFrom) params.append("dateFrom", dateFrom);
+      if (dateTo)   params.append("dateTo", dateTo);
       params.append("t", Date.now());
 
       const res = await fetch(`/api/data?${params.toString()}`);
@@ -103,7 +107,7 @@ export default function DashboardPage({ user: initialUser }) {
     if (!canSeeLTL) return;
     fetchDashboardData(selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks, selectedOrigin, canSeeLTL]);
+  }, [selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks, selectedOrigin, dateFrom, dateTo, canSeeLTL]);
 
   // Tách Chuyến: fetch lazily the first time the user opens that tab
   useEffect(() => {
@@ -415,6 +419,9 @@ export default function DashboardPage({ user: initialUser }) {
                 userProject={dashData?.user?.project}
                 filterMode={filterMode}
                 onFilterModeChange={setFilterMode}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                onDateChange={(from, to) => { setDateFrom(from); setDateTo(to); }}
               />
             ) : (
               <div style={{ flex: 1 }} />
