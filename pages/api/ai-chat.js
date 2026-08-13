@@ -175,16 +175,13 @@ export default async function handler(req, res) {
       khuVucHCM: {
         tongSoDonThang: hcmOrders.length,
         trungBinhDonMotNgay: hcmDailyAvg,
-        tongTrongLuong: (hcmOrders.reduce((s, r) => s + (parseFloat(r.weight) || 0), 0) / 1000).toFixed(1) + " tấn",
-        chiTietTungNgayHCM: hcmOrdersByDate
+        tongTrongLuong: (hcmOrders.reduce((s, r) => s + (parseFloat(r.weight) || 0), 0) / 1000).toFixed(1) + " tấn"
       },
       khuVucHaNoi: {
         tongSoDonThang: hanoiOrders.length,
         trungBinhDonMotNgay: hanoiDailyAvg,
-        tongTrongLuong: (hanoiOrders.reduce((s, r) => s + (parseFloat(r.weight) || 0), 0) / 1000).toFixed(1) + " tấn",
-        chiTietTungNgayHN: hanoiOrdersByDate
+        tongTrongLuong: (hanoiOrders.reduce((s, r) => s + (parseFloat(r.weight) || 0), 0) / 1000).toFixed(1) + " tấn"
       },
-      chiTietNgayToanHeThong: ordersByDate,
       thongKeTungKhachHang: Object.entries(clientStats).map(([name, s]) => ({
         name,
         orders: s.orders,
