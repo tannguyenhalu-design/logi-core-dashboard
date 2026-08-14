@@ -83,7 +83,11 @@ export default function DashboardPage({ user: initialUser }) {
       if (selectedOrigin) params.append("origin", selectedOrigin);
       if (dFrom) params.append("dateFrom", dFrom);
       if (dTo)   params.append("dateTo", dTo);
-      params.append("t", Date.now());
+      // Only append timestamp if force=true to allow CDN caching for normal loads
+      if (viewAsOverride?.force === true) {
+        params.append("t", Date.now());
+        params.append("force", "true");
+      }
 
       const res = await fetch(`/api/data?${params.toString()}`);
       if (!res.ok) throw new Error(`API error ${res.status}`);
@@ -437,7 +441,7 @@ export default function DashboardPage({ user: initialUser }) {
                     setLoading(true);
                     try {
                       await fetch(`/api/data?force=true&t=${Date.now()}`);
-                      await fetchDashboardData(selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks);
+                      await fetchDashboardData(selectedMonths, selectedProjects, filterMode, { ...viewAs, force: true }, periodWeeks);
                       alert("Đồng bộ thành công!");
                     } finally {
                       setLoading(false);

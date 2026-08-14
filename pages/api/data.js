@@ -19,6 +19,9 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  // Set Vercel Edge Cache (3 minutes caching, serve stale while revalidating for fast loads)
+  res.setHeader("Cache-Control", "s-maxage=180, stale-while-revalidate=59");
+
   // ── Auth check ──
   const session = await getSession(req, res);
   if (!session?.user) {
