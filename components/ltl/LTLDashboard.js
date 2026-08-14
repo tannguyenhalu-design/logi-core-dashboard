@@ -210,6 +210,7 @@ export default function LTLDashboard({ data, rawData, aiInsights, selectedProjec
             routes={aiInsights.breakageRoutes}
             avgDmgRate={aiInsights.avgDmgRate}
             totalOrders={aiInsights.totalOrders}
+            damageCauses={aiInsights.damageCauses}
           />
         </div>
       )}

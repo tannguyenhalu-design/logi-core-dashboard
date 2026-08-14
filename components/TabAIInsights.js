@@ -103,7 +103,7 @@ function BreakageSection({ routes, avgDmgRate }) {
 
 // Used directly inside LTLDashboard.js — "Tầng 1" (per-route breakage rate)
 // plus an AI narrative call, same on-demand pattern as PeriodComparisonSection's.
-export function BreakageAlertSection({ routes = [], avgDmgRate = 0, totalOrders = 0 }) {
+export function BreakageAlertSection({ routes = [], avgDmgRate = 0, totalOrders = 0, damageCauses = null }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <AINarrativePanel
@@ -113,8 +113,36 @@ export function BreakageAlertSection({ routes = [], avgDmgRate = 0, totalOrders 
           breakageRoutes: routes.map((r) => ({
             route: r.route, damaged: r.damaged, total: r.total, rate: r.rate, vsAvg: r.vsAvg,
           })),
+          ...(damageCauses && damageCauses.totalCases > 0 ? {
+            damageRootCauses: {
+              totalCases: damageCauses.totalCases,
+              byLeg: damageCauses.byLeg,
+              byClient: damageCauses.byClient,
+            },
+          } : {}),
         }}
       />
+      {damageCauses && damageCauses.totalCases > 0 && (
+        <div style={{
+          background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)",
+          borderRadius: 10, padding: "12px 14px",
+        }}>
+          <div style={{ fontWeight: 700, fontSize: 12.5, color: "#EAF0F8", marginBottom: 10 }}>
+            🔍 Nguyên nhân bể vỡ theo chặng (Rillnet, {damageCauses.totalCases} ca)
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {damageCauses.byLeg.map((l) => (
+              <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 200, fontSize: 12, color: "var(--text-secondary)", flexShrink: 0 }}>{l.label}</div>
+                <div style={{ flex: 1, height: 8, background: "rgba(255,255,255,0.06)", borderRadius: 4, overflow: "hidden" }}>
+                  <div style={{ width: `${l.pct}%`, height: "100%", background: "var(--red)", borderRadius: 4 }} />
+                </div>
+                <div style={{ width: 70, fontSize: 12, fontWeight: 600, color: "#EAF0F8", textAlign: "right" }}>{l.count} ({l.pct}%)</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <BreakageSection routes={routes} avgDmgRate={avgDmgRate} />
     </div>
   );

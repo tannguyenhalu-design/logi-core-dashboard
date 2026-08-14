@@ -12,7 +12,7 @@ import { isDMClient, isLTLRow, isFromJuly2026, FTL_ONLY_CLIENTS } from "../../li
 import { transformLTL, parseDate } from "../../lib/transform-ltl";
 import { transformFTL } from "../../lib/transform-ftl";
 import { transformTachTrip } from "../../lib/transform-tach-trip";
-import { transformAIInsights } from "../../lib/transform-ai-insights";
+import { transformAIInsights, computeDamageCauseBreakdown } from "../../lib/transform-ai-insights";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
@@ -95,12 +95,13 @@ export default async function handler(req, res) {
   try {
     const ltlSheetId = process.env.SHEET_ID_LTL;
     // ── Fetch raw data from Google Sheets ──
-    const [rawLTL, rawFTL, masterVehicle, rawDamage, rawMapping] = await Promise.all([
+    const [rawLTL, rawFTL, masterVehicle, rawDamage, rawMapping, rawDamageCauses] = await Promise.all([
       fetchSheet("raw_ontime", ltlSheetId).catch(() => []),
       fetchSheet("Raw_FTL").catch(() => []),
       fetchSheet("Master data xe").catch(() => []),
       fetchSheet("raw_damage", ltlSheetId).catch(() => []),
-      fetchSheet("mapping", ltlSheetId).catch(() => [])
+      fetchSheet("mapping", ltlSheetId).catch(() => []),
+      fetchSheet("raw_damage_causes").catch(() => []),
     ]);
 
     if (!rawLTL || rawLTL.length === 0) {
@@ -171,6 +172,7 @@ export default async function handler(req, res) {
     let aiInsights = getCached(aiInsightsKey);
     if (!aiInsights) {
       aiInsights = transformAIInsights(filteredLTL, filteredDamage, periodWeeks);
+      aiInsights.damageCauses = computeDamageCauseBreakdown(rawDamageCauses);
       setCached(aiInsightsKey, aiInsights);
     }
 
