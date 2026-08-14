@@ -233,26 +233,32 @@ export default function FilterBar({
           </div>
 
           {/* Custom date inputs */}
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--panel-glow)", padding: "2px", borderRadius: 8, border: "1px solid var(--border)" }}>
             <input
               type="date"
               value={dateFrom || ""}
               onChange={(e) => onDateChange(e.target.value, dateTo || "")}
               style={{
-                background: "var(--panel-glow)", border: "1px solid var(--border)",
-                color: "var(--text-primary)", borderRadius: 7, padding: "5px 8px",
+                background: dateFrom ? "rgba(var(--brand-rgb),0.1)" : "transparent",
+                border: "none",
+                color: dateFrom ? "var(--cyan)" : "var(--text-secondary)",
+                borderRadius: 6, padding: "4px 8px",
                 fontSize: 12, outline: "none", cursor: "pointer",
+                fontFamily: "inherit"
               }}
             />
-            <span style={{ color: "var(--text-muted)", fontSize: 11 }}>→</span>
+            <span style={{ color: "var(--border)", fontSize: 11, fontWeight: 700 }}>→</span>
             <input
               type="date"
               value={dateTo || ""}
               onChange={(e) => onDateChange(dateFrom || "", e.target.value)}
               style={{
-                background: "var(--panel-glow)", border: "1px solid var(--border)",
-                color: "var(--text-primary)", borderRadius: 7, padding: "5px 8px",
+                background: dateTo ? "rgba(var(--brand-rgb),0.1)" : "transparent",
+                border: "none",
+                color: dateTo ? "var(--cyan)" : "var(--text-secondary)",
+                borderRadius: 6, padding: "4px 8px",
                 fontSize: 12, outline: "none", cursor: "pointer",
+                fontFamily: "inherit"
               }}
             />
           </div>

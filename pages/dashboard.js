@@ -434,8 +434,14 @@ export default function DashboardPage({ user: initialUser }) {
               <button
                 onClick={async () => {
                   if (confirm("Đồng bộ dữ liệu trực tiếp từ Google Sheet? (Quá trình này có thể mất 15-20s do tải >50.000 dòng từ Sheet).")) {
-                    await fetchDashboardData(selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks);
-                    alert("Đồng bộ thành công!");
+                    setLoading(true);
+                    try {
+                      await fetch(`/api/data?force=true&t=${Date.now()}`);
+                      await fetchDashboardData(selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks);
+                      alert("Đồng bộ thành công!");
+                    } finally {
+                      setLoading(false);
+                    }
                   }
                 }}
                 disabled={loading}

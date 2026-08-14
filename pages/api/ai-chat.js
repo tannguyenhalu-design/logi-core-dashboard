@@ -260,9 +260,9 @@ Trả về CHỈ JSON theo format: {"intent": "TÊN_INTENT", "extractedName": "T
         expertContext = "Lỗi: Hệ thống không thể tạo task lúc này.";
       }
     } else if (intentInfo.intent === "PREDICTION") {
-      const predictions = predictRevenueTarget(projectsList, { clientOrProject: message });
+      const predictions = predictRevenueTarget(projectsList, { clientOrProject: intentInfo.extractedName });
       if (predictions.length > 0) {
-        expertContext = "Kết quả dự báo Run-rate (tiến độ cuối tháng): \n" + predictions.map(p => `- ${p.projectName}: Hiện đạt ${p.doanhThuThucTeHienTai}đ. Dự báo cuối tháng đạt ${p.duBaoCuoiThang} (Tiến độ hoàn thành KPI: ${p.kpiCompletionPct}).`).join("\n");
+        expertContext = "Kết quả dự báo Run-rate (tiến độ cuối tháng): \n" + predictions.map(p => `- ${p.projectName}: Hiện đạt ${p.doanhThuThucTeHienTai}đ. Dự báo cuối tháng đạt ${p.duBaoCuoiThang} (Tiến độ hoàn thành KPI: ${p.kpiDisplay}).`).join("\n");
       } else {
         expertContext = "Hệ thống Prediction Model không tìm thấy đủ dữ liệu để dự báo cho yêu cầu này.";
       }

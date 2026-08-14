@@ -7,7 +7,7 @@
  * transforms data, and returns the aggregated JSON.
  */
 import { getSession } from "../../lib/auth";
-import { fetchSheet, getCached, setCached } from "../../lib/sheets";
+import { fetchSheet, getCached, setCached, clearAllCache } from "../../lib/sheets";
 import { isDMClient, isLTLRow, isFromJuly2026, FTL_ONLY_CLIENTS } from "../../lib/dm-clients";
 import { transformLTL, parseDate } from "../../lib/transform-ltl";
 import { transformFTL } from "../../lib/transform-ftl";
@@ -81,8 +81,12 @@ export default async function handler(req, res) {
   const fullKey = `data:full:${scopeKey}:${filterMode}:${periodWeeks}:${origin || ""}:${(months || []).join(",")}:${(projects || []).join(",")}:${dateFrom || ""}:${dateTo || ""}`;
 
   const cachedFull = getCached(fullKey);
-  if (cachedFull) {
+  if (cachedFull && req.query.force !== "true") {
     return res.status(200).json(cachedFull);
+  }
+
+  if (req.query.force === "true") {
+    clearAllCache();
   }
 
   try {

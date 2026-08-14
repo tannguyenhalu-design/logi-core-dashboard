@@ -15,8 +15,11 @@ timeout /t 5 /nobreak >nul
 :: Thiết lập encoding utf-8 để không bị lỗi in emoji
 set PYTHONIOENCODING=utf-8
 
-:: 3. Chạy script lấy dữ liệu
+:: 3. Chạy script lấy dữ liệu KPI
 python scripts\kpi_scraper.py
 
-:: 4. Đóng Chrome bot (chỉ đóng bot, không ảnh hưởng Chrome chính của user)
+:: 4. Chạy script lấy dữ liệu LTL từ Google Sheet nội bộ
+python scripts\sheet_scraper.py
+
+:: 5. Đóng Chrome bot (chỉ đóng bot, không ảnh hưởng Chrome chính của user)
 powershell -command "Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq 'chrome.exe' -and $_.CommandLine -match 'chrome-bot-profile' } | Invoke-CimMethod -MethodName Terminate -ErrorAction SilentlyContinue"
