@@ -318,7 +318,7 @@ export default function ProvinceMapPanel({
                   </div>
                 </div>
                 <div style={{ background: "var(--panel-bg)", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }}>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Số Ca Bể Vỡ / Hư Hỏng</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Số Ca Bể Vỡ / Hư Hỏng (Rillnet)</div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: (singleProjectMode ? projectOverview?.damageCount : overallData?.damageCount) > 0 ? "var(--amber)" : "var(--text-secondary)" }}>
                     {(singleProjectMode ? projectOverview?.damageCount : overallData?.damageCount) || 0} ca {(singleProjectMode ? projectOverview?.damageCount : overallData?.damageCount) > 0 && "💥"}
                   </div>

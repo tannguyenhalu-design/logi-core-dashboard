@@ -166,14 +166,14 @@ export default function FilterBar({
         border: "1px solid var(--border)", overflow: "hidden", flexShrink: 0,
       }}>
         {[
-          { value: "pickup",    label: "Ngày lấy hàng" },
+          { value: "pickup",    label: "Ngày lấy" },
           { value: "delivered", label: "Ngày giao" },
         ].map((opt) => (
           <button
             key={opt.value}
             onClick={() => onFilterModeChange(opt.value)}
             style={{
-              padding: "6px 12px", fontSize: 12, border: "none", cursor: "pointer",
+              padding: "6px 10px", fontSize: 12, border: "none", cursor: "pointer",
               fontFamily: "inherit", fontWeight: filterMode === opt.value ? 600 : 400,
               background: filterMode === opt.value
                 ? (opt.value === "delivered" ? "rgba(16,185,129,0.2)" : "rgba(var(--brand-rgb),0.2)")
@@ -208,7 +208,7 @@ export default function FilterBar({
 
       {/* Date range picker */}
       {onDateChange && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
           {/* Quick presets */}
           <div style={{
             display: "flex", background: "var(--panel-glow)",
@@ -219,7 +219,7 @@ export default function FilterBar({
                 key={p.key}
                 onClick={() => setPreset(p.key)}
                 style={{
-                  padding: "6px 10px", fontSize: 11.5, border: "none", cursor: "pointer",
+                  padding: "6px 8px", fontSize: 11, border: "none", cursor: "pointer",
                   fontFamily: "inherit", fontWeight: isPresetActive(p.key) ? 700 : 400,
                   background: isPresetActive(p.key) ? "rgba(var(--brand-rgb),0.2)" : "transparent",
                   color: isPresetActive(p.key) ? "var(--cyan)" : "var(--text-muted)",
@@ -233,7 +233,7 @@ export default function FilterBar({
           </div>
 
           {/* Custom date inputs */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--panel-glow)", padding: "2px", borderRadius: 8, border: "1px solid var(--border)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--panel-glow)", padding: "2px", borderRadius: 8, border: "1px solid var(--border)" }}>
             <input
               type="date"
               value={dateFrom || ""}
@@ -242,9 +242,9 @@ export default function FilterBar({
                 background: dateFrom ? "rgba(var(--brand-rgb),0.1)" : "transparent",
                 border: "none",
                 color: dateFrom ? "var(--cyan)" : "var(--text-secondary)",
-                borderRadius: 6, padding: "4px 8px",
-                fontSize: 12, outline: "none", cursor: "pointer",
-                fontFamily: "inherit"
+                borderRadius: 6, padding: "4px 4px",
+                fontSize: 11.5, outline: "none", cursor: "pointer",
+                fontFamily: "inherit", width: 118,
               }}
             />
             <span style={{ color: "var(--border)", fontSize: 11, fontWeight: 700 }}>→</span>
@@ -256,9 +256,9 @@ export default function FilterBar({
                 background: dateTo ? "rgba(var(--brand-rgb),0.1)" : "transparent",
                 border: "none",
                 color: dateTo ? "var(--cyan)" : "var(--text-secondary)",
-                borderRadius: 6, padding: "4px 8px",
-                fontSize: 12, outline: "none", cursor: "pointer",
-                fontFamily: "inherit"
+                borderRadius: 6, padding: "4px 4px",
+                fontSize: 11.5, outline: "none", cursor: "pointer",
+                fontFamily: "inherit", width: 118,
               }}
             />
           </div>

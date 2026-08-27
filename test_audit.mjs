@@ -1,0 +1,1 @@
+import dotenv from 'dotenv'; dotenv.config({ path: '.env.local' }); import { getAuditLog } from './lib/audit-log.js'; console.log('Fetching...'); getAuditLog(10).then(console.log).catch(console.error);

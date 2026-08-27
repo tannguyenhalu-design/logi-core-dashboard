@@ -9,6 +9,7 @@ import { unsealData } from "iron-session";
 import { sessionOptions, getSession } from "../../../lib/auth";
 import { exchangeCodeForTokens, verifyIdToken, fetchUserInfo } from "../../../lib/sso";
 import { resolveSSOUser } from "../../../lib/users";
+import { logAction } from "../../../lib/audit-log";
 
 function clearFlowCookie(res) {
   res.setHeader("Set-Cookie", "sso_flow=; Path=/; HttpOnly; Max-Age=0");
@@ -68,6 +69,13 @@ export default async function handler(req, res) {
       idToken: tokens.id_token, // kept only for RP-initiated logout
     };
     await session.save();
+
+    logAction({
+      actor: name,
+      action: "user.login",
+      target: email || employeeId,
+      details: { role: user.role, pic: user.pic || null },
+    }).catch(() => {});
 
     return res.redirect(302, "/dashboard");
   } catch (err) {

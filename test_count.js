@@ -1,0 +1,1 @@
+const fs = require('fs'); const { fetchSheet } = require('./lib/sheets'); require('dotenv').config({path:'.env.local'}); async function test() { const raw = await fetchSheet('raw_damage'); console.log('Raw damage total:', raw.length); } test();

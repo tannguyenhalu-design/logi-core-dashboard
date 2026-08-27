@@ -43,7 +43,7 @@ function AlertBanner({ alerts, recommendations, onAction }) {
           background: "none",
           border: "none",
           cursor: "pointer",
-          color: "#EAF0F8",
+          color: "var(--text-primary)",
         }}
       >
         <span style={{ fontSize: 12, fontWeight: 700 }}>
@@ -63,7 +63,7 @@ function AlertBanner({ alerts, recommendations, onAction }) {
           {alerts.slice(0, 5).map((a, i) => (
             <div
               key={i}
-              style={{ fontSize: 11.5, color: "#EAF0F8" }}
+              style={{ fontSize: 11.5, color: "var(--text-primary)" }}
               dangerouslySetInnerHTML={{ __html: renderMarkdown(a.msg) }}
             />
           ))}
@@ -75,7 +75,7 @@ function AlertBanner({ alerts, recommendations, onAction }) {
               {recommendations.slice(0, 3).map((r, i) => (
                 <div key={i} style={{ marginBottom: 6 }}>
                   <div
-                    style={{ fontSize: 11, color: "#EAF0F8" }}
+                    style={{ fontSize: 11, color: "var(--text-primary)" }}
                     dangerouslySetInnerHTML={{ __html: renderMarkdown(r.action) }}
                   />
                   <button
@@ -135,7 +135,7 @@ function ComparisonPanel({ comparisons, meta }) {
           borderBottom: "1px solid rgba(255,255,255,0.05)",
           fontSize: 11,
         }}>
-          <div style={{ flex: 1, color: "#EAF0F8", fontWeight: 600, fontSize: 11 }}>
+          <div style={{ flex: 1, color: "var(--text-primary)", fontWeight: 600, fontSize: 11 }}>
             {c.trendEmoji} {c.name.length > 20 ? c.name.slice(0, 20) + "…" : c.name}
           </div>
           <div style={{ textAlign: "right", color: "rgba(255,255,255,0.6)", minWidth: 90 }}>
@@ -347,7 +347,7 @@ export default function AIChatDrawer() {
                 🙇‍♂️
               </div>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 14, color: "#EAF0F8" }}>Tiểu Đệ SD3</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-primary)" }}>Tiểu Đệ SD3</div>
                 <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
                   {alertData?.meta
                     ? `${alertData.meta.criticalCount} nguy hiểm · ${alertData.meta.warningCount} cảnh báo · ${alertData.meta.goodCount} tốt`
@@ -400,7 +400,7 @@ export default function AIChatDrawer() {
                           ? "linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)"
                           : "rgba(255, 255, 255, 0.05)",
                       border: m.sender === "user" ? "none" : "1px solid rgba(255, 255, 255, 0.1)",
-                      color: "#EAF0F8",
+                      color: "var(--text-primary)",
                       padding: "10px 14px",
                       borderRadius: m.sender === "user" ? "14px 14px 2px 14px" : "14px 14px 14px 2px",
                       fontSize: 12.5,

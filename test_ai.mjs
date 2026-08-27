@@ -1,0 +1,1 @@
+import fs from 'fs'; import { getGeminiClient, generateWithFallback } from './lib/ai-providers.js'; require('dotenv').config({path:'.env.local'}); async function test() { try { const res = await generateWithFallback({ systemPrompt: 'Test', userPrompt: 'Hello' }); console.log(res); } catch (e) { console.error(e); } } test();

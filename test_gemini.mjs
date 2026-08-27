@@ -1,0 +1,1 @@
+import dotenv from 'dotenv'; dotenv.config({path:'.env.local'}); import { generateWithFallback } from './lib/ai-providers.js'; generateWithFallback({systemPrompt:'Hi', userPrompt:'Hi'}).then(console.log).catch(console.error);

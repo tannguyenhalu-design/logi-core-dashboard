@@ -11,7 +11,7 @@ function fmt(n, d = 0) {
 
 export default function TabOverview({ overview, ltlFiltered }) {
   if (!overview) return <TruckLoader />;
-  const { ltl, ftl } = overview;
+  const { ltl } = overview;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -51,35 +51,9 @@ export default function TabOverview({ overview, ltlFiltered }) {
         </div>
       </div>
 
-      <div>
-        <p style={{ color: "var(--text-muted)", fontSize: 12, marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-          FTL — Giao Hàng Nguyên Chuyến (Toàn kỳ)
-        </p>
-        <div className="grid-4">
-          <KpiCard
-            icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/></svg>}
-            label="Tổng Chuyến FTL"
-            value={fmt(ftl?.totalTrips)}
-            colorClass="text-purple"
-          />
-          <KpiCard
-            icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/></svg>}
-            label="Tổng Đơn FTL"
-            value={fmt(ftl?.totalOrders)}
-            colorClass="text-cyan"
-          />
-          <KpiCard
-            icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/></svg>}
-            label="Khối Lượng FTL"
-            value={fmt(ftl?.totalWeight) + " KG"}
-            colorClass="text-green"
-          />
-        </div>
-      </div>
-
       <div className="chart-panel" style={{ padding: 20 }}>
         <p style={{ color: "var(--text-muted)", fontSize: 12 }}>
-          💡 <strong style={{ color: "var(--text-secondary)" }}>Ghi chú:</strong> Tab Tổng quan luôn hiển thị toàn bộ dữ liệu, không phụ thuộc vào filter tháng/dự án đang chọn. Dùng các tab LTL / FTL để xem theo bộ lọc chi tiết.
+          💡 <strong style={{ color: "var(--text-secondary)" }}>Ghi chú:</strong> Tab Tổng quan luôn hiển thị toàn bộ dữ liệu, không phụ thuộc vào filter tháng/dự án đang chọn. Dùng tab LTL để xem theo bộ lọc chi tiết.
         </p>
       </div>
     </div>

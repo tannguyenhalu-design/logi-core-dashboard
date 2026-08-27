@@ -48,6 +48,20 @@ export default function OperationsDashboard({ rawData, userRole }) {
 
   useEffect(() => { fetchTasks(); }, []);
 
+  // Tasks were previously fetched once on mount only, so a manager who
+  // opened the tab before a PIC marked their task done never saw the
+  // update without a manual page reload. Poll + refetch on tab focus so
+  // status changes made by someone else show up without a reload.
+  useEffect(() => {
+    const interval = setInterval(fetchTasks, 45000);
+    const onFocus = () => fetchTasks();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, []);
+
   const fetchProjects = async () => {
     setLoading(true);
     try {
@@ -218,8 +232,14 @@ export default function OperationsDashboard({ rawData, userRole }) {
         { label: "Trạng thái", value: "status" },
         { label: "Công việc", value: "job" },
         { label: "Dự kiến OB", value: "expectedOb" },
-        { label: "Doanh thu dự kiến", value: "revenue" },
-        { label: "Last Mo. NSR", value: "lastMoNsr" },
+        // Revenue columns must respect the same canSeeRevenue gate as the
+        // on-screen table/cards — the button that triggers this export has
+        // no role check of its own, so without this the CSV would leak
+        // revenue to anyone who can reach "Vận hành SD3" at all.
+        ...(canSeeRevenue ? [
+          { label: "Doanh thu dự kiến", value: "revenue" },
+          { label: "Last Mo. NSR", value: "lastMoNsr" },
+        ] : []),
         { label: "Dự kiến Volume", value: "volume" },
         { label: "RECAP status", value: "recapStatus" },
         { label: "SOP status", value: "sopStatus" },

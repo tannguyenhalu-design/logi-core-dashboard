@@ -1,7 +1,7 @@
 import { getSession } from "../../lib/auth";
 import { fetchSheet } from "../../lib/sheets";
 import { isDMClient, isLTLRow, isFromJuly2026 } from "../../lib/dm-clients";
-import { parseDate } from "../../lib/transform-ltl";
+import { parseDate, computePeriodComparison, transformLTL } from "../../lib/transform-ltl";
 import {
   removeAccents,
   queryOrders,
@@ -13,6 +13,16 @@ import {
 import { loadBrainContext, extractInsightsFromChat, saveBrainInsights } from "../../lib/ai-brain";
 import { generateWithFallback, generateFast } from "../../lib/ai-providers";
 import { getAllClaims } from "../../lib/damage-claims";
+import { computeDamageCauseBreakdown } from "../../lib/transform-ai-insights";
+import { getAuditLog } from "../../lib/audit-log";
+
+// Router Agent + Synthesizer Agent are 2 sequential LLM calls, each with a
+// provider-fallback chain — observed 10-15s+ end to end in production,
+// close to/over Vercel's default serverless timeout, which was silently
+// killing requests mid-flight (user sees no reply at all). Raise the cap
+// so a slow-but-successful response isn't cut off; if the account's plan
+// caps lower than this, Vercel clamps it rather than failing the deploy.
+export const config = { maxDuration: 60 };
 
 const SYSTEM_PROMPT = `Bạn tên là "Tiểu Đệ SD3" (AI Agent trợ lý vận hành B2B Điện Máy GHN).
 Bạn tôn kính gọi người dùng (user) là "Đại Ca" và xưng là "Tiểu Đệ".
@@ -39,12 +49,18 @@ XỬ LÝ HÓC BÚA:
 QUY TẮC:
 1. Xưng "Tiểu Đệ" - "Đại Ca".
 2. Số liệu 100% thực tế từ dữ liệu hệ thống.
-3. Ngắn gọn, có bullet, kết thúc bằng action.`;
+3. Ngắn gọn, có bullet, kết thúc bằng action.
+4. TUYỆT ĐỐI KHÔNG được tự cộng/trừ/suy luận ra một con số theo tháng/khoảng thời gian từ các tổng số khác nhau trong dữ liệu (vd lấy tổng 2 tháng trừ đi tổng 1 tháng để suy ra tháng còn lại) — nếu Đại Ca hỏi về số đơn trong 1 khoảng thời gian cụ thể (vd "từ đầu tháng", "tháng này"), PHẢI dùng ĐÚNG trường "soDonThangNayVsThangTruoc" đã được backend tính sẵn. Nếu hỏi về tuần nào tăng/giảm trong tháng và do khách hàng nào, PHẢI dùng ĐÚNG trường "soSanhTuanTrongThangHienTai". Nếu không có sẵn trường phù hợp, PHẢI nói rõ là chưa có số liệu chính xác cho khoảng đó thay vì tự đoán.`;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
   const session = await getSession(req, res);
   if (!session?.user) return res.status(401).json({ error: "Unauthorized" });
+  // UI hides the chat button for cs (dashboard.js), but that's not
+  // enforcement — block it here too so a direct API call can't bypass it.
+  if (session.user.role === "cs") {
+    return res.status(403).json({ error: "Vai trò CS không có quyền dùng Tiểu Đệ" });
+  }
 
   const { message, history = [] } = req.body || {};
   if (!message || !message.trim()) {
@@ -105,6 +121,8 @@ export default async function handler(req, res) {
     const ordersByDate = {};
     const hcmOrdersByDate = {};
     const hanoiOrdersByDate = {};
+    let earliestPickup = null;
+    let latestPickup = null;
 
     filteredLTL.forEach((r) => {
       const w = parseFloat(r["weight"]) || 0;
@@ -126,6 +144,10 @@ export default async function handler(req, res) {
 
       if (dateKey) {
         ordersByDate[dateKey] = (ordersByDate[dateKey] || 0) + 1;
+      }
+      if (d) {
+        if (!earliestPickup || d < earliestPickup) earliestPickup = d;
+        if (!latestPickup || d > latestPickup) latestPickup = d;
       }
 
       if (client) {
@@ -164,7 +186,14 @@ export default async function handler(req, res) {
     const hcmDailyAvg = Math.round(hcmOrders.length / 30);
     const hanoiDailyAvg = Math.round(hanoiOrders.length / 30);
 
+    const fmtDate = (d) => d ? `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}` : null;
+
     const statsContext = {
+      phamViDuLieuDon: {
+        tuNgay: fmtDate(earliestPickup),
+        denNgay: fmtDate(latestPickup),
+        ghiChu: "Dữ liệu đơn hàng (raw_ontime) chỉ được lọc lấy từ tháng 7/2026 trở đi (isFromJuly2026) vì dữ liệu các tháng trước đó (3-6/2026) không đầy đủ do lỗi đồng bộ cũ đã fix ngày 16/08/2026 — trước đó pipeline xóa sạch rồi ghi đè lại raw_ontime mỗi lần chạy nên các đơn cũ rớt khỏi cửa sổ dữ liệu nguồn của GHN bị mất vĩnh viễn. Từ 16/08/2026 trở đi dữ liệu được merge/giữ lại, không còn mất nữa.",
+      },
       tongSoDuAnSystem: projectsList.length,
       danhSachDuAn: projectsList,
       phanPhanCongPIC: picSummary,
@@ -194,8 +223,66 @@ export default async function handler(req, res) {
         .map(([name, s]) => ({ name, orders: s.orders, weightTon: (s.weight / 1000).toFixed(1) }))
     };
 
+    // Đúng logic "so sánh cùng kỳ" mà Dashboard chính dùng (transformLTL /
+    // computePeriodComparison) — cho AI 1 con số CHÍNH XÁC theo tháng thay
+    // vì để nó tự suy luận/cộng trừ giữa các tổng khác nhau, vốn hay bị sai
+    // (từng ghi nhận: AI tự đoán "tháng 7 ~9.162 đơn" rồi lấy tổng 2 tháng
+    // trừ ra tháng 8, ra số lệch ~475 đơn so với số thật trên Dashboard).
+    const mtdComparison = computePeriodComparison(filteredLTL, "mtd");
+    statsContext.soDonThangNayVsThangTruoc = {
+      ghiChu: "Số liệu CHÍNH XÁC do backend tính sẵn, cùng logic với Dashboard chính — dùng ĐÚNG các số này khi được hỏi về đơn hàng theo tháng/khoảng thời gian, KHÔNG tự cộng/trừ suy ra số khác.",
+      kyNay: mtdComparison.currentRangeLabel,
+      kyTruoc: mtdComparison.previousRangeLabel,
+      soDonKyNay: mtdComparison.overall.cur.orders,
+      soDonKyTruoc: mtdComparison.overall.prev.orders,
+      thayDoiPhanTramSoDon: mtdComparison.overall.ordersDeltaPct,
+      tyLeOntimeKyNay: mtdComparison.overall.cur.ontimePct,
+      tyLeOntimeKyTruoc: mtdComparison.overall.prev.ontimePct,
+    };
+
+    // "Tuần 2 giảm so với tuần 3 là do khách nào" — the AI previously had no
+    // week-level breakdown at all (only ordersByDate, never even exposed in
+    // statsContext), so any week-over-week question was pure guesswork.
+    // Reuse the same isWeekly transformLTL path the dashboard's own
+    // "So sánh theo tuần trong tháng" panel uses, scoped to the CURRENT
+    // calendar month (the most likely thing "tuần này/tuần trước" refers to).
+    const nowForWeek = new Date();
+    const weeklyThisMonth = transformLTL(filteredLTL, { months: [nowForWeek.getMonth() + 1], filterMode: "pickup" });
+    const weekKeys = Object.keys(weeklyThisMonth.ordersByMonth || {}).map(Number).sort((a, b) => a - b);
+    if (weekKeys.length >= 2) {
+      const wLast = weekKeys[weekKeys.length - 1];
+      const wPrev = weekKeys[weekKeys.length - 2];
+      const movers = Object.entries(weeklyThisMonth.ordersByProjectAndWeek || {})
+        .map(([name, byWeek]) => ({ name, delta: (byWeek[wLast] || 0) - (byWeek[wPrev] || 0), tuanTruoc: byWeek[wPrev] || 0, tuanSau: byWeek[wLast] || 0 }))
+        .filter((m) => m.delta !== 0)
+        .sort((a, b) => a.delta - b.delta);
+      statsContext.soSanhTuanTrongThangHienTai = {
+        ghiChu: "Số liệu CHÍNH XÁC đã tính sẵn cho tháng hiện tại — dùng đúng các số này khi được hỏi tuần nào tăng/giảm và do khách nào, KHÔNG tự suy luận.",
+        tuanGanNhat: wLast,
+        tuanTruocDo: wPrev,
+        khachHangGiamNhieuNhat: movers.filter((m) => m.delta < 0).slice(0, 5),
+        khachHangTangNhieuNhat: movers.filter((m) => m.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 5),
+      };
+    }
+
     // Load brain context (fire concurrently with data fetch already done above)
-    const brainContext = await loadBrainContext().catch(() => "");
+    const [brainContext, auditLog] = await Promise.all([
+      loadBrainContext().catch(() => ""),
+      getAuditLog(1000).catch(() => []),
+    ]);
+
+    // Last login time per person — getAuditLog() already returns newest-first,
+    // so the first "user.login" row seen per actor is their most recent login.
+    const lastLoginByActor = {};
+    for (const entry of auditLog) {
+      if (entry.action === "user.login" && entry.actor && !lastLoginByActor[entry.actor]) {
+        lastLoginByActor[entry.actor] = entry.timestamp;
+      }
+    }
+    statsContext.hoatDongDangNhapGanDay = {
+      ghiChu: "Chỉ ghi nhận đăng nhập qua GHN SSO từ 16/08/2026 trở đi (trước đó hệ thống không log sự kiện đăng nhập, nên không có dữ liệu cũ hơn).",
+      danhSach: Object.entries(lastLoginByActor).map(([actor, timestamp]) => ({ nguoiDung: actor, dangNhapGanNhat: timestamp })),
+    };
 
     // Format full conversation history & data into systemInstruction & prompt string
     let historyFormatted = "";
@@ -203,9 +290,6 @@ export default async function handler(req, res) {
       historyFormatted = "\n\nLỊCH SỬ HỘI THOẠI TRƯỚC ĐÓ GIỮA QUẢN LÝ VÀ AI:\n" +
         history.map(h => `${h.role === 'user' ? 'Quản lý' : 'AI Agent'}: ${h.text}`).join("\n");
     }
-
-    const systemWithBrain = SYSTEM_PROMPT + brainContext;
-    const fullPrompt = `CƠ SỞ DỮ LIỆU THỰC TẾ VẬN HÀNH VÀ DỰ ÁN:\n${JSON.stringify(statsContext, null, 2)}${historyFormatted}\n\nCÂU HỎI MỚI CỦA QUẢN LÝ (GỒM NGÔN NGỮ TỰ NHIÊN / VIẾT TẮT / LỖI CHÍNH TẢ / HỎI TIẾP): "${message}"\n\nHãy phân tích và trả lời trực tiếp câu hỏi mới nhất của Quản lý.`;
 
     // === MULTI-AGENT ARCHITECTURE START ===
 
@@ -241,23 +325,44 @@ Trả về CHỈ JSON theo format: {"intent": "TÊN_INTENT", "extractedName": "T
     // 2. Expert Agents (Xử lý chuyên môn dựa theo phân luồng)
     if (intentInfo.intent === "DAMAGE_QUERY") {
       try {
-        const claims = await getAllClaims();
-        expertContext = "DỮ LIỆU TỪ CHUYÊN GIA DAMAGE_QUERY (BỂ VỠ/HƯ HỎNG):\n" + JSON.stringify(claims, null, 2);
+        const [rawDamageCauses, claimsByOrderCode] = await Promise.all([
+          fetchSheet("raw_damage_causes").catch(() => []),
+          getAllClaims().catch(() => ({})),
+        ]);
+        // getAllClaims() returns an object keyed by orderCode, not an array.
+        const claims = Object.values(claimsByOrderCode || {});
+        const breakdown = computeDamageCauseBreakdown(rawDamageCauses);
+        expertContext =
+          "DỮ LIỆU TỪ CHUYÊN GIA DAMAGE_QUERY (BỂ VỠ/HƯ HỎNG — nguồn Rillnet, cập nhật hàng ngày qua CDP scraper):\n" +
+          `Tổng số ca bể vỡ/hư hỏng ghi nhận: ${breakdown.totalCases}\n` +
+          "Breakdown theo CHẶNG NGHI VẤN (nguyên nhân chính):\n" +
+          breakdown.byLeg.map((l) => `- ${l.label}: ${l.count} ca (${l.pct}%)`).join("\n") +
+          "\nBreakdown theo khách hàng:\n" +
+          breakdown.byClient.map((c) => `- ${c.label}: ${c.count} ca (${c.pct}%)`).join("\n") +
+          (claims.length > 0
+            ? "\n\nDữ liệu bồi thường (DamageClaims) liên quan:\n" + JSON.stringify(claims.slice(0, 10), null, 2)
+            : "");
       } catch (e) {
         expertContext = "Chuyên gia DAMAGE_QUERY báo cáo: Không thể lấy dữ liệu hư hỏng lúc này.";
       }
     } else if (intentInfo.intent === "TASK_CREATION") {
-      const assignee = intentInfo.extractedName || "Duy Tú";
       const titleMatch = message.replace(/tạo task|giao task|giao việc|nhắc nhở|lập task/gi, "").trim();
-      try {
-        await createTaskForStaff({
-          title: titleMatch || "Kiểm tra vận hành SD3",
-          picName: assignee,
-          notes: `Tạo tự động qua AI Agent từ chỉ đạo của ${session.user.name || 'Đại Ca'}`,
-        }, session.user.name || session.user.email);
-        expertContext = `Đã giao task/công việc thành công: tiêu đề "${titleMatch || 'Kiểm tra vận hành SD3'}" cho nhân sự tên "${assignee}". Đã ghi nhận vào Quản lý Task & Google Calendar.`;
-      } catch (e) {
-        expertContext = "Lỗi: Hệ thống không thể tạo task lúc này.";
+      if (!intentInfo.extractedName) {
+        // Don't silently guess who to assign — a wrong guess means the task
+        // never reaches the right person and nobody notices.
+        expertContext =
+          "Chưa xác định được nhân sự phụ trách task này. Hãy hỏi lại Đại Ca task này giao cho ai trong 4 người: Duy Tú, Kim Diện, Nguyễn Thành Đạt, Thúy Vi — KHÔNG được tự tạo task khi chưa rõ người phụ trách.";
+      } else {
+        try {
+          await createTaskForStaff({
+            title: titleMatch || "Kiểm tra vận hành SD3",
+            picName: intentInfo.extractedName,
+            notes: `Tạo tự động qua AI Agent từ chỉ đạo của ${session.user.name || 'Đại Ca'}`,
+          }, session.user.name || session.user.email);
+          expertContext = `Đã giao task/công việc thành công: tiêu đề "${titleMatch || 'Kiểm tra vận hành SD3'}" cho nhân sự tên "${intentInfo.extractedName}". Đã ghi nhận vào Quản lý Task & Google Calendar.`;
+        } catch (e) {
+          expertContext = `Lỗi: Hệ thống không thể tạo task lúc này — ${e.message}`;
+        }
       }
     } else if (intentInfo.intent === "PREDICTION") {
       const predictions = predictRevenueTarget(projectsList, { clientOrProject: intentInfo.extractedName });
@@ -276,7 +381,14 @@ Trả về CHỈ JSON theo format: {"intent": "TÊN_INTENT", "extractedName": "T
     let replyText = "";
     try {
       const systemWithBrain = SYSTEM_PROMPT + brainContext;
-      const synthesizerPrompt = `CƠ SỞ DỮ LIỆU DỰ ÁN & VẬN HÀNH (Tham khảo nếu cần):\n${JSON.stringify(statsContext, null, 2)}\n\nLỊCH SỬ HỘI THOẠI TRƯỚC ĐÓ:${historyFormatted}\n\nTHÔNG TIN ĐƯỢC CHUYÊN GIA (EXPERT) CUNG CẤP:\n${expertContext}\n\nCÂU HỎI MỚI NHẤT CỦA ĐẠI CA: "${message}"\n\nNHIỆM VỤ:\nDựa vào "Thông tin được chuyên gia cung cấp" và Cơ sở dữ liệu, hãy đóng vai Tiểu Đệ SD3 để trả lời câu hỏi của Đại Ca. 
+      // Compact (no pretty-print indentation) — the indent whitespace on a
+      // ~35-project, ~20-client JSON blob alone was enough to push requests
+      // over Groq's 8,000 TPM limit (confirmed live: 9,569 tokens vs an
+      // 8,000 cap), silently knocking Groq out of the fallback chain on
+      // every request and leaving only Gemini's 20/day quota to carry the
+      // whole bot — exactly the kind of thing that made it "hóc búa" so
+      // often. The LLM doesn't need human-readable indentation.
+      const synthesizerPrompt = `CƠ SỞ DỮ LIỆU DỰ ÁN & VẬN HÀNH (Tham khảo nếu cần):\n${JSON.stringify(statsContext)}\n\nLỊCH SỬ HỘI THOẠI TRƯỚC ĐÓ:${historyFormatted}\n\nTHÔNG TIN ĐƯỢC CHUYÊN GIA (EXPERT) CUNG CẤP:\n${expertContext}\n\nCÂU HỎI MỚI NHẤT CỦA ĐẠI CA: "${message}"\n\nNHIỆM VỤ:\nDựa vào "Thông tin được chuyên gia cung cấp" và Cơ sở dữ liệu, hãy đóng vai Tiểu Đệ SD3 để trả lời câu hỏi của Đại Ca. 
 - Nếu có dữ liệu từ Chuyên gia, PHẢI sử dụng dữ liệu đó làm câu trả lời chính.
 - Trả lời thẳng vào vấn đề, dùng cấu trúc bullet point, chèn emoji. Luôn kết thúc bằng 1 call-to-action (câu hỏi gợi mở).`;
       

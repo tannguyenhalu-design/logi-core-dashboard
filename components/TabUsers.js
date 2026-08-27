@@ -18,11 +18,12 @@ const TAB_OPTIONS = [
   { value: "ltl", label: "LTL Dashboard" },
   { value: "operations", label: "Vận hành SD3" },
   { value: "tachtrip", label: "Tách Chuyến" },
+  { value: "ftl", label: "FTL" },
 ];
 
 function defaultTabsForRole(role) {
-  if (role === "manager") return ["ltl", "operations", "tachtrip"];
-  if (role === "sd3") return ["ltl", "operations", "tachtrip"];
+  if (role === "manager") return ["ltl", "operations", "tachtrip", "ftl"];
+  if (role === "sd3") return ["ltl", "operations", "tachtrip", "ftl"];
   if (role === "cs") return ["ltl"];
   return [];
 }
@@ -180,7 +181,7 @@ export default function TabUsers() {
           role: newRole,
           pic: newPic.trim(),
           project: newProject.trim(),
-          tabs: newRole === "manager" ? ["ltl", "operations", "tachtrip"] : newTabs,
+          tabs: newRole === "manager" ? ["ltl", "operations", "tachtrip", "ftl"] : newTabs,
         }),
       });
       const json = await res.json();
@@ -485,7 +486,7 @@ export default function TabUsers() {
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>5. Xem được tab nào?</label>
                 <TabCheckboxes
-                  tabs={newRole === "manager" ? ["ltl", "operations", "tachtrip"] : newTabs}
+                  tabs={newRole === "manager" ? ["ltl", "operations", "tachtrip", "ftl"] : newTabs}
                   disabled={newRole === "manager"}
                   onChange={setNewTabs}
                 />

@@ -154,6 +154,18 @@
   --panel-glow: rgba(255, 255, 255, 0.06);
   --input-bg: rgba(255, 255, 255, 0.06);
   --dropdown-bg: #1f2227;
+  /* `color` inherits as an already-resolved value, not a live var()
+     reference — body's `color: var(--text-primary)` (globals.css ~line
+     165) resolves once against the :root light value (#0f172a) and every
+     descendant that doesn't redeclare `color` itself just inherits that
+     already-dark result, never seeing this block's --text-primary
+     override no matter how it's scoped. Redeclaring `color` here — using
+     the SAME variable, now correctly resolved against this element's own
+     scope — is what actually makes the override take effect for any
+     sidebar text that doesn't set its own explicit color (real example:
+     the "SD3- Dashboard Điện Máy" logo label, unreadable dark-on-dark
+     without this line even though the variable itself was already right). */
+  color: var(--text-primary);
 }
 
 html, body { height: 100%; }
@@ -229,6 +241,7 @@ body {
 .kpi-label {
   font-size: 11px; font-weight: 600; color: var(--text-secondary);
   text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .kpi-value {
   font-size: 28px; font-weight: 700;
@@ -302,7 +315,7 @@ body {
 
 /* ── Filter bar ── */
 .filter-bar {
-  display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
 }
 
 /* ── Multi-select ── */
@@ -311,11 +324,11 @@ body {
   background: var(--input-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 8px 14px;
+  padding: 6px 10px;
   color: var(--text-primary);
-  font-size: 13px; font-family: 'Inter', sans-serif;
-  cursor: pointer; display: flex; align-items: center; gap: 8px;
-  min-width: 180px; user-select: none;
+  font-size: 12.5px; font-family: 'Inter', sans-serif;
+  cursor: pointer; display: flex; align-items: center; gap: 6px;
+  min-width: 128px; user-select: none;
   transition: var(--transition);
 }
 .ms-trigger:hover { border-color: var(--border-hover); background: var(--cyan-glow); }

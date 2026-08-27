@@ -26,6 +26,11 @@ export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).end();
   const session = await getSession(req, res);
   if (!session?.user) return res.status(401).json({ error: "Unauthorized" });
+  // Fires automatically when the Tiểu Đệ chat drawer opens — cs can't reach
+  // that UI (dashboard.js hides it), but block server-side too.
+  if (session.user.role === "cs") {
+    return res.status(403).json({ error: "Vai trò CS không có quyền dùng Tiểu Đệ" });
+  }
 
   try {
     const masterSheetId =

@@ -14,7 +14,7 @@ const fmtKg = (kg) => {
 function LevelBadge({ level }) {
   const cfg = {
     critical: { bg: "rgba(239,68,68,0.15)",  border: "var(--red)",   text: "var(--red)",   label: "🔴 Nên tách ngay" },
-    warning:  { bg: "rgba(245,158,11,0.12)", border: "#f59e0b",      text: "#f59e0b",      label: "🟡 Gần ngưỡng tách" },
+    warning:  { bg: "rgba(245,158,11,0.12)", border: "var(--amber)",      text: "var(--amber)",      label: "🟡 Gần ngưỡng tách" },
     ok:       { bg: "rgba(34,197,94,0.10)",  border: "var(--green)",  text: "var(--green)", label: "🟢 Ổn" },
   };
   const c = cfg[level] || cfg.ok;
@@ -29,7 +29,7 @@ function LevelBadge({ level }) {
 }
 
 function CapacityBar({ pct }) {
-  const color = pct >= 90 ? "var(--red)" : pct >= 70 ? "#f59e0b" : "var(--green)";
+  const color = pct >= 90 ? "var(--red)" : pct >= 70 ? "var(--amber)" : "var(--green)";
   return (
     <div style={{ marginTop: 6 }}>
       <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"var(--text-muted)", marginBottom:3 }}>
@@ -67,13 +67,13 @@ function BreakageSection({ routes, avgDmgRate }) {
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
             <div>
-              <div style={{ fontWeight: 600, fontSize: 13, color: "#EAF0F8", marginBottom: 3 }}>
+              <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)", marginBottom: 3 }}>
                 {r.route}
               </div>
               <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
                 {r.damaged}/{r.total} đơn bể vỡ
                 {r.vsAvg > 1.5 && (
-                  <span style={{ marginLeft: 6, color: "#f59e0b", fontWeight: 600 }}>
+                  <span style={{ marginLeft: 6, color: "var(--amber)", fontWeight: 600 }}>
                     (cao hơn TB {r.vsAvg}x)
                   </span>
                 )}
@@ -81,7 +81,7 @@ function BreakageSection({ routes, avgDmgRate }) {
             </div>
             <div style={{ textAlign: "right", flexShrink: 0 }}>
               <div style={{
-                fontSize: 18, fontWeight: 700, color: r.rate > 5 ? "var(--red)" : "#f59e0b",
+                fontSize: 18, fontWeight: 700, color: r.rate > 5 ? "var(--red)" : "var(--amber)",
               }}>
                 {r.rate}%
               </div>
@@ -89,7 +89,7 @@ function BreakageSection({ routes, avgDmgRate }) {
             </div>
           </div>
           <div style={{
-            marginTop: 8, fontSize: 11, color: r.rate > 5 ? "var(--red)" : "#f59e0b",
+            marginTop: 8, fontSize: 11, color: r.rate > 5 ? "var(--red)" : "var(--amber)",
             display: "flex", alignItems: "center", gap: 4,
           }}>
             <span>→</span>
@@ -103,7 +103,7 @@ function BreakageSection({ routes, avgDmgRate }) {
 
 // Used directly inside LTLDashboard.js — "Tầng 1" (per-route breakage rate)
 // plus an AI narrative call, same on-demand pattern as PeriodComparisonSection's.
-export function BreakageAlertSection({ routes = [], avgDmgRate = 0, totalOrders = 0, damageCauses = null }) {
+export function BreakageAlertSection({ routes = [], avgDmgRate = 0, totalOrders = 0, damageCauses = null, damageTrend = null, recentCases = [] }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <AINarrativePanel
@@ -120,6 +120,13 @@ export function BreakageAlertSection({ routes = [], avgDmgRate = 0, totalOrders 
               byClient: damageCauses.byClient,
             },
           } : {}),
+          // So kỳ này với kỳ trước (cùng khoảng, tháng trước) — cho AI biết
+          // xu hướng đang xấu đi/tốt lên, không chỉ 1 con số tĩnh.
+          ...(damageTrend ? { damageTrend } : {}),
+          // Khi số ca ít (≤8), rate/tuyến không đủ ý nghĩa thống kê — đưa
+          // thẳng danh sách ca cụ thể để AI phân tích theo từng đơn thay vì
+          // theo tỷ lệ trên mẫu quá nhỏ.
+          ...(recentCases.length > 0 ? { recentCases } : {}),
         }}
       />
       {damageCauses && damageCauses.totalCases > 0 && (
@@ -127,7 +134,7 @@ export function BreakageAlertSection({ routes = [], avgDmgRate = 0, totalOrders 
           background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)",
           borderRadius: 10, padding: "12px 14px",
         }}>
-          <div style={{ fontWeight: 700, fontSize: 12.5, color: "#EAF0F8", marginBottom: 10 }}>
+          <div style={{ fontWeight: 700, fontSize: 12.5, color: "var(--text-primary)", marginBottom: 10 }}>
             🔍 Nguyên nhân bể vỡ theo chặng (Rillnet, {damageCauses.totalCases} ca)
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -137,7 +144,7 @@ export function BreakageAlertSection({ routes = [], avgDmgRate = 0, totalOrders 
                 <div style={{ flex: 1, height: 8, background: "rgba(255,255,255,0.06)", borderRadius: 4, overflow: "hidden" }}>
                   <div style={{ width: `${l.pct}%`, height: "100%", background: "var(--red)", borderRadius: 4 }} />
                 </div>
-                <div style={{ width: 70, fontSize: 12, fontWeight: 600, color: "#EAF0F8", textAlign: "right" }}>{l.count} ({l.pct}%)</div>
+                <div style={{ width: 70, fontSize: 12, fontWeight: 600, color: "var(--text-primary)", textAlign: "right" }}>{l.count} ({l.pct}%)</div>
               </div>
             ))}
           </div>
@@ -165,7 +172,7 @@ function CapacitySection({ routes }) {
           borderRadius: 10, padding: "12px 14px",
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 4 }}>
-            <div style={{ fontWeight: 600, fontSize: 13, color: "#EAF0F8" }}>
+            <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)" }}>
               {r.route}
             </div>
             <LevelBadge level={r.level} />
@@ -173,7 +180,7 @@ function CapacitySection({ routes }) {
           <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>
             {fmtN(r.pendingWeight)} kg chưa xuất • {r.pendingOrders} đơn
             {r.nearestDeadline && (
-              <span style={{ marginLeft: 6, color: "#f59e0b" }}>
+              <span style={{ marginLeft: 6, color: "var(--amber)" }}>
                 • deadline gần nhất: {r.nearestDeadline}
               </span>
             )}
@@ -220,16 +227,21 @@ export function PeriodComparisonSection({ comparison, declineAlerts = [], compac
   // Cards needing attention (⚠️) grouped together first instead of scattered
   // among the healthy ones — the backend order (worst ontime delta first)
   // still applies within each group, just warning status now wins first.
+  // The underlying breakdown (transform-ltl.js) no longer caps this itself
+  // — that cap used to apply BEFORE the AI narrative/damageByProject ever
+  // saw the data, silently dropping high-damage clients whose ontime% was
+  // stable (Aqua B2C, LG LTL). Cap only here, for the card grid's own
+  // display — narrative-derived lists elsewhere read the full `items`.
   const sortedItems = [...items].sort((a, b) => {
     if (a.warning !== b.warning) return a.warning ? -1 : 1;
     return (a.ontimeDeltaPoints ?? 0) - (b.ontimeDeltaPoints ?? 0);
-  });
+  }).slice(0, 30);
 
   return (
     <div style={{ background: "var(--panel-glow)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, marginBottom: 16 }}>
         <div>
-          <div style={{ fontWeight: 700, fontSize: 14, color: "#EAF0F8", marginBottom: 2 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-primary)", marginBottom: 2 }}>
             📈 So sánh cùng kỳ
           </div>
           <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
@@ -313,6 +325,36 @@ export function PeriodComparisonSection({ comparison, declineAlerts = [], compac
                 weightDeltaPct: c.weightDeltaPct,
                 ontimeDeltaPoints: c.ontimeDeltaPoints,
               })),
+              // Kỳ trước không có đơn (hoặc rất ít), kỳ này có đơn trở lại —
+              // không phân biệt được "khách hoàn toàn mới" hay "khách cũ vắng
+              // 1 kỳ rồi quay lại" chỉ từ 2 kỳ liền kề, nên mô tả trung tính.
+              newOrReturningClients: items
+                .filter((c) => c.ordersIsNew && c.cur?.orders > 0)
+                .map((c) => ({ name: c.name, orders: c.cur.orders })),
+              // Established clients (not "new", not on the warning list)
+              // growing hard — these get buried today because the prompt
+              // only had room for problems. Threshold at +30% so this
+              // doesn't just repeat routine month-start noise.
+              growingClients: items
+                .filter((c) => !c.ordersIsNew && !c.warning && (c.ordersDeltaPct ?? 0) >= 30)
+                .sort((a, b) => (b.ordersDeltaPct ?? 0) - (a.ordersDeltaPct ?? 0))
+                .slice(0, 5)
+                .map((c) => ({ name: c.name, ordersDeltaPct: c.ordersDeltaPct, ontimeDeltaPoints: c.ontimeDeltaPoints })),
+              // Had real breakage last period, zero this period — an actual
+              // operational win worth naming, not just "no bullet to write".
+              damageResolvedClients: items
+                .filter((c) => (c.prev?.damageCount ?? 0) > 0 && (c.cur?.damageCount ?? 0) === 0)
+                .map((c) => ({ name: c.name, prevDamageCount: c.prev.damageCount })),
+              // Per-client damage counts already existed on `items` (shown
+              // in the client cards below) but were never passed into the
+              // narrative — so "which project is breakage concentrated in"
+              // never made it into the AI write-up even though the data was
+              // right there. Ranked by current-period case count.
+              damageByProject: items
+                .filter((c) => (c.cur?.damageCount ?? 0) > 0)
+                .sort((a, b) => (b.cur.damageCount ?? 0) - (a.cur.damageCount ?? 0))
+                .slice(0, 8)
+                .map((c) => ({ name: c.name, damageCount: c.cur.damageCount, prevDamageCount: c.prev?.damageCount ?? 0, damageDeltaPct: c.damageDeltaPct })),
             }}
           />
         </div>
@@ -333,7 +375,7 @@ export function PeriodComparisonSection({ comparison, declineAlerts = [], compac
               borderRadius: 10, padding: "10px 12px",
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <span style={{ fontWeight: 600, fontSize: 12.5, color: "#EAF0F8" }}>
+                <span style={{ fontWeight: 600, fontSize: 12.5, color: "var(--text-primary)" }}>
                   {c.warning && "⚠️ "}{c.name}
                 </span>
               </div>
@@ -377,6 +419,57 @@ export function PeriodComparisonSection({ comparison, declineAlerts = [], compac
   );
 }
 
+// Bullets always start with "- " + a leading emoji signaling severity (see
+// SYSTEM_PROMPT in lib/ai-narrative.js) — rendered as flat pre-line text
+// before, so every bullet ran together with no visual separation and no
+// hint of which lines were warnings vs good news. Split into individual
+// rows with a left accent colored by the leading emoji instead.
+const NARRATIVE_EMOJI_COLOR = [
+  ["🔴", "var(--red)"],
+  ["⚠️", "var(--amber)"],
+  ["📉", "var(--red)"],
+  ["🆕", "var(--blue)"],
+  ["📈", "var(--green)"],
+  ["🎉", "var(--green)"],
+  ["✅", "var(--green)"],
+];
+function narrativeLineColor(line) {
+  const hit = NARRATIVE_EMOJI_COLOR.find(([emoji]) => line.startsWith(emoji));
+  return hit ? hit[1] : "var(--border)";
+}
+
+function NarrativeText({ text }) {
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const bulletLines = lines.filter((l) => l.startsWith("- "));
+  // Fallback text (all providers down) is sometimes a single paragraph,
+  // not bulleted — show it plain rather than as 1 oddly-bordered row.
+  if (bulletLines.length === 0) {
+    return (
+      <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.7, whiteSpace: "pre-line" }}>
+        {text}
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {lines.map((line, i) => {
+        const content = line.replace(/^-\s*/, "");
+        return (
+          <div key={i} style={{
+            display: "flex", alignItems: "flex-start", gap: 8,
+            padding: "8px 10px", borderRadius: 8,
+            background: "rgba(255,255,255,0.03)",
+            borderLeft: `3px solid ${narrativeLineColor(content)}`,
+            fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5,
+          }}>
+            {content}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── AI narrative (real Claude call, on-demand) ──
 export function AINarrativePanel({ insights }) {
   const [narrative, setNarrative] = useState(null);
@@ -416,14 +509,14 @@ export function AINarrativePanel({ insights }) {
       borderRadius: 14, padding: "16px 20px",
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: narrative || error ? 10 : 0 }}>
-        <div style={{ fontWeight: 700, fontSize: 13.5, color: "#EAF0F8" }}>
+        <div style={{ fontWeight: 700, fontSize: 13.5, color: "var(--text-primary)" }}>
           🤖 Nhận định AI
         </div>
         <button
           onClick={handleGenerate}
           disabled={loading}
           style={{
-            background: "rgba(139,92,246,0.15)", color: "#a78bfa", border: "1px solid rgba(139,92,246,0.35)",
+            background: "rgba(139,92,246,0.15)", color: "var(--purple)", border: "1px solid rgba(139,92,246,0.35)",
             padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
             cursor: loading ? "default" : "pointer", whiteSpace: "nowrap",
           }}
@@ -432,11 +525,56 @@ export function AINarrativePanel({ insights }) {
         </button>
       </div>
       {error && <div style={{ fontSize: 12, color: "var(--red)" }}>{error}</div>}
-      {narrative && (
-        <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6 }}>
-          {narrative}
-        </div>
-      )}
+      {narrative && <NarrativeText text={narrative} />}
+    </div>
+  );
+}
+
+// ── Khách hàng mới/trở lại — pulled up to its own headline card instead of
+// staying buried inside the "So sánh cùng kỳ" client grid further down,
+// which is exactly why it kept getting missed (user had to spot the small
+// 🆕 badge among a dozen other client cards, twice, before it registered).
+export function NewClientsBanner({ clients = [] }) {
+  const newClients = clients
+    .filter((c) => c.ordersIsNew && c.cur?.orders > 0)
+    .sort((a, b) => b.cur.orders - a.cur.orders);
+
+  if (newClients.length === 0) {
+    return (
+      <div style={{
+        background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)",
+        borderRadius: 14, padding: "12px 18px",
+        display: "flex", alignItems: "center", gap: 10,
+        fontSize: 13, color: "var(--text-muted)",
+      }}>
+        <span style={{ fontSize: 16 }}>🆕</span>
+        Không có khách hàng mới/có đơn trở lại trong kỳ so sánh hiện tại.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.3)",
+      borderRadius: 14, padding: "14px 18px",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 18 }}>🆕</span>
+        <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text-primary)" }}>
+          {newClients.length} khách hàng mới/có đơn trở lại trong kỳ
+        </span>
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {newClients.map((c) => (
+          <div key={c.name} style={{
+            background: "rgba(255,255,255,0.05)", border: "1px solid rgba(59,130,246,0.25)",
+            borderRadius: 20, padding: "5px 12px",
+            fontSize: 12.5, color: "var(--text-primary)", fontWeight: 600,
+          }}>
+            {c.name} <span style={{ color: "var(--blue)", fontWeight: 700 }}>· {c.cur.orders} đơn</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -468,10 +606,10 @@ export default function TabAIInsights({ data }) {
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
             <span style={{ fontSize: 20 }}>💡</span>
-            <span style={{ fontWeight: 700, fontSize: 16, color: "#EAF0F8" }}>AI Insights</span>
+            <span style={{ fontWeight: 700, fontSize: 16, color: "var(--text-primary)" }}>AI Insights</span>
             <span style={{
               fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 20,
-              background: "rgba(139,92,246,0.2)", color: "#a78bfa", border: "1px solid rgba(139,92,246,0.3)",
+              background: "rgba(139,92,246,0.2)", color: "var(--purple)", border: "1px solid rgba(139,92,246,0.3)",
             }}>BETA</span>
           </div>
           <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
@@ -484,6 +622,8 @@ export default function TabAIInsights({ data }) {
         </div>
       </div>
 
+      <NewClientsBanner clients={periodComparison?.clients || []} />
+
       <AINarrativePanel insights={{ breakageRoutes, capacityRoutes, avgDmgRate, totalOrders, periodComparison }} />
 
       {/* 2-column grid */}
@@ -494,7 +634,7 @@ export default function TabAIInsights({ data }) {
           borderRadius: 14, padding: 16,
         }}>
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, color: "#EAF0F8", marginBottom: 2 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-primary)", marginBottom: 2 }}>
               🔴 Tầng 1 — Cảnh báo bể vỡ
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
@@ -510,7 +650,7 @@ export default function TabAIInsights({ data }) {
           borderRadius: 14, padding: 16,
         }}>
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, color: "#EAF0F8", marginBottom: 2 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-primary)", marginBottom: 2 }}>
               📦 Tầng 2 — Đề xuất tách chuyến
             </div>
             <div style={{ fontSize: 11, color: "var(--text-muted)" }}>

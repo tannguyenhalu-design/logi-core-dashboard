@@ -6,7 +6,7 @@
  * access by full name (see lib/users.js resolveSSOUser for the link-up).
  */
 import { getSession } from "../../lib/auth";
-import { getAllUsers, updateUserRole, createUserWithRole, findUserByName, findUserByEmployeeId, deleteUser } from "../../lib/users";
+import { getAllUsers, updateUserRole, createUserWithRole, findUserByName, findUserByEmployeeId, deleteUser, ALL_TABS } from "../../lib/users";
 import { logAction } from "../../lib/audit-log";
 
 export default async function handler(req, res) {
@@ -64,7 +64,7 @@ export default async function handler(req, res) {
       if (!["pending", "manager", "sd3", "cs"].includes(role)) {
         return res.status(400).json({ error: "Vai trò không hợp lệ" });
       }
-      const normalizedTabs = Array.isArray(tabs) ? tabs.filter((t) => ["ltl", "operations", "tachtrip"].includes(t)) : undefined;
+      const normalizedTabs = Array.isArray(tabs) ? tabs.filter((t) => ALL_TABS.includes(t)) : undefined;
 
       const targetEmpId = String(oldEmployeeId || employeeId || "").trim();
       const targetName = String(oldName || name || "").trim();
@@ -74,7 +74,16 @@ export default async function handler(req, res) {
       if (!existing && targetName) existing = await findUserByName(targetName);
 
       if (existing) {
-        await updateUserRole({ employeeId: existing.employeeId || targetEmpId, name: existing.name || targetName }, { employeeId, name, role, pic, project, tabs: normalizedTabs, updatedBy: session.user.email || session.user.name });
+        // Lookup key must describe the row's CURRENT identity (existing.*
+        // only — never fall back to the submitted employeeId/name, which
+        // may be a brand-new value this very call is trying to assign and
+        // so doesn't exist in the sheet yet). The submitted employeeId/name
+        // go in the update payload instead, where updateUserRole applies
+        // them as new values once the row's already been found.
+        await updateUserRole(
+          { employeeId: existing.employeeId || null, name: existing.name },
+          { employeeId, name, role, pic, project, tabs: normalizedTabs, updatedBy: session.user.email || session.user.name }
+        );
       } else {
         await createUserWithRole(name || employeeId, { employeeId, role, pic, project, tabs: normalizedTabs, updatedBy: session.user.email || session.user.name });
       }

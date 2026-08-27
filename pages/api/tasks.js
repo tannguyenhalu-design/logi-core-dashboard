@@ -7,6 +7,7 @@ import { getSession } from "../../lib/auth";
 import { getAllTasks, createTasks, updateTaskStatus, updateTaskDetails, deleteTask } from "../../lib/tasks";
 import { logAction } from "../../lib/audit-log";
 import { emailsMatch } from "../../lib/pic-aliases";
+import { resolvePicName } from "../../lib/pic-directory";
 
 export default async function handler(req, res) {
   const session = await getSession(req, res);
@@ -19,6 +20,21 @@ export default async function handler(req, res) {
   const isManager = session.user.role === "manager";
   const userEmail = String(session.user.email || "").toLowerCase();
 
+  // "Is this task mine" primarily compares email (t.pic vs the session's
+  // real SSO email, through EMAIL_ALIASES for known work-key mismatches).
+  // That alias table only helps people it's been manually kept in sync
+  // for — a real incident (2026-08-17) found BOTH assignees' aliases were
+  // never actually verified against a real login (neither had logged in
+  // yet when the alias was written), so a still-wrong guess would have
+  // silently hidden their tasks with no error anywhere. Name is the
+  // sturdier signal: session.user.pic is set directly by a manager in
+  // Quản lý người dùng (not guessed), and resolvePicName() maps a task's
+  // stored PIC (whatever email/alias form) to that same canonical display
+  // name via lib/pic-directory.js's PIC_NAMES — so a task still matches
+  // its assignee even if the email on file for them is imperfect.
+  const isMine = (t) =>
+    emailsMatch(t.pic, userEmail) || (session.user.pic && resolvePicName(t.pic) === session.user.pic);
+
   if (req.method === "GET") {
     try {
       const allTasks = await getAllTasks();
@@ -27,7 +43,7 @@ export default async function handler(req, res) {
       // task given to 1 shows only for that 1. Manager keeps full oversight.
       const tasks = isManager
         ? allTasks
-        : allTasks.filter((t) => emailsMatch(t.pic, userEmail));
+        : allTasks.filter(isMine);
       return res.status(200).json({ ok: true, tasks });
     } catch (err) {
       console.error("[/api/tasks] GET error:", err);
@@ -118,7 +134,7 @@ export default async function handler(req, res) {
       if (!isManager) {
         const allTasks = await getAllTasks();
         const target = allTasks.find((t) => t.id === id);
-        if (!target || !emailsMatch(target.pic, userEmail)) {
+        if (!target || !isMine(target)) {
           return res.status(403).json({ error: "Bạn chỉ có thể cập nhật task của chính mình" });
         }
       }

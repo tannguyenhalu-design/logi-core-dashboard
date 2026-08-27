@@ -19,8 +19,8 @@ export default async function handler(req, res) {
     await logAction({
       actor: "cron",
       action: "backup.daily",
-      target: result.name,
-      details: { fileId: result.id, deletedOldBackups: result.deleted },
+      target: result.snapshotted.join(", "),
+      details: { timestamp: result.timestamp, deletedOldRows: result.deletedOldRows },
     });
     return res.status(200).json({ ok: true, ...result });
   } catch (err) {

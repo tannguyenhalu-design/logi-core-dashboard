@@ -28,6 +28,7 @@ DOM table qua JS, không đoán vị trí cột nên không bị lệch khi có 
 """
 
 import os
+import re
 import time
 import json
 import requests
@@ -95,6 +96,39 @@ def click_button(ws, text, wait=2):
     return ok
 
 
+# "Đền bù / Truy thu" > "Tổng hợp" is a different report page from the
+# breakage table above — its summary cards aren't a <table>, so this reads
+# document.body.innerText and parses "label\nvalue" pairs by regex, same
+# reliable approach as the table extraction (anchored on known label text,
+# not on positional guessing).
+def parse_compensation_summary(text):
+    def grab_number_after(label):
+        m = re.search(re.escape(label) + r"\s*\n\s*([\d.,]+)", text)
+        return int(m.group(1).replace(".", "").replace(",", "")) if m else None
+
+    def grab_money_after(label):
+        m = re.search(re.escape(label) + r"\s*\n\s*([\d.,]+)đ", text)
+        return int(m.group(1).replace(".", "").replace(",", "")) if m else None
+
+    cs_tick_count = grab_number_after("CS TICK CÓ ĐỀN BÙ")
+    ops_unfinalized_count = grab_number_after("OPS CHƯA CHỐT ĐỀN BÙ")
+    ops_clawback_count = grab_number_after("ĐÃ CHỐT CÓ TRUY THU")
+    total_amount = grab_money_after("TỔNG TIỀN ĐỀN BÙ")
+
+    m = re.search(r"đã chốt:\s*✅\s*(\d+)\s*·\s*❌\s*(\d+)", text)
+    ops_approved = int(m.group(1)) if m else None
+    ops_rejected = int(m.group(2)) if m else None
+
+    return {
+        "csTickCount": cs_tick_count,
+        "opsUnfinalizedCount": ops_unfinalized_count,
+        "opsApprovedCount": ops_approved,
+        "opsRejectedCount": ops_rejected,
+        "opsClawbackCount": ops_clawback_count,
+        "totalAmount": total_amount,
+    }
+
+
 EXTRACT_TABLE_JS = """
 (() => {
   const table = document.querySelector('table');
@@ -145,20 +179,34 @@ def main():
             break
         time.sleep(2)
 
-    ws.close()
-
     if not records:
         print("❌ Không đọc được bảng dữ liệu — kiểm tra lại đăng nhập/giao diện.")
+        ws.close()
         return
 
     print(f"📊 Đọc được {len(records)} ca bể vỡ/hư hỏng.")
+
+    # ── Đền bù / Truy thu > Tổng hợp ──
+    print("🚀 Điều hướng tới trang Đền bù / Truy thu...")
+    send_cdp_command(ws, "Page.navigate", {"url": "https://rillnet-app.vercel.app/truythu.html"})
+    time.sleep(4)
+    click_button(ws, "📊 Tổng hợp", wait=3)
+    comp_text = run_js(ws, "document.body.innerText") or ""
+    compensation_summary = parse_compensation_summary(comp_text)
+    if compensation_summary["csTickCount"] is not None:
+        print(f"💰 Đền bù (CS tick): {compensation_summary['csTickCount']} đơn, tổng {compensation_summary['totalAmount']}đ")
+    else:
+        print("⚠️ Không đọc được trang Tổng hợp đền bù — có thể giao diện đã đổi.")
+        compensation_summary = None
+
+    ws.close()
 
     print(f"☁️  Đang đẩy {len(records)} bản ghi lên {APP_BASE_URL}/api/rillnet-sync ...")
     try:
         res = requests.post(
             f"{APP_BASE_URL}/api/rillnet-sync",
             headers={"Content-Type": "application/json", "X-Sync-Secret": SYNC_SECRET},
-            json={"records": records},
+            json={"records": records, "compensationSummary": compensation_summary},
             timeout=30,
         )
         print(f"↩️  Phản hồi: {res.status_code}")

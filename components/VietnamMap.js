@@ -44,26 +44,34 @@ function VietnamMap({
     }, 35);
   };
 
+  // Theme-aware colors — was hardcoded neon hex (#10b981/#f59e0b/#f43f5e/
+  // #38bdf8) regardless of light/dark theme. Fine against the dark map's
+  // near-black ocean (--map-ocean), but the exact same saturated fills read
+  // as glaring on the light theme's pale map background — confirmed by
+  // user feedback (2026-08-26). Using the CSS vars picks up globals.css's
+  // already-tuned-down light-theme shades (e.g. light --red:#dc2626 vs dark
+  // --red:#f43f5e) automatically, with dark mode's appearance essentially
+  // unchanged since those vars equal the old hardcoded values there.
   const getColor = (name) => {
-    if (hoveredProv === name) return "#38bdf8"; // bright sky blue on hover
+    if (hoveredProv === name) return "var(--cyan)";
     if (colorMap[name]) return colorMap[name];
 
     const pDetail = provinceDetailsMap[name];
     if (pDetail && pDetail.totalOrders > 0) {
       if (viewMode === "ontime") {
-        if (pDetail.ontimePct >= 90) return "#10b981";
-        if (pDetail.ontimePct >= 80) return "#f59e0b";
-        return "#f43f5e";
+        if (pDetail.ontimePct >= 90) return "var(--green)";
+        if (pDetail.ontimePct >= 80) return "var(--amber)";
+        return "var(--red)";
       }
       if (viewMode === "damage") {
-        return pDetail.damageCount > 0 ? "#f59e0b" : "#10b981";
+        return pDetail.damageCount > 0 ? "var(--amber)" : "var(--green)";
       }
-      if (pDetail.ontimePct < 80) return "rgba(244, 63, 94, 0.75)"; // Red (<80%)
-      if (pDetail.ontimePct < 90) return "rgba(245, 158, 11, 0.75)"; // Yellow/Amber (80-90%)
+      if (pDetail.ontimePct < 80) return "var(--red)";
+      if (pDetail.ontimePct < 90) return "var(--amber)";
       return "rgba(var(--brand-rgb),0.55)"; // Green/Cyan (>=90%)
     }
 
-    if (highlightProvinces.includes(name)) return "#33D6C0";
+    if (highlightProvinces.includes(name)) return "var(--cyan)";
     return "var(--map-unhighlighted, #2A3344)";
   };
 
@@ -126,7 +134,7 @@ function VietnamMap({
               key={name}
               d={d}
               fill={color}
-              stroke={isHovered ? "#38bdf8" : isWarning ? "#f43f5e" : "var(--map-stroke, #0E1420)"}
+              stroke={isHovered ? "var(--cyan)" : isWarning ? "var(--red)" : "var(--map-stroke, #0E1420)"}
               strokeWidth={isHovered ? "1.6" : isWarning ? "1.2" : "0.5"}
               opacity={isHovered ? 1 : isHighlight ? 0.9 : 0.6}
               style={{
@@ -145,7 +153,7 @@ function VietnamMap({
         {/* Single clean dot marker for hovered province */}
         {hoveredProv && CENTROIDS[hoveredProv] && (
           <g key="hover-dot">
-            <circle cx={CENTROIDS[hoveredProv][0]} cy={CENTROIDS[hoveredProv][1]} r="6" fill="#38bdf8" stroke="#ffffff" strokeWidth="1.5" />
+            <circle cx={CENTROIDS[hoveredProv][0]} cy={CENTROIDS[hoveredProv][1]} r="6" fill="var(--cyan)" stroke="var(--map-ocean, #0E1420)" strokeWidth="1.5" />
           </g>
         )}
 

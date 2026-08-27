@@ -2,7 +2,7 @@ import { useState } from "react";
 import KpiCard from "../../components/KpiCard";
 import TruckLoader from "../../components/TruckLoader";
 import { downloadCSV } from "../../lib/csv-export";
-import { PeriodComparisonSection, BreakageAlertSection } from "../../components/TabAIInsights";
+import { PeriodComparisonSection, BreakageAlertSection, NewClientsBanner } from "../../components/TabAIInsights";
 import { useTheme } from "./charts/chartUtils";
 import { fmt } from "./utils";
 
@@ -15,7 +15,90 @@ import WarehouseRiskChart from "./charts/WarehouseRiskChart";
 import ProvinceMapPanel from "./cards/ProvinceMapPanel";
 import DetailedDamageTable from "./tables/DetailedDamageTable";
 
-export default function LTLDashboard({ data, rawData, aiInsights, selectedProjects = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange }) {
+// Trend chart above only shows the COMBINED weekly total — "tuần 2 → tuần 3
+// giảm" was visible but which client drove it wasn't, and the AI chat had
+// no per-week-per-client data to answer that question either. Breaks the
+// same isWeekly data down by client so both the user and the AI chat can
+// self-serve "which client caused this week's move" for whichever month is
+// filtered, instead of needing this dug up by hand each time.
+function WeeklyByClientSection({ ordersByProjectAndWeek, ordersByMonth }) {
+  const weeks = Object.keys(ordersByMonth || {}).map(Number).sort((a, b) => a - b);
+  if (weeks.length < 2) return null;
+
+  const clients = Object.entries(ordersByProjectAndWeek || {})
+    .map(([name, byWeek]) => ({
+      name,
+      byWeek,
+      total: weeks.reduce((s, w) => s + (byWeek[w] || 0), 0),
+    }))
+    .filter((c) => c.total > 0)
+    .sort((a, b) => b.total - a.total);
+
+  // Biggest movers between the 2 most recent adjacent weeks — the pair
+  // most likely to be what "why did it drop" is asking about.
+  const wLast = weeks[weeks.length - 1];
+  const wPrev = weeks[weeks.length - 2];
+  const movers = clients
+    .map((c) => ({ name: c.name, delta: (c.byWeek[wLast] || 0) - (c.byWeek[wPrev] || 0) }))
+    .filter((m) => m.delta !== 0)
+    .sort((a, b) => a.delta - b.delta);
+  const drops = movers.filter((m) => m.delta < 0).slice(0, 3);
+  const gains = movers.filter((m) => m.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 3);
+
+  return (
+    <div className="chart-panel" style={{ width: "100%" }}>
+      <div className="chart-panel-title">
+        So sánh theo tuần trong tháng — theo khách hàng
+      </div>
+      {(drops.length > 0 || gains.length > 0) && (
+        <div style={{ padding: "0 20px 12px", fontSize: 12.5, color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: 4 }}>
+          {drops.length > 0 && (
+            <div>📉 Tuần {wPrev} → Tuần {wLast} giảm nhiều nhất: {drops.map((d) => `${d.name} (${d.delta} đơn)`).join(", ")}</div>
+          )}
+          {gains.length > 0 && (
+            <div>📈 Tuần {wPrev} → Tuần {wLast} tăng nhiều nhất: {gains.map((d) => `${d.name} (+${d.delta} đơn)`).join(", ")}</div>
+          )}
+        </div>
+      )}
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ textAlign: "left", color: "var(--text-secondary)", borderTop: "1px solid var(--border)" }}>
+              <th style={{ padding: "8px 20px", fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" }}>Khách hàng</th>
+              {weeks.map((w) => (
+                <th key={w} style={{ padding: "8px 12px", textAlign: "center", fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" }}>Tuần {w}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {clients.slice(0, 15).map((c) => (
+              <tr key={c.name} style={{ borderTop: "1px solid var(--border)" }}>
+                <td style={{ padding: "7px 20px", fontWeight: 600, whiteSpace: "nowrap" }}>{c.name}</td>
+                {weeks.map((w, i) => {
+                  const cur = c.byWeek[w] || 0;
+                  const prevW = weeks[i - 1];
+                  const delta = i > 0 ? cur - (c.byWeek[prevW] || 0) : null;
+                  return (
+                    <td key={w} style={{ padding: "7px 12px", textAlign: "center", whiteSpace: "nowrap" }}>
+                      {cur}
+                      {delta !== null && delta !== 0 && (
+                        <span style={{ marginLeft: 5, fontSize: 11, fontWeight: 600, color: delta > 0 ? "var(--green)" : "var(--red)" }}>
+                          {delta > 0 ? `+${delta}` : delta}
+                        </span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+export default function LTLDashboard({ data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange }) {
   const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
   const [selectedProvinceOrders, setSelectedProvinceOrders] = useState(null);
   const theme = useTheme();
@@ -98,9 +181,13 @@ export default function LTLDashboard({ data, rawData, aiInsights, selectedProjec
         />
         <KpiCard
           icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>}
-          label="Ca Hư Hỏng"
+          label="Ca Hư Hỏng (Rillnet)"
           value={fmt(data.totalBroken)}
-          sub={`${data.brokenCompensated} đền bù · ${data.brokenPending} chưa xử lý`}
+          sub={
+            aiInsights?.compensationSummary
+              ? `${fmt(aiInsights.compensationSummary.csTickCount)} đền bù (toàn hệ thống)`
+              : `${data.brokenCompensated} đền bù`
+          }
           colorClass="text-amber"
         />
       </div>
@@ -132,12 +219,20 @@ export default function LTLDashboard({ data, rawData, aiInsights, selectedProjec
           Xu hướng Ontime / Late theo {data.isWeekly ? "tuần" : "tháng"}
         </div>
         <div style={{ height: 320 }}>
-          <OntimeMonthChart ontimeByMonth={data.ontimeByMonth} isWeekly={data.isWeekly} theme={theme} />
+          <OntimeMonthChart ontimeByMonth={data.ontimeByMonth} isWeekly={data.isWeekly} month={selectedMonths.length === 1 ? selectedMonths[0] : null} theme={theme} />
         </div>
         <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6, textAlign: "center" }}>
           ⓘ Cột tháng/tuần gần nhất còn đang chạy — nhiều đơn chưa kịp giao nên % ontime sẽ còn thay đổi. Xem "So sánh cùng kỳ" bên dưới để có góc nhìn ổn định hơn.
         </div>
       </div>
+
+      {!singleProjectMode && data.isWeekly && (
+        <WeeklyByClientSection ordersByProjectAndWeek={data.ordersByProjectAndWeek} ordersByMonth={data.ordersByMonth} />
+      )}
+
+      {!singleProjectMode && (
+        <NewClientsBanner clients={data.periodComparison?.clients || []} />
+      )}
 
       <PeriodComparisonSection
         comparison={data.periodComparison}
@@ -211,6 +306,31 @@ export default function LTLDashboard({ data, rawData, aiInsights, selectedProjec
             avgDmgRate={aiInsights.avgDmgRate}
             totalOrders={aiInsights.totalOrders}
             damageCauses={aiInsights.damageCauses}
+            damageTrend={(() => {
+              const pc = data.periodComparison;
+              if (!pc) return null;
+              const src = singleProjectMode
+                ? pc.clients?.find((c) => c.client === selectedProjects[0])
+                : { ...pc.overall, cur: pc.overall?.cur, prev: pc.overall?.prev };
+              if (!src) return null;
+              return {
+                scope: singleProjectMode ? selectedProjects[0] : "toàn hệ thống",
+                currentRangeLabel: pc.currentRangeLabel,
+                previousRangeLabel: pc.previousRangeLabel,
+                curDamageCount: src.cur?.damageCount ?? 0,
+                prevDamageCount: src.prev?.damageCount ?? 0,
+                damageDeltaPct: src.damageDeltaPct ?? null,
+                damageIsNew: src.damageIsNew ?? false,
+              };
+            })()}
+            recentCases={
+              aiInsights.damageCauses?.totalCases > 0 && aiInsights.damageCauses.totalCases <= 8
+                ? (data.detailedDamageCases || []).slice(0, 8).map((c) => ({
+                    orderCode: c.order_code, client: c.client_name,
+                    warehouse: c.warehouse_giao, leg: c.damage_details, province: c.to_province,
+                  }))
+                : []
+            }
           />
         </div>
       )}

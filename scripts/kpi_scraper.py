@@ -150,11 +150,18 @@ def parse_client_rows(raw_text):
         client_id = tokens[i]
         name = " ".join(tokens[i + 1:j])
         rn = tokens[j + 1] if j + 1 < n else None
-        nums = tokens[j + 2:j + 9]
-        if rn not in RNS or len(nums) < 7:
+        # Portal has 8 numeric columns after R/N (LAST MO NSR, PLAN ORIGIN,
+        # KPI, Plan W<current>, RR/NSR, GAP vs RR, GAP vs NSR, GAP vs KPI) —
+        # this used to slice only 7 and advance i by only 9, so every row
+        # after the first left its trailing "GAP vs KPI" value unconsumed;
+        # that stray number became the next row's "client_id", which never
+        # matches a real Client ID in the sheet. Confirmed 0/239 matched in
+        # production logs before this fix.
+        nums = tokens[j + 2:j + 10]
+        if rn not in RNS or len(nums) < 8:
             i += 1
             continue
-        # nums = [LAST MO NSR, PLAN ORIGIN, PLAN W(prev), PLAN W(current), RR/NSR, GAP vs RR, GAP vs NSR]
+        # nums = [LAST MO NSR, PLAN ORIGIN, KPI, PLAN W(current), RR/NSR, GAP vs RR, GAP vs NSR, GAP vs KPI]
         records.append({
             "clientId": client_id,
             "name": name,
@@ -162,7 +169,7 @@ def parse_client_rows(raw_text):
             "planRevenue": parse_money(nums[3]),
             "rrNsr": parse_money(nums[4]),
         })
-        i = j + 9
+        i = j + 10
     return records
 
 
@@ -210,6 +217,9 @@ def main():
 
     records = parse_client_rows(raw_text)
     print(f"📊 Parse được {len(records)} khách hàng.")
+    if records:
+        sample = ", ".join(f"{r['clientId']!r}" for r in records[:8])
+        print(f"🔎 Mẫu Client ID vừa parse (đối chiếu với cột 'Clinet ID' trong sheet nếu 0 dự án khớp): {sample}")
     if not records:
         print("⚠️ 0 dòng — kiểm tra lại đã đăng nhập/đúng view chưa. Nội dung trang:")
         print(raw_text[:500])

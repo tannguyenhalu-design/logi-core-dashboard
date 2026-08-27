@@ -1,10 +1,24 @@
 import React, { useRef } from "react";
 import { useChart, CHART_THEME, COLORS } from "./chartUtils";
 
-export default function OntimeMonthChart({ ontimeByMonth, isWeekly, theme = "dark" }) {
+export default function OntimeMonthChart({ ontimeByMonth, isWeekly, month = null, theme = "dark" }) {
   const ref = useRef(null);
   const months = Object.keys(ontimeByMonth).sort((a, b) => a - b);
   const ct = CHART_THEME[theme] || CHART_THEME.dark;
+
+  // Week buckets are fixed day-of-month ranges (1-7/8-14/15-21/22-end), not
+  // Mon-Sun calendar weeks — "Tuần 4" starts on the 22nd, so it can already
+  // have (small, partial) data from day 1 of the month's last stretch. That
+  // wasn't obvious from just the label "Tuần 4", which read as "hasn't
+  // started yet" to someone expecting calendar weeks. Showing the actual
+  // date range removes the ambiguity without needing a footnote to explain it.
+  const daysInSelectedMonth = month ? new Date(new Date().getFullYear(), month, 0).getDate() : 31;
+  const weekRangeLabel = (weekNum) => {
+    if (!isWeekly || !month) return null;
+    const start = (weekNum - 1) * 7 + 1;
+    const end = weekNum < 4 ? weekNum * 7 : daysInSelectedMonth;
+    return `${String(start).padStart(2, "0")}-${String(end).padStart(2, "0")}/${String(month).padStart(2, "0")}`;
+  };
 
   const totals = months.map((m) => (ontimeByMonth[m]?.ontime || 0) + (ontimeByMonth[m]?.late || 0));
   // null for the first bar (nothing to compare against) or when the prior
@@ -21,12 +35,12 @@ export default function OntimeMonthChart({ ontimeByMonth, isWeekly, theme = "dar
         const total = totals[idx];
         const shortTotal = total >= 1000 ? (total / 1000).toFixed(1).replace(".0", "") + "K" : total;
         const labelPrefix = isWeekly ? `Tuần ${m}` : `T${m}`;
+        const rangeLabel = weekRangeLabel(Number(m));
         const deltaPct = deltaPctFor(idx);
-        if (deltaPct === null) {
-          return [labelPrefix, `${shortTotal} đơn`];
-        }
-        const sign = deltaPct >= 0 ? "+" : "";
-        return [labelPrefix, `${shortTotal} đơn (${sign}${deltaPct}%)`];
+        const totalLine = deltaPct === null
+          ? `${shortTotal} đơn`
+          : `${shortTotal} đơn (${deltaPct >= 0 ? "+" : ""}${deltaPct}%)`;
+        return rangeLabel ? [labelPrefix, rangeLabel, totalLine] : [labelPrefix, totalLine];
       }),
       datasets: [
         {
