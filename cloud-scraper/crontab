@@ -1,0 +1,16 @@
+# Same 3x/day schedule as the local Windows Task Scheduler jobs.
+# TZ=Asia/Ho_Chi_Minh is set container-wide, so these are local (ICT) times.
+50 8 * * * /bin/bash /app/run_scrapers.sh
+50 12 * * * /bin/bash /app/run_scrapers.sh
+50 17 * * * /bin/bash /app/run_scrapers.sh
+
+# FTL orders — DISABLED 2026-08-27 per user instruction: no more CDP/browser
+# automation into portal.ghn.vn (both of these ran ftl_scraper.py and/or
+# ftl_enrich_vehicle.py, which scraped that portal directly). raw_ftl_orders
+# is now refreshed by manually re-running
+# cloud-scraper/sync_ftl_order_sheet.js against the "FTL_order" export GHN's
+# tech team provides — see that script's header comment. The "Đồng bộ ngay
+# từ GHN" dashboard button (which used to trigger the second job below via
+# the ftl_sync_control sheet) has been removed from the UI accordingly.
+#*/30 * * * * /bin/bash /app/run_ftl_scraper.sh
+#* * * * * /bin/bash /app/check_and_run_sync.sh

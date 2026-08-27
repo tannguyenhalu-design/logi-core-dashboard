@@ -1,0 +1,10 @@
+{
+  "name": "sd3-cloud-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "description": "sync_to_db.js's only dependency — same googleapis version pattern as the main app.",
+  "dependencies": {
+    "googleapis": "^173.0.0",
+    "xlsx": "^0.18.5"
+  }
+}

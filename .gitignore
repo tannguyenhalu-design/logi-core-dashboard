@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+cloud-scraper/node_modules
+**/__pycache__/
 /.pnp
 .pnp.*
 .yarn/*

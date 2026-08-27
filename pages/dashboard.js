@@ -14,6 +14,7 @@ import { transformLTL } from "../lib/transform-ltl";
 const LTLDashboard  = dynamic(() => import("../components/ltl/LTLDashboard"), { ssr: false });
 const OperationsDashboard = dynamic(() => import("../components/operations/OperationsDashboard"), { ssr: false });
 const TabTachTrip   = dynamic(() => import("../components/TabTachTrip"),   { ssr: false });
+const TabFTL        = dynamic(() => import("../components/TabFTL"),        { ssr: false });
 const TabUsers      = dynamic(() => import("../components/TabUsers"),      { ssr: false });
 const TabAuditLog   = dynamic(() => import("../components/TabAuditLog"),   { ssr: false });
 const TabBrain      = dynamic(() => import("../components/TabBrain"),      { ssr: false });
@@ -22,10 +23,11 @@ const AIChatDrawer  = dynamic(() => import("../components/AIChatDrawer"),  { ssr
 export default function DashboardPage({ user: initialUser }) {
   const user = initialUser || {};
   const isManager = user.role === "manager";
-  const allowedTabs = isManager ? ["ltl", "operations", "tachtrip"] : (user.tabs || []);
+  const allowedTabs = isManager ? ["ltl", "operations", "tachtrip", "ftl"] : (user.tabs || []);
   const canSeeLTL = allowedTabs.includes("ltl");
   const canSeeOperations = allowedTabs.includes("operations");
   const canSeeTachTrip = allowedTabs.includes("tachtrip");
+  const canSeeFTL = allowedTabs.includes("ftl");
   const [activeTab, setActiveTab] = useState(allowedTabs[0] || "none"); // 'ltl' | 'operations' | 'tachtrip' | 'users' | 'none'
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [selectedProjects, setSelectedProjects] = useState([]);
@@ -50,6 +52,24 @@ export default function DashboardPage({ user: initialUser }) {
   // Real registered SD/CS staff — not every name that ever appeared in the
   // picMapping sheet (that list gets noisy with stale/duplicate entries).
   const [staffPics, setStaffPics] = useState([]);
+
+  // Task creation has no push notification at all (a plain service account
+  // can't invite calendar attendees, so nobody gets emailed/pinged) — the
+  // only way a non-manager finds out they've been assigned something is by
+  // opening this tab themselves. This badge at least surfaces it on the
+  // sidebar they already see on every login, instead of requiring them to
+  // remember to check a sub-tab that isn't the default view.
+  const [myOpenTaskCount, setMyOpenTaskCount] = useState(0);
+  useEffect(() => {
+    if (isManager || !canSeeOperations) return;
+    fetch("/api/tasks")
+      .then((r) => r.json())
+      .then((json) => {
+        if (!json.ok) return;
+        setMyOpenTaskCount(json.tasks.filter((t) => t.status === "in_progress").length);
+      })
+      .catch(() => {});
+  }, [isManager, canSeeOperations]);
 
   useEffect(() => {
     if (!isManager) return;
@@ -142,6 +162,40 @@ export default function DashboardPage({ user: initialUser }) {
         <meta name="description" content="Hệ thống theo dõi vận hành logistics điện máy" />
       </Head>
 
+      {/*
+        Watchdog: on a small but real fraction of loads (seen most on
+        accounts whose default/only tab is "ftl", e.g. GSVT staff with
+        role "cs" — reported 2026-08-18), the effect that kicks off the
+        tab's data fetch (fetchDashboardData here, TabFTL's own `load` for
+        the FTL tab) never fires, even though the JS bundle and SSR'd
+        markup both load fine — <main> is left permanently on its initial
+        loading placeholder. Reproduced against a clean `next start`
+        production build (not just dev-mode HMR noise), and it isn't
+        specific to one tab or component, so it's not something safely
+        fixable by reordering our own mount logic. This is a plain inline
+        script (not a React effect) specifically so it still runs even
+        when React's own effects are the thing that got stuck — it checks
+        once, after a generous grace period, whether <main> ever grew
+        past the loading placeholder, and if not, reloads exactly once
+        (sessionStorage-guarded so a genuine slow backend/network issue
+        doesn't loop forever).
+      */}
+      <script dangerouslySetInnerHTML={{ __html: `
+        (function() {
+          if (sessionStorage.getItem('sd3_watchdog_reloaded')) return;
+          setTimeout(function() {
+            var main = document.querySelector('main');
+            var len = main ? main.innerText.trim().length : 0;
+            if (len < 50) {
+              sessionStorage.setItem('sd3_watchdog_reloaded', '1');
+              location.reload();
+            } else {
+              sessionStorage.removeItem('sd3_watchdog_reloaded');
+            }
+          }, 8000);
+        })();
+      ` }} />
+
       <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
         {/* ── Sidebar ── */}
         <aside className="app-sidebar" style={{
@@ -203,6 +257,14 @@ export default function DashboardPage({ user: initialUser }) {
                   <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
                 </svg>
                 Vận hành SD3
+                {!isManager && myOpenTaskCount > 0 && (
+                  <span title={`${myOpenTaskCount} task đang thực hiện của bạn`} style={{
+                    marginLeft: "auto", background: "var(--red)", color: "#fff", fontSize: 11, fontWeight: 700,
+                    borderRadius: 10, padding: "1px 7px", lineHeight: "16px",
+                  }}>
+                    {myOpenTaskCount}
+                  </span>
+                )}
               </div>
             )}
             {canSeeTachTrip && (
@@ -220,6 +282,23 @@ export default function DashboardPage({ user: initialUser }) {
                   <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-.553-.894L15 4m0 13V4m0 0L9 7"/>
                 </svg>
                 Tách Chuyến
+              </div>
+            )}
+            {canSeeFTL && (
+              <div
+                className={`nav-item ${activeTab === "ftl" ? "active" : ""}`}
+                onClick={() => setActiveTab("ftl")}
+                style={{
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
+                  color: activeTab === "ftl" ? "#fff" : "var(--text-muted)",
+                  background: activeTab === "ftl" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+                </svg>
+                FTL
               </div>
             )}
             {user.role === "manager" && (
@@ -393,6 +472,7 @@ export default function DashboardPage({ user: initialUser }) {
                   : activeTab === "users" ? "Quản lý người dùng"
                   : activeTab === "operations" ? "Vận hành SD3"
                   : activeTab === "tachtrip" ? "Tách Chuyến"
+                  : activeTab === "ftl" ? "FTL"
                   : activeTab === "auditlog" ? "Nhật Ký Hoạt Động"
                   : "SD3- Dashboard Điện Máy"}
               </div>
@@ -493,6 +573,8 @@ export default function DashboardPage({ user: initialUser }) {
               <TabBrain />
             ) : activeTab === "auditlog" ? (
               <TabAuditLog />
+            ) : activeTab === "ftl" ? (
+              <TabFTL isManager={isManager} userRole={user.role} />
             ) : activeTab === "tachtrip" ? (
               tcLoading ? (
                 <div style={{ display: "flex", justifyContent: "center", paddingTop: 60 }}>
@@ -542,14 +624,14 @@ export default function DashboardPage({ user: initialUser }) {
                 {activeTab === "operations" ? (
                   <OperationsDashboard rawData={dashData?.raw} userRole={dashData?.user?.role} />
                 ) : (
-                  !loading && !error && dashData && <LTLDashboard data={dashData.ltl} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} />
+                  !loading && !error && dashData && <LTLDashboard data={dashData.ltl} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} />
                 )}
               </>
             )}
           </main>
         </div>
       </div>
-      <AIChatDrawer />
+      {user.role !== "cs" && <AIChatDrawer />}
     </>
   );
 }
