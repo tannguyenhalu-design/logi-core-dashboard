@@ -84,11 +84,6 @@ export default function DashboardPage({ user: initialUser }) {
       if (selectedOrigin) params.append("origin", selectedOrigin);
       if (dFrom) params.append("dateFrom", dFrom);
       if (dTo)   params.append("dateTo", dTo);
-      // Only append timestamp if force=true to allow CDN caching for normal loads
-      if (viewAsOverride?.force === true) {
-        params.append("t", Date.now());
-        params.append("force", "true");
-      }
 
       const res = await fetch(`/api/data?${params.toString()}`);
       if (!res.ok) throw new Error(`API error ${res.status}`);
@@ -126,6 +121,21 @@ export default function DashboardPage({ user: initialUser }) {
     const json = await res.json();
     return json.provinceOrders || [];
   }, [selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks, selectedOrigin, dateFrom, dateTo]);
+
+  // "Đơn chờ lấy (chưa chốt kỳ)" list — orders with no pickup date, scoped by
+  // project/origin/viewAs but not by month/date (they have no date to filter on).
+  const fetchPendingOrders = useCallback(async () => {
+    const params = new URLSearchParams();
+    if (selectedProjects?.length > 0) params.append("projects", selectedProjects.join(","));
+    if (viewAs.type) params.append("viewAsType", viewAs.type);
+    if (viewAs.value) params.append("viewAsValue", viewAs.value);
+    if (selectedOrigin) params.append("origin", selectedOrigin);
+    params.append("pendingPickup", "1");
+    const res = await fetch(`/api/data?${params.toString()}`);
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    const json = await res.json();
+    return json.pendingOrders || [];
+  }, [selectedProjects, viewAs, selectedOrigin]);
 
   // A pickup-point selection only makes sense for whichever project it came
   // from — drop it the moment the project selection changes underneath it.
@@ -445,11 +455,13 @@ export default function DashboardPage({ user: initialUser }) {
 
               <button
                 onClick={async () => {
-                  if (confirm("Đồng bộ dữ liệu trực tiếp từ Google Sheet? (Quá trình này có thể mất 15-20s do tải >50.000 dòng từ Sheet).")) {
+                  if (confirm("Đồng bộ lại dữ liệu từ Google Sheet ngay? (Mất khoảng 15-30 giây.)")) {
                     setLoading(true);
                     try {
+                      // One rebuild of the Blob snapshot, then a normal fetch
+                      // of the current filters (dates included).
                       await fetch(`/api/data?force=true&t=${Date.now()}`);
-                      await fetchDashboardData(selectedMonths, selectedProjects, filterMode, { ...viewAs, force: true }, periodWeeks);
+                      await fetchDashboardData(selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks, dateFrom, dateTo);
                       alert("Đồng bộ thành công!");
                     } finally {
                       setLoading(false);
@@ -532,7 +544,7 @@ export default function DashboardPage({ user: initialUser }) {
                   </div>
                 )}
 
-                {!loading && !error && dashData && <LTLDashboard view={activeTab} data={dashData.ltl} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} fetchProvinceOrders={fetchProvinceOrders} />}
+                {!loading && !error && dashData && <LTLDashboard view={activeTab} data={dashData.ltl} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} fetchProvinceOrders={fetchProvinceOrders} pendingPickup={dashData.pendingPickup} fetchPendingOrders={fetchPendingOrders} />}
               </>
             )}
           </main>

@@ -42,6 +42,16 @@ timeout 600 python3 kpi_scraper.py >> "$LOG" 2>&1 || FAILED=1
 timeout 600 python3 sheet_scraper.py >> "$LOG" 2>&1 || FAILED=1
 timeout 600 python3 rillnet_scraper.py >> "$LOG" 2>&1 || FAILED=1
 
+# Rebuild the dashboard's LTL snapshot (Vercel Blob) right away so the new
+# raw_ontime / damage data shows up now instead of at the next Vercel cron.
+# Runs even if a step failed — whatever did sync should still be published.
+if [ -n "$SNAPSHOT_SECRET" ]; then
+  echo "[$(date)] Rebuild snapshot dashboard..." >> "$LOG"
+  curl -s -m 120 -H "x-snapshot-secret: ${SNAPSHOT_SECRET}" -H "x-caller: railway" \
+    "https://logicore-app.vercel.app/api/cron/build-snapshot" >> "$LOG" 2>&1 || echo "  (goi build-snapshot that bai)" >> "$LOG"
+  echo "" >> "$LOG"
+fi
+
 if [ "$FAILED" -eq 0 ]; then
   echo "[$(date)] Hoan tat run_scrapers.sh (OK)" >> "$LOG"
 else

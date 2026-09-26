@@ -101,7 +101,7 @@ function WeeklyByClientSection({ ordersByProjectAndWeek, ordersByMonth }) {
 // view: "ltl" (Tổng quan) | "map" (Bản đồ tỉnh thành) | "damage" (Hư hỏng & Rủi ro)
 // — all 3 read the same already-fetched /api/data payload, so switching tabs
 // never refetches.
-export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders }) {
+export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders, pendingPickup, fetchPendingOrders }) {
   const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
   const [selectedProvinceOrders, setSelectedProvinceOrders] = useState(null);
   // Fetched on demand (see fetchProvinceOrders in pages/dashboard.js) instead
@@ -110,6 +110,9 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
   // dashboard load, fixed 2026-09-17).
   const [provOrdersList, setProvOrdersList] = useState([]);
   const [provOrdersLoading, setProvOrdersLoading] = useState(false);
+  const [pendingModalOpen, setPendingModalOpen] = useState(false);
+  const [pendingOrders, setPendingOrders] = useState([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
   const theme = useTheme();
 
   if (!data) return <TruckLoader />;
@@ -151,6 +154,20 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
       setProvOrdersList([]);
     } finally {
       setProvOrdersLoading(false);
+    }
+  };
+
+  const openPendingModal = async () => {
+    setPendingModalOpen(true);
+    setPendingOrders([]);
+    if (!fetchPendingOrders) return;
+    setPendingLoading(true);
+    try {
+      setPendingOrders(await fetchPendingOrders());
+    } catch {
+      setPendingOrders([]);
+    } finally {
+      setPendingLoading(false);
     }
   };
 
@@ -210,6 +227,24 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
           colorClass="text-amber"
         />
       </div>}
+
+      {showOverview && pendingPickup?.count > 0 && (
+        <button
+          onClick={openPendingModal}
+          style={{
+            display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", textAlign: "left",
+            background: "var(--bg-panel)", border: "1px solid var(--border)", borderLeft: "3px solid var(--amber)",
+            borderRadius: 10, padding: "12px 16px", cursor: "pointer", fontFamily: "inherit", color: "var(--text-primary)",
+          }}
+        >
+          <span style={{ fontSize: 20, fontWeight: 700, color: "var(--amber)" }}>{fmt(pendingPickup.count)}</span>
+          <span style={{ fontWeight: 600 }}>Đơn chờ lấy (chưa chốt kỳ)</span>
+          <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+            Chưa có ngày lấy hàng nên không tính vào Tổng đơn · {Object.entries(pendingPickup.byStatus || {}).map(([st, n]) => `${st}: ${fmt(n)}`).join(" · ")}
+          </span>
+          <span style={{ marginLeft: "auto", fontSize: 12.5, color: "var(--cyan)", fontWeight: 600 }}>Xem danh sách →</span>
+        </button>
+      )}
 
       {showMap && <ProvinceMapPanel
         provinceStats={data.provinceStats}
@@ -377,6 +412,62 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
           showClaimsWorkflow={!isClient}
         />
       </div>}
+      {pendingModalOpen && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+          display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999
+        }} onClick={() => setPendingModalOpen(false)}>
+          <div style={{
+            background: "var(--bg-panel)", border: "1px solid var(--border)",
+            borderRadius: 12, padding: 24, width: "90%", maxWidth: 900,
+            maxHeight: "85vh", display: "flex", flexDirection: "column",
+            boxShadow: "0 20px 40px rgba(0,0,0,0.4)"
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 18, color: "var(--text-primary)" }}>Đơn chờ lấy (chưa chốt kỳ)</h2>
+                <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
+                  {pendingLoading ? "Đang tải..." : `${fmt(pendingOrders.length)} đơn chưa có ngày lấy hàng — theo dự án/điểm lấy đang lọc, không phụ thuộc bộ lọc tháng/ngày`}
+                </div>
+              </div>
+              <button onClick={() => setPendingModalOpen(false)} style={{
+                background: "none", border: "none", color: "var(--text-muted)", fontSize: 24, cursor: "pointer", lineHeight: 1
+              }}>✕</button>
+            </div>
+            <div style={{ overflowY: "auto", flex: 1, borderRadius: 8, border: "1px solid var(--border)" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
+                <thead style={{ position: "sticky", top: 0, background: "var(--bg-panel)", zIndex: 1 }}>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                    {["Mã Đơn", "Dự Án", "Trạng Thái", "Ngày Tạo", "Tuyến Đường", "Trọng Lượng"].map((h) => (
+                      <th key={h} style={{ padding: "10px 12px", color: "var(--text-secondary)", fontWeight: 600 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingLoading ? (
+                    <tr><td colSpan="6" style={{ padding: 20, textAlign: "center", color: "var(--text-muted)" }}>Đang tải...</td></tr>
+                  ) : pendingOrders.length === 0 ? (
+                    <tr><td colSpan="6" style={{ padding: 20, textAlign: "center", color: "var(--text-muted)" }}>Không có đơn nào</td></tr>
+                  ) : (
+                    [...pendingOrders].sort((a, b) => String(a.created_time || "").localeCompare(String(b.created_time || ""))).map((o, idx) => (
+                      <tr key={idx} style={{ borderBottom: "1px solid var(--border)" }}>
+                        <td style={{ padding: "8px 12px", fontWeight: 600 }}>{o.order_code || "N/A"}</td>
+                        <td style={{ padding: "8px 12px", color: "var(--text-muted)" }}>{o.client_name}</td>
+                        <td style={{ padding: "8px 12px", color: "var(--amber)" }}>{o.status}</td>
+                        <td style={{ padding: "8px 12px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>{o.created_time || "-"}</td>
+                        <td style={{ padding: "8px 12px", color: "var(--text-muted)" }}>{o.from_province_name || "?"} → {o.to_province_name || "?"}</td>
+                        <td style={{ padding: "8px 12px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                          {o.weight ? `${(parseFloat(o.weight) / 1000).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} kg` : "-"}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
       {selectedProvinceOrders && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
