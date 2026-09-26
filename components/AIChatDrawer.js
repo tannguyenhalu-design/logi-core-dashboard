@@ -14,161 +14,17 @@ function renderMarkdown(text) {
     .replace(/\n/g, "<br/>");
 }
 
-// ─── Alert banner sub-component ───────────────────────────────────────────────
-function AlertBanner({ alerts, recommendations, onAction }) {
-  const [expanded, setExpanded] = useState(false);
-  const critical = alerts.filter((a) => a.level === "critical");
-  const warning = alerts.filter((a) => a.level === "warning");
-  if (alerts.length === 0) return null;
-
-  return (
-    <div style={{
-      margin: "8px 12px 0",
-      background: critical.length > 0
-        ? "rgba(244,63,94,0.12)"
-        : "rgba(251,191,36,0.1)",
-      border: `1px solid ${critical.length > 0 ? "rgba(244,63,94,0.3)" : "rgba(251,191,36,0.3)"}`,
-      borderRadius: 10,
-      overflow: "hidden",
-    }}>
-      {/* Banner header */}
-      <button
-        onClick={() => setExpanded((v) => !v)}
-        style={{
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "8px 12px",
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          color: "var(--text-primary)",
-        }}
-      >
-        <span style={{ fontSize: 12, fontWeight: 700 }}>
-          {critical.length > 0 ? "🔴" : "⚠️"}{" "}
-          {critical.length > 0
-            ? `${critical.length} dự án NGUY HIỂM cần xử lý ngay!`
-            : `${warning.length} dự án đang chậm KPI`}
-        </span>
-        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>
-          {expanded ? "▲ Thu gọn" : "▼ Xem chi tiết"}
-        </span>
-      </button>
-
-      {/* Expanded detail */}
-      {expanded && (
-        <div style={{ padding: "0 12px 10px", display: "flex", flexDirection: "column", gap: 8 }}>
-          {alerts.slice(0, 5).map((a, i) => (
-            <div
-              key={i}
-              style={{ fontSize: 11.5, color: "var(--text-primary)" }}
-              dangerouslySetInnerHTML={{ __html: renderMarkdown(a.msg) }}
-            />
-          ))}
-          {recommendations.length > 0 && (
-            <div style={{ marginTop: 6, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 8 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#a78bfa", marginBottom: 6 }}>
-                💡 Gợi ý action:
-              </div>
-              {recommendations.slice(0, 3).map((r, i) => (
-                <div key={i} style={{ marginBottom: 6 }}>
-                  <div
-                    style={{ fontSize: 11, color: "var(--text-primary)" }}
-                    dangerouslySetInnerHTML={{ __html: renderMarkdown(r.action) }}
-                  />
-                  <button
-                    onClick={() => onAction(`Tạo task nhắc ${r.pic} follow dự án ${r.project}`)}
-                    style={{
-                      marginTop: 4,
-                      background: "rgba(139,92,246,0.2)",
-                      border: "1px solid rgba(139,92,246,0.4)",
-                      borderRadius: 6,
-                      padding: "3px 8px",
-                      color: "#a78bfa",
-                      fontSize: 10.5,
-                      cursor: "pointer",
-                    }}
-                  >
-                    ➡️ Tạo Task cho {r.pic}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Month comparison tab ──────────────────────────────────────────────────────
-function ComparisonPanel({ comparisons, meta }) {
-  if (!comparisons || comparisons.length === 0) return null;
-  const sorted = [...comparisons]
-    .filter((c) => c.thisMo !== "0đ" || c.lastMo !== "0đ")
-    .sort((a, b) => Math.abs(b.momChangePct) - Math.abs(a.momChangePct))
-    .slice(0, 8);
-
-  return (
-    <div style={{ padding: "10px 12px" }}>
-      <div style={{
-        fontSize: 11,
-        fontWeight: 700,
-        color: "#a78bfa",
-        marginBottom: 8,
-        display: "flex",
-        justifyContent: "space-between",
-      }}>
-        <span>📈 So sánh tháng trước vs tháng này</span>
-        <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 400 }}>
-          Tiến độ tháng: {meta?.monthProgressPct}%
-        </span>
-      </div>
-      {sorted.map((c, i) => (
-        <div key={i} style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "5px 0",
-          borderBottom: "1px solid rgba(255,255,255,0.05)",
-          fontSize: 11,
-        }}>
-          <div style={{ flex: 1, color: "var(--text-primary)", fontWeight: 600, fontSize: 11 }}>
-            {c.trendEmoji} {c.name.length > 20 ? c.name.slice(0, 20) + "…" : c.name}
-          </div>
-          <div style={{ textAlign: "right", color: "rgba(255,255,255,0.6)", minWidth: 90 }}>
-            <span style={{ color: c.momChangePct > 5 ? "#10b981" : c.momChangePct < -5 ? "#f43f5e" : "#fbbf24" }}>
-              {c.trend}{Math.abs(c.momChangePct)}%
-            </span>
-            {" · "}
-            {c.kpiPct !== null ? (
-              <span style={{ color: c.kpiPct >= 100 ? "#10b981" : c.kpiPct >= 60 ? "#fbbf24" : "#f43f5e" }}>
-                KPI {c.kpiPct}%
-              </span>
-            ) : "N/A"}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ─── Main chat drawer ──────────────────────────────────────────────────────────
 export default function AIChatDrawer() {
   const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("chat"); // "chat" | "compare"
   const [messages, setMessages] = useState([
     {
       sender: "ai",
-      text: "Dạ, Tiểu Đệ SD3 xin bái chào Đại Ca! 🙇‍♂️ Đang scan hệ thống để báo cáo tình hình mới nhất...",
+      text: "Dạ, Tiểu Đệ SD3 xin bái chào Đại Ca! 🙇‍♂️ Đại Ca muốn hỏi gì về vận hành LTL ạ?",
     },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [alertData, setAlertData] = useState(null);
-  const [alertLoaded, setAlertLoaded] = useState(false);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -178,28 +34,6 @@ export default function AIChatDrawer() {
   useEffect(() => {
     if (isOpen) scrollToBottom();
   }, [messages, isOpen]);
-
-  // Auto proactive alert scan when chat opens
-  useEffect(() => {
-    if (!isOpen || alertLoaded) return;
-    setAlertLoaded(true);
-
-    fetch("/api/ai-alert")
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.ok) return;
-        setAlertData(data);
-        if (data.summary) {
-          setMessages([{ sender: "ai", text: data.summary }]);
-        }
-      })
-      .catch(() => {
-        setMessages([{
-          sender: "ai",
-          text: "Dạ Đại Ca, Tiểu Đệ đã sẵn sàng! 🙇‍♂️ Đại Ca muốn hỏi gì ạ?",
-        }]);
-      });
-  }, [isOpen, alertLoaded]);
 
   const handleSend = async (textToSend) => {
     const q = textToSend || input;
@@ -241,19 +75,6 @@ export default function AIChatDrawer() {
     }
   };
 
-  const tabStyle = (tab) => ({
-    flex: 1,
-    padding: "8px 0",
-    background: activeTab === tab ? "rgba(139,92,246,0.2)" : "transparent",
-    border: "none",
-    borderBottom: activeTab === tab ? "2px solid #8b5cf6" : "2px solid transparent",
-    color: activeTab === tab ? "#a78bfa" : "rgba(255,255,255,0.4)",
-    fontSize: 11.5,
-    fontWeight: 600,
-    cursor: "pointer",
-    transition: "all 0.2s",
-  });
-
   return (
     <>
       {/* Floating Trigger Button */}
@@ -283,26 +104,6 @@ export default function AIChatDrawer() {
       >
         <span>🙇‍♂️</span>
         <span>{isOpen ? "Đóng Tiểu Đệ" : "Gọi Tiểu Đệ SD3"}</span>
-        {/* Red dot if alerts */}
-        {!isOpen && alertData?.meta?.criticalCount > 0 && (
-          <span style={{
-            position: "absolute",
-            top: -4,
-            right: -4,
-            width: 16,
-            height: 16,
-            background: "#f43f5e",
-            borderRadius: "50%",
-            fontSize: 9,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontWeight: 800,
-            color: "#fff",
-          }}>
-            {alertData.meta.criticalCount}
-          </span>
-        )}
       </button>
 
       {/* Floating Chat Window */}
@@ -349,9 +150,7 @@ export default function AIChatDrawer() {
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-primary)" }}>Tiểu Đệ SD3</div>
                 <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                  {alertData?.meta
-                    ? `${alertData.meta.criticalCount} nguy hiểm · ${alertData.meta.warningCount} cảnh báo · ${alertData.meta.goodCount} tốt`
-                    : "Đang scan hệ thống..."}
+                  Trợ lý vận hành LTL
                 </div>
               </div>
             </div>
@@ -362,30 +161,6 @@ export default function AIChatDrawer() {
               ✕
             </button>
           </div>
-
-          {/* Tabs */}
-          <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-            <button style={tabStyle("chat")} onClick={() => setActiveTab("chat")}>
-              💬 Chat
-            </button>
-            <button style={tabStyle("compare")} onClick={() => setActiveTab("compare")}>
-              📈 So sánh tháng
-            </button>
-          </div>
-
-          {activeTab === "chat" && (
-            <>
-              {/* Alert banner */}
-              {alertData && alertData.alerts.length > 0 && (
-                <AlertBanner
-                  alerts={alertData.alerts}
-                  recommendations={alertData.recommendations}
-                  onAction={(msg) => {
-                    setActiveTab("chat");
-                    handleSend(msg);
-                  }}
-                />
-              )}
 
               {/* Chat Messages */}
               <div style={{ flex: 1, padding: 14, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -436,9 +211,9 @@ export default function AIChatDrawer() {
               {messages.length < 3 && (
                 <div style={{ padding: "0 12px 8px", display: "flex", flexDirection: "column", gap: 5 }}>
                   {[
-                    "Doanh thu tháng này ra sao?",
-                    "Dự án nào đang nguy hiểm nhất?",
-                    "So sánh tháng trước và tháng này",
+                    "Tỷ lệ ontime tháng này thế nào?",
+                    "Kho nào đang nhiều ca hư hỏng nhất?",
+                    "Khách nào đang giảm đơn so với tháng trước?",
                   ].map((sq, i) => (
                     <button
                       key={i}
@@ -503,23 +278,6 @@ export default function AIChatDrawer() {
                   Gửi
                 </button>
               </div>
-            </>
-          )}
-
-          {activeTab === "compare" && (
-            <div style={{ flex: 1, overflowY: "auto" }}>
-              {alertData?.comparisons ? (
-                <ComparisonPanel
-                  comparisons={alertData.comparisons}
-                  meta={alertData.meta}
-                />
-              ) : (
-                <div style={{ padding: 20, color: "rgba(255,255,255,0.4)", fontSize: 12, textAlign: "center" }}>
-                  ⏳ Đang tải dữ liệu so sánh...
-                </div>
-              )}
-            </div>
-          )}
         </div>
       )}
     </>

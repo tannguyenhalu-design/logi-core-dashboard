@@ -98,7 +98,10 @@ function WeeklyByClientSection({ ordersByProjectAndWeek, ordersByMonth }) {
   );
 }
 
-export default function LTLDashboard({ data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders }) {
+// view: "ltl" (Tổng quan) | "map" (Bản đồ tỉnh thành) | "damage" (Hư hỏng & Rủi ro)
+// — all 3 read the same already-fetched /api/data payload, so switching tabs
+// never refetches.
+export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders }) {
   const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
   const [selectedProvinceOrders, setSelectedProvinceOrders] = useState(null);
   // Fetched on demand (see fetchProvinceOrders in pages/dashboard.js) instead
@@ -114,7 +117,9 @@ export default function LTLDashboard({ data, rawData, aiInsights, selectedProjec
   const isClient = userRole === "client";
   const singleProjectMode = selectedProjects.length === 1;
 
-  const selectedDamageType = damageFilter?.type === "type" ? damageFilter.value : null;
+  const showOverview = view === "ltl";
+  const showMap = view === "map";
+  const showDamage = view === "damage";
 
   const exportSummaryCSV = () => {
     const projects = Object.values(data.projectSummaries || {}).sort((a, b) => b.totalOrders - a.totalOrders);
@@ -152,7 +157,7 @@ export default function LTLDashboard({ data, rawData, aiInsights, selectedProjec
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* KPI Cards */}
-      {!isClient && (
+      {showOverview && !isClient && (
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <button
             onClick={exportSummaryCSV}
@@ -168,7 +173,7 @@ export default function LTLDashboard({ data, rawData, aiInsights, selectedProjec
           </button>
         </div>
       )}
-      <div className="grid-4">
+      {showOverview && <div className="grid-4">
         <KpiCard
           icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>}
           label={data.filterMode === "delivered" ? "GTC (ngày giao)" : "Tổng Đơn (lấy hàng)"}
@@ -204,9 +209,9 @@ export default function LTLDashboard({ data, rawData, aiInsights, selectedProjec
           }
           colorClass="text-amber"
         />
-      </div>
+      </div>}
 
-      <ProvinceMapPanel
+      {showMap && <ProvinceMapPanel
         provinceStats={data.provinceStats}
         routeStats={data.routeStats}
         provinceDetailsMap={data.provinceDetailsMap || {}}
@@ -225,9 +230,9 @@ export default function LTLDashboard({ data, rawData, aiInsights, selectedProjec
         selectedOrigin={selectedOrigin}
         onOriginChange={onOriginChange}
         onProvinceClick={openProvModal}
-      />
+      />}
 
-      <div className="chart-panel" style={{ width: "100%" }}>
+      {showOverview && <div className="chart-panel" style={{ width: "100%" }}>
         <div className="chart-panel-title">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           Xu hướng Ontime / Late theo {data.isWeekly ? "tuần" : "tháng"}
@@ -238,25 +243,25 @@ export default function LTLDashboard({ data, rawData, aiInsights, selectedProjec
         <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6, textAlign: "center" }}>
           ⓘ Cột tháng/tuần gần nhất còn đang chạy — nhiều đơn chưa kịp giao nên % ontime sẽ còn thay đổi. Xem "So sánh cùng kỳ" bên dưới để có góc nhìn ổn định hơn.
         </div>
-      </div>
+      </div>}
 
-      {!singleProjectMode && data.isWeekly && (
+      {showOverview && !singleProjectMode && data.isWeekly && (
         <WeeklyByClientSection ordersByProjectAndWeek={data.ordersByProjectAndWeek} ordersByMonth={data.ordersByMonth} />
       )}
 
-      {!singleProjectMode && (
+      {showOverview && !singleProjectMode && (
         <NewClientsBanner clients={data.periodComparison?.clients || []} />
       )}
 
-      <PeriodComparisonSection
+      {showOverview && <PeriodComparisonSection
         comparison={data.periodComparison}
         declineAlerts={data.declineAlerts}
         compact={singleProjectMode}
         periodWeeks={periodWeeks}
         onPeriodWeeksChange={onPeriodWeeksChange}
-      />
+      />}
 
-      {!singleProjectMode && (
+      {showOverview && !singleProjectMode && (
         <>
           <div className="grid-2" style={{ gap: 20 }}>
             <div className="chart-panel">
@@ -292,7 +297,7 @@ export default function LTLDashboard({ data, rawData, aiInsights, selectedProjec
         </>
       )}
 
-      {!isClient && (
+      {showDamage && !isClient && (
         <div className="chart-panel" style={{ width: "100%" }}>
           <div className="chart-panel-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
@@ -309,7 +314,7 @@ export default function LTLDashboard({ data, rawData, aiInsights, selectedProjec
         </div>
       )}
 
-      {!isClient && aiInsights && (
+      {showDamage && !isClient && aiInsights && (
         <div className="chart-panel" style={{ width: "100%" }}>
           <div className="chart-panel-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
@@ -351,7 +356,7 @@ export default function LTLDashboard({ data, rawData, aiInsights, selectedProjec
 
 
 
-      <div className="chart-panel">
+      {showDamage && <div className="chart-panel">
         <div className="chart-panel-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -371,7 +376,7 @@ export default function LTLDashboard({ data, rawData, aiInsights, selectedProjec
           filter={damageFilter}
           showClaimsWorkflow={!isClient}
         />
-      </div>
+      </div>}
       {selectedProvinceOrders && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,

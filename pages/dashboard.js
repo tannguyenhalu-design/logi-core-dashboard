@@ -9,26 +9,28 @@ import FilterBar from "../components/FilterBar";
 import TruckLoader from "../components/TruckLoader";
 import ThemeToggle from "../components/ThemeToggle";
 import dynamic from "next/dynamic";
-import { transformLTL } from "../lib/transform-ltl";
 
 const LTLDashboard  = dynamic(() => import("../components/ltl/LTLDashboard"), { ssr: false });
-const OperationsDashboard = dynamic(() => import("../components/operations/OperationsDashboard"), { ssr: false });
-const TabTachTrip   = dynamic(() => import("../components/TabTachTrip"),   { ssr: false });
-const TabFTL        = dynamic(() => import("../components/TabFTL"),        { ssr: false });
 const TabUsers      = dynamic(() => import("../components/TabUsers"),      { ssr: false });
 const TabAuditLog   = dynamic(() => import("../components/TabAuditLog"),   { ssr: false });
 const TabBrain      = dynamic(() => import("../components/TabBrain"),      { ssr: false });
 const AIChatDrawer  = dynamic(() => import("../components/AIChatDrawer"),  { ssr: false });
 
+const LEGACY_TABS = ["ltl", "operations", "tachtrip", "ftl"];
+const LTL_VIEWS = [
+  { id: "ltl", label: "Tổng quan LTL", icon: "M3 3h18v18H3zM21 9H3M9 21V9" },
+  { id: "map", label: "Bản đồ tỉnh thành", icon: "M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-.553-.894L15 4m0 13V4m0 0L9 7" },
+  { id: "damage", label: "Hư hỏng & Rủi ro", icon: "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" },
+];
+
 export default function DashboardPage({ user: initialUser }) {
   const user = initialUser || {};
   const isManager = user.role === "manager";
-  const allowedTabs = isManager ? ["ltl", "operations", "tachtrip", "ftl"] : (user.tabs || []);
-  const canSeeLTL = allowedTabs.includes("ltl");
-  const canSeeOperations = allowedTabs.includes("operations");
-  const canSeeTachTrip = allowedTabs.includes("tachtrip");
-  const canSeeFTL = allowedTabs.includes("ftl");
-  const [activeTab, setActiveTab] = useState(allowedTabs[0] || "none"); // 'ltl' | 'operations' | 'tachtrip' | 'users' | 'none'
+  // Any pre-refactor tab (operations/tachtrip/ftl) still in an old session
+  // cookie means the user had dashboard access — same mapping as lib/users.js.
+  const canSeeLTL = isManager || (user.tabs || []).some((t) => LEGACY_TABS.includes(t));
+  const [activeTab, setActiveTab] = useState(canSeeLTL ? "ltl" : "none"); // LTL_VIEWS id | 'users' | 'auditlog' | 'brain' | 'none'
+  const isLTLView = LTL_VIEWS.some((v) => v.id === activeTab);
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [selectedProjects, setSelectedProjects] = useState([]);
   const [filterMode, setFilterMode] = useState("pickup");
@@ -43,33 +45,12 @@ export default function DashboardPage({ user: initialUser }) {
   const [loading, setLoading] = useState(canSeeLTL);
   const [filtering, setFiltering] = useState(false);
   const [error, setError] = useState(null);
-  const [tcData, setTcData] = useState(null);
-  const [tcLoading, setTcLoading] = useState(false);
-  const [tcError, setTcError] = useState(null);
   // Role-switcher for manager: { type: 'manager'|'pic'|'project', value: string|null }
   const [viewAs, setViewAs] = useState({ type: "manager", value: null });
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   // Real registered SD/CS staff — not every name that ever appeared in the
   // picMapping sheet (that list gets noisy with stale/duplicate entries).
   const [staffPics, setStaffPics] = useState([]);
-
-  // Task creation has no push notification at all (a plain service account
-  // can't invite calendar attendees, so nobody gets emailed/pinged) — the
-  // only way a non-manager finds out they've been assigned something is by
-  // opening this tab themselves. This badge at least surfaces it on the
-  // sidebar they already see on every login, instead of requiring them to
-  // remember to check a sub-tab that isn't the default view.
-  const [myOpenTaskCount, setMyOpenTaskCount] = useState(0);
-  useEffect(() => {
-    if (isManager || !canSeeOperations) return;
-    fetch("/api/tasks")
-      .then((r) => r.json())
-      .then((json) => {
-        if (!json.ok) return;
-        setMyOpenTaskCount(json.tasks.filter((t) => t.status === "in_progress").length);
-      })
-      .catch(() => {});
-  }, [isManager, canSeeOperations]);
 
   useEffect(() => {
     if (!isManager) return;
@@ -159,24 +140,6 @@ export default function DashboardPage({ user: initialUser }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks, selectedOrigin, dateFrom, dateTo, canSeeLTL]);
 
-  // Tách Chuyến: fetch lazily the first time the user opens that tab
-  useEffect(() => {
-    if (activeTab !== "tachtrip" || tcData || tcLoading) return;
-    setTcLoading(true);
-    setTcError(null);
-    fetch(`/api/tachtrip?t=${Date.now()}`)
-      .then(res => res.json())
-      .then(json => {
-        if (!json.ok) throw new Error(json.error || "Lỗi tải dữ liệu");
-        setTcData(json.tcData);
-      })
-      .catch(e => setTcError(e.message))
-      .finally(() => setTcLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
-
-
-
   const allProjects = dashData
     ? (dashData.overview?.allProjectsLTL || []).sort()
     : user.project ? [user.project] : [];
@@ -190,10 +153,9 @@ export default function DashboardPage({ user: initialUser }) {
 
       {/*
         Watchdog: on a small but real fraction of loads (seen most on
-        accounts whose default/only tab is "ftl", e.g. GSVT staff with
-        role "cs" — reported 2026-08-18), the effect that kicks off the
-        tab's data fetch (fetchDashboardData here, TabFTL's own `load` for
-        the FTL tab) never fires, even though the JS bundle and SSR'd
+        accounts whose default/only tab was the since-removed FTL tab, e.g.
+        GSVT staff with role "cs" — reported 2026-08-18), the effect that
+        kicks off the tab's data fetch (fetchDashboardData) never fires, even though the JS bundle and SSR'd
         markup both load fine — <main> is left permanently on its initial
         loading placeholder. Reproduced against a clean `next start`
         production build (not just dev-mode HMR noise), and it isn't
@@ -251,82 +213,24 @@ export default function DashboardPage({ user: initialUser }) {
 
           {/* Active Navigation */}
           <nav className="sidebar-nav" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {canSeeLTL && (
+            {canSeeLTL && LTL_VIEWS.map((v) => (
               <div
-                className={`nav-item ${activeTab === "ltl" ? "active" : ""}`}
-                onClick={() => setActiveTab("ltl")}
+                key={v.id}
+                className={`nav-item ${activeTab === v.id ? "active" : ""}`}
+                onClick={() => setActiveTab(v.id)}
                 style={{
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
                   padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
-                  color: activeTab === "ltl" ? "#fff" : "var(--text-muted)",
-                  background: activeTab === "ltl" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
+                  color: activeTab === v.id ? "#fff" : "var(--text-muted)",
+                  background: activeTab === v.id ? "rgba(var(--brand-rgb),0.15)" : "transparent"
                 }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 3h18v18H3z"/><path d="M21 9H3M9 21V9"/>
+                  <path d={v.icon}/>
                 </svg>
-                LTL Dashboard
+                {v.label}
               </div>
-            )}
-            {canSeeOperations && (
-              <div
-                className={`nav-item ${activeTab === "operations" ? "active" : ""}`}
-                onClick={() => setActiveTab("operations")}
-                style={{
-                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
-                  color: activeTab === "operations" ? "#fff" : "var(--text-muted)",
-                  background: activeTab === "operations" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-                </svg>
-                Vận hành SD3
-                {!isManager && myOpenTaskCount > 0 && (
-                  <span title={`${myOpenTaskCount} task đang thực hiện của bạn`} style={{
-                    marginLeft: "auto", background: "var(--red)", color: "#fff", fontSize: 11, fontWeight: 700,
-                    borderRadius: 10, padding: "1px 7px", lineHeight: "16px",
-                  }}>
-                    {myOpenTaskCount}
-                  </span>
-                )}
-              </div>
-            )}
-            {canSeeTachTrip && (
-              <div
-                className={`nav-item ${activeTab === "tachtrip" ? "active" : ""}`}
-                onClick={() => setActiveTab("tachtrip")}
-                style={{
-                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
-                  color: activeTab === "tachtrip" ? "#fff" : "var(--text-muted)",
-                  background: activeTab === "tachtrip" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-.553-.894L15 4m0 13V4m0 0L9 7"/>
-                </svg>
-                Tách Chuyến
-              </div>
-            )}
-            {canSeeFTL && (
-              <div
-                className={`nav-item ${activeTab === "ftl" ? "active" : ""}`}
-                onClick={() => setActiveTab("ftl")}
-                style={{
-                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
-                  color: activeTab === "ftl" ? "#fff" : "var(--text-muted)",
-                  background: activeTab === "ftl" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
-                </svg>
-                FTL
-              </div>
-            )}
+            ))}
             {user.role === "manager" && (
               <div
                 className={`nav-item ${activeTab === "users" ? "active" : ""}`}
@@ -494,13 +398,11 @@ export default function DashboardPage({ user: initialUser }) {
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)" }}>
-                {activeTab === "ltl" ? "LTL Dashboard"
-                  : activeTab === "users" ? "Quản lý người dùng"
-                  : activeTab === "operations" ? "Vận hành SD3"
-                  : activeTab === "tachtrip" ? "Tách Chuyến"
-                  : activeTab === "ftl" ? "FTL"
+                {LTL_VIEWS.find((v) => v.id === activeTab)?.label
+                  || (activeTab === "users" ? "Quản lý người dùng"
                   : activeTab === "auditlog" ? "Nhật Ký Hoạt Động"
-                  : "SD3- Dashboard Điện Máy"}
+                  : activeTab === "brain" ? "Bộ Não Tiểu Đệ"
+                  : "SD3- Dashboard Điện Máy")}
               </div>
               {isManager && viewAs.type !== "manager" && (
                 <div style={{
@@ -518,7 +420,7 @@ export default function DashboardPage({ user: initialUser }) {
               )}
             </div>
 
-            {activeTab === "ltl" ? (
+            {isLTLView ? (
               <FilterBar
                 selectedMonths={selectedMonths}
                 onMonthsChange={setSelectedMonths}
@@ -599,23 +501,6 @@ export default function DashboardPage({ user: initialUser }) {
               <TabBrain />
             ) : activeTab === "auditlog" ? (
               <TabAuditLog />
-            ) : activeTab === "ftl" ? (
-              <TabFTL isManager={isManager} userRole={user.role} />
-            ) : activeTab === "tachtrip" ? (
-              tcLoading ? (
-                <div style={{ display: "flex", justifyContent: "center", paddingTop: 60 }}>
-                  <TruckLoader size={88} label="Đang tải dữ liệu Tách Chuyến..." />
-                </div>
-              ) : tcError ? (
-                <div style={{
-                  background: "rgba(244,63,94,0.1)", border: "1px solid var(--red)",
-                  borderRadius: 10, padding: 20, color: "var(--red)",
-                }}>
-                  Lỗi tải dữ liệu: {tcError}.
-                </div>
-              ) : (
-                <TabTachTrip tcData={tcData} />
-              )
             ) : (
               <>
                 {/* Full-page loader */}
@@ -647,11 +532,7 @@ export default function DashboardPage({ user: initialUser }) {
                   </div>
                 )}
 
-                {activeTab === "operations" ? (
-                  <OperationsDashboard rawData={dashData?.raw} userRole={dashData?.user?.role} />
-                ) : (
-                  !loading && !error && dashData && <LTLDashboard data={dashData.ltl} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} fetchProvinceOrders={fetchProvinceOrders} />
-                )}
+                {!loading && !error && dashData && <LTLDashboard view={activeTab} data={dashData.ltl} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} fetchProvinceOrders={fetchProvinceOrders} />}
               </>
             )}
           </main>

@@ -10,7 +10,6 @@ import { getSession } from "../../lib/auth";
 import { fetchSheet, getCached, setCached, clearAllCache } from "../../lib/sheets";
 import { isDMClient, isLTLRow, isFromJuly2026 } from "../../lib/dm-clients";
 import { transformLTL, parseDate } from "../../lib/transform-ltl";
-import { transformTachTrip } from "../../lib/transform-tach-trip";
 import { transformAIInsights, computeDamageCauseBreakdown } from "../../lib/transform-ai-insights";
 
 export default async function handler(req, res) {
@@ -77,7 +76,7 @@ export default async function handler(req, res) {
 
   // Scope key for everything that depends only on WHO is asking (role/pic/
   // viewAs), not on which months/projects/origin they're currently filtering
-  // by — used to cache the expensive overview/aiInsights/tachTrip transforms
+  // by — used to cache the expensive overview/aiInsights transforms
   // that were previously recomputed from scratch on every single filter click.
   const scopeKey = `${role}:${userPic || ""}:${viewAsType}:${viewAsValue || ""}`;
   const fullKey = `data:full:${scopeKey}:${filterMode}:${periodWeeks}:${origin || ""}:${(months || []).join(",")}:${(projects || []).join(",")}:${dateFrom || ""}:${dateTo || ""}`;
@@ -223,7 +222,7 @@ export default async function handler(req, res) {
     // ── Province drill-down (modal "Chi tiết đơn hàng") — a tiny, on-demand
     // slice of the SAME already-filtered rows, requested only when the user
     // actually clicks a province. Returns early, skipping the (unneeded for
-    // this) tachTrip/aiInsights/overview work below. This exists so the
+    // this) aiInsights/overview work below. This exists so the
     // NORMAL response (no `province` param) never has to carry the full
     // ~23k-row filteredRows array just to support this one rarely-used
     // click-through — see the `delete ltlData.filteredRows` below.
@@ -243,16 +242,6 @@ export default async function handler(req, res) {
           odr_success: r.odr_success,
         }));
       return res.status(200).json({ ok: true, provinceOrders });
-    }
-
-    // ── Overview / AI Insights / TachTrip — independent of months/projects/
-    // origin, so cache per (role, pic, viewAs) scope instead of recomputing
-    // on every filter click. Shares the sheets-fetch cache TTL (5 min).
-    const tachTripKey = `data:tachTrip:${scopeKey}`;
-    let tachTripData = getCached(tachTripKey);
-    if (!tachTripData) {
-      tachTripData = transformTachTrip(filteredLTL);
-      setCached(tachTripKey, tachTripData);
     }
 
     // breakageRoutes/avgDmgRate depend on the project filter — previously
@@ -344,7 +333,6 @@ export default async function handler(req, res) {
       filters: { months, projects, filterMode, dateFrom, dateTo },
       viewAs: { type: viewAsType, value: viewAsValue },
       ltl: ltlData,
-      tachTrip: tachTripData,
       aiInsights,
       overview: {
         ...overview,

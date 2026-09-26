@@ -7,7 +7,6 @@ import {
   queryOrders,
   getProjectPerformance,
   getDamageAndRiskReport,
-  createTaskForStaff,
   predictRevenueTarget,
 } from "../../lib/ai-agent-tools";
 import { loadBrainContext, extractInsightsFromChat, saveBrainInsights } from "../../lib/ai-brain";
@@ -41,7 +40,7 @@ PHONG CÁCH TRẢ LỜI KHI HỎI DOANH THU / SO SÁNH:
 - **AQUA B2B**: 0đ → 903tr ✅ (+∞) · KPI 106%
 - **Casper B2C**: 456tr → 194tr 📉 (-57%) · KPI 39% ⚠️
 
-⚠️ Cần action gấp: Casper & Hisense đang nguy hiểm. Tiểu Đệ tạo Task nhắc PIC không ạ?"
+⚠️ Cần action gấp: Casper & Hisense đang nguy hiểm, Đại Ca nên nhắc PIC follow sớm ạ."
 
 XỬ LÝ HÓC BÚA:
 "Cha chả câu hỏi Đại Ca đưa ra hóc búa quá! 🙇‍♂️ Chiêu này vượt tầm nội công của Tiểu Đệ. Để em ghi nhận gửi Trưởng Lão nghiên cứu sau nha!"
@@ -346,24 +345,8 @@ Trả về CHỈ JSON theo format: {"intent": "TÊN_INTENT", "extractedName": "T
         expertContext = "Chuyên gia DAMAGE_QUERY báo cáo: Không thể lấy dữ liệu hư hỏng lúc này.";
       }
     } else if (intentInfo.intent === "TASK_CREATION") {
-      const titleMatch = message.replace(/tạo task|giao task|giao việc|nhắc nhở|lập task/gi, "").trim();
-      if (!intentInfo.extractedName) {
-        // Don't silently guess who to assign — a wrong guess means the task
-        // never reaches the right person and nobody notices.
-        expertContext =
-          "Chưa xác định được nhân sự phụ trách task này. Hãy hỏi lại Đại Ca task này giao cho ai trong 4 người: Duy Tú, Kim Diện, Nguyễn Thành Đạt, Thúy Vi — KHÔNG được tự tạo task khi chưa rõ người phụ trách.";
-      } else {
-        try {
-          await createTaskForStaff({
-            title: titleMatch || "Kiểm tra vận hành SD3",
-            picName: intentInfo.extractedName,
-            notes: `Tạo tự động qua AI Agent từ chỉ đạo của ${session.user.name || 'Đại Ca'}`,
-          }, session.user.name || session.user.email);
-          expertContext = `Đã giao task/công việc thành công: tiêu đề "${titleMatch || 'Kiểm tra vận hành SD3'}" cho nhân sự tên "${intentInfo.extractedName}". Đã ghi nhận vào Quản lý Task & Google Calendar.`;
-        } catch (e) {
-          expertContext = `Lỗi: Hệ thống không thể tạo task lúc này — ${e.message}`;
-        }
-      }
+      expertContext =
+        "Tính năng tạo/giao task đã được gỡ khỏi hệ thống (tháng 9/2026, dashboard chỉ còn phân hệ LTL). Hãy báo Đại Ca là Tiểu Đệ KHÔNG còn tạo hay giao task được nữa — TUYỆT ĐỐI không được nói là đã tạo task.";
     } else if (intentInfo.intent === "PREDICTION") {
       const predictions = predictRevenueTarget(projectsList, { clientOrProject: intentInfo.extractedName });
       if (predictions.length > 0) {
