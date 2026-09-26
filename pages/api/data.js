@@ -3,6 +3,7 @@
  * GET /api/data?months=1,2,3&projects=GTC,ABC&filterMode=pickup&viewAsType=cs&viewAsValue=PIC_NAME
  *   &province=X      → { ok, provinceOrders }  (modal "Chi tiết đơn hàng")
  *   &pendingPickup=1 → { ok, pendingOrders }   (modal "Đơn chờ lấy")
+ *   &stuck=1         → { ok, stuckOrders }     (modal "Đơn treo / cần chú ý")
  *   &force=true      → rebuild the Blob snapshot from Google Sheets first
  *
  * Protected endpoint — requires valid session. Data comes from the LTL
@@ -86,6 +87,7 @@ export default async function handler(req, res) {
     dateFrom, dateTo, origin, periodWeeks,
     province: req.query.province ? String(req.query.province) : null,
     pendingList: req.query.pendingPickup === "1",
+    stuckList: req.query.stuck === "1",
   };
   const scope = { role, userProject, userPic };
   const force = req.query.force === "true";
@@ -101,7 +103,7 @@ export default async function handler(req, res) {
     const base = await loadLtlBase();
     // Drill-down shapes are small and differ from the full body — never
     // served from / written to the full-response cache.
-    if (params.province || params.pendingList) {
+    if (params.province || params.pendingList || params.stuckList) {
       return res.status(200).json(computeDashboard(base, params));
     }
 

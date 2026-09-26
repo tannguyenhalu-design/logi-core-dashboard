@@ -38,9 +38,21 @@ echo "[$(date)] Bat dau chay run_scrapers.sh" >> "$LOG"
 # hang here would starve FTL just like the reverse incident (2026-08-20/21,
 # see run_ftl_scraper.sh) starved this script for 2 days straight.
 FAILED=0
-timeout 600 python3 kpi_scraper.py >> "$LOG" 2>&1 || FAILED=1
-timeout 600 python3 sheet_scraper.py >> "$LOG" 2>&1 || FAILED=1
-timeout 600 python3 rillnet_scraper.py >> "$LOG" 2>&1 || FAILED=1
+RUN_STARTED=$(date -Iseconds)
+# Each step's output is kept separately (and still appended to the main log)
+# so report_health.py can classify it (ok / session expired / error) for the
+# dashboard's "Trạng thái hệ thống" page.
+run_step() {
+  local name="$1" script="$2"
+  timeout 600 python3 "$script" > "/tmp/step_${name}.log" 2>&1
+  local code=$?
+  cat "/tmp/step_${name}.log" >> "$LOG"
+  echo "$code" > "/tmp/step_${name}.code"
+  [ "$code" -eq 0 ] || FAILED=1
+}
+run_step kpi kpi_scraper.py
+run_step raw_ontime sheet_scraper.py
+run_step rillnet rillnet_scraper.py
 
 # Rebuild the dashboard's LTL snapshot (Vercel Blob) right away so the new
 # raw_ontime / damage data shows up now instead of at the next Vercel cron.
@@ -50,6 +62,10 @@ if [ -n "$SNAPSHOT_SECRET" ]; then
   curl -s -m 120 -H "x-snapshot-secret: ${SNAPSHOT_SECRET}" -H "x-caller: railway" \
     "https://logicore-app.vercel.app/api/cron/build-snapshot" >> "$LOG" 2>&1 || echo "  (goi build-snapshot that bai)" >> "$LOG"
   echo "" >> "$LOG"
+fi
+
+if [ -n "$SNAPSHOT_SECRET" ]; then
+  python3 report_health.py "$RUN_STARTED" >> "$LOG" 2>&1 || echo "  (gui heartbeat that bai)" >> "$LOG"
 fi
 
 if [ "$FAILED" -eq 0 ]; then

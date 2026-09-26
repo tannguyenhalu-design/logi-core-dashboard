@@ -13,6 +13,7 @@ import dynamic from "next/dynamic";
 const LTLDashboard  = dynamic(() => import("../components/ltl/LTLDashboard"), { ssr: false });
 const TabUsers      = dynamic(() => import("../components/TabUsers"),      { ssr: false });
 const TabAuditLog   = dynamic(() => import("../components/TabAuditLog"),   { ssr: false });
+const TabSystemHealth = dynamic(() => import("../components/TabSystemHealth"), { ssr: false });
 const TabBrain      = dynamic(() => import("../components/TabBrain"),      { ssr: false });
 const AIChatDrawer  = dynamic(() => import("../components/AIChatDrawer"),  { ssr: false });
 
@@ -49,7 +50,7 @@ export default function DashboardPage({ user: initialUser }) {
   // Any pre-refactor tab (operations/tachtrip/ftl) still in an old session
   // cookie means the user had dashboard access — same mapping as lib/users.js.
   const canSeeLTL = isManager || (user.tabs || []).some((t) => LEGACY_TABS.includes(t));
-  const [activeTab, setActiveTab] = useState(canSeeLTL ? "ltl" : "none"); // LTL_VIEWS id | 'users' | 'auditlog' | 'brain' | 'none'
+  const [activeTab, setActiveTab] = useState(canSeeLTL ? "ltl" : "none"); // LTL_VIEWS id | 'users' | 'auditlog' | 'health' | 'brain' | 'none'
   const isLTLView = LTL_VIEWS.some((v) => v.id === activeTab);
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [selectedProjects, setSelectedProjects] = useState([]);
@@ -159,6 +160,20 @@ export default function DashboardPage({ user: initialUser }) {
     if (!res.ok) throw new Error(`API error ${res.status}`);
     const json = await res.json();
     return json.pendingOrders || [];
+  }, [selectedProjects, viewAs, selectedOrigin]);
+
+  // "Đơn treo / cần chú ý" list — same scoping as the pending list.
+  const fetchStuckOrders = useCallback(async () => {
+    const params = new URLSearchParams();
+    if (selectedProjects?.length > 0) params.append("projects", selectedProjects.join(","));
+    if (viewAs.type) params.append("viewAsType", viewAs.type);
+    if (viewAs.value) params.append("viewAsValue", viewAs.value);
+    if (selectedOrigin) params.append("origin", selectedOrigin);
+    params.append("stuck", "1");
+    const res = await fetch(`/api/data?${params.toString()}`);
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    const json = await res.json();
+    return json.stuckOrders || [];
   }, [selectedProjects, viewAs, selectedOrigin]);
 
   // A pickup-point selection only makes sense for whichever project it came
@@ -300,6 +315,23 @@ export default function DashboardPage({ user: initialUser }) {
             )}
             {user.role === "manager" && (
               <div
+                className={`nav-item ${activeTab === "health" ? "active" : ""}`}
+                onClick={() => setActiveTab("health")}
+                style={{
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
+                  color: activeTab === "health" ? "#fff" : "var(--text-muted)",
+                  background: activeTab === "health" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                </svg>
+                Trạng thái hệ thống
+              </div>
+            )}
+            {user.role === "manager" && (
+              <div
                 className={`nav-item ${activeTab === "brain" ? "active" : ""}`}
                 onClick={() => setActiveTab("brain")}
                 style={{
@@ -433,6 +465,7 @@ export default function DashboardPage({ user: initialUser }) {
                 {LTL_VIEWS.find((v) => v.id === activeTab)?.label
                   || (activeTab === "users" ? "Quản lý người dùng"
                   : activeTab === "auditlog" ? "Nhật Ký Hoạt Động"
+                  : activeTab === "health" ? "Trạng thái hệ thống"
                   : activeTab === "brain" ? "Bộ Não Tiểu Đệ"
                   : "SD3- Dashboard Điện Máy")}
               </div>
@@ -534,6 +567,8 @@ export default function DashboardPage({ user: initialUser }) {
               <TabBrain />
             ) : activeTab === "auditlog" ? (
               <TabAuditLog />
+            ) : activeTab === "health" ? (
+              <TabSystemHealth />
             ) : (
               <>
                 {/* Refetch: keep current content, show a thin progress bar */}
@@ -552,7 +587,7 @@ export default function DashboardPage({ user: initialUser }) {
 
                 {!dashData && loading && <DashboardSkeleton view={activeTab} />}
 
-                {dashData && !(error && !loading) && <div className={loading ? "refreshing" : "fade-in"}><LTLDashboard view={activeTab} data={dashData.ltl} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} fetchProvinceOrders={fetchProvinceOrders} pendingPickup={dashData.pendingPickup} fetchPendingOrders={fetchPendingOrders} kpiDelta={dashData.kpiDelta} /></div>}
+                {dashData && !(error && !loading) && <div className={loading ? "refreshing" : "fade-in"}><LTLDashboard view={activeTab} data={dashData.ltl} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} fetchProvinceOrders={fetchProvinceOrders} pendingPickup={dashData.pendingPickup} fetchPendingOrders={fetchPendingOrders} kpiDelta={dashData.kpiDelta} stuck={dashData.stuck} fetchStuckOrders={fetchStuckOrders} anomalies={dashData.anomalies} /></div>}
               </>
             )}
           </main>

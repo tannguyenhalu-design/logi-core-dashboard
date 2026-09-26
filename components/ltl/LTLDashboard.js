@@ -98,10 +98,90 @@ function WeeklyByClientSection({ ordersByProjectAndWeek, ordersByMonth }) {
   );
 }
 
+// Shared order-list modal for the "Đơn chờ lấy" and "Đơn treo" drill-downs:
+// rows are fetched on demand, columns are { label, render(o), style? }.
+function OrderListModal({ title, subtitle, loading, rows, columns, onClose }) {
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+      display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999
+    }} onClick={onClose}>
+      <div style={{
+        background: "var(--bg-panel)", border: "1px solid var(--border)",
+        borderRadius: 12, padding: 24, width: "90%", maxWidth: 1000,
+        maxHeight: "85vh", display: "flex", flexDirection: "column",
+        boxShadow: "0 20px 40px rgba(0,0,0,0.4)"
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 18, color: "var(--text-primary)" }}>{title}</h2>
+            <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
+              {loading ? "Đang tải..." : subtitle}
+            </div>
+          </div>
+          <button onClick={onClose} style={{
+            background: "none", border: "none", color: "var(--text-muted)", fontSize: 24, cursor: "pointer", lineHeight: 1
+          }}>✕</button>
+        </div>
+        <div style={{ overflowY: "auto", flex: 1, borderRadius: 8, border: "1px solid var(--border)" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
+            <thead style={{ position: "sticky", top: 0, background: "var(--bg-panel)", zIndex: 1 }}>
+              <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                {columns.map((c) => (
+                  <th key={c.label} style={{ padding: "10px 12px", color: "var(--text-secondary)", fontWeight: 600 }}>{c.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={columns.length} style={{ padding: 20, textAlign: "center", color: "var(--text-muted)" }}>Đang tải...</td></tr>
+              ) : rows.length === 0 ? (
+                <tr><td colSpan={columns.length} style={{ padding: 20, textAlign: "center", color: "var(--text-muted)" }}>Không có đơn nào</td></tr>
+              ) : (
+                rows.map((o, idx) => (
+                  <tr key={idx} style={{ borderBottom: "1px solid var(--border)" }}>
+                    {columns.map((c) => (
+                      <td key={c.label} style={{ padding: "8px 12px", color: "var(--text-muted)", ...(c.style || {}) }}>{c.render(o)}</td>
+                    ))}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const fmtKg = (w) => (w ? `${(parseFloat(w) / 1000).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} kg` : "-");
+const fmtYmd = (s) => (s ? String(s).slice(0, 10).split("-").reverse().join("/") : "-");
+const routeOf = (o) => `${o.from_province_name || "?"} → ${o.to_province_name || "?"}`;
+
+const PENDING_COLUMNS = [
+  { label: "Mã Đơn", render: (o) => o.order_code || "N/A", style: { fontWeight: 600, color: "var(--text-primary)" } },
+  { label: "Dự Án", render: (o) => o.client_name },
+  { label: "Trạng Thái", render: (o) => o.status, style: { color: "var(--amber)" } },
+  { label: "Ngày Tạo", render: (o) => o.created_time || "-", style: { whiteSpace: "nowrap" } },
+  { label: "Tuyến Đường", render: routeOf },
+  { label: "Trọng Lượng", render: (o) => fmtKg(o.weight), style: { whiteSpace: "nowrap" } },
+];
+
+const STUCK_COLUMNS = [
+  { label: "Mã Đơn", render: (o) => o.order_code || "N/A", style: { fontWeight: 600, color: "var(--text-primary)" } },
+  { label: "Dự Án", render: (o) => o.client_name },
+  { label: "Trạng Thái", render: (o) => o.status, style: { color: "var(--amber)" } },
+  { label: "Ngày Lấy", render: (o) => fmtYmd(o.pickup_time), style: { whiteSpace: "nowrap" } },
+  { label: "Hạn Giao", render: (o) => fmtYmd(o.deadline), style: { whiteSpace: "nowrap" } },
+  { label: "Quá Hạn", render: (o) => `${o.overdueDays} ngày`, style: { whiteSpace: "nowrap", fontWeight: 600, color: "var(--red)" } },
+  { label: "Tuyến Đường", render: routeOf },
+  { label: "Kho Giao", render: (o) => o.kho_giao || "-" },
+];
+
 // view: "ltl" (Tổng quan) | "map" (Bản đồ tỉnh thành) | "damage" (Hư hỏng & Rủi ro)
 // — all 3 read the same already-fetched /api/data payload, so switching tabs
 // never refetches.
-export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders, pendingPickup, fetchPendingOrders, kpiDelta }) {
+export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders, pendingPickup, fetchPendingOrders, kpiDelta, stuck, fetchStuckOrders, anomalies }) {
   const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
   const [selectedProvinceOrders, setSelectedProvinceOrders] = useState(null);
   // Fetched on demand (see fetchProvinceOrders in pages/dashboard.js) instead
@@ -113,6 +193,9 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
   const [pendingModalOpen, setPendingModalOpen] = useState(false);
   const [pendingOrders, setPendingOrders] = useState([]);
   const [pendingLoading, setPendingLoading] = useState(false);
+  const [stuckModalOpen, setStuckModalOpen] = useState(false);
+  const [stuckOrders, setStuckOrders] = useState([]);
+  const [stuckLoading, setStuckLoading] = useState(false);
   const theme = useTheme();
 
   if (!data) return <TruckLoader />;
@@ -168,6 +251,20 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
       setPendingOrders([]);
     } finally {
       setPendingLoading(false);
+    }
+  };
+
+  const openStuckModal = async () => {
+    setStuckModalOpen(true);
+    setStuckOrders([]);
+    if (!fetchStuckOrders) return;
+    setStuckLoading(true);
+    try {
+      setStuckOrders(await fetchStuckOrders());
+    } catch {
+      setStuckOrders([]);
+    } finally {
+      setStuckLoading(false);
     }
   };
 
@@ -252,6 +349,44 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
           </div>
         );
       })()}
+
+      {showOverview && anomalies?.items?.length > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+          background: "var(--bg-panel)", border: "1px solid var(--border)", borderLeft: "3px solid var(--red)",
+          borderRadius: 10, padding: "12px 16px",
+        }}>
+          <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>⚠ On-time giảm mạnh</span>
+          <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>≥ 10 điểm so với {anomalies.compareLabel} (mỗi kỳ ≥ 5 đơn đã đánh giá):</span>
+          {anomalies.items.map((a) => (
+            <span key={a.name} title={`${a.name}: ${a.prev}% (${fmt(a.prevN)} đơn) → ${a.cur}% (${fmt(a.curN)} đơn)`} style={{
+              fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 20,
+              background: "var(--red-glow)", color: "var(--red)", whiteSpace: "nowrap",
+            }}>
+              {a.name} · {a.prev}% → {a.cur}% (▼ {Math.abs(a.deltaPoints).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} điểm)
+            </span>
+          ))}
+        </div>
+      )}
+
+      {showOverview && stuck?.count > 0 && (
+        <button
+          onClick={openStuckModal}
+          style={{
+            display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", textAlign: "left",
+            background: "var(--bg-panel)", border: "1px solid var(--border)", borderLeft: "3px solid var(--red)",
+            borderRadius: 10, padding: "12px 16px", cursor: "pointer", fontFamily: "inherit", color: "var(--text-primary)",
+          }}
+        >
+          <span style={{ fontSize: 20, fontWeight: 700, color: "var(--red)" }}>{fmt(stuck.count)}</span>
+          <span style={{ fontWeight: 600 }}>Đơn treo / cần chú ý</span>
+          <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+            Đã lấy, chưa giao/hoàn, đã quá hạn giao · quá 1–3 ngày: {fmt(stuck.byAge["1-3"])} · 4–7 ngày: {fmt(stuck.byAge["4-7"])} · &gt; 7 ngày: {fmt(stuck.byAge[">7"])}
+            {stuck.topClients?.length > 0 && <> · nhiều nhất: {stuck.topClients.slice(0, 3).map(([n, c]) => `${n} (${fmt(c)})`).join(", ")}</>}
+          </span>
+          <span style={{ marginLeft: "auto", fontSize: 12.5, color: "var(--cyan)", fontWeight: 600 }}>Xem danh sách →</span>
+        </button>
+      )}
 
       {showOverview && pendingPickup?.count > 0 && (
         <button
@@ -438,60 +573,24 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
         />
       </div>}
       {pendingModalOpen && (
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
-          display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999
-        }} onClick={() => setPendingModalOpen(false)}>
-          <div style={{
-            background: "var(--bg-panel)", border: "1px solid var(--border)",
-            borderRadius: 12, padding: 24, width: "90%", maxWidth: 900,
-            maxHeight: "85vh", display: "flex", flexDirection: "column",
-            boxShadow: "0 20px 40px rgba(0,0,0,0.4)"
-          }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: 18, color: "var(--text-primary)" }}>Đơn chờ lấy (chưa chốt kỳ)</h2>
-                <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
-                  {pendingLoading ? "Đang tải..." : `${fmt(pendingOrders.length)} đơn chưa có ngày lấy hàng — theo dự án/điểm lấy đang lọc, không phụ thuộc bộ lọc tháng/ngày`}
-                </div>
-              </div>
-              <button onClick={() => setPendingModalOpen(false)} style={{
-                background: "none", border: "none", color: "var(--text-muted)", fontSize: 24, cursor: "pointer", lineHeight: 1
-              }}>✕</button>
-            </div>
-            <div style={{ overflowY: "auto", flex: 1, borderRadius: 8, border: "1px solid var(--border)" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
-                <thead style={{ position: "sticky", top: 0, background: "var(--bg-panel)", zIndex: 1 }}>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    {["Mã Đơn", "Dự Án", "Trạng Thái", "Ngày Tạo", "Tuyến Đường", "Trọng Lượng"].map((h) => (
-                      <th key={h} style={{ padding: "10px 12px", color: "var(--text-secondary)", fontWeight: 600 }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {pendingLoading ? (
-                    <tr><td colSpan="6" style={{ padding: 20, textAlign: "center", color: "var(--text-muted)" }}>Đang tải...</td></tr>
-                  ) : pendingOrders.length === 0 ? (
-                    <tr><td colSpan="6" style={{ padding: 20, textAlign: "center", color: "var(--text-muted)" }}>Không có đơn nào</td></tr>
-                  ) : (
-                    [...pendingOrders].sort((a, b) => String(a.created_time || "").localeCompare(String(b.created_time || ""))).map((o, idx) => (
-                      <tr key={idx} style={{ borderBottom: "1px solid var(--border)" }}>
-                        <td style={{ padding: "8px 12px", fontWeight: 600 }}>{o.order_code || "N/A"}</td>
-                        <td style={{ padding: "8px 12px", color: "var(--text-muted)" }}>{o.client_name}</td>
-                        <td style={{ padding: "8px 12px", color: "var(--amber)" }}>{o.status}</td>
-                        <td style={{ padding: "8px 12px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>{o.created_time || "-"}</td>
-                        <td style={{ padding: "8px 12px", color: "var(--text-muted)" }}>{o.from_province_name || "?"} → {o.to_province_name || "?"}</td>
-                        <td style={{ padding: "8px 12px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-                          {o.weight ? `${(parseFloat(o.weight) / 1000).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} kg` : "-"}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+        <OrderListModal
+          title="Đơn chờ lấy (chưa chốt kỳ)"
+          subtitle={`${fmt(pendingOrders.length)} đơn chưa có ngày lấy hàng — theo dự án/điểm lấy đang lọc, không phụ thuộc bộ lọc tháng/ngày`}
+          loading={pendingLoading}
+          rows={[...pendingOrders].sort((a, b) => String(a.created_time || "").localeCompare(String(b.created_time || "")))}
+          columns={PENDING_COLUMNS}
+          onClose={() => setPendingModalOpen(false)}
+        />
+      )}
+      {stuckModalOpen && (
+        <OrderListModal
+          title="Đơn treo / cần chú ý"
+          subtitle={`${fmt(stuckOrders.length)} đơn đã lấy, chưa giao/hoàn và đã quá hạn giao (quá lâu nhất lên đầu) — theo dự án/điểm lấy đang lọc, không phụ thuộc bộ lọc tháng/ngày`}
+          loading={stuckLoading}
+          rows={stuckOrders}
+          columns={STUCK_COLUMNS}
+          onClose={() => setStuckModalOpen(false)}
+        />
       )}
       {selectedProvinceOrders && (
         <div style={{

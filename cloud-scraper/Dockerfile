@@ -41,7 +41,7 @@ WORKDIR /app
 COPY package.json /app/package.json
 RUN npm install --omit=dev
 
-COPY kpi_scraper.py sheet_scraper.py rillnet_scraper.py sync_to_db.js /app/
+COPY kpi_scraper.py sheet_scraper.py rillnet_scraper.py sync_to_db.js report_health.py /app/
 COPY ftl_scraper.py sync_ftl_to_db.js ftl_enrich_vehicle.py /app/
 COPY list_ftl_orders_needing_vehicle.js update_ftl_vehicle_info.js /app/
 COPY check_sync_trigger.js mark_sync_complete.js /app/
