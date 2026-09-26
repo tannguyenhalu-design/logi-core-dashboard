@@ -64,9 +64,9 @@
 | Nguồn GHN của `raw_ontime` | 🟠 Theo dõi | 24–25/09 có lúc số dòng nguồn đứng yên; 26/09 dữ liệu tháng 9 đã có 9.722 đơn — cần tiếp tục để ý. |
 | Rillnet (bể vỡ) | 🔴 | Phiên GHN SSO hết hạn từ 24/09 12:50 → cần đăng nhập lại qua noVNC (16.2). |
 | KPI portal | ⏸️ PENDING | `kpi_scraper.py` lỗi từ 17/09; user yêu cầu để pending. Sau khi xoá "Vận hành SD3", dữ liệu KPI (doanh thu dự án) chỉ còn AI chat dùng. |
-| Git | 🟢/🟠 | Đã commit đủ đến `ad9dca0` (local). Chưa push GitHub tại thời điểm viết. |
+| Git | 🟢 | Đã commit và push lên GitHub (`main`); push tự kích hoạt Vercel deploy. |
 
-**Số liệu mốc (26/09):** Tổng đơn "Tất cả" = **32.524** = đúng tổng T7 (9.534) + T8 (13.268) + T9 (9.722). **1.125 đơn chờ lấy** (1.044 `ready_to_pick` + 81 `picking`, không có ngày lấy) hiển thị riêng, đơn treo lâu nhất từ 06/08.
+**Số liệu mốc (26/09, sau khi sửa Hồng Đạt / FRT Digital / nhãn ngành DM):** Tổng đơn "Tất cả" = **33.474** = đúng tổng T7 (9.679) + T8 (13.731) + T9 (10.064), 28 dự án. **1.126 đơn chờ lấy** (1.044 `ready_to_pick` + 81 `picking`, không có ngày lấy) hiển thị riêng, đơn treo lâu nhất từ 06/08.
 
 ---
 
@@ -287,7 +287,9 @@ nextjs-dashboard/
 
 **Cảnh báo kho**: code thật chấm theo số hư hỏng, top 10, `broken > 0`.
 
-**LTL vs FTL** (`isLTLRow`): `luong_hang` → fallback `service_type === "lastmile"` khi rỗng/`#N/A`; luôn loại `FTL_ONLY_CLIENTS = {"Aqua B2B","LG Pantos","Aqua B2B FTL","LG Pantos FTL","Hisense FTL","Thợ ĐMX FTL"}`.
+**Phạm vi khách Điện Máy** (`isDMRow`, chốt 26/09): đơn thuộc Điện Máy nếu **`nganh_hang = "DM"`** (nhãn ngành trong sheet nguồn — chuẩn chính, khách DM mới tự vào) **HOẶC** tên khách khớp danh sách `DM_LIST`/`DM_KEYWORDS` (dự phòng cho dòng `nganh_hang = #N/A`, ví dụ 225 đơn PSD Miền Nam). Các giá trị `nganh_hang` khác: STTP, NHC, Ecom — không thuộc SD3. Đối chiếu 26/09: 30 khách khớp hoàn toàn; Xiaomi/Honor KHÔNG gắn DM nên không tính.
+
+**LTL vs FTL** (`isLTLRow`, sửa 26/09): luôn loại `FTL_ONLY_CLIENTS = {"Aqua B2B","LG Pantos","Aqua B2B FTL","LG Pantos FTL","Hisense FTL","Thợ ĐMX FTL"}`; `luong_hang = "LTL"` → tính; `"FTL"` → loại; **mọi giá trị khác** (trống, `#N/A`, `"PO"`, nhãn lạ sau này) → tính nếu `service_type = "lastmile"`.
 
 **Cửa sổ dữ liệu**: `pickup_time >= 07/2026` (`isFromJuly2026`; chuỗi rỗng được cho qua — chính là nguồn gốc nhóm đơn chờ lấy).
 
@@ -404,6 +406,8 @@ Tạo cookie `logi_session` bằng `sealData()` (iron-session) với `SESSION_SE
 23. **Rò dữ liệu qua CDN (14/08 → 26/09)**: header `s-maxage=180` làm Vercel CDN trả response đã cache TRƯỚC khi kiểm tra đăng nhập — request **không cookie nhận đủ dữ liệu LTL (HTTP 200)**, user `cs` nhận nhầm payload của manager. Vá: `private, no-store`. **Không bao giờ bật cache dùng chung cho API cần đăng nhập.**
 24. **Khối bể vỡ không theo bộ lọc tháng (có từ trước, sửa 26/09)**: khoá cache `aiInsights` thiếu tháng/ngày/chế độ lọc/điểm lấy → hiện kết quả của bộ lọc được gọi đầu tiên sau khi instance khởi động (bản cũ tình cờ luôn hiện số tháng 7).
 25. **Bản mặc định tính sẵn lỗi thời sau deploy (26/09)**: bản dựng bởi code cũ thiếu trường mới → gắn mã deploy, deploy khác thì bỏ qua.
+26. **Hồng Đạt biến mất từ 08/2026 (phát hiện 26/09 nhờ user hỏi)**: nguồn đổi `luong_hang` của Hồng Đạt / Hồng Đạt MXT thành `"PO"`; code cũ loại mọi nhãn lạ → **743 đơn** (T8–T9 = 0 trên dashboard) dù toàn bộ là `lastmile`. Sửa: nhãn lạ xét theo `service_type`. Cùng lúc thêm FRT Digital (182 đơn, nhãn DM 100%, không khớp danh sách tên).
+27. **Nhận diện khách bằng tên cứng bỏ sót khách mới (26/09)**: Naduco, Smartlink, Toàn Phát (tháng 9) có `nganh_hang = DM` nhưng không có trong `DM_LIST`. Chuyển sang `isDMRow` (nhãn ngành + tên dự phòng).
 
 ---
 
@@ -421,7 +425,7 @@ Tạo cookie `logi_session` bằng `sealData()` (iron-session) với `SESSION_SE
 | 29/08 – 17/09 | ⚠️ LTL + Rillnet đứng ~19 ngày (hết phiên scraper). |
 | 17/09 | Sửa lag 25MB→1,44MB; đăng nhập lại scraper; KPI pending. |
 | 21 – 22/09 | Tạo SYSTEM_SPEC; phát hiện lệch 1.072 đơn. |
-| **26/09 — tái cấu trúc "chỉ LTL"** | Xoá FTL / Vận hành SD3 / Tách chuyến (54 file); vá rò dữ liệu CDN; snapshot Vercel Blob (dựng sau mỗi lần scraper sync); tách "Đơn chờ lấy"; delta KPI theo bộ lọc; sửa khối bể vỡ theo bộ lọc; chuyển sang Singapore; giao diện phẳng cam GHN, skeleton, Chart.js không animation, bản đồ tối ưu. Commit `90df799` → `ad9dca0`. |
+| **26/09 — tái cấu trúc "chỉ LTL"** | Xoá FTL / Vận hành SD3 / Tách chuyến (54 file); vá rò dữ liệu CDN; snapshot Vercel Blob (dựng sau mỗi lần scraper sync); tách "Đơn chờ lấy"; delta KPI theo bộ lọc; sửa khối bể vỡ theo bộ lọc; chuyển sang Singapore; giao diện phẳng cam GHN, skeleton, Chart.js không animation, bản đồ tối ưu. Commit `90df799` → `ad9dca0`. Cuối ngày: sửa Hồng Đạt ("PO"), thêm FRT Digital, nhận diện khách theo `nganh_hang = DM`. |
 
 ---
 
