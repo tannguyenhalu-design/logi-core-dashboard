@@ -21,6 +21,18 @@ function StatusBadge({ status }) {
   );
 }
 
+// Rillnet compensation / clawback state (2026-09-27)
+function CompBadges({ c }) {
+  const tt = c.truy_thu === "co" ? { t: `Truy thu ${(c.truy_thu_amount || 0).toLocaleString("vi-VN")}đ`, col: "var(--red)" }
+    : c.truy_thu === "khong" ? { t: "Không truy thu", col: "var(--green)" } : { t: "Chờ chốt truy thu", col: "var(--text-muted)" };
+  return (
+    <span style={{ display: "inline-flex", flexDirection: "column", gap: 2, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
+      {c.compensated && <span style={{ color: "var(--amber)" }}>✅ Đã chốt đền bù{c.comp_amount ? ` · ${c.comp_amount.toLocaleString("vi-VN")}đ` : ""}</span>}
+      <span style={{ color: tt.col }}>{tt.t}</span>
+    </span>
+  );
+}
+
 function Field({ label, children }) {
   return (
     <div style={{ display: "flex", gap: 10, fontSize: 13, padding: "5px 0", borderBottom: "1px dashed var(--border)" }}>
@@ -97,6 +109,8 @@ function ClaimDrawer({ c, claim, canEdit, onClose, onSave }) {
           <Field label="Ngày ghi nhận">{fmtYmd(c.case_date)}</Field>
           <Field label="Nguồn báo">{c.source}</Field>
           <Field label="Trạng thái Rillnet">{c.rillnet_status}</Field>
+          <Field label="Đền bù cho khách">{c.compensated ? `✅ Đã chốt${c.comp_amount ? ` · ${c.comp_amount.toLocaleString("vi-VN")}đ` : ""}` : "Chưa chốt"}</Field>
+          <Field label="Truy thu">{c.truy_thu === "co" ? `Có · ${(c.truy_thu_amount || 0).toLocaleString("vi-VN")}đ (đã duyệt)` : c.truy_thu === "khong" ? "Không truy thu (đã duyệt)" : "Chờ chốt"}</Field>
           {c.amount > 0 && <Field label="Số tiền (nguồn)">{`${c.amount.toLocaleString("vi-VN")} đ`}</Field>}
         </div>
 
@@ -271,6 +285,7 @@ export default function DetailedDamageTable({ cases, filter, showClaimsWorkflow 
             <th>Tỉnh nhận</th>
             <th>Loại lỗi</th>
             <th>Chặng nghi vấn</th>
+            <th>Đền bù / Truy thu</th>
             {showAmount && <th style={{ textAlign: "right" }}>Số tiền</th>}
             {showClaimsWorkflow && <th>Trạng thái xử lý</th>}
             {showClaimsWorkflow && <th>Người phụ trách</th>}
@@ -290,6 +305,7 @@ export default function DetailedDamageTable({ cases, filter, showClaimsWorkflow 
               <td style={{ fontSize: 12 }}>{c.to_province}</td>
               <td><span className="badge bg-red" style={{ fontSize: 10, padding: "2px 6px" }}>{c.damage_type}</span></td>
               <td style={{ fontSize: 12, color: "var(--text-secondary)" }}>{c.damage_details || "—"}</td>
+              <td><CompBadges c={c} /></td>
               {showAmount && (
                 <td style={{ textAlign: "right", fontFamily: "monospace", color: "var(--amber)", fontSize: 12, fontWeight: 600 }}>
                   {c.amount > 0 ? c.amount.toLocaleString("vi-VN") + " đ" : "—"}
@@ -302,7 +318,7 @@ export default function DetailedDamageTable({ cases, filter, showClaimsWorkflow 
           })}
           {filteredCases.length === 0 && (
             <tr>
-              <td colSpan={9} style={{ textAlign: "center", color: "var(--text-muted)", padding: 30 }}>
+              <td colSpan={10} style={{ textAlign: "center", color: "var(--text-muted)", padding: 30 }}>
                 {cases.length === 0 ? "Không có dữ liệu ca hư hỏng chi tiết." : "Không có ca nào khớp bộ lọc hiện tại."}
               </td>
             </tr>

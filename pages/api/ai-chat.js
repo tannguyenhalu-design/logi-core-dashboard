@@ -78,6 +78,9 @@ function buildContext(body, base) {
       donDaDanhGia: l.evalCount,
       donLate: l.lateCount,
       caBeVo: l.totalBroken,
+      daChotDenBuChoKhach: (l.detailedDamageCases || []).filter((c) => c.compensated).length,
+      truyThuDaDuyet: (() => { const tt = (l.detailedDamageCases || []).filter((c) => c.truy_thu === "co"); return { soCa: tt.length, tongTien: tt.reduce((s, c) => s + (c.truy_thu_amount || 0), 0) }; })(),
+      ghiChuHuHong: "Ca hư hỏng = danh sách Báo cáo bể vỡ của Rillnet (CS tick 💰, bù tay, đã chốt tiền). Đã chốt đền bù = Ops chấp nhận đền bù hoặc đã chốt tiền. Truy thu = thu hồi từ bên gây lỗi, không phải tiền đền cho khách.",
     },
     theoThang: Object.keys(l.ordersByMonth || {}).map((m) => {
       const o = l.ontimeByMonth?.[m] || { ontime: 0, late: 0 };

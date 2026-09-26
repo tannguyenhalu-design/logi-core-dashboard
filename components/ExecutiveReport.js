@@ -43,6 +43,12 @@ export function buildReport(body) {
     issues.push(`Đơn treo quá hạn: ${n(body.stuck.count)} đơn (${n(body.stuck.byAge[">7"])} đơn quá hạn > 7 ngày) — nhiều nhất: ${body.stuck.topClients.slice(0, 3).map(([c, k]) => `${c} (${n(k)})`).join(", ")}`);
   }
   if (body.dueToday?.count) issues.push(`Đến hạn giao hôm nay chưa giao: ${n(body.dueToday.count)} đơn`);
+  {
+    const cases = l.detailedDamageCases || [];
+    const comp = cases.filter((c) => c.compensated).length;
+    const tt = cases.filter((c) => c.truy_thu === "co");
+    if (cases.length) issues.push(`Hư hỏng (Rillnet): ${n(cases.length)} ca · ${n(comp)} đơn đã chốt đền bù cho khách · truy thu đã duyệt ${n(tt.length)} ca (${n(tt.reduce((s, c) => s + (c.truy_thu_amount || 0), 0))}đ)`);
+  }
   if (body.pendingPickup?.count) issues.push(`Đơn chờ lấy (chưa có ngày lấy): ${n(body.pendingPickup.count)} đơn`);
   const risk = body.damageRisk;
   const riskyRoutes = (risk?.routes || []).filter((r) => r.risky).slice(0, 5);

@@ -199,7 +199,7 @@ export default function RouteRiskMatrix({ risk, riskOnly = false, onRiskOnlyChan
         </div>
         {risk.totalAmount > 0 && (
           <div style={{ padding: "0 20px 10px", fontSize: 13 }}>
-            💰 Tổng tiền đền bù đã chốt: <b>{fmt(risk.totalAmount)} đ</b> · bình quân <b>{fmt(Math.round(risk.totalAmount / risk.totalOrders))} đ/đơn</b>
+            💰 Truy thu đã duyệt: <b>{fmt(risk.totalAmount)} đ</b> ({fmt(risk.compensation?.truyThu || 0)} ca) · bình quân <b>{fmt(Math.round(risk.totalAmount / risk.totalOrders))} đ/đơn</b> · đã chốt đền bù cho khách: <b>{fmt(risk.compensation?.compensated || 0)} đơn</b>
           </div>
         )}
         <div style={{ overflowX: "auto", maxHeight: 320, overflowY: "auto" }}>
@@ -208,7 +208,8 @@ export default function RouteRiskMatrix({ risk, riskOnly = false, onRiskOnlyChan
               <tr>
                 <th>Dự án</th><th style={{ textAlign: "right" }}>Đơn</th><th style={{ textAlign: "right" }}>Ca bể vỡ</th>
                 <th style={{ textAlign: "right" }}>Ca / 1.000 đơn</th><th style={{ width: "30%" }}></th>
-                {risk.totalAmount > 0 && <th style={{ textAlign: "right" }}>Tiền đền bù</th>}
+                <th style={{ textAlign: "right" }}>Đã chốt đền bù</th>
+                <th style={{ textAlign: "right" }}>Truy thu (đã duyệt)</th>
               </tr>
             </thead>
             <tbody>
@@ -229,7 +230,8 @@ export default function RouteRiskMatrix({ risk, riskOnly = false, onRiskOnlyChan
                           <div style={{ height: 8, borderRadius: 4, width: `${((p.per1000 || 0) / max) * 100}%`, background: high ? "var(--red)" : "var(--cyan)" }} />
                         </div>
                       </td>
-                      {risk.totalAmount > 0 && <td style={{ textAlign: "right", fontSize: 12 }}>{p.amount > 0 ? `${fmt(p.amount)} đ` : "—"}</td>}
+                      <td style={{ textAlign: "right", fontSize: 12 }}>{p.compensated ? fmt(p.compensated) : "—"}</td>
+                      <td style={{ textAlign: "right", fontSize: 12 }}>{p.amount > 0 ? `${fmt(p.amount)} đ (${fmt(p.truyThu)} ca)` : "—"}</td>
                     </tr>
                   );
                 });

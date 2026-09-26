@@ -22,7 +22,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const result = await syncDamageCauses(records);
+    const result = await syncDamageCauses(records, { fullScan: !!req.body?.fullScan, flagsRead: !!req.body?.flagsRead });
     if (compensationSummary) {
       await syncCompensationSummary(compensationSummary);
     }

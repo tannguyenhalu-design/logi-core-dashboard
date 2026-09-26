@@ -441,11 +441,13 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
               valueClass="text-amber"
               delta={ok ? mk(kd.damage.deltaPct, "%", false) : null}
               compare={compare(ok ? `${fmt(kd.damage.cur)} ca` : "")}
-              sub={
-                aiInsights?.compensationSummary
-                  ? `${fmt(aiInsights.compensationSummary.csTickCount)} đền bù (toàn hệ thống)`
-                  : `${data.brokenCompensated} đền bù`
-              }
+              sub={(() => {
+                // Rillnet "Báo cáo bể vỡ" definitions (2026-09-27), same cases as the value.
+                const cases = data.detailedDamageCases || [];
+                const nComp = cases.filter((c) => c.compensated).length;
+                const nTT = cases.filter((c) => c.truy_thu === "co").length;
+                return `${fmt(nComp)} đã chốt đền bù · ${fmt(nTT)} có truy thu`;
+              })()}
               spark={sparkFor("damaged", (v) => `${fmt(v)} ca`)}
             />
           </div>
@@ -573,6 +575,18 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
           { label: "Tỷ lệ bể vỡ trung bình", value: damageRisk ? `${damageRisk.avgRate.toLocaleString("vi-VN")}%` : "—", sub: damageRisk ? `${fmt(damageRisk.totalDamaged)} đơn có ca / ${fmt(damageRisk.totalOrders)} đơn` : "" },
           { label: "Tuyến rủi ro cao", value: fmt(damageRisk?.riskyRouteCount || 0), sub: damageRisk ? `≥ ${damageRisk.rule.multiplier}× TB, ≥ ${damageRisk.rule.minOrders} đơn` : "" },
           { label: "Dự án rủi ro cao", value: fmt(riskyProjects), sub: "Ca / 1.000 đơn ≥ 2× trung bình" },
+          ...(() => {
+            // Same cases as "Ca hư hỏng (kỳ đang lọc)" — Rillnet definitions.
+            const cases = data.detailedDamageCases || [];
+            const comp = cases.filter((c) => c.compensated);
+            const tt = cases.filter((c) => c.truy_thu === "co");
+            const ttSum = tt.reduce((s, c) => s + (c.truy_thu_amount || 0), 0);
+            const chotSum = comp.reduce((s, c) => s + (c.comp_amount || 0), 0);
+            return [
+              { label: "Đã chốt đền bù cho khách", value: fmt(comp.length), sub: `Ops chấp nhận đền bù hoặc đã chốt tiền${chotSum ? ` · đã chốt ${fmt(chotSum)}đ` : ""}` },
+              { label: "Truy thu (đã duyệt)", value: `${fmt(tt.length)} ca`, sub: `${fmt(Math.round(ttSum / 1e5) / 10, 1)} triệu · ${fmt(cases.filter((c) => c.truy_thu === "khong").length)} không truy thu · ${fmt(cases.filter((c) => c.truy_thu === "cho").length)} chờ chốt` },
+            ];
+          })(),
         ];
         return (
           <div className="chart-panel" style={{ width: "100%" }}>
@@ -581,7 +595,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
               Tổng quan bể vỡ
             </div>
             <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
-              <div className="grid-4">
+              <div className="grid-3">
                 {tiles.map((t) => (
                   <div key={t.label} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px" }}>
                     <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{t.label}</div>

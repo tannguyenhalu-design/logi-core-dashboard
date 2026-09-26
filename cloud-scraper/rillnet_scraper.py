@@ -165,7 +165,7 @@ EXTRACT_TABLE_JS = """
       const tds = [...tr.querySelectorAll('td')];
       if (tds.length <= iCode || tr.classList.contains('lb-tixrow')) return;
       const cell = (i) => (i >= 0 && tds[i] ? tds[i].innerText.trim() : '');
-      const orderCode = (cell(iCode).split(/\\s+/)[0] || '').replace(/[^A-Za-z0-9_-]/g, '').toUpperCase();
+      const orderCode = (cell(iCode).split(/\\s+/)[0] || '').replace(/[^A-Za-z0-9_-]/g, '').toUpperCase().replace(/_\\d+$/, ''); // 1 vận đơn nhiều kiện (_1.._N) = 1 đơn
       if (!orderCode) return;
       records.push({
         type: cell(iType).replace(/^▸\\s*/, '') || 'Bể vỡ',
@@ -184,9 +184,41 @@ EXTRACT_TABLE_JS = """
 
 # The report's date filter (#lbFrom / #lbTo) defaults to TODAY only, so each
 # run used to capture just that day's cases — any day the scraper was down or
-# logged out was lost for good. Widen it before reading (merge-by-order_code
-# on the app side makes re-reading the same cases harmless).
-DEFAULT_LOOKBACK_DAYS = 21
+# logged out was lost for good. Read the whole dashboard window every run
+# (~500 cases, well within time): compensation / truy thu decisions change
+# weeks after a case is opened, and a full scan lets the app mark cases that
+# dropped out of the report (`fullScan`).
+DATA_START = "2026-07-01"
+
+# Per-case compensation, read from the report page's own state — the same
+# rule the page uses for its "Đơn đã chốt đền bù cho khách" card
+# (_lbCndbRows: truy-thu record chap_nhan_denbu === true OR r.den_chot), plus
+# the truy thu decision/amount (_LB.tt[code]: quyet_dinh co/khong, tong_tien).
+# Confirmed 27/09: DM 01/07–26/09 gives 149 bể vỡ / 67 đã chốt đền bù,
+# matching the cards. If the page internals change, this returns null and
+# the cases are still synced without the flags.
+ENRICH_JS = """
+(() => {
+  try {
+    // _LB is a script-level let/const, not a window property.
+    const TT = (typeof _LB !== 'undefined' && _LB && _LB.tt) || {};
+    const key = (c) => String(c || '').toUpperCase().trim().replace(/_\\d+$/, '');
+    const out = {};
+    _lbFilt(_lbAllRows()).forEach(r => {
+      const k = key(r.code); if (!k) return;
+      const t = TT[k] || TT[String(r.code || '').toUpperCase().trim()] || null;
+      out[k] = {
+        compensated: !!(t && t.chap_nhan_denbu === true) || !!r.den_chot,
+        compAmount: r.den_chot ? (Number(r.den_chot_tien) || 0) : '',
+        truyThu: t ? (t.quyet_dinh === 'co' ? 'co' : t.quyet_dinh === 'khong' ? 'khong' : 'cho') : 'cho',
+        truyThuStatus: t ? String(t.trang_thai || '') : '',
+        truyThuAmount: t && t.quyet_dinh === 'co' ? (Number(t.tong_tien) || 0) : '',
+      };
+    });
+    return out;
+  } catch (e) { return null; }
+})();
+"""
 
 SET_RANGE_JS = """
 ((from, to) => {
@@ -208,13 +240,11 @@ SET_RANGE_JS = """
 
 
 def date_range():
-    """VN-time [from, to]; `--from YYYY-MM-DD` overrides the start (backfill)."""
-    now_vn = time.gmtime(time.time() + 7 * 3600)
-    to = time.strftime("%Y-%m-%d", now_vn)
+    """VN-time [from, to]; `--from YYYY-MM-DD` overrides the start."""
+    to = time.strftime("%Y-%m-%d", time.gmtime(time.time() + 7 * 3600))
     if "--from" in sys.argv:
         return sys.argv[sys.argv.index("--from") + 1], to
-    start = time.gmtime(time.time() + 7 * 3600 - DEFAULT_LOOKBACK_DAYS * 86400)
-    return time.strftime("%Y-%m-%d", start), to
+    return DATA_START, to
 
 
 def main():
@@ -280,6 +310,28 @@ def main():
         sys.exit(1)
 
     print(f"Doc duoc {len(records)} ca be vo/hu hong.")
+    # The truy thu store (_LB.tt) loads after the table — reading too early
+    # gave 0 truy thu on 27/09. Wait for it; if it never arrives, send no flags
+    # (the app then keeps the previous values instead of wiping them).
+    tt_size = 0
+    for _ in range(30):
+        tt_size = run_js(ws, "(typeof _LB !== 'undefined' && _LB && _LB.tt) ? Object.keys(_LB.tt).length : 0") or 0
+        if tt_size > 0:
+            break
+        time.sleep(1)
+    flags = run_js(ws, ENRICH_JS) if tt_size > 0 else None
+    if flags:
+        for rec in records:
+            f = flags.get(rec["orderCode"]) or {}
+            rec.update({"counted": True, **f})
+        n_comp = sum(1 for r in records if r.get("compensated"))
+        n_tt = sum(1 for r in records if r.get("truyThu") == "co")
+        print(f"Trang thai: {n_comp} don da chot den bu, {n_tt} ca co truy thu.")
+    else:
+        for rec in records:
+            rec["counted"] = True
+        print("Khong doc duoc trang thai den bu/truy thu (giao dien co the da doi).")
+    full_scan = d_from <= DATA_START
 
     print("Dieu huong toi trang Den bu / Truy thu...")
     send_cdp_command(ws, "Page.navigate", {"url": "https://rillnet-app.vercel.app/truythu.html"})
@@ -299,7 +351,7 @@ def main():
         res = requests.post(
             f"{APP_BASE_URL}/api/rillnet-sync",
             headers={"Content-Type": "application/json", "X-Sync-Secret": SYNC_SECRET},
-            json={"records": records, "compensationSummary": compensation_summary},
+            json={"records": records, "compensationSummary": compensation_summary, "fullScan": full_scan, "flagsRead": bool(flags)},
             timeout=30,
         )
         print(f"Phan hoi: {res.status_code}")
