@@ -63,6 +63,7 @@ function VietnamMap({
   routeLines = [],
   provinceDetailsMap = {},
   viewMode = "orders", // 'orders' | 'weight' | 'ontime' | 'damage'
+  selectedProvince = null, // pinned outline (e.g. from "Top 5 điểm nóng"); its own overlay, never re-renders the 63-path layer
   style = {},
 }) {
   const [hoveredProv, setHoveredProv] = useState(null);
@@ -124,6 +125,15 @@ function VietnamMap({
           onLeave={onLeave}
           onClick={onClick}
         />
+
+        {selectedProvince && PATHS[selectedProvince] && (
+          <g pointerEvents="none">
+            <path d={PATHS[selectedProvince]} fill="rgba(244,63,94,0.35)" stroke="var(--red)" strokeWidth={2.4} />
+            {CENTROIDS[selectedProvince] && (
+              <circle cx={CENTROIDS[selectedProvince][0]} cy={CENTROIDS[selectedProvince][1]} r="9" fill="none" stroke="var(--red)" strokeWidth="2.5" />
+            )}
+          </g>
+        )}
 
         {hoveredProv && PATHS[hoveredProv] && (
           <g pointerEvents="none">

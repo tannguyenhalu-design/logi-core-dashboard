@@ -507,6 +507,8 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
         selectedOrigin={selectedOrigin}
         onOriginChange={onOriginChange}
         onProvinceClick={openProvModal}
+        hotspots={damageRisk?.hotspots || []}
+        hotspotRule={isClient ? null : damageRisk?.hotspotRule}
       />}
 
       {showOverview && <div className="chart-panel" style={{ width: "100%" }}>

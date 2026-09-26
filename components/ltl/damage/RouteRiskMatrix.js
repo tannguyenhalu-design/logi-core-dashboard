@@ -15,6 +15,22 @@ function heat(rate, avg) {
   return Math.min(1, rate / (avg * 3));
 }
 
+// "Kho phát hiện" view: case counts only (no denominator) — heat vs the
+// largest cell, no risky outline.
+function CountCell({ c, max }) {
+  if (!c) return <td style={{ padding: "8px 10px", textAlign: "center", color: "var(--text-muted)" }}>—</td>;
+  const h = max > 0 ? c.damaged / max : 0;
+  return (
+    <td title={`${fmt(c.damaged)} ca`} style={{
+      padding: "8px 10px", textAlign: "center", whiteSpace: "nowrap", borderRadius: 4,
+      background: `rgba(244,63,94,${0.06 + h * 0.4})`,
+    }}>
+      <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>{fmt(c.damaged)}</div>
+      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>ca</div>
+    </td>
+  );
+}
+
 function Cell({ c, avg, active, onClick }) {
   if (!c) return <td style={{ padding: "8px 10px", textAlign: "center", color: "var(--text-muted)" }}>—</td>;
   const h = heat(c.rate, avg);
@@ -40,11 +56,18 @@ function Cell({ c, avg, active, onClick }) {
 
 export default function RouteRiskMatrix({ risk, riskOnly = false, onRiskOnlyChange }) {
   const [sel, setSel] = useState(null); // { kho, region } | null — "Kho lấy" view only
-  const [mode, setMode] = useState("lay"); // "lay" = Kho lấy × Miền giao, "giao" = Kho giao × Miền lấy
+  // "lay" = Kho lấy × Miền giao, "giao" = Kho giao × Miền lấy (both rates),
+  // "detect" = Kho phát hiện (Rillnet) × Miền giao (case counts only)
+  const [mode, setMode] = useState("lay");
   if (!risk || !risk.totalOrders) return null;
   const { avgRate, threshold, rule } = risk;
-  const view = mode === "giao" && risk.matrixGiao ? risk.matrixGiao : { regions: risk.regions, warehouses: risk.warehouses };
+  const view = mode === "giao" && risk.matrixGiao ? risk.matrixGiao
+    : mode === "detect" && risk.matrixDetect ? risk.matrixDetect
+    : { regions: risk.regions, warehouses: risk.warehouses };
   const { regions, warehouses } = view;
+  const countMode = mode === "detect";
+  const maxCount = countMode ? Math.max(1, ...warehouses.flatMap((w) => regions.map((rg) => w.cells[rg]?.damaged || 0))) : 0;
+  const modeTitle = { lay: "Kho lấy × Miền giao", giao: "Kho giao × Miền lấy", detect: "Kho phát hiện × Miền giao (số ca)" }[mode];
 
   const routes = risk.routes.filter((r) =>
     (!riskOnly || r.risky) && (!sel || (r.kho === sel.kho && (!sel.region || r.region === sel.region))));
@@ -65,24 +88,30 @@ export default function RouteRiskMatrix({ risk, riskOnly = false, onRiskOnlyChan
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div className="chart-panel" style={{ width: "100%" }}>
         <div className="chart-panel-title" style={{ flexWrap: "wrap", gap: 8 }}>
-          <span>🗺️ Ma trận bể vỡ: {mode === "lay" ? "Kho lấy × Miền giao" : "Kho giao × Miền lấy"}</span>
+          <span>🗺️ Ma trận bể vỡ: {modeTitle}</span>
           <span style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden" }}>
-            {[["lay", "Kho lấy"], ["giao", "Kho giao"]].map(([k, label]) => (
+            {[["lay", "Kho lấy"], ["giao", "Kho giao"], ["detect", "Kho phát hiện"]].map(([k, label]) => (
               <button key={k} onClick={() => { setMode(k); setSel(null); }} style={{
                 fontSize: 12, fontWeight: 600, padding: "4px 10px", border: "none", cursor: "pointer", fontFamily: "inherit",
                 background: mode === k ? "rgba(var(--brand-rgb),0.18)" : "transparent", color: mode === k ? "var(--cyan)" : "var(--text-muted)",
               }}>{label}</button>
             ))}
           </span>
+          {countMode ? (
+          <span style={{ fontSize: 12, fontWeight: 400, color: "var(--text-muted)" }}>
+            Kho nơi Rillnet ghi nhận ca bể vỡ · chỉ đếm số ca, không có tỷ lệ (không biết tổng số đơn đi qua kho đó)
+          </span>
+          ) : (
           <span style={{ fontSize: 12, fontWeight: 400, color: "var(--text-muted)" }}>
             Trung bình {fmtPct(avgRate)} · tô đỏ ⚠ khi ≥ {rule.multiplier}× trung bình ({fmtPct(threshold)}), ≥ {rule.minOrders} đơn{rule.minCases > 1 ? ` và ≥ ${rule.minCases} ca` : ""}{mode === "lay" ? " · bấm ô để xem tuyến" : ""}
           </span>
+          )}
         </div>
         <div style={{ overflowX: "auto", padding: "0 12px 12px" }}>
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 3, fontSize: 13 }}>
             <thead>
               <tr>
-                <th style={{ ...th, textAlign: "left" }}>{mode === "lay" ? "Kho lấy" : "Kho giao"}</th>
+                <th style={{ ...th, textAlign: "left" }}>{{ lay: "Kho lấy", giao: "Kho giao", detect: "Kho phát hiện" }[mode]}</th>
                 {regions.map((rg) => <th key={rg} style={th}>{rg}</th>)}
                 <th style={th}>Tổng</th>
               </tr>
@@ -91,16 +120,27 @@ export default function RouteRiskMatrix({ risk, riskOnly = false, onRiskOnlyChan
               {warehouses.map((w) => (
                 <tr key={w.kho}>
                   <td style={{ padding: "8px 10px", fontWeight: 600, maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={w.kho}>{w.kho}</td>
-                  {regions.map((rg) => (
-                    <Cell key={rg} c={w.cells[rg]} avg={avgRate} active={sel?.kho === w.kho && sel?.region === rg} onClick={() => toggle(w.kho, rg)} />
-                  ))}
-                  <Cell c={w.total} avg={avgRate} active={sel?.kho === w.kho && !sel?.region} onClick={() => toggle(w.kho, null)} />
+                  {countMode ? (
+                    <>
+                      {regions.map((rg) => <CountCell key={rg} c={w.cells[rg]} max={maxCount} />)}
+                      <CountCell c={w.total} max={Math.max(maxCount, w.total.damaged)} />
+                    </>
+                  ) : (
+                    <>
+                      {regions.map((rg) => (
+                        <Cell key={rg} c={w.cells[rg]} avg={avgRate} active={sel?.kho === w.kho && sel?.region === rg} onClick={() => toggle(w.kho, rg)} />
+                      ))}
+                      <Cell c={w.total} avg={avgRate} active={sel?.kho === w.kho && !sel?.region} onClick={() => toggle(w.kho, null)} />
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
           <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 6 }}>
-            Tỷ lệ = số đơn có ca bể vỡ (Rillnet) / số đơn lấy hàng trong kỳ đang lọc. Hiện {warehouses.length} kho nhiều ca nhất.
+            {countMode
+              ? `Số ca bể vỡ theo kho phát hiện (Rillnet) × miền giao, của đơn trong kỳ đang lọc. Hiện ${warehouses.length} kho nhiều ca nhất.`
+              : `Tỷ lệ = số đơn có ca bể vỡ (Rillnet) / số đơn lấy hàng trong kỳ đang lọc. Hiện ${warehouses.length} kho nhiều ca nhất.`}
             {mode === "giao" && " Cột = miền của điểm lấy hàng."}
           </div>
         </div>

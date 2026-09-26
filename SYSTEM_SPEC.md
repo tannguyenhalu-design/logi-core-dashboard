@@ -200,14 +200,14 @@ Thứ tự từ trên xuống:
 6. **Hiệu suất dự án** (`ProjectPerformanceTable`): 1 bảng sắp xếp được (mặc định số đơn giảm dần) — đơn + tỷ trọng, tấn + tỷ trọng, on-time có thanh màu theo ngưỡng và vạch 90%, late, ca hỏng, ca/1.000 đơn. Thay 2 donut và biểu đồ "% Ontime theo dự án".
 
 ### 8.2 Bản đồ tỉnh thành (`view="map"`)
-`ProvinceMapPanel` + `VietnamMap`: 4 chế độ tô màu (số đơn / tải trọng / ontime / hư hỏng), top tỉnh, bảng soi chi tiết khi rê chuột, tuyến lấy→giao khi lọc 1 dự án. Bấm tỉnh → modal danh sách đơn **tải riêng** qua `/api/data?province=`.
+`ProvinceMapPanel` + `VietnamMap`: 4 chế độ tô màu (số đơn / tải trọng / ontime / hư hỏng; **không có CBM** vì dữ liệu không có thể tích), **🔥 Top 5 điểm nóng** (27/09, `damageRisk.hotspots`: tỉnh giao có on-time < 85% với ≥ 50 đơn đã đánh giá **hoặc** bể vỡ ≥ 2× TB với ≥ 2 ca; xếp theo số late + số ca hỏng; bấm → viền đỏ trên bản đồ qua lớp `selectedProvince` riêng, không vẽ lại 63 tỉnh), top tỉnh, bảng soi chi tiết khi rê chuột, tuyến lấy→giao khi lọc 1 dự án. Bấm tỉnh → modal danh sách đơn **tải riêng** qua `/api/data?province=`.
 
 ### 8.3 Hư hỏng & Rủi ro (`view="damage"`)
 Nâng cấp 26/09 (`lib/damage-risk.js`, `components/ltl/damage/RouteRiskMatrix.js`):
 - **Ma trận bể vỡ Kho lấy × Miền giao**: mỗi ô = số đơn có ca bể vỡ / số đơn lấy hàng trong kỳ, tô màu theo mức so với trung bình; ⚠ viền đỏ khi **≥ 2× trung bình và ≥ 20 đơn**. Hiện 15 kho nhiều ca nhất. Bấm ô → danh sách **tuyến Kho lấy → Tỉnh giao** (đơn, ca, tỷ lệ, chặng nghi vấn chính); nút "Chỉ tuyến rủi ro cao".
 - **Rủi ro theo dự án**: ca bể vỡ / 1.000 đơn, thanh so sánh, ⚠ khi ≥ 2× trung bình và ≥ 20 đơn. **Widget tiền đền bù tự ẩn** khi mọi ca có số tiền = 0 (tình trạng hiện tại — user chốt "tạm ẩn").
 - Đầu tab: **"Tổng quan bể vỡ"** — 4 ô (ca kỳ đang lọc + cùng kỳ, tỷ lệ TB, tuyến rủi ro, dự án rủi ro) + Nhận định AI + nguyên nhân theo chặng. Đã **bỏ** biểu đồ "Top 10 kho" (trộn late, không có mẫu số) và danh sách tuyến cũ của "Cảnh báo bể vỡ theo tuyến" (ngưỡng ≥ 5 đơn quá nhiễu).
-- Ma trận có nút chuyển **Kho lấy × Miền giao / Kho giao × Miền lấy**; danh sách tuyến có cột **Gợi ý** (> 5% → "Cân nhắc FTL riêng", còn lại → "Kiểm tra đóng gói", chỉ với tuyến rủi ro cao). Tuyến rủi ro cao cần **≥ 2 ca** (`RISK_MIN_CASES = 2`, user chốt 26/09), tính theo bộ lọc đang chọn.
+- Ma trận có 3 chế độ: **Kho lấy × Miền giao / Kho giao × Miền lấy** (tỷ lệ %) và **Kho phát hiện × Miền giao** (27/09, chỉ **số ca** — kho phát hiện của Rillnet chỉ có ở đơn hỏng nên không có mẫu số); danh sách tuyến có cột **Gợi ý** (> 5% → "Cân nhắc FTL riêng", còn lại → "Kiểm tra đóng gói", chỉ với tuyến rủi ro cao). Tuyến rủi ro cao cần **≥ 2 ca** (`RISK_MIN_CASES = 2`, user chốt 26/09), tính theo bộ lọc đang chọn.
 - **Chi tiết ca hư hỏng + pipeline khiếu nại**: dải 4 bước **Mới phát sinh → Đang xác minh lỗi → Đã chốt đền bù → Đã đóng** có đếm, bấm để lọc. Bấm dòng → **khung chi tiết** (tuyến, tỉnh, ngày lấy, trạng thái đơn, chặng nghi vấn, ngày ghi nhận, nguồn báo, trạng thái Rillnet, người phụ trách, **nhật ký ghi chú**). Lưu ghi thẳng vào tab `DamageClaims` (`/api/damage-claims`, ghi `RAW` để ghi chú không thành công thức). **Chỉ Manager + SD3 được sửa** (chặn ở server), vai trò khác chỉ xem.
 
 ### 8.4 Quản trị

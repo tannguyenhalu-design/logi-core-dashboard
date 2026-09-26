@@ -6,12 +6,15 @@ export default function ProvinceMapPanel({
   provinceStats, routeStats, provinceDetailsMap = {},
   originStats = [], selectedOrigin = null, onOriginChange,
   projectSummaries = {}, overallData = {}, singleProjectMode, projectName, onProvinceClick,
+  hotspots = [], hotspotRule = null,
 }) {
   const [activeProv, setActiveProv] = useState(null);
+  const [pinnedProv, setPinnedProv] = useState(null); // chosen in "Top 5 điểm nóng"
   const [viewMode, setViewMode] = useState("orders"); // 'orders' | 'weight' | 'ontime' | 'damage'
 
   useEffect(() => {
     setActiveProv(null);
+    setPinnedProv(null);
   }, [projectName, singleProjectMode, selectedOrigin]);
 
   const sortedProvinces = useMemo(() => {
@@ -78,7 +81,9 @@ export default function ProvinceMapPanel({
     );
   }
 
-  const inspectData = activeProv ? (provinceDetailsMap[activeProv] || provinceStats.find(p => p.name === activeProv)?.details) : null;
+  // Hover wins; when the mouse is off the map, show the pinned hotspot.
+  const shownProv = activeProv || pinnedProv;
+  const inspectData = shownProv ? (provinceDetailsMap[shownProv] || provinceStats.find(p => p.name === shownProv)?.details) : null;
   const projectOverview = singleProjectMode ? projectSummaries[projectName] : null;
 
   return (
@@ -145,6 +150,7 @@ export default function ProvinceMapPanel({
             routeLines={routeLines}
             provinceDetailsMap={provinceDetailsMap}
             viewMode={viewMode}
+            selectedProvince={pinnedProv}
             onProvinceHover={handleProvinceHover}
             onProvinceClick={handleProvinceClick}
           />
@@ -156,6 +162,42 @@ export default function ProvinceMapPanel({
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {!singleProjectMode && hotspotRule && (
+            <div style={{ background: "var(--panel-bg-strong)", border: "1px solid var(--border)", borderLeft: "3px solid var(--red)", borderRadius: 12, padding: "12px 16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>🔥 Top 5 điểm nóng cần chú ý</span>
+                <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
+                  Trễ: on-time &lt; {hotspotRule.ontimePct}% (≥ {hotspotRule.minEval} đơn đã đánh giá) · Bể vỡ: ≥ 2× TB và ≥ 2 ca · bấm để đánh dấu trên bản đồ
+                </span>
+              </div>
+              {hotspots.length === 0 ? (
+                <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>Không có tỉnh nào vượt ngưỡng trong bộ lọc hiện tại.</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {hotspots.map((h, i) => {
+                    const on = pinnedProv === h.name;
+                    return (
+                      <button key={h.name} onClick={() => setPinnedProv(on ? null : h.name)} style={{
+                        display: "flex", alignItems: "center", gap: 10, textAlign: "left", width: "100%", fontFamily: "inherit",
+                        padding: "8px 10px", borderRadius: 8, cursor: "pointer", color: "var(--text-primary)",
+                        border: `1px solid ${on ? "var(--red)" : "var(--border)"}`, background: on ? "var(--red-glow)" : "var(--panel-bg)",
+                      }}>
+                        <span style={{ fontWeight: 800, color: "var(--red)", width: 16 }}>{i + 1}</span>
+                        <span style={{ fontWeight: 700, minWidth: 110 }}>{h.name}</span>
+                        <span style={{ fontSize: 12, color: "var(--text-muted)", flex: 1 }}>
+                          {h.lateHot && <span style={{ color: getOntimeColor(h.ontimePct), fontWeight: 600 }}>⏱ On-time {h.ontimePct}% · {fmt(h.late)} late</span>}
+                          {h.lateHot && h.damageHot && " · "}
+                          {h.damageHot && <span style={{ color: "var(--amber)", fontWeight: 600 }}>💥 {fmt(h.damaged)} ca hỏng ({h.damageRate}%)</span>}
+                          {!h.lateHot && <span> · on-time {h.ontimePct ?? "—"}%</span>}
+                        </span>
+                        <span style={{ fontSize: 11.5, color: "var(--text-muted)", whiteSpace: "nowrap" }}>{fmt(h.orders)} đơn</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
           {inspectData ? (
             <div style={{
               background: "var(--panel-bg-strong)",
