@@ -189,7 +189,7 @@ Thanh điều hướng: **Tổng quan LTL · Bản đồ tỉnh thành · Hư h�
 ### 8.1 Tổng quan LTL (`view="ltl"`)
 - **4 thẻ KPI** (`components/KpiCard.js`): **Tổng đơn** (dòng phụ: GTC trong kỳ), **Tỷ lệ On-time** (màu theo ngưỡng 90/80), **Đơn Late**, **Ca hư hỏng (Rillnet)** — mỗi thẻ có **delta so với kỳ trước** (luật mục 12), xanh = tốt, đỏ = xấu.
 - Khối **"Đơn chờ lấy (chưa chốt kỳ)"** — số đơn chưa có ngày lấy + trạng thái; bấm mở danh sách (sắp theo ngày tạo).
-- Khối **"Đơn treo / cần chú ý"** — đơn đã lấy, trạng thái khác `delivered/returned/cancel`, đã quá ngày `deadline_plus` (luật mục 12); chia 1–3 / 4–7 / >7 ngày, top dự án; bấm mở danh sách qua `/api/data?stuck=1` (quá hạn lâu nhất lên đầu). Giống "Đơn chờ lấy": theo dự án/điểm lấy/viewAs, **không** theo bộ lọc tháng/ngày.
+- Khối **"Đơn treo / cần chú ý"** — đơn đã lấy, trạng thái khác `delivered/returned/cancel/lost/damage`, đã quá ngày `deadline_plus` (luật mục 12); chia 1–3 / 4–7 / >7 ngày, top dự án; bấm mở danh sách qua `/api/data?stuck=1` (quá hạn lâu nhất lên đầu). Giống "Đơn chờ lấy": theo dự án/điểm lấy/viewAs, **không** theo bộ lọc tháng/ngày.
 - Dải **"⚠ On-time giảm mạnh"** — dự án có on-time giảm **≥ 10 điểm** so với cùng "kỳ trước" mà delta KPI đang dùng, mỗi kỳ **≥ 5 đơn đã đánh giá**.
 - Biểu đồ Ontime/Late theo tháng (theo tuần khi chọn 1 tháng) + delta; bảng tuần theo khách; banner khách mới; **So sánh cùng kỳ** (MTD / 1-3 tuần) + cảnh báo sụt giảm liên tiếp; biểu đồ theo dự án (số đơn, tải trọng, % ontime); xuất CSV.
 
@@ -284,7 +284,7 @@ nextjs-dashboard/
 
 **Đơn chờ lấy (chưa chốt kỳ)** (chốt 26/09): đơn có `pickup_time` rỗng (thực tế `ready_to_pick`/`picking`). **Không tính** vào Tổng đơn, bản đồ, biểu đồ, danh sách tỉnh → "Tất cả" = tổng các tháng. Nhóm này lọc theo dự án/điểm lấy/viewAs, **không** theo tháng/ngày. **AI Insights vẫn nhận bộ đơn cũ (có cả nhóm này)** để tỉ lệ bể vỡ theo tuyến và logic "hàng chờ gần đầy xe" không đổi — vì vậy ở "Tất cả", tổng đơn trong khối bể vỡ (33.649) lớn hơn Tổng đơn KPI (32.524).
 
-**Đơn treo / cần chú ý** (chốt 26/09, `stuckOverdueDays` trong `lib/ltl-dashboard.js`): có `pickup_time`, `status` ∉ {`delivered`, `returned`, `cancel`}, và **ngày hôm nay (giờ VN) > ngày `deadline_plus`**. `deadline_plus` chỉ là ngày (`"2026-08-18 0:00:00"`): giao **trong** ngày hạn vẫn là ontime — đã đối chiếu 31.450/31.450 đơn đã giao khớp `odr_success`. Vì vậy đây cũng chính là luật "late" GHN dùng cho đơn chưa giao, nhưng tính theo hôm nay chứ không theo lúc xuất sheet (cột `deadline` luôn trống, không dùng). Lưu ý: trạng thái `lost` (25 đơn) / `damage` (1) và các trạng thái đang hoàn (`return`, `returning`...) **vẫn tính** là treo theo đúng định nghĩa đã chốt.
+**Đơn treo / cần chú ý** (chốt 26/09, `stuckOverdueDays` trong `lib/ltl-dashboard.js`): có `pickup_time`, `status` ∉ {`delivered`, `returned`, `cancel`, `lost`, `damage`}, và **ngày hôm nay (giờ VN) > ngày `deadline_plus`**. `deadline_plus` chỉ là ngày (`"2026-08-18 0:00:00"`): giao **trong** ngày hạn vẫn là ontime — đã đối chiếu 31.450/31.450 đơn đã giao khớp `odr_success`. Vì vậy đây cũng chính là luật "late" GHN dùng cho đơn chưa giao, nhưng tính theo hôm nay chứ không theo lúc xuất sheet (cột `deadline` luôn trống, không dùng). `lost`/`damage` bị loại (user chốt 26/09: đã có kết cục, xử lý qua khiếu nại — 26 đơn); các trạng thái đang hoàn (`return`, `returning`, `waiting_to_return`...) **vẫn tính** là treo.
 
 **On-time giảm mạnh** (chốt 26/09, `projectDrops`): giảm ≥ `ANOMALY_DROP_POINTS=10` điểm, mỗi kỳ ≥ `ANOMALY_MIN_SAMPLE=5` đơn đã đánh giá; "kỳ trước" dùng chung với delta KPI (không lọc → `periodComparison.clients`; có lọc → `kpiOnly` của kỳ trước trả thêm `ontimeByProject`). Tính 1 lần trong `computeComparisons` cùng delta KPI.
 
@@ -423,7 +423,7 @@ Tạo cookie `logi_session` bằng `sealData()` (iron-session) với `SESSION_SE
 26. **Hồng Đạt biến mất từ 08/2026 (phát hiện 26/09 nhờ user hỏi)**: nguồn đổi `luong_hang` của Hồng Đạt / Hồng Đạt MXT thành `"PO"`; code cũ loại mọi nhãn lạ → **743 đơn** (T8–T9 = 0 trên dashboard) dù toàn bộ là `lastmile`. Sửa: nhãn lạ xét theo `service_type`. Cùng lúc thêm FRT Digital (182 đơn, nhãn DM 100%, không khớp danh sách tên).
 27. **Nhận diện khách bằng tên cứng bỏ sót khách mới (26/09)**: Naduco, Smartlink, Toàn Phát (tháng 9) có `nganh_hang = DM` nhưng không có trong `DM_LIST`. Chuyển sang `isDMRow` (nhãn ngành + tên dự phòng).
 28. **`head()` Vercel Blob chậm ~0,5–1s (26/09)**: bản đầu `/api/system-health` gọi `head()` để lấy dung lượng snapshot → 1–4s. Bỏ `head()`, lấy dung lượng từ lần đọc/ghi blob của chính instance (`getBaseBlobBytes`); heartbeat cache 30s → ~0,27s khi ấm.
-29. **`case_date` Rillnet đảo ngày/tháng ở dữ liệu cũ (phát hiện 26/09)**: ~17 ca đồng bộ ngày 31/08 lưu dạng ISO với ngày ↔ tháng bị đảo (nguồn "12/08" → `2026-12-08`). Trang trạng thái bỏ qua ngày tương lai; **chưa sửa dữ liệu gốc** — các ca này có thể bị xếp sai tháng khi lọc bể vỡ theo tháng.
+29. **`case_date` Rillnet đảo ngày/tháng ở dữ liệu cũ (phát hiện 26/09)**: ~17 ca đồng bộ ngày 31/08 lưu dạng ISO với ngày ↔ tháng bị đảo (nguồn "12/08" → `2026-12-08`). **Đã sửa 26/09**: thực tế 14 ca (đồng bộ 31/08, dạng ISO), đảo lại ngày/tháng trực tiếp trên sheet `raw_damage_causes` (khớp mốc giờ ticket trong cột `source`); các dòng ISO đồng bộ 17/08 vốn đúng, không đụng. Trang trạng thái vẫn bỏ qua ngày tương lai để phòng lặp lại.
 30. **AI tự tính % thay đổi sai (26/09)**: model tự tính "giảm 8,4%" (đúng là −7%). Sửa: đưa sẵn `thayDoiDaTinhSan`, cấm tự tính % trong prompt.
 
 ---
@@ -458,7 +458,6 @@ Tạo cookie `logi_session` bằng `sealData()` (iron-session) với `SESSION_SE
 **Kỹ thuật:**
 - [ ] Cấu hình `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` trên Railway để có cảnh báo khi scraper lỗi (tránh lặp sự cố #19).
 - [ ] Chuyển `/api/ontime-by-project` sang đọc snapshot (AI chat đã chuyển 26/09).
-- [ ] Sửa ~17 ca Rillnet có `case_date` đảo ngày/tháng (sự cố #29).
 - [ ] Dọn: script FTL cũ trong `cloud-scraper/`, `/api/hello`, `lib/backup-data.json`, biến env thừa (mục 14), tab Sheets FTL cũ, file rác gốc repo (`_tmp_populate_specs.mjs`, `test_groq_*.js`, `scripts/dump_0.csv`, `scripts/scraper_log.txt`).
 - [ ] Đồng bộ lại các file `.env*` local với production (đang lệch).
 
