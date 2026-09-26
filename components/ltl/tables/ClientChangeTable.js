@@ -11,10 +11,12 @@
 import { useState } from "react";
 
 // "Đơn giảm nhưng KL giữ" flag (approved 2026-09-26): orders −30% or worse
-// while weight fell less than 15%, on a client with >= 50 orders before —
+// while kg per order at least doubled, on a client with >= 50 orders before —
 // usually consolidated orders rather than lost volume. A prompt to check.
+// (A first "weight fell < 15%" rule missed PSD Miền Nam: −82% orders,
+// −16% weight, 28 → 128 kg/đơn — so the user switched to kg/đơn.)
 const CONSOLIDATE_ORDERS_PCT = -30;
-const CONSOLIDATE_WEIGHT_PCT = -15;
+const CONSOLIDATE_KG_PER_ORDER_X = 2;
 const CONSOLIDATE_MIN_ORDERS = 50;
 const PAGE = 10;
 
@@ -31,9 +33,10 @@ function Delta({ v, unit = "%", invert = false }) {
 }
 
 export function consolidationFlag(c) {
+  const before = kgPerOrder(c.prev), after = kgPerOrder(c.cur);
   return !c.ordersIsNew && (c.prev?.orders || 0) >= CONSOLIDATE_MIN_ORDERS
     && c.ordersDeltaPct != null && c.ordersDeltaPct <= CONSOLIDATE_ORDERS_PCT
-    && c.weightDeltaPct != null && c.weightDeltaPct > CONSOLIDATE_WEIGHT_PCT;
+    && before > 0 && after != null && after >= before * CONSOLIDATE_KG_PER_ORDER_X;
 }
 
 export default function ClientChangeTable({ items = [], groupLabel = "khách hàng" }) {
@@ -98,7 +101,7 @@ export default function ClientChangeTable({ items = [], groupLabel = "khách hà
                   <td style={td}>{(c.prev?.damageCount || c.cur?.damageCount) ? <>{n(c.prev?.damageCount)} → {n(c.cur?.damageCount)}</> : <span style={{ color: "var(--text-muted)" }}>—</span>}</td>
                   <td style={{ ...td, textAlign: "left", fontSize: 12 }}>
                     {c.ordersIsNew ? <span style={{ color: "var(--cyan)", fontWeight: 600 }}>🆕 Mới / có đơn trở lại</span>
-                      : flag ? <span style={{ color: "var(--amber)", fontWeight: 600 }} title="Số đơn giảm ≥ 30% nhưng khối lượng giảm < 15% (khách ≥ 50 đơn kỳ trước) — thường là gộp đơn, nên hỏi lại PIC">🔎 Đơn giảm nhưng KL giữ — kiểm tra gộp đơn</span>
+                      : flag ? <span style={{ color: "var(--amber)", fontWeight: 600 }} title="Số đơn giảm ≥ 30% nhưng kg/đơn tăng ≥ 2 lần (khách ≥ 50 đơn kỳ trước) — thường là gộp đơn, nên hỏi lại PIC">🔎 Đơn giảm nhưng KL giữ — kiểm tra gộp đơn</span>
                       : null}
                   </td>
                 </tr>
