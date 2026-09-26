@@ -63,7 +63,8 @@
 | Pipeline `raw_ontime` | 🟢 | Cron 3 lần/ngày chạy đều từ 17/09. |
 | Nguồn GHN của `raw_ontime` | 🟠 Theo dõi | 24–25/09 có lúc số dòng nguồn đứng yên; 26/09 dữ liệu tháng 9 đã có 9.722 đơn — cần tiếp tục để ý. |
 | Rillnet (bể vỡ) | 🔴 | Phiên GHN SSO hết hạn từ 24/09 12:50 → cần đăng nhập lại qua noVNC (16.2). |
-| KPI portal | ⏸️ PENDING | `kpi_scraper.py` lỗi từ 17/09; user yêu cầu để pending. Sau khi xoá "Vận hành SD3", dữ liệu KPI (doanh thu dự án) chỉ còn AI chat dùng. |
+| KPI portal | ⏸️ PENDING | `kpi_scraper.py` lỗi từ 17/09; user yêu cầu để pending. Từ 26/09 không còn phần nào của dashboard dùng dữ liệu KPI/doanh thu (AI chat cũng đã bỏ). |
+| Giám sát nguồn dữ liệu | 🟢 | Tab **"Trạng thái hệ thống"** (manager) + heartbeat scraper sau mỗi lần chạy (mục 8.4, 16.1). Test thật 26/09 15:36: raw_ontime ok, Rillnet + KPI `session_expired`. |
 | Git | 🟢 | Đã commit và push lên GitHub (`main`); push tự kích hoạt Vercel deploy. |
 
 **Số liệu mốc (26/09, sau khi sửa Hồng Đạt / FRT Digital / nhãn ngành DM):** Tổng đơn "Tất cả" = **33.474** = đúng tổng T7 (9.679) + T8 (13.731) + T9 (10.064), 28 dự án. **1.126 đơn chờ lấy** (1.044 `ready_to_pick` + 81 `picking`, không có ngày lấy) hiển thị riêng, đơn treo lâu nhất từ 06/08.
@@ -175,7 +176,7 @@ flowchart LR
 **Vai trò** (tab `Users`, định danh theo `EmployeeId` = claim `sub`; manager có thể cấp quyền trước theo họ tên): `pending`, `manager`, `sd3`, `cs`. (`data.js` còn nhánh `client` — tàn dư.)
 
 **Quyền tab**: `ALL_TABS = ["ltl"]` — 1 quyền duy nhất cho cả 3 góc nhìn LTL. Giá trị cũ trong ô `Tabs` (`operations`, `tachtrip`, `ftl`) được **tự quy đổi thành `ltl`** (`lib/users.js::normalizeTabs` + `LEGACY_TABS` trong `dashboard.js`) để tài khoản trước chỉ có tab FTL không bị khoá. `pending` → không vào được.
-- Manager-only: Quản lý người dùng, Nhật ký hoạt động, Bộ não Tiểu Đệ, bộ chuyển góc nhìn (viewAs nhân sự/khách).
+- Manager-only: Quản lý người dùng, Nhật ký hoạt động, Trạng thái hệ thống, Bộ não Tiểu Đệ, bộ chuyển góc nhìn (viewAs nhân sự/khách).
 - `cs`: không AI chat (chặn cả server), không doanh thu.
 - `/api/admin-users` (manager): gán role/tab/PIC, ghi Audit Log.
 
@@ -183,11 +184,13 @@ flowchart LR
 
 ## 8. Tính năng
 
-Thanh điều hướng: **Tổng quan LTL · Bản đồ tỉnh thành · Hư hỏng & Rủi ro** (dùng chung 1 lần tải `/api/data`, chuyển tab không gọi lại API) + Quản lý người dùng · Nhật ký · Bộ não Tiểu Đệ (manager). Bộ lọc chung: Ngày lấy / Ngày giao, tháng, dự án, điểm lấy (khi chọn 1 dự án), nhanh (Hôm nay / 3 / 7 ngày / Tháng này / Tất cả), khoảng ngày; nút "Đồng bộ Google Sheet".
+Thanh điều hướng: **Tổng quan LTL · Bản đồ tỉnh thành · Hư hỏng & Rủi ro** (dùng chung 1 lần tải `/api/data`, chuyển tab không gọi lại API) + Quản lý người dùng · Nhật ký · Trạng thái hệ thống · Bộ não Tiểu Đệ (manager). Bộ lọc chung: Ngày lấy / Ngày giao, tháng, dự án, điểm lấy (khi chọn 1 dự án), nhanh (Hôm nay / 3 / 7 ngày / Tháng này / Tất cả), khoảng ngày; nút "Đồng bộ Google Sheet".
 
 ### 8.1 Tổng quan LTL (`view="ltl"`)
 - **4 thẻ KPI** (`components/KpiCard.js`): **Tổng đơn** (dòng phụ: GTC trong kỳ), **Tỷ lệ On-time** (màu theo ngưỡng 90/80), **Đơn Late**, **Ca hư hỏng (Rillnet)** — mỗi thẻ có **delta so với kỳ trước** (luật mục 12), xanh = tốt, đỏ = xấu.
 - Khối **"Đơn chờ lấy (chưa chốt kỳ)"** — số đơn chưa có ngày lấy + trạng thái; bấm mở danh sách (sắp theo ngày tạo).
+- Khối **"Đơn treo / cần chú ý"** — đơn đã lấy, trạng thái khác `delivered/returned/cancel`, đã quá ngày `deadline_plus` (luật mục 12); chia 1–3 / 4–7 / >7 ngày, top dự án; bấm mở danh sách qua `/api/data?stuck=1` (quá hạn lâu nhất lên đầu). Giống "Đơn chờ lấy": theo dự án/điểm lấy/viewAs, **không** theo bộ lọc tháng/ngày.
+- Dải **"⚠ On-time giảm mạnh"** — dự án có on-time giảm **≥ 10 điểm** so với cùng "kỳ trước" mà delta KPI đang dùng, mỗi kỳ **≥ 5 đơn đã đánh giá**.
 - Biểu đồ Ontime/Late theo tháng (theo tuần khi chọn 1 tháng) + delta; bảng tuần theo khách; banner khách mới; **So sánh cùng kỳ** (MTD / 1-3 tuần) + cảnh báo sụt giảm liên tiếp; biểu đồ theo dự án (số đơn, tải trọng, % ontime); xuất CSV.
 
 ### 8.2 Bản đồ tỉnh thành (`view="map"`)
@@ -197,7 +200,10 @@ Thanh điều hướng: **Tổng quan LTL · Bản đồ tỉnh thành · Hư h�
 Top 10 kho rủi ro (bấm để lọc), **Cảnh báo bể vỡ theo tuyến** + nguyên nhân Rillnet + narrative AI (bấm nút), bảng **Chi tiết ca hư hỏng** kèm workflow khiếu nại (`/api/damage-claims`).
 
 ### 8.4 Quản trị
-Users (`TabUsers`), Audit log (`TabAuditLog`, append-only), AI Brain (`TabBrain`).
+Users (`TabUsers`), Audit log (`TabAuditLog`, append-only), AI Brain (`TabBrain`), **Trạng thái hệ thống** (`TabSystemHealth`, manager):
+- Nguồn: `/api/system-health` = **heartbeat** (scraper `report_health.py` gửi kết quả từng bước sau mỗi lần chạy → `/api/scraper-heartbeat` → Blob private `health/scraper-status.json`, giữ 30 lần gần nhất) + **độ tươi dữ liệu** (snapshot `builtAt`, ngày lấy hàng mới nhất, `synced_at`/`case_date` Rillnet mới nhất).
+- Thẻ: Scraper (đỏ nếu > 16 giờ không báo cáo), raw_ontime (đỏ nếu bước cuối hết phiên/lỗi hoặc lần ok cuối > 24 giờ; **vàng** nếu sheet nguồn GHN đứng yên số dòng ≥ 3 lần chạy trong 24 giờ), Rillnet (đỏ khi hết phiên, kèm "lỗi từ lúc nào"), KPI (hiện "Tạm dừng"), Snapshot (đỏ nếu > 24 giờ). Mỗi thẻ đỏ/vàng có hướng xử lý (link noVNC, nút "Đồng bộ ngay"). Bảng 10 lần chạy gần nhất.
+- Phân loại bước trong `report_health.py` dựa trên dòng log thật: ok = `Successfully synced N rows` / `Da dong bo N ca be vo` / `Da khop va cap nhat N du an`; hết phiên = `ERROR:Failed to fetch`, `co the chua dang nhap`, `Parse duoc 0 khach hang`...; exit 124 = timeout 600s.
 
 ### 8.5 Giao diện
 Phẳng, nền đặc, **màu nhấn cam GHN** (tối: `#f97316`; sáng: `#c2410c`; biến CSS vẫn tên `--cyan` vì lý do lịch sử), `--amber` đẩy về vàng để không lẫn với cam. Không `backdrop-filter`. Lần tải đầu: skeleton; đổi bộ lọc: giữ nội dung + thanh tiến trình mảnh; bỏ qua response cũ khi bấm nhanh. Chart.js tắt animation, cập nhật tại chỗ. Watchdog tự reload 1 lần nếu trang kẹt 8 giây.
@@ -209,13 +215,13 @@ Phẳng, nền đặc, **màu nhấn cam GHN** (tối: `#f97316`; sáng: `#c2410
 Persona xưng "Tiểu Đệ", gọi user "Đại Ca". UI: `components/AIChatDrawer.js` (ẩn với `cs`) — chỉ còn khung chat, gợi ý câu hỏi về LTL.
 
 - **Provider fallback** (`lib/ai-providers.js`): Groq `openai/gpt-oss-120b` → Gemini `gemini-2.5-flash` → Groq `openai/gpt-oss-20b` → Gemini `gemini-3.5-flash-lite`. `generateFast()` cho phân loại.
-- **`/api/ai-chat`**: Router Agent phân loại `DAMAGE_QUERY | TASK_CREATION | PREDICTION | DATA_QUERY | CHITCHAT` → expert step → Synthesizer (context JSON nén để không vượt 8.000 TPM của Groq). **`TASK_CREATION` giờ chỉ trả lời thật rằng tính năng đã gỡ — cấm nói "đã tạo task".** `PREDICTION` vẫn dự báo run-rate từ `Data dự án`.
-- **Tools** (`lib/ai-agent-tools.js`): `queryOrders`, `getProjectPerformance`, `getDamageAndRiskReport`, `predictRevenueTarget` (đã xoá `createTaskForStaff`).
+- **`/api/ai-chat` — 100% LTL (viết lại 26/09)**: đọc **cùng snapshot** với dashboard (`loadLtlBase` + bản mặc định tính sẵn / `computeDashboard`), không đọc Sheets trên đường chính. Router phân loại `ORDER_LOOKUP | ROUTE_COMPARE | DAMAGE_QUERY | DATA_QUERY | UNSUPPORTED | CHITCHAT`; công cụ còn tự bật theo tín hiệu cứng (có mã đơn, có tên tỉnh + "tuyến", từ khoá bể vỡ, "tuần"). Synthesizer nhận JSON nén: phạm vi dữ liệu + giờ cập nhật, tổng quan, theo tháng, so sánh cùng kỳ (**kèm `thayDoiDaTinhSan`** để AI không tự tính %), on-time giảm mạnh, đơn treo, đơn chờ lấy, theo dự án, top tuyến, kho cảnh báo; khi câu hỏi nêu tháng/dự án → `computeDashboard(kpiOnly)` đúng bộ lọc đó.
+- **`UNSUPPORTED`** (FTL/chuyến xe, doanh thu/NSR/KPI doanh thu, dự báo, tạo/giao task) → câu trả lời cố định, **không gọi LLM**. Đã bỏ `Data dự án`, `PREDICTION`, danh sách PIC, log đăng nhập khỏi AI.
+- **Tools** (`lib/ai-agent-tools.js`): `lookupOrders` (tra mã: trạng thái, hạn giao, SLA, số ngày treo, tuyến, kho, ca bể vỡ; không có → `timThay:false`), `compareRoutes` (tuyến giữa các tỉnh nêu trong câu: số đơn, tấn, on-time, late, bể vỡ, khách chính), `damageReport` (nguyên nhân Rillnet theo chặng/khách/kho), cùng `extractMonths`, `matchProjects`, `matchProvinces`. Role `client` bị khoá vào dự án của mình (kể cả tra mã).
+- **Luật chống bịa số** (system prompt): chỉ dùng số trong JSON; không tự cộng/trừ/tính %; nêu rõ phạm vi; mã không có → nói không tìm thấy; thiếu → "chưa có số liệu". Hậu xử lý đổi "tôi" → "Tiểu Đệ" (model dự phòng hay lệch vai).
 - **`lib/ai-brain.js`**: bộ nhớ tab `AI_Brain`, trích ≤3 insight/lượt, nạp top 30 (confidence ≥ 0,5).
 - **`/api/ai-narrative`**: narrative từ JSON tính sẵn, chỉ chạy khi bấm; luật "CHỈ nhắc số liệu có trong JSON".
 - **Đã gỡ**: `/api/ai-alert` (cảnh báo doanh thu dự án) và tab "So sánh tháng" trong khung chat.
-- **Luật chống ảo giác**: AI không tự cộng/trừ số theo kỳ, dùng field backend tính sẵn.
-- Lưu ý: AI chat vẫn tự đọc `raw_ontime` trực tiếp từ Sheets (chưa dùng snapshot) nên câu trả lời đầu có thể chậm.
 
 ---
 
@@ -224,7 +230,9 @@ Persona xưng "Tiểu Đệ", gọi user "Đại Ca". UI: `components/AIChatDraw
 | Endpoint | Quyền | Chức năng |
 |---|---|---|
 | `/api/auth/sso-login`, `/api/auth/sso-callback`, `/api/logout` | — | GHN SSO |
-| `/api/data` | session | Dữ liệu 3 góc nhìn LTL. `?province=X` → `{ok, provinceOrders}`; `?pendingPickup=1` → `{ok, pendingOrders}`; `?force=true` → dựng lại snapshot trước. Header `Cache-Control: private, no-store` (BẮT BUỘC). |
+| `/api/data` | session | Dữ liệu 3 góc nhìn LTL (kèm `stuck`, `anomalies`). `?province=X` → `{ok, provinceOrders}`; `?pendingPickup=1` → `{ok, pendingOrders}`; `?stuck=1` → `{ok, stuckOrders}`; `?force=true` → dựng lại snapshot trước. Header `Cache-Control: private, no-store` (BẮT BUỘC). |
+| `/api/system-health` | manager | Trạng thái từng nguồn dữ liệu (mục 8.4) |
+| `/api/scraper-heartbeat` | `SNAPSHOT_SECRET` (`x-snapshot-secret`), POST | Nhận kết quả từng bước của scraper |
 | `/api/cron/build-snapshot` | `CRON_SECRET` (Bearer) hoặc `SNAPSHOT_SECRET` (`x-snapshot-secret`) | Dựng lại snapshot Blob |
 | `/api/cron/backup` | `CRON_SECRET` | Backup hằng ngày |
 | `/api/ontime-by-project` | session | Ontime theo dự án (đọc Sheets trực tiếp) |
@@ -276,7 +284,11 @@ nextjs-dashboard/
 
 **Đơn chờ lấy (chưa chốt kỳ)** (chốt 26/09): đơn có `pickup_time` rỗng (thực tế `ready_to_pick`/`picking`). **Không tính** vào Tổng đơn, bản đồ, biểu đồ, danh sách tỉnh → "Tất cả" = tổng các tháng. Nhóm này lọc theo dự án/điểm lấy/viewAs, **không** theo tháng/ngày. **AI Insights vẫn nhận bộ đơn cũ (có cả nhóm này)** để tỉ lệ bể vỡ theo tuyến và logic "hàng chờ gần đầy xe" không đổi — vì vậy ở "Tất cả", tổng đơn trong khối bể vỡ (33.649) lớn hơn Tổng đơn KPI (32.524).
 
-**Delta KPI "so với kỳ trước"** (chốt 26/09 — theo bộ lọc đang chọn, `computeKpiDelta`):
+**Đơn treo / cần chú ý** (chốt 26/09, `stuckOverdueDays` trong `lib/ltl-dashboard.js`): có `pickup_time`, `status` ∉ {`delivered`, `returned`, `cancel`}, và **ngày hôm nay (giờ VN) > ngày `deadline_plus`**. `deadline_plus` chỉ là ngày (`"2026-08-18 0:00:00"`): giao **trong** ngày hạn vẫn là ontime — đã đối chiếu 31.450/31.450 đơn đã giao khớp `odr_success`. Vì vậy đây cũng chính là luật "late" GHN dùng cho đơn chưa giao, nhưng tính theo hôm nay chứ không theo lúc xuất sheet (cột `deadline` luôn trống, không dùng). Lưu ý: trạng thái `lost` (25 đơn) / `damage` (1) và các trạng thái đang hoàn (`return`, `returning`...) **vẫn tính** là treo theo đúng định nghĩa đã chốt.
+
+**On-time giảm mạnh** (chốt 26/09, `projectDrops`): giảm ≥ `ANOMALY_DROP_POINTS=10` điểm, mỗi kỳ ≥ `ANOMALY_MIN_SAMPLE=5` đơn đã đánh giá; "kỳ trước" dùng chung với delta KPI (không lọc → `periodComparison.clients`; có lọc → `kpiOnly` của kỳ trước trả thêm `ontimeByProject`). Tính 1 lần trong `computeComparisons` cùng delta KPI.
+
+**Delta KPI "so với kỳ trước"** (chốt 26/09 — theo bộ lọc đang chọn, `computeComparisons`):
 - Không lọc tháng/ngày → dùng khối **So sánh cùng kỳ** (`periodComparison`, MTD hoặc block 1-3 tuần) — thẻ hiện "khoảng hiện tại: giá trị · so cùng kỳ ...".
 - Tháng liền nhau → cùng số tháng ngay trước; nếu có tháng hiện tại thì kỳ trước cắt tới cùng ngày trong tháng.
 - Khoảng ngày → khoảng cùng độ dài ngay trước.
@@ -344,6 +356,8 @@ Nguyên tắc: **không bao giờ gửi dữ liệu thô hàng chục nghìn dò
 cd "D:\Điện Máy\nextjs-dashboard\cloud-scraper"
 railway ssh "tail -n 80 /data/scraper_log.txt"
 ```
+**Cách nhanh nhất:** mở tab **"Trạng thái hệ thống"** trên dashboard (manager). Xem log chi tiết khi cần:
+
 Tốt: `Da khop va cap nhat N du an`, `Successfully synced N rows ... atomic swap`, `Da dong bo N ca be vo`, `{"ok":true,"builtAt":...}` (snapshot). Hết phiên: `Parse duoc 0 khach hang`, `ERROR:Failed to fetch`, `Khong tim thay nut ... chua dang nhap`.
 
 ### 16.2 Đăng nhập lại site trong Chrome của scraper
@@ -408,6 +422,9 @@ Tạo cookie `logi_session` bằng `sealData()` (iron-session) với `SESSION_SE
 25. **Bản mặc định tính sẵn lỗi thời sau deploy (26/09)**: bản dựng bởi code cũ thiếu trường mới → gắn mã deploy, deploy khác thì bỏ qua.
 26. **Hồng Đạt biến mất từ 08/2026 (phát hiện 26/09 nhờ user hỏi)**: nguồn đổi `luong_hang` của Hồng Đạt / Hồng Đạt MXT thành `"PO"`; code cũ loại mọi nhãn lạ → **743 đơn** (T8–T9 = 0 trên dashboard) dù toàn bộ là `lastmile`. Sửa: nhãn lạ xét theo `service_type`. Cùng lúc thêm FRT Digital (182 đơn, nhãn DM 100%, không khớp danh sách tên).
 27. **Nhận diện khách bằng tên cứng bỏ sót khách mới (26/09)**: Naduco, Smartlink, Toàn Phát (tháng 9) có `nganh_hang = DM` nhưng không có trong `DM_LIST`. Chuyển sang `isDMRow` (nhãn ngành + tên dự phòng).
+28. **`head()` Vercel Blob chậm ~0,5–1s (26/09)**: bản đầu `/api/system-health` gọi `head()` để lấy dung lượng snapshot → 1–4s. Bỏ `head()`, lấy dung lượng từ lần đọc/ghi blob của chính instance (`getBaseBlobBytes`); heartbeat cache 30s → ~0,27s khi ấm.
+29. **`case_date` Rillnet đảo ngày/tháng ở dữ liệu cũ (phát hiện 26/09)**: ~17 ca đồng bộ ngày 31/08 lưu dạng ISO với ngày ↔ tháng bị đảo (nguồn "12/08" → `2026-12-08`). Trang trạng thái bỏ qua ngày tương lai; **chưa sửa dữ liệu gốc** — các ca này có thể bị xếp sai tháng khi lọc bể vỡ theo tháng.
+30. **AI tự tính % thay đổi sai (26/09)**: model tự tính "giảm 8,4%" (đúng là −7%). Sửa: đưa sẵn `thayDoiDaTinhSan`, cấm tự tính % trong prompt.
 
 ---
 
@@ -426,6 +443,7 @@ Tạo cookie `logi_session` bằng `sealData()` (iron-session) với `SESSION_SE
 | 17/09 | Sửa lag 25MB→1,44MB; đăng nhập lại scraper; KPI pending. |
 | 21 – 22/09 | Tạo SYSTEM_SPEC; phát hiện lệch 1.072 đơn. |
 | **26/09 — tái cấu trúc "chỉ LTL"** | Xoá FTL / Vận hành SD3 / Tách chuyến (54 file); vá rò dữ liệu CDN; snapshot Vercel Blob (dựng sau mỗi lần scraper sync); tách "Đơn chờ lấy"; delta KPI theo bộ lọc; sửa khối bể vỡ theo bộ lọc; chuyển sang Singapore; giao diện phẳng cam GHN, skeleton, Chart.js không animation, bản đồ tối ưu. Commit `90df799` → `ad9dca0`. Cuối ngày: sửa Hồng Đạt ("PO"), thêm FRT Digital, nhận diện khách theo `nganh_hang = DM`. |
+| 26/09 (tối) | Tab **Trạng thái hệ thống** + heartbeat scraper; **Đơn treo / cần chú ý**; **On-time giảm mạnh**; **Tiểu Đệ 100% LTL** đọc snapshot, bỏ doanh thu/FTL/task. Commit `c65ce7f` + Phase C. |
 
 ---
 
@@ -439,7 +457,8 @@ Tạo cookie `logi_session` bằng `sealData()` (iron-session) với `SESSION_SE
 
 **Kỹ thuật:**
 - [ ] Cấu hình `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` trên Railway để có cảnh báo khi scraper lỗi (tránh lặp sự cố #19).
-- [ ] Chuyển AI chat và `/api/ontime-by-project` sang đọc snapshot (hiện vẫn đọc Sheets trực tiếp, chậm).
+- [ ] Chuyển `/api/ontime-by-project` sang đọc snapshot (AI chat đã chuyển 26/09).
+- [ ] Sửa ~17 ca Rillnet có `case_date` đảo ngày/tháng (sự cố #29).
 - [ ] Dọn: script FTL cũ trong `cloud-scraper/`, `/api/hello`, `lib/backup-data.json`, biến env thừa (mục 14), tab Sheets FTL cũ, file rác gốc repo (`_tmp_populate_specs.mjs`, `test_groq_*.js`, `scripts/dump_0.csv`, `scripts/scraper_log.txt`).
 - [ ] Đồng bộ lại các file `.env*` local với production (đang lệch).
 
