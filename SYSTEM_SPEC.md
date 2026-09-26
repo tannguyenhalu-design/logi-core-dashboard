@@ -190,13 +190,14 @@ Thanh điều hướng: **Tổng quan LTL · Bản đồ tỉnh thành · Hư h�
 - **Lọc nhanh** (chốt 26/09): **⏰ Đến hạn hôm nay** (đơn đã lấy, chưa giao, hạn giao = hôm nay → mở danh sách `/api/data?dueToday=1`); **⚠ Tuyến rủi ro cao** (chuyển sang tab Hư hỏng, bật "chỉ tuyến rủi ro cao"); **📉 Dự án On-time < 90%** (tự chọn các dự án < 90% với ≥ 20 đơn đã đánh giá trong kỳ đang xem; bấm lần nữa để bỏ).
 - **📄 Tạo báo cáo tóm tắt** (`components/ExecutiveReport.js`): trang nền trắng gồm 4 KPI + thay đổi, xu hướng theo tháng, "Điểm cần chú ý" (on-time giảm mạnh, đơn treo, đến hạn hôm nay, chờ lấy, tuyến bể vỡ cao, kho), top 10 dự án. Nút **In / Lưu PDF** (`window.print()`, CSS `@media print` chỉ in `.exec-report`, A4) và **Copy nội dung** (văn bản gạch đầu dòng để dán slide). Theo bộ lọc đang chọn, không gọi thêm API.
 
-### 8.1 Tổng quan LTL (`view="ltl"`)
-- **4 thẻ KPI** (`components/KpiCard.js`): **Tổng đơn** (dòng phụ: GTC trong kỳ), **Tỷ lệ On-time** (màu theo ngưỡng 90/80), **Đơn Late**, **Ca hư hỏng (Rillnet)** — mỗi thẻ có **delta so với kỳ trước** (luật mục 12), xanh = tốt, đỏ = xấu.
-- Khối **"Đơn chờ lấy (chưa chốt kỳ)"** — số đơn chưa có ngày lấy + trạng thái; bấm mở danh sách (sắp theo ngày tạo).
-- Khối **"Đơn treo / cần chú ý"** — đơn đã lấy, trạng thái khác `delivered/returned/cancel/lost/damage`, đã quá ngày `deadline_plus` (luật mục 12); chia 1–3 / 4–7 / >7 ngày, top dự án; bấm mở danh sách qua `/api/data?stuck=1` (quá hạn lâu nhất lên đầu). Giống "Đơn chờ lấy": theo dự án/điểm lấy/viewAs, **không** theo bộ lọc tháng/ngày.
-- **Sparkline 7 ngày** trong 4 thẻ KPI (SVG nhẹ, không Chart.js): 7 ngày lấy hàng gần nhất có trong dữ liệu, theo dự án/điểm lấy/viewAs nhưng **không** theo bộ lọc tháng. On-time/late của 2 ngày cuối vẽ **nét đứt** (đơn chưa giao xong). Ca hư hỏng đếm theo **ngày ghi nhận ca** (`case_date`), cùng cách với thẻ KPI.
-- Dải **"⚠ On-time giảm mạnh"** — dự án có on-time giảm **≥ 10 điểm** so với cùng "kỳ trước" mà delta KPI đang dùng, mỗi kỳ **≥ 5 đơn đã đánh giá**.
-- Biểu đồ Ontime/Late theo tháng (theo tuần khi chọn 1 tháng) + delta; bảng tuần theo khách; banner khách mới; **So sánh cùng kỳ** (MTD / 1-3 tuần) + cảnh báo sụt giảm liên tiếp; biểu đồ theo dự án (số đơn, tải trọng, % ontime); xuất CSV.
+### 8.1 Tổng quan LTL (`view="ltl"`) — bố cục gọn lại 26/09 (khuya)
+Thứ tự từ trên xuống:
+1. **5 thẻ KPI** (`.grid-5`): Tổng đơn · **Khối lượng (tấn)** (mới, kèm kg/đơn) · On-time · Late · Ca hư hỏng. Mỗi thẻ có delta so kỳ trước (luật mục 12, delta KPI giờ có cả `weight`) và **sparkline 7 ngày** (SVG nhẹ; 7 ngày lấy hàng gần nhất, theo dự án/điểm lấy/viewAs, không theo tháng; on-time/late 2 ngày cuối nét đứt; ca hỏng theo `case_date`).
+2. **"Cần chú ý"**: 1 hàng 4 ô bấm được — Đến hạn giao hôm nay · Đơn treo quá hạn · Đơn chờ lấy · Dự án on-time giảm mạnh (mở danh sách). Thay cho 3 dải cảnh báo xếp chồng.
+3. **Sản lượng & On-time theo tháng/tuần** (`VolumeTrendChart`): cột = **tổng đơn thật** (hoặc khối lượng, nút chuyển), đường = % on-time. Kỳ đang chạy tô nhạt, ghi "đến dd/mm" và **so cùng số ngày kỳ trước** (`periodComparison.overall`), không so với cả kỳ. (Biểu đồ cũ lấy ontime+late làm "số đơn" và so tháng dở dang với cả tháng trước → từng hiện T9 "−28%" trong khi cùng kỳ chỉ −5% đơn, +7% khối lượng.)
+4. Bảng tuần theo khách (khi chọn 1 tháng).
+5. **Biến động theo khách (so cùng kỳ)**: 4 ô tổng + chọn kỳ + Nhận định AI, rồi **bảng** `ClientChangeTable` với tab Giảm / Tăng / Mới-quay lại / Tất cả: đơn, tấn, kg/đơn, on-time, hư hỏng, ghi chú. Cờ **"🔎 Đơn giảm nhưng KL giữ — kiểm tra gộp đơn"**: đơn ≤ −30%, khối lượng > −15%, khách ≥ 50 đơn kỳ trước (chỉ là gợi ý kiểm tra). Thay lưới ~20 thẻ và banner khách mới.
+6. **Hiệu suất dự án** (`ProjectPerformanceTable`): 1 bảng sắp xếp được (mặc định số đơn giảm dần) — đơn + tỷ trọng, tấn + tỷ trọng, on-time có thanh màu theo ngưỡng và vạch 90%, late, ca hỏng, ca/1.000 đơn. Thay 2 donut và biểu đồ "% Ontime theo dự án".
 
 ### 8.2 Bản đồ tỉnh thành (`view="map"`)
 `ProvinceMapPanel` + `VietnamMap`: 4 chế độ tô màu (số đơn / tải trọng / ontime / hư hỏng), top tỉnh, bảng soi chi tiết khi rê chuột, tuyến lấy→giao khi lọc 1 dự án. Bấm tỉnh → modal danh sách đơn **tải riêng** qua `/api/data?province=`.
@@ -205,7 +206,8 @@ Thanh điều hướng: **Tổng quan LTL · Bản đồ tỉnh thành · Hư h�
 Nâng cấp 26/09 (`lib/damage-risk.js`, `components/ltl/damage/RouteRiskMatrix.js`):
 - **Ma trận bể vỡ Kho lấy × Miền giao**: mỗi ô = số đơn có ca bể vỡ / số đơn lấy hàng trong kỳ, tô màu theo mức so với trung bình; ⚠ viền đỏ khi **≥ 2× trung bình và ≥ 20 đơn**. Hiện 15 kho nhiều ca nhất. Bấm ô → danh sách **tuyến Kho lấy → Tỉnh giao** (đơn, ca, tỷ lệ, chặng nghi vấn chính); nút "Chỉ tuyến rủi ro cao".
 - **Rủi ro theo dự án**: ca bể vỡ / 1.000 đơn, thanh so sánh, ⚠ khi ≥ 2× trung bình và ≥ 20 đơn. **Widget tiền đền bù tự ẩn** khi mọi ca có số tiền = 0 (tình trạng hiện tại — user chốt "tạm ẩn").
-- Top 10 kho rủi ro, **Cảnh báo bể vỡ theo tuyến** + nguyên nhân Rillnet + narrative AI (giữ nguyên).
+- Đầu tab: **"Tổng quan bể vỡ"** — 4 ô (ca kỳ đang lọc + cùng kỳ, tỷ lệ TB, tuyến rủi ro, dự án rủi ro) + Nhận định AI + nguyên nhân theo chặng. Đã **bỏ** biểu đồ "Top 10 kho" (trộn late, không có mẫu số) và danh sách tuyến cũ của "Cảnh báo bể vỡ theo tuyến" (ngưỡng ≥ 5 đơn quá nhiễu).
+- Ma trận có nút chuyển **Kho lấy × Miền giao / Kho giao × Miền lấy**; danh sách tuyến có cột **Gợi ý** (> 5% → "Cân nhắc FTL riêng", còn lại → "Kiểm tra đóng gói", chỉ với tuyến rủi ro cao). Số ca tối thiểu `RISK_MIN_CASES` (hiện 1, chờ user chốt ≥ 2).
 - **Chi tiết ca hư hỏng + pipeline khiếu nại**: dải 4 bước **Mới phát sinh → Đang xác minh lỗi → Đã chốt đền bù → Đã đóng** có đếm, bấm để lọc. Bấm dòng → **khung chi tiết** (tuyến, tỉnh, ngày lấy, trạng thái đơn, chặng nghi vấn, ngày ghi nhận, nguồn báo, trạng thái Rillnet, người phụ trách, **nhật ký ghi chú**). Lưu ghi thẳng vào tab `DamageClaims` (`/api/damage-claims`, ghi `RAW` để ghi chú không thành công thức). **Chỉ Manager + SD3 được sửa** (chặn ở server), vai trò khác chỉ xem.
 
 ### 8.4 Quản trị

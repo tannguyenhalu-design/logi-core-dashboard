@@ -2,15 +2,12 @@ import { useState } from "react";
 import KpiCard from "../../components/KpiCard";
 import TruckLoader from "../../components/TruckLoader";
 import { downloadCSV } from "../../lib/csv-export";
-import { PeriodComparisonSection, BreakageAlertSection, NewClientsBanner } from "../../components/TabAIInsights";
+import { PeriodComparisonSection, BreakageAlertSection } from "../../components/TabAIInsights";
 import { useTheme } from "./charts/chartUtils";
 import { fmt } from "./utils";
 
-import OntimeMonthChart from "./charts/OntimeMonthChart";
-import OntimeProjChart from "./charts/OntimeProjChart";
-import OrdersProjChart from "./charts/OrdersProjChart";
-import WeightProjChart from "./charts/WeightProjChart";
-import WarehouseRiskChart from "./charts/WarehouseRiskChart";
+import VolumeTrendChart from "./charts/VolumeTrendChart";
+import ProjectPerformanceTable from "./tables/ProjectPerformanceTable";
 
 import ProvinceMapPanel from "./cards/ProvinceMapPanel";
 import DetailedDamageTable from "./tables/DetailedDamageTable";
@@ -189,6 +186,13 @@ const quickChip = (on, color) => ({
   color: on ? color : "var(--text-secondary)", boxShadow: on ? `inset 0 0 0 1px ${color}` : "none",
 });
 
+const ANOMALY_COLUMNS = [
+  { label: "Dự Án", render: (o) => o.name, style: { fontWeight: 600, color: "var(--text-primary)" } },
+  { label: "Kỳ trước", render: (o) => `${o.prev}% (${fmt(o.prevN)} đơn)` },
+  { label: "Kỳ này", render: (o) => `${o.cur}% (${fmt(o.curN)} đơn)` },
+  { label: "Thay đổi", render: (o) => `▼ ${Math.abs(o.deltaPoints).toLocaleString("vi-VN")} điểm`, style: { fontWeight: 700, color: "var(--red)" } },
+];
+
 const STUCK_COLUMNS = [
   { label: "Mã Đơn", render: (o) => o.order_code || "N/A", style: { fontWeight: 600, color: "var(--text-primary)" } },
   { label: "Dự Án", render: (o) => o.client_name },
@@ -222,6 +226,8 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
   const [stuckOrders, setStuckOrders] = useState([]);
   const [stuckLoading, setStuckLoading] = useState(false);
   const [dueModalOpen, setDueModalOpen] = useState(false);
+  const [anomModalOpen, setAnomModalOpen] = useState(false);
+  const [volMetric, setVolMetric] = useState("orders"); // "orders" | "weight"
   const [dueOrders, setDueOrders] = useState([]);
   const [dueLoading, setDueLoading] = useState(false);
   const theme = useTheme();
@@ -334,9 +340,6 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
       {/* Quick filters */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, color: "var(--text-muted)", marginRight: 2 }}>Lọc nhanh:</span>
-        <button style={quickChip(false, "var(--amber)")} onClick={openDueModal} title="Đơn đã lấy, chưa giao, hạn giao là hôm nay — mai sẽ thành đơn treo nếu chưa giao">
-          ⏰ Đến hạn hôm nay <b style={{ color: "var(--amber)" }}>{fmt(dueToday?.count || 0)}</b>
-        </button>
         {!isClient && damageRisk && (
           <button style={quickChip(showDamage && riskOnly, "var(--red)")} onClick={() => onQuickRiskRoutes?.()}
             title={`Tuyến có tỷ lệ bể vỡ ≥ ${damageRisk.rule.multiplier}× trung bình và ≥ ${damageRisk.rule.minOrders} đơn`}>
@@ -396,7 +399,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
         const ontimeClass = !hasEval ? "" : data.ontimePct >= 90 ? "text-green" : data.ontimePct >= 80 ? "text-amber" : "text-red";
         const fmtPct1 = (v) => (v == null ? "—" : `${Number(v).toLocaleString("vi-VN", { maximumFractionDigits: 1 })}%`);
         return (
-          <div className="grid-4">
+          <div className="grid-5">
             <KpiCard
               accent
               label={data.filterMode === "delivered" ? "GTC (ngày giao)" : "Tổng đơn (lấy hàng)"}
@@ -405,6 +408,14 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
               compare={compare(ok ? `${fmt(kd.orders.cur)} đơn` : "")}
               sub={data.filterMode !== "delivered" ? `GTC trong kỳ: ${fmt(data.deliveredThisMonthCount)} (theo ngày giao)` : "Tính theo ngày giao thực tế"}
               spark={sparkFor("orders", (v) => `${fmt(v)} đơn`)}
+            />
+            <KpiCard
+              label="Khối lượng (tấn)"
+              value={fmt((data.totalWeight || 0) / 1000, 1)}
+              delta={ok && kd.weight ? mk(kd.weight.deltaPct, "%", true) : null}
+              compare={compare(ok && kd.weight ? `${fmt((kd.weight.cur || 0) / 1000, 1)} tấn` : "")}
+              sub={data.totalOrders > 0 ? `Bình quân ${fmt((data.totalWeight || 0) / data.totalOrders)} kg/đơn` : ""}
+              spark={sparkFor("weightKg", (v) => `${fmt(v / 1000, 1)} tấn`)}
             />
             <KpiCard
               label="Tỷ lệ On-time"
@@ -441,61 +452,41 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
         );
       })()}
 
-      {showOverview && anomalies?.items?.length > 0 && (
-        <div style={{
-          display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
-          background: "var(--bg-panel)", border: "1px solid var(--border)", borderLeft: "3px solid var(--red)",
-          borderRadius: 10, padding: "12px 16px",
-        }}>
-          <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>⚠ On-time giảm mạnh</span>
-          <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>≥ 10 điểm so với {anomalies.compareLabel} (mỗi kỳ ≥ 5 đơn đã đánh giá):</span>
-          {anomalies.items.map((a) => (
-            <span key={a.name} title={`${a.name}: ${a.prev}% (${fmt(a.prevN)} đơn) → ${a.cur}% (${fmt(a.curN)} đơn)`} style={{
-              fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 20,
-              background: "var(--red-glow)", color: "var(--red)", whiteSpace: "nowrap",
-            }}>
-              {a.name} · {a.prev}% → {a.cur}% (▼ {Math.abs(a.deltaPoints).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} điểm)
-            </span>
-          ))}
-        </div>
-      )}
-
-      {showOverview && stuck?.count > 0 && (
-        <button
-          onClick={openStuckModal}
-          style={{
-            display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", textAlign: "left",
-            background: "var(--bg-panel)", border: "1px solid var(--border)", borderLeft: "3px solid var(--red)",
-            borderRadius: 10, padding: "12px 16px", cursor: "pointer", fontFamily: "inherit", color: "var(--text-primary)",
-          }}
-        >
-          <span style={{ fontSize: 20, fontWeight: 700, color: "var(--red)" }}>{fmt(stuck.count)}</span>
-          <span style={{ fontWeight: 600 }}>Đơn treo / cần chú ý</span>
-          <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-            Đã lấy, chưa giao/hoàn, đã quá hạn giao · quá 1–3 ngày: {fmt(stuck.byAge["1-3"])} · 4–7 ngày: {fmt(stuck.byAge["4-7"])} · &gt; 7 ngày: {fmt(stuck.byAge[">7"])}
-            {stuck.topClients?.length > 0 && <> · nhiều nhất: {stuck.topClients.slice(0, 3).map(([n, c]) => `${n} (${fmt(c)})`).join(", ")}</>}
-          </span>
-          <span style={{ marginLeft: "auto", fontSize: 12.5, color: "var(--cyan)", fontWeight: 600 }}>Xem danh sách →</span>
-        </button>
-      )}
-
-      {showOverview && pendingPickup?.count > 0 && (
-        <button
-          onClick={openPendingModal}
-          style={{
-            display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", textAlign: "left",
-            background: "var(--bg-panel)", border: "1px solid var(--border)", borderLeft: "3px solid var(--amber)",
-            borderRadius: 10, padding: "12px 16px", cursor: "pointer", fontFamily: "inherit", color: "var(--text-primary)",
-          }}
-        >
-          <span style={{ fontSize: 20, fontWeight: 700, color: "var(--amber)" }}>{fmt(pendingPickup.count)}</span>
-          <span style={{ fontWeight: 600 }}>Đơn chờ lấy (chưa chốt kỳ)</span>
-          <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-            Chưa có ngày lấy hàng nên không tính vào Tổng đơn · {Object.entries(pendingPickup.byStatus || {}).map(([st, n]) => `${st}: ${fmt(n)}`).join(" · ")}
-          </span>
-          <span style={{ marginLeft: "auto", fontSize: 12.5, color: "var(--cyan)", fontWeight: 600 }}>Xem danh sách →</span>
-        </button>
-      )}
+      {showOverview && (() => {
+        // "Cần chú ý" — one row of 4 clickable tiles (2026-09-26), replacing
+        // three full-width strips and the duplicate "Đến hạn" quick chip.
+        const tiles = [
+          { key: "due", label: "Đến hạn giao hôm nay", value: dueToday?.count || 0, color: "var(--amber)", sub: "Chưa giao — mai thành đơn treo", onClick: openDueModal },
+          { key: "stuck", label: "Đơn treo quá hạn", value: stuck?.count || 0, color: "var(--red)",
+            sub: stuck?.count ? `> 7 ngày: ${fmt(stuck.byAge[">7"])} · nhiều nhất ${stuck.topClients?.[0]?.[0] || ""}` : "Không có", onClick: openStuckModal },
+          { key: "pending", label: "Đơn chờ lấy (chưa chốt kỳ)", value: pendingPickup?.count || 0, color: "var(--amber)",
+            sub: "Chưa có ngày lấy, không tính vào tổng đơn", onClick: openPendingModal },
+          { key: "anom", label: "Dự án on-time giảm mạnh", value: anomalies?.items?.length || 0, color: "var(--red)",
+            sub: anomalies?.items?.length ? anomalies.items.slice(0, 2).map((a) => a.name).join(", ") + (anomalies.items.length > 2 ? "…" : "") : `Không có (≥ 10 điểm so ${anomalies?.compareLabel || "kỳ trước"})`,
+            onClick: anomalies?.items?.length ? () => setAnomModalOpen(true) : undefined },
+        ];
+        return (
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Cần chú ý</div>
+            <div className="grid-4">
+              {tiles.map((t) => (
+                <button key={t.key} onClick={t.onClick} disabled={!t.onClick} style={{
+                  textAlign: "left", background: "var(--bg-panel)", border: "1px solid var(--border)", borderLeft: `3px solid ${t.value ? t.color : "var(--border)"}`,
+                  borderRadius: 10, padding: "10px 14px", cursor: t.onClick ? "pointer" : "default", fontFamily: "inherit", color: "var(--text-primary)", minWidth: 0,
+                }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <span style={{ fontSize: 22, fontWeight: 800, color: t.value ? t.color : "var(--text-muted)" }}>{fmt(t.value)}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>{t.label}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={t.sub}>
+                    {t.sub}{t.onClick ? " · xem →" : ""}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {showMap && <ProvinceMapPanel
         provinceStats={data.provinceStats}
@@ -519,15 +510,32 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
       />}
 
       {showOverview && <div className="chart-panel" style={{ width: "100%" }}>
-        <div className="chart-panel-title">
+        <div className="chart-panel-title" style={{ flexWrap: "wrap", gap: 8 }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          Xu hướng Ontime / Late theo {data.isWeekly ? "tuần" : "tháng"}
+          <span>Sản lượng & On-time theo {data.isWeekly ? "tuần" : "tháng"}</span>
+          <span style={{ marginLeft: "auto", display: "inline-flex", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden" }}>
+            {[["orders", "Số đơn"], ["weight", "Khối lượng"]].map(([k, label]) => (
+              <button key={k} onClick={() => setVolMetric(k)} style={{
+                fontSize: 12, fontWeight: 600, padding: "4px 12px", border: "none", cursor: "pointer", fontFamily: "inherit",
+                background: volMetric === k ? "rgba(var(--brand-rgb),0.18)" : "transparent", color: volMetric === k ? "var(--cyan)" : "var(--text-muted)",
+              }}>{label}</button>
+            ))}
+          </span>
         </div>
         <div style={{ height: 320 }}>
-          <OntimeMonthChart ontimeByMonth={data.ontimeByMonth} isWeekly={data.isWeekly} month={selectedMonths.length === 1 ? selectedMonths[0] : null} theme={theme} />
+          <VolumeTrendChart
+            metric={volMetric}
+            ordersByMonth={data.ordersByMonth || {}}
+            weightByMonth={data.weightByMonth || {}}
+            ontimeByMonth={data.ontimeByMonth || {}}
+            isWeekly={data.isWeekly}
+            month={selectedMonths.length === 1 ? selectedMonths[0] : null}
+            sameDayComparison={data.periodComparison?.periodMode === "mtd" ? data.periodComparison?.overall : null}
+            theme={theme}
+          />
         </div>
         <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6, textAlign: "center" }}>
-          ⓘ Cột tháng/tuần gần nhất còn đang chạy — nhiều đơn chưa kịp giao nên % ontime sẽ còn thay đổi. Xem "So sánh cùng kỳ" bên dưới để có góc nhìn ổn định hơn.
+          ⓘ Cột nhạt = kỳ đang chạy, được so với cùng số ngày của kỳ trước (không so với cả kỳ). % on-time của kỳ đang chạy còn thay đổi vì nhiều đơn chưa giao.
         </div>
       </div>}
 
@@ -535,11 +543,8 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
         <WeeklyByClientSection ordersByProjectAndWeek={data.ordersByProjectAndWeek} ordersByMonth={data.ordersByMonth} />
       )}
 
-      {showOverview && !singleProjectMode && (
-        <NewClientsBanner clients={data.periodComparison?.clients || []} />
-      )}
-
       {showOverview && <PeriodComparisonSection
+        asTable
         comparison={data.periodComparison}
         declineAlerts={data.declineAlerts}
         compact={singleProjectMode}
@@ -548,103 +553,67 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
       />}
 
       {showOverview && !singleProjectMode && (
-        <>
-          <div className="grid-2" style={{ gap: 20 }}>
-            <div className="chart-panel">
-              <div className="chart-panel-title">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
-                📦 Tỷ trọng Số Đơn theo Dự Án
-              </div>
-              <div style={{ height: 260 }}>
-                <OrdersProjChart ordersByProject={data.ordersByProject} theme={theme} />
-              </div>
-            </div>
+        <ProjectPerformanceTable projectSummaries={data.projectSummaries || {}} />
+      )}
 
-            <div className="chart-panel">
-              <div className="chart-panel-title">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M2 12h20"/></svg>
-                ⚖️ Tỷ trọng Tải Trọng (Tấn/Kg) theo Dự Án
-              </div>
-              <div style={{ height: 260 }}>
-                <WeightProjChart weightByProject={data.weightByProject || {}} theme={theme} />
-              </div>
-            </div>
-          </div>
-
+      {showDamage && !isClient && (() => {
+        const pc = data.periodComparison;
+        const src = pc ? (singleProjectMode ? pc.clients?.find((c) => c.client === selectedProjects[0]) : pc.overall) : null;
+        const damageTrend = pc && src ? {
+          scope: singleProjectMode ? selectedProjects[0] : "toàn hệ thống",
+          currentRangeLabel: pc.currentRangeLabel, previousRangeLabel: pc.previousRangeLabel,
+          curDamageCount: src.cur?.damageCount ?? 0, prevDamageCount: src.prev?.damageCount ?? 0,
+          damageDeltaPct: src.damageDeltaPct ?? null, damageIsNew: src.damageIsNew ?? false,
+        } : null;
+        const riskyProjects = (damageRisk?.byProject || []).filter((p) => p.orders >= damageRisk.rule.minOrders && p.per1000 >= damageRisk.avgRate * 10 * damageRisk.rule.multiplier).length;
+        const tiles = [
+          { label: "Ca hư hỏng (kỳ đang lọc)", value: fmt(data.totalBroken), sub: damageTrend ? `${damageTrend.currentRangeLabel}: ${fmt(damageTrend.curDamageCount)} ca · cùng kỳ: ${fmt(damageTrend.prevDamageCount)} ca` : "" },
+          { label: "Tỷ lệ bể vỡ trung bình", value: damageRisk ? `${damageRisk.avgRate.toLocaleString("vi-VN")}%` : "—", sub: damageRisk ? `${fmt(damageRisk.totalDamaged)} đơn có ca / ${fmt(damageRisk.totalOrders)} đơn` : "" },
+          { label: "Tuyến rủi ro cao", value: fmt(damageRisk?.riskyRouteCount || 0), sub: damageRisk ? `≥ ${damageRisk.rule.multiplier}× TB, ≥ ${damageRisk.rule.minOrders} đơn` : "" },
+          { label: "Dự án rủi ro cao", value: fmt(riskyProjects), sub: "Ca / 1.000 đơn ≥ 2× trung bình" },
+        ];
+        return (
           <div className="chart-panel" style={{ width: "100%" }}>
             <div className="chart-panel-title">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-              % Ontime theo Dự Án
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+              Tổng quan bể vỡ
             </div>
-            <div style={{ height: 240 }}>
-              <OntimeProjChart ontimeByProject={data.ontimeByProject} theme={theme} />
+            <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
+              <div className="grid-4">
+                {tiles.map((t) => (
+                  <div key={t.label} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px" }}>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{t.label}</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)" }}>{t.value}</div>
+                    <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{t.sub}</div>
+                  </div>
+                ))}
+              </div>
+              {aiInsights && (
+                <BreakageAlertSection
+                  hideRouteList
+                  routes={aiInsights.breakageRoutes}
+                  avgDmgRate={aiInsights.avgDmgRate}
+                  totalOrders={aiInsights.totalOrders}
+                  damageCauses={aiInsights.damageCauses}
+                  damageTrend={damageTrend}
+                  recentCases={
+                    aiInsights.damageCauses?.totalCases > 0 && aiInsights.damageCauses.totalCases <= 8
+                      ? (data.detailedDamageCases || []).slice(0, 8).map((c) => ({
+                          orderCode: c.order_code, client: c.client_name,
+                          warehouse: c.warehouse_giao, leg: c.damage_details, province: c.to_province,
+                        }))
+                      : []
+                  }
+                />
+              )}
             </div>
           </div>
-        </>
-      )}
+        );
+      })()}
 
       {showDamage && !isClient && damageRisk && (
         <RouteRiskMatrix risk={damageRisk} riskOnly={riskOnly} onRiskOnlyChange={setRiskOnly} />
       )}
-
-      {showDamage && !isClient && (
-        <div className="chart-panel" style={{ width: "100%" }}>
-          <div className="chart-panel-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
-            Top 10 Kho Rủi Ro Cao — Chi Tiết Hư Hỏng
-          </div>
-          <div style={{ height: 240 }}>
-            <WarehouseRiskChart
-              warehouseAlerts={data.warehouseAlerts}
-              selectedWarehouse={damageFilter?.type === "warehouse" ? damageFilter.value : null}
-              onSelectWarehouse={(wh) => setDamageFilter(wh ? { type: "warehouse", value: wh } : null)}
-              theme={theme}
-            />
-          </div>
-        </div>
-      )}
-
-      {showDamage && !isClient && aiInsights && (
-        <div className="chart-panel" style={{ width: "100%" }}>
-          <div className="chart-panel-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
-            Cảnh Báo Bể Vỡ Theo Tuyến
-          </div>
-          <BreakageAlertSection
-            routes={aiInsights.breakageRoutes}
-            avgDmgRate={aiInsights.avgDmgRate}
-            totalOrders={aiInsights.totalOrders}
-            damageCauses={aiInsights.damageCauses}
-            damageTrend={(() => {
-              const pc = data.periodComparison;
-              if (!pc) return null;
-              const src = singleProjectMode
-                ? pc.clients?.find((c) => c.client === selectedProjects[0])
-                : { ...pc.overall, cur: pc.overall?.cur, prev: pc.overall?.prev };
-              if (!src) return null;
-              return {
-                scope: singleProjectMode ? selectedProjects[0] : "toàn hệ thống",
-                currentRangeLabel: pc.currentRangeLabel,
-                previousRangeLabel: pc.previousRangeLabel,
-                curDamageCount: src.cur?.damageCount ?? 0,
-                prevDamageCount: src.prev?.damageCount ?? 0,
-                damageDeltaPct: src.damageDeltaPct ?? null,
-                damageIsNew: src.damageIsNew ?? false,
-              };
-            })()}
-            recentCases={
-              aiInsights.damageCauses?.totalCases > 0 && aiInsights.damageCauses.totalCases <= 8
-                ? (data.detailedDamageCases || []).slice(0, 8).map((c) => ({
-                    orderCode: c.order_code, client: c.client_name,
-                    warehouse: c.warehouse_giao, leg: c.damage_details, province: c.to_province,
-                  }))
-                : []
-            }
-          />
-        </div>
-      )}
-
-
 
       {showDamage && <div className="chart-panel">
         <div className="chart-panel-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -675,6 +644,16 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
           rows={[...pendingOrders].sort((a, b) => String(a.created_time || "").localeCompare(String(b.created_time || "")))}
           columns={PENDING_COLUMNS}
           onClose={() => setPendingModalOpen(false)}
+        />
+      )}
+      {anomModalOpen && (
+        <OrderListModal
+          title="Dự án on-time giảm mạnh"
+          subtitle={`Giảm ≥ 10 điểm so với ${anomalies?.compareLabel || "kỳ trước"}, mỗi kỳ ≥ 5 đơn đã đánh giá`}
+          loading={false}
+          rows={anomalies?.items || []}
+          columns={ANOMALY_COLUMNS}
+          onClose={() => setAnomModalOpen(false)}
         />
       )}
       {dueModalOpen && (

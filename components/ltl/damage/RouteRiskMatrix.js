@@ -39,15 +39,20 @@ function Cell({ c, avg, active, onClick }) {
 }
 
 export default function RouteRiskMatrix({ risk, riskOnly = false, onRiskOnlyChange }) {
-  const [sel, setSel] = useState(null); // { kho, region } | null
+  const [sel, setSel] = useState(null); // { kho, region } | null — "Kho lấy" view only
+  const [mode, setMode] = useState("lay"); // "lay" = Kho lấy × Miền giao, "giao" = Kho giao × Miền lấy
   if (!risk || !risk.totalOrders) return null;
-  const { avgRate, threshold, rule, regions, warehouses } = risk;
+  const { avgRate, threshold, rule } = risk;
+  const view = mode === "giao" && risk.matrixGiao ? risk.matrixGiao : { regions: risk.regions, warehouses: risk.warehouses };
+  const { regions, warehouses } = view;
 
   const routes = risk.routes.filter((r) =>
     (!riskOnly || r.risky) && (!sel || (r.kho === sel.kho && (!sel.region || r.region === sel.region))));
 
-  const toggle = (kho, region) =>
+  const toggle = (kho, region) => {
+    if (mode !== "lay") return; // route list is Kho lấy → Tỉnh giao
     setSel((s) => (s && s.kho === kho && s.region === region ? null : { kho, region }));
+  };
 
   const th = { padding: "8px 10px", fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", textAlign: "center", whiteSpace: "nowrap" };
   const chip = (on) => ({
@@ -60,16 +65,24 @@ export default function RouteRiskMatrix({ risk, riskOnly = false, onRiskOnlyChan
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div className="chart-panel" style={{ width: "100%" }}>
         <div className="chart-panel-title" style={{ flexWrap: "wrap", gap: 8 }}>
-          <span>🗺️ Ma trận bể vỡ: Kho lấy × Miền giao</span>
+          <span>🗺️ Ma trận bể vỡ: {mode === "lay" ? "Kho lấy × Miền giao" : "Kho giao × Miền lấy"}</span>
+          <span style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden" }}>
+            {[["lay", "Kho lấy"], ["giao", "Kho giao"]].map(([k, label]) => (
+              <button key={k} onClick={() => { setMode(k); setSel(null); }} style={{
+                fontSize: 12, fontWeight: 600, padding: "4px 10px", border: "none", cursor: "pointer", fontFamily: "inherit",
+                background: mode === k ? "rgba(var(--brand-rgb),0.18)" : "transparent", color: mode === k ? "var(--cyan)" : "var(--text-muted)",
+              }}>{label}</button>
+            ))}
+          </span>
           <span style={{ fontSize: 12, fontWeight: 400, color: "var(--text-muted)" }}>
-            Trung bình {fmtPct(avgRate)} · tô đỏ ⚠ khi ≥ {rule.multiplier}× trung bình ({fmtPct(threshold)}) và ≥ {rule.minOrders} đơn · bấm ô để xem tuyến
+            Trung bình {fmtPct(avgRate)} · tô đỏ ⚠ khi ≥ {rule.multiplier}× trung bình ({fmtPct(threshold)}), ≥ {rule.minOrders} đơn{rule.minCases > 1 ? ` và ≥ ${rule.minCases} ca` : ""}{mode === "lay" ? " · bấm ô để xem tuyến" : ""}
           </span>
         </div>
         <div style={{ overflowX: "auto", padding: "0 12px 12px" }}>
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 3, fontSize: 13 }}>
             <thead>
               <tr>
-                <th style={{ ...th, textAlign: "left" }}>Kho lấy</th>
+                <th style={{ ...th, textAlign: "left" }}>{mode === "lay" ? "Kho lấy" : "Kho giao"}</th>
                 {regions.map((rg) => <th key={rg} style={th}>{rg}</th>)}
                 <th style={th}>Tổng</th>
               </tr>
@@ -88,6 +101,7 @@ export default function RouteRiskMatrix({ risk, riskOnly = false, onRiskOnlyChan
           </table>
           <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 6 }}>
             Tỷ lệ = số đơn có ca bể vỡ (Rillnet) / số đơn lấy hàng trong kỳ đang lọc. Hiện {warehouses.length} kho nhiều ca nhất.
+            {mode === "giao" && " Cột = miền của điểm lấy hàng."}
           </div>
         </div>
       </div>
@@ -108,7 +122,7 @@ export default function RouteRiskMatrix({ risk, riskOnly = false, onRiskOnlyChan
               <tr>
                 <th>Kho lấy</th><th>Tỉnh giao</th><th>Miền</th>
                 <th style={{ textAlign: "right" }}>Đơn</th><th style={{ textAlign: "right" }}>Ca bể vỡ</th>
-                <th style={{ textAlign: "right" }}>Tỷ lệ</th><th>Chặng nghi vấn chính</th>
+                <th style={{ textAlign: "right" }}>Tỷ lệ</th><th>Chặng nghi vấn chính</th><th>Gợi ý</th>
               </tr>
             </thead>
             <tbody>
@@ -123,10 +137,11 @@ export default function RouteRiskMatrix({ risk, riskOnly = false, onRiskOnlyChan
                     {fmtPct(r.rate)}{r.risky && " ⚠"}
                   </td>
                   <td style={{ fontSize: 12, color: "var(--text-muted)" }}>{r.topLeg || "—"}</td>
+                  <td style={{ fontSize: 12, fontWeight: 600, color: r.suggestion === "Cân nhắc FTL riêng" ? "var(--red)" : "var(--amber)" }}>{r.suggestion ? `→ ${r.suggestion}` : ""}</td>
                 </tr>
               ))}
               {routes.length === 0 && (
-                <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--text-muted)", padding: 24 }}>
+                <tr><td colSpan={8} style={{ textAlign: "center", color: "var(--text-muted)", padding: 24 }}>
                   {riskOnly ? "Không có tuyến nào vượt ngưỡng rủi ro trong kỳ này." : "Không có tuyến nào có ca bể vỡ."}
                 </td></tr>
               )}

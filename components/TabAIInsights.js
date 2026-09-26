@@ -3,6 +3,7 @@
  * Tab AI Insights — Tầng 1: Bể vỡ theo tuyến, Tầng 2: Đề xuất tách chuyến
  */
 import { useState, Fragment } from "react";
+import ClientChangeTable from "./ltl/tables/ClientChangeTable";
 
 // ── Helpers ──
 const fmtN = n => Number(n).toLocaleString("vi-VN");
@@ -103,7 +104,9 @@ function BreakageSection({ routes, avgDmgRate }) {
 
 // Used directly inside LTLDashboard.js — "Tầng 1" (per-route breakage rate)
 // plus an AI narrative call, same on-demand pattern as PeriodComparisonSection's.
-export function BreakageAlertSection({ routes = [], avgDmgRate = 0, totalOrders = 0, damageCauses = null, damageTrend = null, recentCases = [] }) {
+// hideRouteList: the per-route list now lives in RouteRiskMatrix (2026-09-26);
+// this block keeps the AI narrative + root causes only.
+export function BreakageAlertSection({ routes = [], avgDmgRate = 0, totalOrders = 0, damageCauses = null, damageTrend = null, recentCases = [], hideRouteList = false }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <AINarrativePanel
@@ -150,7 +153,7 @@ export function BreakageAlertSection({ routes = [], avgDmgRate = 0, totalOrders 
           </div>
         </div>
       )}
-      <BreakageSection routes={routes} avgDmgRate={avgDmgRate} />
+      {!hideRouteList && <BreakageSection routes={routes} avgDmgRate={avgDmgRate} />}
     </div>
   );
 }
@@ -214,7 +217,9 @@ export function DeltaBadge({ value, unit, invert, isNew }) {
   );
 }
 
-export function PeriodComparisonSection({ comparison, declineAlerts = [], compact = false, periodWeeks = "mtd", onPeriodWeeksChange }) {
+// asTable: render the per-client breakdown as ClientChangeTable (Tổng quan
+// LTL, 2026-09-26) instead of the older card grid.
+export function PeriodComparisonSection({ comparison, declineAlerts = [], compact = false, periodWeeks = "mtd", onPeriodWeeksChange, asTable = false }) {
   if (!comparison) return null;
   const { currentRangeLabel, previousRangeLabel, overall, clients, warehouses } = comparison;
   // Filtered to 1 project, the client breakdown is just that 1 project again
@@ -242,7 +247,7 @@ export function PeriodComparisonSection({ comparison, declineAlerts = [], compac
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, marginBottom: 16 }}>
         <div>
           <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-primary)", marginBottom: 2 }}>
-            📈 So sánh cùng kỳ
+            {asTable ? `📊 Biến động theo ${groupLabel} (so cùng kỳ)` : "📈 So sánh cùng kỳ"}
           </div>
           <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
             {currentRangeLabel} so với {previousRangeLabel} (
@@ -366,6 +371,8 @@ export function PeriodComparisonSection({ comparison, declineAlerts = [], compac
         <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
           Chưa đủ dữ liệu để so sánh.
         </div>
+      ) : asTable ? (
+        <ClientChangeTable items={items} groupLabel={groupLabel} />
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 }}>
           {sortedItems.map((c) => (
@@ -410,7 +417,7 @@ export function PeriodComparisonSection({ comparison, declineAlerts = [], compac
         </div>
       )}
 
-      {warningItems.length > 0 && (
+      {!asTable && warningItems.length > 0 && (
         <div style={{ marginTop: 12, fontSize: 11, color: "var(--red)" }}>
           ⚠️ {warningItems.length} {groupLabel} giảm rõ rệt so với kỳ trước — ưu tiên kiểm tra trước.
         </div>
