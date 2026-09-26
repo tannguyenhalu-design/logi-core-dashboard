@@ -186,10 +186,15 @@ flowchart LR
 
 Thanh điều hướng: **Tổng quan LTL · Bản đồ tỉnh thành · Hư hỏng & Rủi ro** (dùng chung 1 lần tải `/api/data`, chuyển tab không gọi lại API) + Quản lý người dùng · Nhật ký · Trạng thái hệ thống · Bộ não Tiểu Đệ (manager). Bộ lọc chung: Ngày lấy / Ngày giao, tháng, dự án, điểm lấy (khi chọn 1 dự án), nhanh (Hôm nay / 3 / 7 ngày / Tháng này / Tất cả), khoảng ngày; nút "Đồng bộ Google Sheet".
 
+### 8.0 Thanh công cụ chung (cả 3 góc nhìn LTL)
+- **Lọc nhanh** (chốt 26/09): **⏰ Đến hạn hôm nay** (đơn đã lấy, chưa giao, hạn giao = hôm nay → mở danh sách `/api/data?dueToday=1`); **⚠ Tuyến rủi ro cao** (chuyển sang tab Hư hỏng, bật "chỉ tuyến rủi ro cao"); **📉 Dự án On-time < 90%** (tự chọn các dự án < 90% với ≥ 20 đơn đã đánh giá trong kỳ đang xem; bấm lần nữa để bỏ).
+- **📄 Tạo báo cáo tóm tắt** (`components/ExecutiveReport.js`): trang nền trắng gồm 4 KPI + thay đổi, xu hướng theo tháng, "Điểm cần chú ý" (on-time giảm mạnh, đơn treo, đến hạn hôm nay, chờ lấy, tuyến bể vỡ cao, kho), top 10 dự án. Nút **In / Lưu PDF** (`window.print()`, CSS `@media print` chỉ in `.exec-report`, A4) và **Copy nội dung** (văn bản gạch đầu dòng để dán slide). Theo bộ lọc đang chọn, không gọi thêm API.
+
 ### 8.1 Tổng quan LTL (`view="ltl"`)
 - **4 thẻ KPI** (`components/KpiCard.js`): **Tổng đơn** (dòng phụ: GTC trong kỳ), **Tỷ lệ On-time** (màu theo ngưỡng 90/80), **Đơn Late**, **Ca hư hỏng (Rillnet)** — mỗi thẻ có **delta so với kỳ trước** (luật mục 12), xanh = tốt, đỏ = xấu.
 - Khối **"Đơn chờ lấy (chưa chốt kỳ)"** — số đơn chưa có ngày lấy + trạng thái; bấm mở danh sách (sắp theo ngày tạo).
 - Khối **"Đơn treo / cần chú ý"** — đơn đã lấy, trạng thái khác `delivered/returned/cancel/lost/damage`, đã quá ngày `deadline_plus` (luật mục 12); chia 1–3 / 4–7 / >7 ngày, top dự án; bấm mở danh sách qua `/api/data?stuck=1` (quá hạn lâu nhất lên đầu). Giống "Đơn chờ lấy": theo dự án/điểm lấy/viewAs, **không** theo bộ lọc tháng/ngày.
+- **Sparkline 7 ngày** trong 4 thẻ KPI (SVG nhẹ, không Chart.js): 7 ngày lấy hàng gần nhất có trong dữ liệu, theo dự án/điểm lấy/viewAs nhưng **không** theo bộ lọc tháng. On-time/late của 2 ngày cuối vẽ **nét đứt** (đơn chưa giao xong). Ca hư hỏng đếm theo **ngày ghi nhận ca** (`case_date`), cùng cách với thẻ KPI.
 - Dải **"⚠ On-time giảm mạnh"** — dự án có on-time giảm **≥ 10 điểm** so với cùng "kỳ trước" mà delta KPI đang dùng, mỗi kỳ **≥ 5 đơn đã đánh giá**.
 - Biểu đồ Ontime/Late theo tháng (theo tuần khi chọn 1 tháng) + delta; bảng tuần theo khách; banner khách mới; **So sánh cùng kỳ** (MTD / 1-3 tuần) + cảnh báo sụt giảm liên tiếp; biểu đồ theo dự án (số đơn, tải trọng, % ontime); xuất CSV.
 
@@ -197,7 +202,11 @@ Thanh điều hướng: **Tổng quan LTL · Bản đồ tỉnh thành · Hư h�
 `ProvinceMapPanel` + `VietnamMap`: 4 chế độ tô màu (số đơn / tải trọng / ontime / hư hỏng), top tỉnh, bảng soi chi tiết khi rê chuột, tuyến lấy→giao khi lọc 1 dự án. Bấm tỉnh → modal danh sách đơn **tải riêng** qua `/api/data?province=`.
 
 ### 8.3 Hư hỏng & Rủi ro (`view="damage"`)
-Top 10 kho rủi ro (bấm để lọc), **Cảnh báo bể vỡ theo tuyến** + nguyên nhân Rillnet + narrative AI (bấm nút), bảng **Chi tiết ca hư hỏng** kèm workflow khiếu nại (`/api/damage-claims`).
+Nâng cấp 26/09 (`lib/damage-risk.js`, `components/ltl/damage/RouteRiskMatrix.js`):
+- **Ma trận bể vỡ Kho lấy × Miền giao**: mỗi ô = số đơn có ca bể vỡ / số đơn lấy hàng trong kỳ, tô màu theo mức so với trung bình; ⚠ viền đỏ khi **≥ 2× trung bình và ≥ 20 đơn**. Hiện 15 kho nhiều ca nhất. Bấm ô → danh sách **tuyến Kho lấy → Tỉnh giao** (đơn, ca, tỷ lệ, chặng nghi vấn chính); nút "Chỉ tuyến rủi ro cao".
+- **Rủi ro theo dự án**: ca bể vỡ / 1.000 đơn, thanh so sánh, ⚠ khi ≥ 2× trung bình và ≥ 20 đơn. **Widget tiền đền bù tự ẩn** khi mọi ca có số tiền = 0 (tình trạng hiện tại — user chốt "tạm ẩn").
+- Top 10 kho rủi ro, **Cảnh báo bể vỡ theo tuyến** + nguyên nhân Rillnet + narrative AI (giữ nguyên).
+- **Chi tiết ca hư hỏng + pipeline khiếu nại**: dải 4 bước **Mới phát sinh → Đang xác minh lỗi → Đã chốt đền bù → Đã đóng** có đếm, bấm để lọc. Bấm dòng → **khung chi tiết** (tuyến, tỉnh, ngày lấy, trạng thái đơn, chặng nghi vấn, ngày ghi nhận, nguồn báo, trạng thái Rillnet, người phụ trách, **nhật ký ghi chú**). Lưu ghi thẳng vào tab `DamageClaims` (`/api/damage-claims`, ghi `RAW` để ghi chú không thành công thức). **Chỉ Manager + SD3 được sửa** (chặn ở server), vai trò khác chỉ xem.
 
 ### 8.4 Quản trị
 Users (`TabUsers`), Audit log (`TabAuditLog`, append-only), AI Brain (`TabBrain`), **Trạng thái hệ thống** (`TabSystemHealth`, manager):
@@ -236,7 +245,7 @@ Persona xưng "Tiểu Đệ", gọi user "Đại Ca". UI: `components/AIChatDraw
 | `/api/cron/build-snapshot` | `CRON_SECRET` (Bearer) hoặc `SNAPSHOT_SECRET` (`x-snapshot-secret`) | Dựng lại snapshot Blob |
 | `/api/cron/backup` | `CRON_SECRET` | Backup hằng ngày |
 | `/api/ontime-by-project` | session | Ontime theo dự án (đọc Sheets trực tiếp) |
-| `/api/damage-claims` | session | Workflow khiếu nại |
+| `/api/damage-claims` | GET: session có tab LTL; POST: **manager, sd3** | Workflow khiếu nại: `{orderCode, status, assignee, note}` — `note` được **nối thêm** vào nhật ký (`[dd/mm hh:mm · Tên] ...`), đổi trạng thái tự ghi 1 dòng. Trạng thái cũ (Mới/Đang xử lý/Chờ đền bù/Hoàn tất) tự đổi 1-1 khi đọc. |
 | `/api/kpi-sync`, `/api/kpi-sync-status` | `KPI_SYNC_SECRET` / session | Nhận & xem KPI sync |
 | `/api/rillnet-sync` | `RILLNET_SYNC_SECRET` | Nhận dữ liệu Rillnet |
 | `/api/admin-users`, `/api/audit-log` | manager | Quản trị |
@@ -285,6 +294,10 @@ nextjs-dashboard/
 **Đơn chờ lấy (chưa chốt kỳ)** (chốt 26/09): đơn có `pickup_time` rỗng (thực tế `ready_to_pick`/`picking`). **Không tính** vào Tổng đơn, bản đồ, biểu đồ, danh sách tỉnh → "Tất cả" = tổng các tháng. Nhóm này lọc theo dự án/điểm lấy/viewAs, **không** theo tháng/ngày. **AI Insights vẫn nhận bộ đơn cũ (có cả nhóm này)** để tỉ lệ bể vỡ theo tuyến và logic "hàng chờ gần đầy xe" không đổi — vì vậy ở "Tất cả", tổng đơn trong khối bể vỡ (33.649) lớn hơn Tổng đơn KPI (32.524).
 
 **Đơn treo / cần chú ý** (chốt 26/09, `stuckOverdueDays` trong `lib/ltl-dashboard.js`): có `pickup_time`, `status` ∉ {`delivered`, `returned`, `cancel`, `lost`, `damage`}, và **ngày hôm nay (giờ VN) > ngày `deadline_plus`**. `deadline_plus` chỉ là ngày (`"2026-08-18 0:00:00"`): giao **trong** ngày hạn vẫn là ontime — đã đối chiếu 31.450/31.450 đơn đã giao khớp `odr_success`. Vì vậy đây cũng chính là luật "late" GHN dùng cho đơn chưa giao, nhưng tính theo hôm nay chứ không theo lúc xuất sheet (cột `deadline` luôn trống, không dùng). `lost`/`damage` bị loại (user chốt 26/09: đã có kết cục, xử lý qua khiếu nại — 26 đơn); các trạng thái đang hoàn (`return`, `returning`, `waiting_to_return`...) **vẫn tính** là treo.
+
+**Tuyến / dự án rủi ro bể vỡ** (chốt 26/09, `lib/damage-risk.js`): tỷ lệ = đơn có ca Rillnet (ghép theo mã đơn) / đơn lấy hàng trong bộ lọc — tính theo **đơn**, nên có thể lệch nhẹ so với thẻ "Ca hư hỏng" (lọc theo ngày ghi nhận ca). Rủi ro cao khi `rate ≥ RISK_RATE_MULTIPLIER (2) × trung bình` và `orders ≥ RISK_MIN_ORDERS (20)`. Lưu ý: với 20–100 đơn, chỉ 1 ca đã vượt ngưỡng (26/09: 20 tuyến rủi ro, đa số chỉ 1 ca).
+
+**Đến hạn hôm nay** (`isDueToday`): có `pickup_time`, trạng thái chưa kết thúc (cùng tập loại trừ với đơn treo), ngày `deadline_plus` = hôm nay (giờ VN).
 
 **On-time giảm mạnh** (chốt 26/09, `projectDrops`): giảm ≥ `ANOMALY_DROP_POINTS=10` điểm, mỗi kỳ ≥ `ANOMALY_MIN_SAMPLE=5` đơn đã đánh giá; "kỳ trước" dùng chung với delta KPI (không lọc → `periodComparison.clients`; có lọc → `kpiOnly` của kỳ trước trả thêm `ontimeByProject`). Tính 1 lần trong `computeComparisons` cùng delta KPI.
 
@@ -443,6 +456,7 @@ Tạo cookie `logi_session` bằng `sealData()` (iron-session) với `SESSION_SE
 | 17/09 | Sửa lag 25MB→1,44MB; đăng nhập lại scraper; KPI pending. |
 | 21 – 22/09 | Tạo SYSTEM_SPEC; phát hiện lệch 1.072 đơn. |
 | **26/09 — tái cấu trúc "chỉ LTL"** | Xoá FTL / Vận hành SD3 / Tách chuyến (54 file); vá rò dữ liệu CDN; snapshot Vercel Blob (dựng sau mỗi lần scraper sync); tách "Đơn chờ lấy"; delta KPI theo bộ lọc; sửa khối bể vỡ theo bộ lọc; chuyển sang Singapore; giao diện phẳng cam GHN, skeleton, Chart.js không animation, bản đồ tối ưu. Commit `90df799` → `ad9dca0`. Cuối ngày: sửa Hồng Đạt ("PO"), thêm FRT Digital, nhận diện khách theo `nganh_hang = DM`. |
+| 26/09 (khuya) | Tab Hư hỏng: ma trận Kho lấy × Miền giao, tuyến rủi ro, rủi ro theo dự án, pipeline khiếu nại 4 bước + khung chi tiết (Manager/SD3 sửa); lọc nhanh; sparkline 7 ngày; báo cáo tóm tắt in/copy. |
 | 26/09 (tối) | Tab **Trạng thái hệ thống** + heartbeat scraper; **Đơn treo / cần chú ý**; **On-time giảm mạnh**; **Tiểu Đệ 100% LTL** đọc snapshot, bỏ doanh thu/FTL/task. Commit `c65ce7f` + Phase C. |
 
 ---

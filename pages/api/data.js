@@ -4,6 +4,7 @@
  *   &province=X      → { ok, provinceOrders }  (modal "Chi tiết đơn hàng")
  *   &pendingPickup=1 → { ok, pendingOrders }   (modal "Đơn chờ lấy")
  *   &stuck=1         → { ok, stuckOrders }     (modal "Đơn treo / cần chú ý")
+ *   &dueToday=1      → { ok, dueTodayOrders }  (bộ lọc nhanh "Đến hạn hôm nay")
  *   &force=true      → rebuild the Blob snapshot from Google Sheets first
  *
  * Protected endpoint — requires valid session. Data comes from the LTL
@@ -88,6 +89,7 @@ export default async function handler(req, res) {
     province: req.query.province ? String(req.query.province) : null,
     pendingList: req.query.pendingPickup === "1",
     stuckList: req.query.stuck === "1",
+    dueTodayList: req.query.dueToday === "1",
   };
   const scope = { role, userProject, userPic };
   const force = req.query.force === "true";
@@ -103,7 +105,7 @@ export default async function handler(req, res) {
     const base = await loadLtlBase();
     // Drill-down shapes are small and differ from the full body — never
     // served from / written to the full-response cache.
-    if (params.province || params.pendingList || params.stuckList) {
+    if (params.province || params.pendingList || params.stuckList || params.dueTodayList) {
       return res.status(200).json(computeDashboard(base, params));
     }
 

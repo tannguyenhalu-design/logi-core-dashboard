@@ -548,3 +548,14 @@ body {
 .btn-primary:hover { filter: brightness(0.92); }
 .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 .error-msg { color: var(--red); font-size: 13px; margin-top: 12px; text-align: center; }
+
+
+/* "Tạo báo cáo tóm tắt" (components/ExecutiveReport.js): print only the report */
+@media print {
+  body * { visibility: hidden !important; }
+  .exec-report, .exec-report * { visibility: visible !important; }
+  .exec-report { position: absolute !important; inset: 0 !important; background: #fff !important; overflow: visible !important; }
+  .exec-report .no-print { display: none !important; }
+  .exec-report .exec-page { box-shadow: none !important; margin: 0 auto !important; padding: 0 !important; }
+  @page { size: A4; margin: 14mm; }
+}

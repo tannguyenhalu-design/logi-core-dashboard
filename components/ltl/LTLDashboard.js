@@ -14,6 +14,7 @@ import WarehouseRiskChart from "./charts/WarehouseRiskChart";
 
 import ProvinceMapPanel from "./cards/ProvinceMapPanel";
 import DetailedDamageTable from "./tables/DetailedDamageTable";
+import RouteRiskMatrix from "./damage/RouteRiskMatrix";
 
 // Trend chart above only shows the COMBINED weekly total — "tuần 2 → tuần 3
 // giảm" was visible but which client drove it wasn't, and the AI chat had
@@ -167,6 +168,27 @@ const PENDING_COLUMNS = [
   { label: "Trọng Lượng", render: (o) => fmtKg(o.weight), style: { whiteSpace: "nowrap" } },
 ];
 
+const DUE_COLUMNS = [
+  { label: "Mã Đơn", render: (o) => o.order_code || "N/A", style: { fontWeight: 600, color: "var(--text-primary)" } },
+  { label: "Dự Án", render: (o) => o.client_name },
+  { label: "Trạng Thái", render: (o) => o.status, style: { color: "var(--amber)" } },
+  { label: "Ngày Lấy", render: (o) => fmtYmd(o.pickup_time), style: { whiteSpace: "nowrap" } },
+  { label: "Tuyến Đường", render: routeOf },
+  { label: "Kho Giao", render: (o) => o.kho_giao || "-" },
+];
+
+// Quick filters (approved 2026-09-26): on-time < 90% needs >= 20 evaluated
+// orders in the current view so one late order on a tiny project isn't flagged.
+const LOW_ONTIME_PCT = 90;
+const LOW_ONTIME_MIN_EVAL = 20;
+
+const quickChip = (on, color) => ({
+  display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, padding: "6px 12px",
+  borderRadius: 20, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+  border: `1px solid ${on ? color : "var(--border)"}`, background: on ? "var(--bg-panel)" : "transparent",
+  color: on ? color : "var(--text-secondary)", boxShadow: on ? `inset 0 0 0 1px ${color}` : "none",
+});
+
 const STUCK_COLUMNS = [
   { label: "Mã Đơn", render: (o) => o.order_code || "N/A", style: { fontWeight: 600, color: "var(--text-primary)" } },
   { label: "Dự Án", render: (o) => o.client_name },
@@ -181,7 +203,7 @@ const STUCK_COLUMNS = [
 // view: "ltl" (Tổng quan) | "map" (Bản đồ tỉnh thành) | "damage" (Hư hỏng & Rủi ro)
 // — all 3 read the same already-fetched /api/data payload, so switching tabs
 // never refetches.
-export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders, pendingPickup, fetchPendingOrders, kpiDelta, stuck, fetchStuckOrders, anomalies }) {
+export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders, pendingPickup, fetchPendingOrders, kpiDelta, stuck, fetchStuckOrders, anomalies, damageRisk, riskOnly: riskOnlyProp, onRiskOnlyChange, sparkline, dueToday, fetchDueTodayOrders, onQuickRiskRoutes, onQuickLowOntime, onOpenReport }) {
   const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
   const [selectedProvinceOrders, setSelectedProvinceOrders] = useState(null);
   // Fetched on demand (see fetchProvinceOrders in pages/dashboard.js) instead
@@ -193,9 +215,15 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
   const [pendingModalOpen, setPendingModalOpen] = useState(false);
   const [pendingOrders, setPendingOrders] = useState([]);
   const [pendingLoading, setPendingLoading] = useState(false);
+  const [riskOnlyLocal, setRiskOnlyLocal] = useState(false);
+  const riskOnly = riskOnlyProp ?? riskOnlyLocal;
+  const setRiskOnly = onRiskOnlyChange || setRiskOnlyLocal;
   const [stuckModalOpen, setStuckModalOpen] = useState(false);
   const [stuckOrders, setStuckOrders] = useState([]);
   const [stuckLoading, setStuckLoading] = useState(false);
+  const [dueModalOpen, setDueModalOpen] = useState(false);
+  const [dueOrders, setDueOrders] = useState([]);
+  const [dueLoading, setDueLoading] = useState(false);
   const theme = useTheme();
 
   if (!data) return <TruckLoader />;
@@ -268,11 +296,69 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
     }
   };
 
+  const openDueModal = async () => {
+    setDueModalOpen(true);
+    setDueOrders([]);
+    if (!fetchDueTodayOrders) return;
+    setDueLoading(true);
+    try {
+      setDueOrders(await fetchDueTodayOrders());
+    } catch {
+      setDueOrders([]);
+    } finally {
+      setDueLoading(false);
+    }
+  };
+
+  const lowOntimeProjects = Object.values(data.projectSummaries || {})
+    .filter((p) => p.evalCount >= LOW_ONTIME_MIN_EVAL && (p.ontimeCount / p.evalCount) * 100 < LOW_ONTIME_PCT)
+    .map((p) => p.name)
+    .sort();
+  const lowOntimeActive = selectedProjects.length > 0 && lowOntimeProjects.length > 0
+    && [...selectedProjects].sort().join("|") === lowOntimeProjects.join("|");
+
+  // 7-day sparklines (lib/ltl-dashboard.js computeSparkline)
+  const sparkFor = (key, format) => {
+    const days = sparkline?.days;
+    if (!days?.length) return null;
+    const incompleteFrom = key === "ontimePct" || key === "late" ? days.findIndex((d) => d.date >= sparkline.incompleteFrom) : null;
+    return {
+      points: days.map((d) => ({ label: d.date.slice(8, 10) + "/" + d.date.slice(5, 7), value: d[key] })),
+      incompleteFrom: incompleteFrom >= 0 ? incompleteFrom : null,
+      format,
+    };
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* KPI Cards */}
+      {/* Quick filters */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, color: "var(--text-muted)", marginRight: 2 }}>Lọc nhanh:</span>
+        <button style={quickChip(false, "var(--amber)")} onClick={openDueModal} title="Đơn đã lấy, chưa giao, hạn giao là hôm nay — mai sẽ thành đơn treo nếu chưa giao">
+          ⏰ Đến hạn hôm nay <b style={{ color: "var(--amber)" }}>{fmt(dueToday?.count || 0)}</b>
+        </button>
+        {!isClient && damageRisk && (
+          <button style={quickChip(showDamage && riskOnly, "var(--red)")} onClick={() => onQuickRiskRoutes?.()}
+            title={`Tuyến có tỷ lệ bể vỡ ≥ ${damageRisk.rule.multiplier}× trung bình và ≥ ${damageRisk.rule.minOrders} đơn`}>
+            ⚠ Tuyến rủi ro cao <b style={{ color: "var(--red)" }}>{fmt(damageRisk.riskyRouteCount)}</b>
+          </button>
+        )}
+        <button
+          style={quickChip(lowOntimeActive, "var(--cyan)")}
+          disabled={!lowOntimeProjects.length && !lowOntimeActive}
+          onClick={() => onQuickLowOntime?.(lowOntimeActive ? [] : lowOntimeProjects)}
+          title={lowOntimeProjects.length ? lowOntimeProjects.join(", ") : `Không có dự án nào dưới ${LOW_ONTIME_PCT}% (≥ ${LOW_ONTIME_MIN_EVAL} đơn đã đánh giá)`}
+        >
+          📉 Dự án On-time &lt; {LOW_ONTIME_PCT}% <b style={{ color: "var(--cyan)" }}>{fmt(lowOntimeProjects.length)}</b>{lowOntimeActive && " ✕"}
+        </button>
+        <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          {onOpenReport && (
+            <button onClick={onOpenReport} style={{
+              display: "flex", alignItems: "center", gap: 6, background: "rgba(var(--brand-rgb),0.1)", border: "1px solid rgba(var(--brand-rgb),0.3)",
+              color: "var(--cyan)", padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+            }}>📄 Tạo báo cáo tóm tắt</button>
+          )}
       {showOverview && !isClient && (
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <button
             onClick={exportSummaryCSV}
             style={{
@@ -285,8 +371,9 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Xuất báo cáo CSV
           </button>
-        </div>
       )}
+        </span>
+      </div>
       {showOverview && (() => {
         const kd = kpiDelta;
         const pct = (v) => `${Math.abs(v).toLocaleString("vi-VN", { maximumFractionDigits: 1 })}%`;
@@ -317,6 +404,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
               delta={ok ? mk(kd.orders.deltaPct, "%", true) : null}
               compare={compare(ok ? `${fmt(kd.orders.cur)} đơn` : "")}
               sub={data.filterMode !== "delivered" ? `GTC trong kỳ: ${fmt(data.deliveredThisMonthCount)} (theo ngày giao)` : "Tính theo ngày giao thực tế"}
+              spark={sparkFor("orders", (v) => `${fmt(v)} đơn`)}
             />
             <KpiCard
               label="Tỷ lệ On-time"
@@ -325,6 +413,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
               delta={ok ? mk(kd.ontime.deltaPoints, "pt", true) : null}
               compare={compare(ok ? fmtPct1(kd.ontime.cur) : "")}
               sub={`${fmt(data.ontimeCount)} ontime / ${fmt(data.evalCount)} đơn đã đánh giá`}
+              spark={sparkFor("ontimePct", (v) => `${v.toLocaleString("vi-VN")}%`)}
             />
             <KpiCard
               label="Đơn Late"
@@ -333,6 +422,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
               delta={ok ? mk(kd.late.deltaPct, "%", false) : null}
               compare={compare(ok ? `${fmt(kd.late.cur)} đơn` : "")}
               sub={`${hasEval ? (100 - data.ontimePct).toLocaleString("vi-VN", { maximumFractionDigits: 1 }) : 0}% tỷ lệ late`}
+              spark={sparkFor("late", (v) => `${fmt(v)} đơn`)}
             />
             <KpiCard
               label="Ca hư hỏng (Rillnet)"
@@ -345,6 +435,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
                   ? `${fmt(aiInsights.compensationSummary.csTickCount)} đền bù (toàn hệ thống)`
                   : `${data.brokenCompensated} đền bù`
               }
+              spark={sparkFor("damaged", (v) => `${fmt(v)} ca`)}
             />
           </div>
         );
@@ -492,6 +583,10 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
         </>
       )}
 
+      {showDamage && !isClient && damageRisk && (
+        <RouteRiskMatrix risk={damageRisk} riskOnly={riskOnly} onRiskOnlyChange={setRiskOnly} />
+      )}
+
       {showDamage && !isClient && (
         <div className="chart-panel" style={{ width: "100%" }}>
           <div className="chart-panel-title">
@@ -580,6 +675,16 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
           rows={[...pendingOrders].sort((a, b) => String(a.created_time || "").localeCompare(String(b.created_time || "")))}
           columns={PENDING_COLUMNS}
           onClose={() => setPendingModalOpen(false)}
+        />
+      )}
+      {dueModalOpen && (
+        <OrderListModal
+          title="Đơn đến hạn giao hôm nay"
+          subtitle={`${fmt(dueOrders.length)} đơn đã lấy, chưa giao, hạn giao là hôm nay — nếu chưa giao, mai sẽ thành đơn treo. Theo dự án/điểm lấy đang lọc.`}
+          loading={dueLoading}
+          rows={dueOrders}
+          columns={DUE_COLUMNS}
+          onClose={() => setDueModalOpen(false)}
         />
       )}
       {stuckModalOpen && (

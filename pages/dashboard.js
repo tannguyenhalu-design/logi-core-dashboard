@@ -14,6 +14,7 @@ const LTLDashboard  = dynamic(() => import("../components/ltl/LTLDashboard"), { 
 const TabUsers      = dynamic(() => import("../components/TabUsers"),      { ssr: false });
 const TabAuditLog   = dynamic(() => import("../components/TabAuditLog"),   { ssr: false });
 const TabSystemHealth = dynamic(() => import("../components/TabSystemHealth"), { ssr: false });
+const ExecutiveReport = dynamic(() => import("../components/ExecutiveReport"), { ssr: false });
 const TabBrain      = dynamic(() => import("../components/TabBrain"),      { ssr: false });
 const AIChatDrawer  = dynamic(() => import("../components/AIChatDrawer"),  { ssr: false });
 
@@ -54,6 +55,8 @@ export default function DashboardPage({ user: initialUser }) {
   const isLTLView = LTL_VIEWS.some((v) => v.id === activeTab);
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [selectedProjects, setSelectedProjects] = useState([]);
+  const [riskOnly, setRiskOnly] = useState(false); // "Tuyến rủi ro cao" quick filter
+  const [reportOpen, setReportOpen] = useState(false); // "Tạo báo cáo tóm tắt"
   const [filterMode, setFilterMode] = useState("pickup");
   const [periodWeeks, setPeriodWeeks] = useState("mtd");
   const [dateFrom, setDateFrom] = useState("");
@@ -160,6 +163,20 @@ export default function DashboardPage({ user: initialUser }) {
     if (!res.ok) throw new Error(`API error ${res.status}`);
     const json = await res.json();
     return json.pendingOrders || [];
+  }, [selectedProjects, viewAs, selectedOrigin]);
+
+  // "Đến hạn hôm nay" quick-filter list — same scoping as the pending list.
+  const fetchDueTodayOrders = useCallback(async () => {
+    const params = new URLSearchParams();
+    if (selectedProjects?.length > 0) params.append("projects", selectedProjects.join(","));
+    if (viewAs.type) params.append("viewAsType", viewAs.type);
+    if (viewAs.value) params.append("viewAsValue", viewAs.value);
+    if (selectedOrigin) params.append("origin", selectedOrigin);
+    params.append("dueToday", "1");
+    const res = await fetch(`/api/data?${params.toString()}`);
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    const json = await res.json();
+    return json.dueTodayOrders || [];
   }, [selectedProjects, viewAs, selectedOrigin]);
 
   // "Đơn treo / cần chú ý" list — same scoping as the pending list.
@@ -569,6 +586,19 @@ export default function DashboardPage({ user: initialUser }) {
               <TabAuditLog />
             ) : activeTab === "health" ? (
               <TabSystemHealth />
+            ) : reportOpen && dashData ? (
+              <ExecutiveReport
+                body={dashData}
+                onClose={() => setReportOpen(false)}
+                scopeLabel={[
+                  dateFrom && dateTo
+                    ? `${dateFrom.split("-").reverse().join("/")} – ${dateTo.split("-").reverse().join("/")}`
+                    : selectedMonths.length ? selectedMonths.map((m) => `T${m}`).join(", ") : "Toàn bộ từ 07/2026",
+                  selectedProjects.length ? selectedProjects.join(", ") : "tất cả dự án",
+                  selectedOrigin ? `điểm lấy ${selectedOrigin}` : null,
+                  filterMode === "delivered" ? "theo ngày giao" : "theo ngày lấy hàng",
+                ].filter(Boolean).join(" · ")}
+              />
             ) : (
               <>
                 {/* Refetch: keep current content, show a thin progress bar */}
@@ -587,7 +617,7 @@ export default function DashboardPage({ user: initialUser }) {
 
                 {!dashData && loading && <DashboardSkeleton view={activeTab} />}
 
-                {dashData && !(error && !loading) && <div className={loading ? "refreshing" : "fade-in"}><LTLDashboard view={activeTab} data={dashData.ltl} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} fetchProvinceOrders={fetchProvinceOrders} pendingPickup={dashData.pendingPickup} fetchPendingOrders={fetchPendingOrders} kpiDelta={dashData.kpiDelta} stuck={dashData.stuck} fetchStuckOrders={fetchStuckOrders} anomalies={dashData.anomalies} /></div>}
+                {dashData && !(error && !loading) && <div className={loading ? "refreshing" : "fade-in"}><LTLDashboard view={activeTab} data={dashData.ltl} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} fetchProvinceOrders={fetchProvinceOrders} pendingPickup={dashData.pendingPickup} fetchPendingOrders={fetchPendingOrders} kpiDelta={dashData.kpiDelta} stuck={dashData.stuck} fetchStuckOrders={fetchStuckOrders} anomalies={dashData.anomalies} damageRisk={dashData.damageRisk} riskOnly={riskOnly} onRiskOnlyChange={setRiskOnly} sparkline={dashData.sparkline} dueToday={dashData.dueToday} fetchDueTodayOrders={fetchDueTodayOrders} onQuickRiskRoutes={() => { setRiskOnly(true); setActiveTab("damage"); }} onQuickLowOntime={setSelectedProjects} onOpenReport={() => setReportOpen(true)} /></div>}
               </>
             )}
           </main>
