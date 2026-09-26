@@ -120,6 +120,32 @@ export default function DashboardPage({ user: initialUser }) {
     }
   }, [viewAs, periodWeeks, selectedOrigin]);
 
+  // On-demand fetch for the "Chi tiết đơn hàng theo tỉnh" modal in
+  // LTLDashboard — mirrors fetchDashboardData's own filter params exactly
+  // (same months/projects/filterMode/viewAs/periodWeeks/origin/dateRange
+  // currently active) so the modal's "trong bộ lọc hiện tại" claim is
+  // actually true, plus `province`. /api/data returns just that province's
+  // rows (a handful of fields each) instead of the ~23k-row/22MB array this
+  // used to ship on every dashboard load just for this one click-through.
+  const fetchProvinceOrders = useCallback(async (province) => {
+    const params = new URLSearchParams();
+    if (selectedMonths?.length > 0) params.append("months", selectedMonths.join(","));
+    if (selectedProjects?.length > 0) params.append("projects", selectedProjects.join(","));
+    if (filterMode) params.append("filterMode", filterMode);
+    if (viewAs.type) params.append("viewAsType", viewAs.type);
+    if (viewAs.value) params.append("viewAsValue", viewAs.value);
+    params.append("periodWeeks", periodWeeks);
+    if (selectedOrigin) params.append("origin", selectedOrigin);
+    if (dateFrom) params.append("dateFrom", dateFrom);
+    if (dateTo) params.append("dateTo", dateTo);
+    params.append("province", province);
+
+    const res = await fetch(`/api/data?${params.toString()}`);
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    const json = await res.json();
+    return json.provinceOrders || [];
+  }, [selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks, selectedOrigin, dateFrom, dateTo]);
+
   // A pickup-point selection only makes sense for whichever project it came
   // from — drop it the moment the project selection changes underneath it.
   useEffect(() => {
@@ -624,7 +650,7 @@ export default function DashboardPage({ user: initialUser }) {
                 {activeTab === "operations" ? (
                   <OperationsDashboard rawData={dashData?.raw} userRole={dashData?.user?.role} />
                 ) : (
-                  !loading && !error && dashData && <LTLDashboard data={dashData.ltl} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} />
+                  !loading && !error && dashData && <LTLDashboard data={dashData.ltl} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} fetchProvinceOrders={fetchProvinceOrders} />
                 )}
               </>
             )}

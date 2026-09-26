@@ -18,6 +18,8 @@ import { vehicleTypesOf } from "../lib/transform-ftl-live";
 import { downloadCSV } from "../lib/csv-export";
 import { regionOf } from "../lib/vn-regions";
 import { FTL_PORTAL_DM_CLIENTS } from "../lib/dm-clients";
+import { useTheme } from "./ltl/charts/chartUtils";
+import DailyVehicleTypeChart from "./ftl/DailyVehicleTypeChart";
 
 const POLL_MS = 5 * 60 * 1000;
 
@@ -335,7 +337,7 @@ function BookingFTL() {
   const [clientNameHint, setClientNameHint] = useState("");
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState(null);
-  const [importMeta, setImportMeta] = useState(null); // {mode, fileName, rowsInFile, truncated, aiProvider, unmatchedRowCount}
+  const [importMeta, setImportMeta] = useState(null); // {mode, fileName, rowsInFile, truncated, aiProvider, unmatchedRowCount, noTripLabelRows}
   const [stagedGroups, setStagedGroups] = useState(null); // deterministic mode
   const [stagedAiRows, setStagedAiRows] = useState(null); // ai-parse mode
   const [savingImport, setSavingImport] = useState(false);
@@ -432,7 +434,7 @@ function BookingFTL() {
       });
       const json = await res.json();
       if (!json.ok) throw new Error(json.error || "Lỗi đọc file");
-      setImportMeta({ mode: json.mode, fileName: file.name, rowsInFile: json.rowsInFile, truncated: json.truncated, aiProvider: json.aiProvider, unmatchedRowCount: json.unmatchedRowCount });
+      setImportMeta({ mode: json.mode, fileName: file.name, rowsInFile: json.rowsInFile, truncated: json.truncated, aiProvider: json.aiProvider, unmatchedRowCount: json.unmatchedRowCount, noTripLabelRows: json.noTripLabelRows });
       if (json.mode === "deterministic") {
         setStagedGroups(json.groups.map((g) => ({ ...g, _key: g.dnNo, selected: false })));
       } else {
@@ -734,10 +736,13 @@ function BookingFTL() {
       {stagedGroups && (
         <div className="chart-panel" style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ fontWeight: 700, fontSize: 14 }}>
-            📊 Xem trước từ file "{importMeta?.fileName}" — {stagedGroups.length} chuyến (gộp theo DN No., tự tính CBM/kg quy đổi thật)
+            📊 Xem trước từ file "{importMeta?.fileName}" — {stagedGroups.length} chuyến (gộp theo nhãn "XE khách booking", tự tính CBM/kg quy đổi thật)
           </div>
           {importMeta?.unmatchedRowCount > 0 && (
             <div style={{ fontSize: 12, color: "var(--amber)" }}>⚠️ {importMeta.unmatchedRowCount} dòng trong file không có DN No., đã bỏ qua.</div>
+          )}
+          {importMeta?.noTripLabelRows > 0 && (
+            <div style={{ fontSize: 12, color: "var(--amber)" }}>⚠️ {importMeta.noTripLabelRows} dòng không đọc được nhãn chuyến hợp lệ ở cột Invoice Date — đang gom tạm theo từng DN riêng (xem ghi chú từng dòng), cần GSVT kiểm tra lại đúng chuyến thật.</div>
           )}
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={mergeSelectedGroups} disabled={stagedGroups.filter((g) => g.selected).length < 2} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid var(--cyan)", background: "rgba(var(--brand-rgb),0.1)", color: "var(--cyan)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
@@ -755,6 +760,7 @@ function BookingFTL() {
                   <th style={{ padding: "4px 6px" }}>SL</th>
                   <th style={{ padding: "4px 6px" }}>CBM</th>
                   <th style={{ padding: "4px 6px" }}>Kg quy đổi</th>
+                  <th style={{ padding: "4px 6px" }}>Sàn (m²)</th>
                   <th style={{ padding: "4px 6px" }}>Cao nhất (mm)</th>
                   <th style={{ padding: "4px 6px" }}>Xe gợi ý</th>
                   <th style={{ padding: "4px 6px" }}></th>
@@ -764,7 +770,10 @@ function BookingFTL() {
                 {stagedGroups.map((g) => (
                   <tr key={g._key} style={{ borderTop: "1px solid var(--border)", background: g.selected ? "rgba(var(--brand-rgb),0.08)" : "transparent" }}>
                     <td style={{ padding: "4px 6px" }}><input type="checkbox" checked={!!g.selected} onChange={() => toggleGroup(g._key)} /></td>
-                    <td style={{ padding: "4px 6px", fontWeight: 600, whiteSpace: "nowrap" }}>{g.dnNo}</td>
+                    <td style={{ padding: "4px 6px", fontWeight: 600, whiteSpace: "nowrap" }} title={g.poNumbers?.length ? `PO: ${g.poNumbers.join(", ")}` : undefined}>
+                      {g.dnNo}
+                      {g.tripLabel && <div style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 400 }}>Chuyến: {g.tripLabel}</div>}
+                    </td>
                     <td style={{ padding: "4px 6px", maxWidth: 260 }} title={g.deliveryAddress}>
                       <div>{g.shipToName}</div>
                       <div style={{ color: "var(--text-muted)", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{g.deliveryAddress}</div>
@@ -773,9 +782,12 @@ function BookingFTL() {
                     <td style={{ padding: "4px 6px" }}>{fmtNum2(g.totalQty)}</td>
                     <td style={{ padding: "4px 6px" }}>{fmtNum2(g.totalCbm)}</td>
                     <td style={{ padding: "4px 6px" }}>{fmtNum2(g.totalWeightKgEquiv)}</td>
-                    <td style={{ padding: "4px 6px" }}>{g.maxItemHeightMm || "—"}</td>
-                    <td style={{ padding: "4px 6px", fontWeight: 600, color: g.suggestedVehicleFits === false ? "var(--red)" : "var(--cyan)" }}>
-                      {g.suggestedVehicleType || "—"}
+                    <td style={{ padding: "4px 6px" }}>{g.totalFloorAreaM2 != null ? fmtNum2(g.totalFloorAreaM2) : "—"}</td>
+                    <td style={{ padding: "4px 6px", fontWeight: g.maxItemHeightMm > 1850 ? 600 : 400, color: g.maxItemHeightMm > 1850 ? "var(--red)" : "inherit" }} title={g.maxItemHeightMm > 1850 ? "Hàng cao > 1m85 — GSVT lưu ý khi xếp/dỡ" : undefined}>
+                      {g.maxItemHeightMm > 1850 && "🔺 "}{g.maxItemHeightMm || "—"}
+                    </td>
+                    <td style={{ padding: "4px 6px", fontWeight: 600, color: g.suggestedVehicleFits === false ? "var(--red)" : g.suggestedVehicleFits === null ? "var(--amber)" : "var(--cyan)" }}>
+                      {g.suggestedVehicleFits === null ? "⚠️ chưa có dữ liệu xe" : (g.suggestedVehicleType || "—")}
                       {g.missingDimensionSkus?.length > 0 && <div title={g.missingDimensionSkus.join(", ")} style={{ fontSize: 10, color: "var(--amber)", fontWeight: 400 }}>⚠️ thiếu {g.missingDimensionSkus.length} SKU</div>}
                     </td>
                     <td style={{ padding: "4px 6px" }}><button onClick={() => removeGroup(g._key)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}>✕</button></td>
@@ -1121,6 +1133,7 @@ export default function TabFTL({ isManager = false, userRole = null }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const theme = useTheme();
 
   // "Số xe sử dụng theo ngày" (+ cap xe) is SD3/Manager-internal, not for
   // CS — enforced server-side too (see /api/ftl-data, /api/ftl-caps), this
@@ -2038,6 +2051,24 @@ export default function TabFTL({ isManager = false, userRole = null }) {
           </div>
           <div style={{ padding: "0 20px 16px", fontSize: 11, color: "var(--text-muted)" }}>
             "Khác" = tỉnh lấy hàng chưa được phân miền — báo lại nếu thấy tên tỉnh lạ ở đây để bổ sung.
+          </div>
+        </div>
+      )}
+
+      {/* Biểu đồ số xe theo ngày, theo loại xe — nhìn 1 phát biết ngày nào
+          cần chuẩn bị bao nhiêu xe, loại gì, thay vì phải tự cộng từ bảng số
+          bên dưới. Toàn hệ thống (gộp mọi khách), theo đúng khoảng đang lọc. */}
+      {canSeeVehicleStats && data?.dailyVehicleStatsOverall?.overall?.dailyBreakdown?.length > 0 && (
+        <div className="chart-panel">
+          <div className="chart-panel-title">
+            Số xe cần chuẩn bị theo ngày, theo loại xe <span style={{ fontWeight: 400, fontSize: 12, color: "var(--text-muted)" }}>— toàn hệ thống, khoảng đang lọc</span>
+          </div>
+          <div style={{ height: 320, padding: "0 20px 20px" }}>
+            <DailyVehicleTypeChart
+              dailyBreakdown={data.dailyVehicleStatsOverall.overall.dailyBreakdown}
+              vehicleTypes={data.dailyVehicleTypes}
+              theme={theme}
+            />
           </div>
         </div>
       )}

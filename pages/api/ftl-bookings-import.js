@@ -44,6 +44,26 @@ import { generateWithFallback } from "../../lib/ai-providers";
 // workbook tab (thousands of rows) instead of just the input file.
 export const config = { maxDuration: 60, api: { bodyParser: { sizeLimit: "15mb" } } };
 
+// Above this, GSVT needs to physically check the item before loading (door
+// clearance / tie-down risk) — flagged regardless of whether the group's
+// total otherwise fits a vehicle (2026-08-29, OPS request).
+const TALL_ITEM_WARNING_MM = 1850;
+
+// AQUA's own booking file real trip label, e.g. "7 - 7T" — CS overwrites the
+// "Invoice Date" column with this (that column isn't used for a real invoice
+// date on AQUA's side, confirmed against many real files 2026-08-29). This is
+// the TRUE grouping key for "1 physical truck trip" — confirmed against real
+// data: 1 label can span >10 different PO No. (e.g. "5 - 5T" covers 11 DN
+// across 10 different PO in one real file), and 1 PO can itself span several
+// different trip labels (i.e. neither PO No. nor DN No. alone is a safe
+// substitute — grouping by PO risks merging unrelated trips into one bogus
+// "vượt tải", grouping by DN alone under-merges what's really 1 truck).
+const TRIP_LABEL_RE = /^\s*\d+\s*-\s*.+\S\s*$/;
+function parseTripLabel(v) {
+  const s = String(v == null ? "" : v).trim();
+  return TRIP_LABEL_RE.test(s) ? s : "";
+}
+
 function hasFTLAccess(session) {
   return session.user.role === "manager" || (session.user.tabs || []).includes("ftl");
 }
@@ -187,6 +207,8 @@ async function parseDataTongHopDeterministic(grid, clientName) {
     if (tinhGiao) notesParts.push(`Tỉnh giao: ${tinhGiao}`);
     if (pickupDate && !deliveryDate) notesParts.push(`Ngày lấy: ${pickupDate}`);
     if (discardedOutlierRows > 0) notesParts.push(`⚠️ ${discardedOutlierRows} dòng có Total CBM bất thường (lỗi nhập liệu ở file gốc) — đã loại khỏi tổng, cần kiểm tra lại`);
+    if (suggestion.fits === null) notesParts.push(`⚠️ Chưa có dữ liệu thông số xe (FTLVehicleSpecs trống) — chưa thể tính vượt tải`);
+    if (maxItemHeightMm > TALL_ITEM_WARNING_MM) notesParts.push(`🔺 Có hàng cao ${maxItemHeightMm}mm (>1m85) — GSVT lưu ý khi xếp/dỡ`);
 
     groups.push({
       dnNo: loadId,
@@ -290,6 +312,8 @@ async function parseBookingSheetDeterministic(grid, clientName) {
     if (totalFloorArea > 0) notesParts.push(`Diện tích sàn: ${round2(totalFloorArea)} m²`);
     if (pickupDate && !deliveryDate) notesParts.push(`Ngày lấy: ${pickupDate}`);
     if (discardedOutlierRows > 0) notesParts.push(`⚠️ ${discardedOutlierRows} dòng có Total CBM bất thường (lỗi nhập liệu ở file gốc) — đã loại khỏi tổng, cần kiểm tra lại`);
+    if (suggestion.fits === null) notesParts.push(`⚠️ Chưa có dữ liệu thông số xe (FTLVehicleSpecs trống) — chưa thể tính vượt tải`);
+    if (maxItemHeightMm > TALL_ITEM_WARNING_MM) notesParts.push(`🔺 Có hàng cao ${maxItemHeightMm}mm (>1m85) — GSVT lưu ý khi xếp/dỡ`);
 
     groups.push({
       dnNo: key,
@@ -300,6 +324,7 @@ async function parseBookingSheetDeterministic(grid, clientName) {
       totalQty: rows.length,
       totalCbm: round2(totalCbm),
       totalWeightKgEquiv: round2(totalWeightKg),
+      totalFloorAreaM2: round2(totalFloorArea),
       maxItemHeightMm,
       suggestedVehicleType: suggestion.vehicleTypeClass,
       suggestedVehicleFits: suggestion.fits,
@@ -317,6 +342,8 @@ async function parseAquaDeterministic(grid, clientName) {
 
   const col = {
     dnNo: findCol(headers, "dn no"),
+    poNo: findCol(headers, "po no"),
+    invoiceDate: findCol(headers, "invoice date"),
     materialNo: findCol(headers, "material no"),
     soQty: findCol(headers, "so quantity"),
     confirmedQty: findCol(headers, "confirmed qty"),
@@ -332,17 +359,32 @@ async function parseAquaDeterministic(grid, clientName) {
   const dimByMaterial = new Map(dims.map((d) => [d.materialNo.trim().toLowerCase(), d]));
   const vehicleSpecs = await getAllVehicleSpecs();
 
+  // Khoa gom = NHAN CHUYEN THAT (xem TRIP_LABEL_RE), khong phai DN No. rieng
+  // le nua - 1 nhan co the trai nhieu DN/PO, dung la 1 chuyen xe that. Dong
+  // nao khong doc duoc nhan hop le (file cu chua co, hoac cot Invoice Date
+  // con la ngay that) fallback AN TOAN ve gom rieng theo tung DN (khong doan
+  // bua), kem canh bao GSVT tu kiem tra lai chuyen that.
   const dataRows = grid.slice(headerRowIdx + 1).filter((row) => row[col.dnNo]);
-  const byDn = new Map();
+  const byGroup = new Map();
+  let noTripLabelRows = 0;
   dataRows.forEach((row) => {
     const dn = String(row[col.dnNo]).trim();
-    if (!byDn.has(dn)) byDn.set(dn, []);
-    byDn.get(dn).push(row);
+    const po = col.poNo !== -1 ? String(row[col.poNo] || "").trim() : "";
+    const tripLabel = col.invoiceDate !== -1 ? parseTripLabel(row[col.invoiceDate]) : "";
+    if (!tripLabel) noTripLabelRows++;
+    const groupKey = tripLabel || `__no-trip__${dn || po}`;
+    if (!byGroup.has(groupKey)) byGroup.set(groupKey, { tripLabel, dns: [], pos: [], rows: [] });
+    const g = byGroup.get(groupKey);
+    if (dn && !g.dns.includes(dn)) g.dns.push(dn);
+    if (po && !g.pos.includes(po)) g.pos.push(po);
+    g.rows.push(row);
   });
 
   const groups = [];
-  for (const [dn, rows] of byDn) {
+  for (const [groupKey, g] of byGroup) {
+    const rows = g.rows;
     const first = rows[0];
+    const dnLabel = g.dns.join(", ") || "(chưa có DN)";
     const shipToName = col.shipToName !== -1 ? String(first[col.shipToName] || "").trim() : "";
     const shipToAddress = col.shipToAddress !== -1 ? String(first[col.shipToAddress] || "").trim() : "";
     const rawRequestDate = col.requestDeliveryDate !== -1 ? String(first[col.requestDeliveryDate] || "").trim() : "";
@@ -351,11 +393,11 @@ async function parseAquaDeterministic(grid, clientName) {
     const storageLoc = col.storageLocation !== -1 ? String(first[col.storageLocation] || "").trim() : "";
 
     // Real data confirmed (2026-08-25): SHIP-TO NAME/ADDRESS aren't always
-    // identical across every line under 1 DN No. — flag rather than
-    // silently trust the first row when that happens.
+    // identical across every line under 1 trip — flag rather than silently
+    // trust the first row when that happens.
     const mixedShipTo = rows.some((r) => col.shipToAddress !== -1 && String(r[col.shipToAddress] || "").trim() !== shipToAddress && String(r[col.shipToAddress] || "").trim());
 
-    let totalQty = 0, totalCbm = 0, totalWeightKg = 0, maxItemHeightMm = 0;
+    let totalQty = 0, totalCbm = 0, totalWeightKg = 0, totalFloorArea = 0, maxItemHeightMm = 0;
     const missingSkus = new Set();
     rows.forEach((r) => {
       const materialNo = col.materialNo !== -1 ? String(r[col.materialNo] || "").trim() : "";
@@ -365,21 +407,32 @@ async function parseAquaDeterministic(grid, clientName) {
       if (dim && qty) {
         totalCbm += dim.cbm * qty;
         totalWeightKg += (dim.lengthMm * dim.widthMm * dim.heightMm / 6_000_000) * qty;
+        // Worst-case footprint (L×W×qty, no stacking assumed) — matches
+        // AQUA's own "Diện tích sàn" column exactly (2026-08-29 real-file
+        // check); "Số tầng" is a GSVT reference note, not a divisor here.
+        totalFloorArea += (dim.lengthMm * dim.widthMm / 1_000_000) * qty;
         if (dim.heightMm > maxItemHeightMm) maxItemHeightMm = dim.heightMm;
       } else if (materialNo) {
         missingSkus.add(materialNo);
       }
     });
 
-    const suggestion = suggestVehicle(vehicleSpecs, { totalCbm, maxItemHeightMm, totalWeightKg });
+    const suggestion = suggestVehicle(vehicleSpecs, { totalCbm, maxItemHeightMm, totalWeightKg, totalFloorAreaM2: totalFloorArea });
     const notesParts = [];
+    if (g.tripLabel) notesParts.push(`Chuyến: ${g.tripLabel}`);
+    else notesParts.push(`⚠️ Không đọc được nhãn "XE khách booking" hợp lệ ở cột Invoice Date — đang gom tạm theo DN ${dnLabel}, GSVT kiểm tra lại đúng chuyến thật`);
+    if (g.pos.length) notesParts.push(`PO: ${g.pos.join(", ")}`);
     if (soldToTop) notesParts.push(`Khách con: ${soldToTop}`);
     if (storageLoc) notesParts.push(`Kho xuất: ${storageLoc}`);
     if (rawRequestDate && !deliveryDate) notesParts.push(`Ngày giao (gốc, chưa đọc được): ${rawRequestDate}`);
-    if (mixedShipTo) notesParts.push(`⚠️ Có dòng khác điểm giao trong cùng DN ${dn} — kiểm tra lại`);
+    if (mixedShipTo) notesParts.push(`⚠️ Có dòng khác điểm giao trong cùng chuyến ${dnLabel} — kiểm tra lại`);
+    if (suggestion.fits === null) notesParts.push(`⚠️ Chưa có dữ liệu thông số xe (FTLVehicleSpecs trống) — chưa thể tính vượt tải`);
+    if (maxItemHeightMm > TALL_ITEM_WARNING_MM) notesParts.push(`🔺 Có hàng cao ${maxItemHeightMm}mm (>1m85) — GSVT lưu ý khi xếp/dỡ`);
 
     groups.push({
-      dnNo: dn,
+      dnNo: dnLabel,
+      tripLabel: g.tripLabel,
+      poNumbers: g.pos,
       clientName,
       shipToName,
       deliveryAddress: shipToAddress,
@@ -387,6 +440,7 @@ async function parseAquaDeterministic(grid, clientName) {
       totalQty,
       totalCbm: round2(totalCbm),
       totalWeightKgEquiv: round2(totalWeightKg),
+      totalFloorAreaM2: round2(totalFloorArea),
       maxItemHeightMm,
       suggestedVehicleType: suggestion.vehicleTypeClass,
       suggestedVehicleFits: suggestion.fits,
@@ -395,7 +449,7 @@ async function parseAquaDeterministic(grid, clientName) {
     });
   }
 
-  return { groups, unmatchedRowCount: dataRows.length - [...byDn.values()].reduce((s, r) => s + r.length, 0) };
+  return { groups, unmatchedRowCount: dataRows.length - [...byGroup.values()].reduce((s, g) => s + g.rows.length, 0), noTripLabelRows };
 }
 
 async function parseWithAI(grid, fileName, clientNameHint) {
@@ -502,8 +556,8 @@ export default async function handler(req, res) {
 
     if (isAquaShape(headerRow)) {
       const clientName = clientNameHint || "AQUA B2B";
-      const { groups, unmatchedRowCount } = await parseAquaDeterministic(grid, clientName);
-      return res.status(200).json({ ok: true, mode: "deterministic", groups, unmatchedRowCount, sheetName });
+      const { groups, unmatchedRowCount, noTripLabelRows } = await parseAquaDeterministic(grid, clientName);
+      return res.status(200).json({ ok: true, mode: "deterministic", groups, unmatchedRowCount, noTripLabelRows, sheetName });
     }
 
     const parsed = await parseWithAI(grid, fileName || "file.xlsx", clientNameHint);

@@ -82,8 +82,13 @@ export default async function handler(req, res) {
   const scopeKey = `${role}:${userPic || ""}:${viewAsType}:${viewAsValue || ""}`;
   const fullKey = `data:full:${scopeKey}:${filterMode}:${periodWeeks}:${origin || ""}:${(months || []).join(",")}:${(projects || []).join(",")}:${dateFrom || ""}:${dateTo || ""}`;
 
+  // A `province` request wants a completely different, small response shape
+  // ({ ok, provinceOrders }, see below) — must never be satisfied by the
+  // cached FULL dashboard payload just because the rest of the filters
+  // happen to match (fullKey doesn't and shouldn't encode `province`, so it
+  // must skip this short-circuit entirely instead).
   const cachedFull = getCached(fullKey);
-  if (cachedFull && req.query.force !== "true") {
+  if (cachedFull && req.query.force !== "true" && !req.query.province) {
     return res.status(200).json(cachedFull);
   }
 
@@ -215,6 +220,31 @@ export default async function handler(req, res) {
     // ── Transform (per-filter — genuinely depends on months/projects/origin) ──
     const ltlData       = transformLTL(filteredLTL, { months, projects, filterMode, periodWeeks, origin }, filteredDamage);
 
+    // ── Province drill-down (modal "Chi tiết đơn hàng") — a tiny, on-demand
+    // slice of the SAME already-filtered rows, requested only when the user
+    // actually clicks a province. Returns early, skipping the (unneeded for
+    // this) tachTrip/aiInsights/overview work below. This exists so the
+    // NORMAL response (no `province` param) never has to carry the full
+    // ~23k-row filteredRows array just to support this one rarely-used
+    // click-through — see the `delete ltlData.filteredRows` below.
+    if (req.query.province) {
+      const province = String(req.query.province).trim();
+      const provinceOrders = (ltlData.filteredRows || [])
+        .filter((r) =>
+          String(r.from_province_name || "").trim() === province ||
+          String(r.to_province_name || "").trim() === province
+        )
+        .map((r) => ({
+          order_code: r.order_code,
+          client_name: r.client_name,
+          from_province_name: r.from_province_name,
+          to_province_name: r.to_province_name,
+          weight: r.weight,
+          odr_success: r.odr_success,
+        }));
+      return res.status(200).json({ ok: true, provinceOrders });
+    }
+
     // ── Overview / AI Insights / TachTrip — independent of months/projects/
     // origin, so cache per (role, pic, viewAs) scope instead of recomputing
     // on every filter click. Shares the sheets-fetch cache TTL (5 min).
@@ -297,6 +327,15 @@ export default async function handler(req, res) {
       };
       setCached(overviewKey, overview);
     }
+
+    // Only ever needed server-side (transformAIInsights above, and the
+    // province early-return above that) — never send ~23k raw rows to the
+    // browser on every single dashboard load. This was previously ~22MB of
+    // a ~25MB response, the main cause of slow/laggy dashboard loads
+    // (confirmed live 2026-09-17: /api/data taking 12s, filteredRows alone
+    // 22.29MB of a 24.74MB body). Also keeps the in-memory `setCached`
+    // below from hoarding that same 22MB per distinct filter combo.
+    delete ltlData.filteredRows;
 
     const responseBody = {
       ok: true,

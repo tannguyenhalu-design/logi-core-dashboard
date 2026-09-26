@@ -98,14 +98,18 @@ function WeeklyByClientSection({ ordersByProjectAndWeek, ordersByMonth }) {
   );
 }
 
-export default function LTLDashboard({ data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange }) {
+export default function LTLDashboard({ data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders }) {
   const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
   const [selectedProvinceOrders, setSelectedProvinceOrders] = useState(null);
+  // Fetched on demand (see fetchProvinceOrders in pages/dashboard.js) instead
+  // of filtering a client-side copy of all ~23k rows — that array is no
+  // longer even sent to the browser (was the main cause of a 22MB/12s
+  // dashboard load, fixed 2026-09-17).
+  const [provOrdersList, setProvOrdersList] = useState([]);
+  const [provOrdersLoading, setProvOrdersLoading] = useState(false);
   const theme = useTheme();
 
   if (!data) return <TruckLoader />;
-
-  const rawLtl = data.filteredRows || [];
 
   const isClient = userRole === "client";
   const singleProjectMode = selectedProjects.length === 1;
@@ -129,11 +133,21 @@ export default function LTLDashboard({ data, rawData, aiInsights, selectedProjec
     );
   };
 
-  const closeProvModal = () => setSelectedProvinceOrders(null);
-  const provOrdersList = selectedProvinceOrders ? rawLtl.filter(r => 
-    String(r.from_province_name || "").trim() === selectedProvinceOrders || 
-    String(r.to_province_name || "").trim() === selectedProvinceOrders
-  ) : [];
+  const closeProvModal = () => { setSelectedProvinceOrders(null); setProvOrdersList([]); };
+  const openProvModal = async (prov) => {
+    setSelectedProvinceOrders(prov);
+    setProvOrdersList([]);
+    if (!fetchProvinceOrders) return;
+    setProvOrdersLoading(true);
+    try {
+      const orders = await fetchProvinceOrders(prov);
+      setProvOrdersList(orders);
+    } catch {
+      setProvOrdersList([]);
+    } finally {
+      setProvOrdersLoading(false);
+    }
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -210,7 +224,7 @@ export default function LTLDashboard({ data, rawData, aiInsights, selectedProjec
         projectName={singleProjectMode ? selectedProjects[0] : ""}
         selectedOrigin={selectedOrigin}
         onOriginChange={onOriginChange}
-        onProvinceClick={(prov) => setSelectedProvinceOrders(prov)}
+        onProvinceClick={openProvModal}
       />
 
       <div className="chart-panel" style={{ width: "100%" }}>
@@ -376,7 +390,7 @@ export default function LTLDashboard({ data, rawData, aiInsights, selectedProjec
                   📍 Chi tiết đơn hàng: <span style={{ color: "var(--cyan)" }}>{selectedProvinceOrders}</span>
                 </h2>
                 <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
-                  Tổng cộng: {provOrdersList.length} đơn hàng trong bộ lọc hiện tại
+                  {provOrdersLoading ? "Đang tải..." : `Tổng cộng: ${provOrdersList.length} đơn hàng trong bộ lọc hiện tại`}
                 </div>
               </div>
               <button onClick={closeProvModal} style={{
@@ -397,7 +411,9 @@ export default function LTLDashboard({ data, rawData, aiInsights, selectedProjec
                   </tr>
                 </thead>
                 <tbody>
-                  {provOrdersList.length === 0 ? (
+                  {provOrdersLoading ? (
+                    <tr><td colSpan="5" style={{ padding: 20, textAlign: "center", color: "var(--text-muted)" }}>Đang tải...</td></tr>
+                  ) : provOrdersList.length === 0 ? (
                     <tr><td colSpan="5" style={{ padding: 20, textAlign: "center", color: "var(--text-muted)" }}>Không có đơn hàng nào</td></tr>
                   ) : (
                     provOrdersList.map((odr, idx) => {
