@@ -127,32 +127,94 @@ EXPAND_ALL_JS = """
 # as a per-row table column. Click "Mở hết" (expand all) first, then walk
 # every day-group container so both the date and the row data come from
 # the right place.
+# Layout changed ~16/09/2026 (found 27/09): the client is no longer a column
+# but a group row ("🏢 Supra Nha Trang · 3 đơn", tr.lb-kgrp); cases are
+# tr.lb-orow with 7 cells NGUỒN | MÃ | NƠI PHÁT HIỆN | CHẶNG NGHI VẤN |
+# TRẠNG THÁI | TRUY THU | TT ĐƠN HÀNG, each followed by an empty detail row
+# (tr.lb-tixrow). The code cell now carries badges ("GYRGDQPH 💰", sometimes a
+# date) — the old positional mapping glued them into the order code and, from
+# ~22/09, read the shifted columns as garbage rows. Columns are now looked up
+# by header text so an added/removed column can't shift the mapping again,
+# and the order code is the first token of the MÃ cell only.
 EXTRACT_TABLE_JS = """
 (() => {
   const dayGroups = document.querySelectorAll('.lb-day');
   if (dayGroups.length === 0) return null;
+  const norm = (t) => (t || '').normalize('NFC').trim().toUpperCase();
   const records = [];
   dayGroups.forEach(day => {
     const dateMatch = day.innerText.match(/(\\d{2}\\/\\d{2}\\/\\d{4})/);
     const caseDate = dateMatch ? dateMatch[1] : '';
     const table = day.querySelector('table');
     if (!table) return;
-    const rows = [...table.querySelectorAll('tr')].slice(1);
-    rows.forEach(r => {
-      const cells = [...r.querySelectorAll('td')].map(c => c.innerText.trim());
+    const trs = [...table.querySelectorAll('tr')];
+    const head = trs.find(tr => tr.querySelector('th')) || trs[0];
+    const cols = [...head.querySelectorAll('th,td')].map(c => norm(c.innerText));
+    const col = (...names) => { for (const n of names) { const i = cols.indexOf(n); if (i >= 0) return i; } return -1; };
+    const iSrc = col('NGUỒN'), iCode = col('MÃ', 'MÃ ĐƠN'), iWh = col('NƠI PHÁT HIỆN'), iLeg = col('CHẶNG NGHI VẤN'),
+          iSt = col('TRẠNG THÁI'), iOst = col('TT ĐƠN HÀNG'), iType = col('LOẠI'), iClient = col('KHÁCH HÀNG', 'KHÁCH'),
+          iSev = col('MỨC ĐỘ'), iRegion = col('VÙNG'), iPhoto = col('ẢNH');
+    if (iCode < 0) return;
+    let client = '';
+    trs.forEach(tr => {
+      if (tr === head) return;
+      if (tr.classList.contains('lb-kgrp')) {
+        client = tr.innerText.replace(/^\\s*🏢\\s*/, '').replace(/\\s*·\\s*\\d+\\s*đơn\\s*$/i, '').trim();
+        return;
+      }
+      const tds = [...tr.querySelectorAll('td')];
+      if (tds.length <= iCode || tr.classList.contains('lb-tixrow')) return;
+      const cell = (i) => (i >= 0 && tds[i] ? tds[i].innerText.trim() : '');
+      const orderCode = (cell(iCode).split(/\\s+/)[0] || '').replace(/[^A-Za-z0-9_-]/g, '').toUpperCase();
+      if (!orderCode) return;
       records.push({
-        type: cells[0] || '', source: cells[1] || '',
-        orderCode: (cells[2] || '').replace(/[^A-Za-z0-9_-]/g, '').trim(),
-        clientName: cells[3] || '', detectedAtWarehouse: cells[4] || '',
-        suspectedLeg: cells[5] || '', region: cells[6] || '', severity: cells[7] || '',
-        status: cells[8] || '', orderStatus: cells[10] || '', caseDate,
-        photoCount: (cells[11] || '').match(/\\d+/) ? (cells[11] || '').match(/\\d+/)[0] : '0',
+        type: cell(iType).replace(/^▸\\s*/, '') || 'Bể vỡ',
+        source: cell(iSrc).replace(/^▸\\s*/, ''),
+        orderCode,
+        clientName: cell(iClient) || client,
+        detectedAtWarehouse: cell(iWh), suspectedLeg: cell(iLeg), region: cell(iRegion), severity: cell(iSev),
+        status: cell(iSt), orderStatus: cell(iOst), caseDate,
+        photoCount: (cell(iPhoto).match(/\\d+/) || ['0'])[0],
       });
     });
   });
   return records;
 })();
 """
+
+# The report's date filter (#lbFrom / #lbTo) defaults to TODAY only, so each
+# run used to capture just that day's cases — any day the scraper was down or
+# logged out was lost for good. Widen it before reading (merge-by-order_code
+# on the app side makes re-reading the same cases harmless).
+DEFAULT_LOOKBACK_DAYS = 21
+
+SET_RANGE_JS = """
+((from, to) => {
+  const setVal = (id, v) => {
+    const el = document.getElementById(id) || document.querySelector(`input[name="${id}"]`);
+    if (!el) return false;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    setter.call(el, v);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  };
+  const ok = setVal('lbFrom', from) && setVal('lbTo', to);
+  const btn = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Lọc');
+  if (btn) btn.click();
+  return ok;
+})(%s, %s);
+"""
+
+
+def date_range():
+    """VN-time [from, to]; `--from YYYY-MM-DD` overrides the start (backfill)."""
+    now_vn = time.gmtime(time.time() + 7 * 3600)
+    to = time.strftime("%Y-%m-%d", now_vn)
+    if "--from" in sys.argv:
+        return sys.argv[sys.argv.index("--from") + 1], to
+    start = time.gmtime(time.time() + 7 * 3600 - DEFAULT_LOOKBACK_DAYS * 86400)
+    return time.strftime("%Y-%m-%d", start), to
 
 
 def main():
@@ -175,6 +237,20 @@ def main():
     print("Bam 'Bao cao be vo'...")
     if not click_button(ws, "📦 Báo cáo bể vỡ", wait=5):
         print("Khong tim thay nut 'Bao cao be vo' - co the chua dang nhap.")
+
+    d_from, d_to = date_range()
+    print(f"Dat khoang ngay {d_from} -> {d_to} ...")
+    range_ok = False
+    # The filter bar renders several seconds after the report opens (~5s seen
+    # 27/09, sometimes >12s) — keep trying for up to 30s.
+    for _ in range(30):
+        if run_js(ws, SET_RANGE_JS % (json.dumps(d_from), json.dumps(d_to))):
+            range_ok = True
+            break
+        time.sleep(1.0)
+    if not range_ok:
+        print("Khong dat duoc khoang ngay (giao dien co the da doi) - chi doc duoc ngay mac dinh.")
+    time.sleep(4)
 
     print("Bam 'Mo het' de mo toan bo cac nhom ngay...")
     # Confirmed live 2026-08-24: right after a fresh re-login, the report
