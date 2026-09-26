@@ -62,7 +62,7 @@
 | Snapshot Blob | 🟢 | Dựng lại sau mỗi lần scraper sync (đã test), cron dự phòng 09:00/13:00/18:00, nút "Đồng bộ". ~13s/lần dựng; 686KB gzip. |
 | Pipeline `raw_ontime` | 🟢 | Cron 3 lần/ngày chạy đều từ 17/09. |
 | Nguồn GHN của `raw_ontime` | 🟠 Theo dõi | 24–25/09 có lúc số dòng nguồn đứng yên; 26/09 dữ liệu tháng 9 đã có 9.722 đơn — cần tiếp tục để ý. |
-| Rillnet (bể vỡ) | 🔴 | Phiên GHN SSO hết hạn từ 24/09 12:50 → cần đăng nhập lại qua noVNC (16.2). |
+| Rillnet (bể vỡ) | 🟢 | Đăng nhập lại qua noVNC 26/09 16:10 (hết phiên từ 24/09 12:50); đồng bộ ok, 344 ca. Phiên GHN SSO ~7 ngày → theo dõi tab Trạng thái hệ thống. |
 | KPI portal | ⏸️ PENDING | `kpi_scraper.py` lỗi từ 17/09; user yêu cầu để pending. Từ 26/09 không còn phần nào của dashboard dùng dữ liệu KPI/doanh thu (AI chat cũng đã bỏ). |
 | Giám sát nguồn dữ liệu | 🟢 | Tab **"Trạng thái hệ thống"** (manager) + heartbeat scraper sau mỗi lần chạy (mục 8.4, 16.1). Test thật 26/09 15:36: raw_ontime ok, Rillnet + KPI `session_expired`. |
 | Git | 🟢 | Đã commit và push lên GitHub (`main`); push tự kích hoạt Vercel deploy. |
@@ -450,7 +450,6 @@ Tạo cookie `logi_session` bằng `sealData()` (iron-session) với `SESSION_SE
 ## 19. Việc đang mở
 
 **Vận hành (cần người):**
-- [ ] Đăng nhập lại Rillnet qua noVNC (lỗi từ 24/09) — 16.2.
 - [ ] KPI portal — **pending theo chỉ đạo user**.
 - [ ] Theo dõi sheet nguồn raw_ontime có đứng không (24–25/09 từng có dấu hiệu).
 - [ ] Rà 1.125 đơn chờ lấy — có đơn treo từ 06/08 (bên vận hành).
