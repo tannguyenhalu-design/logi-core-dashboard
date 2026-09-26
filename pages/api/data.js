@@ -17,8 +17,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Set Vercel Edge Cache (3 minutes caching, serve stale while revalidating for fast loads)
-  res.setHeader("Cache-Control", "s-maxage=180, stale-while-revalidate=59");
+  // MUST stay private: this response is per-session. A shared-cache header
+  // (s-maxage, added 2026-08-14) made Vercel's CDN serve cached payloads
+  // before auth ran — confirmed 2026-09-26 that a request with NO cookie got
+  // the full dataset (200) and a cs user got a manager's payload.
+  res.setHeader("Cache-Control", "private, no-store");
 
   // ── Auth check ──
   const session = await getSession(req, res);
