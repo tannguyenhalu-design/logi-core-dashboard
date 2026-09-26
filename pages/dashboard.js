@@ -3,10 +3,10 @@
  * Protected via getServerSideProps (session check).
  * Filter state managed here and passed down to all tabs for sync.
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Head from "next/head";
 import FilterBar from "../components/FilterBar";
-import TruckLoader from "../components/TruckLoader";
+import { KpiCardSkeleton } from "../components/KpiCard";
 import ThemeToggle from "../components/ThemeToggle";
 import dynamic from "next/dynamic";
 
@@ -22,6 +22,26 @@ const LTL_VIEWS = [
   { id: "map", label: "Bản đồ tỉnh thành", icon: "M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-.553-.894L15 4m0 13V4m0 0L9 7" },
   { id: "damage", label: "Hư hỏng & Rủi ro", icon: "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" },
 ];
+
+function DashboardSkeleton({ view }) {
+  const block = (h) => (
+    <div className="chart-panel">
+      <div className="skeleton" style={{ height: 14, width: 220, marginBottom: 16 }} />
+      <div className="skeleton" style={{ height: h }} />
+    </div>
+  );
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }} aria-busy="true" aria-label="Đang tải dữ liệu">
+      {view === "ltl" && (
+        <div className="grid-4">
+          <KpiCardSkeleton /><KpiCardSkeleton /><KpiCardSkeleton /><KpiCardSkeleton />
+        </div>
+      )}
+      {block(view === "map" ? 420 : 280)}
+      {block(220)}
+    </div>
+  );
+}
 
 export default function DashboardPage({ user: initialUser }) {
   const user = initialUser || {};
@@ -43,8 +63,10 @@ export default function DashboardPage({ user: initialUser }) {
   const [selectedOrigin, setSelectedOrigin] = useState(null);
   const [dashData, setDashData] = useState(null);
   const [loading, setLoading] = useState(canSeeLTL);
-  const [filtering, setFiltering] = useState(false);
   const [error, setError] = useState(null);
+  // Only the latest request may write state — quick filter clicks could
+  // otherwise let a slower, older response overwrite a newer one.
+  const reqIdRef = useRef(0);
   // Role-switcher for manager: { type: 'manager'|'pic'|'project', value: string|null }
   const [viewAs, setViewAs] = useState({ type: "manager", value: null });
   const [showRoleMenu, setShowRoleMenu] = useState(false);
@@ -70,6 +92,7 @@ export default function DashboardPage({ user: initialUser }) {
 
   // ── Fetch aggregated data from Backend API ──
   const fetchDashboardData = useCallback(async (months, projects, fMode, viewAsOverride, pWeeks, dFrom, dTo) => {
+    const reqId = ++reqIdRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -88,11 +111,12 @@ export default function DashboardPage({ user: initialUser }) {
       const res = await fetch(`/api/data?${params.toString()}`);
       if (!res.ok) throw new Error(`API error ${res.status}`);
       const data = await res.json();
+      if (reqId !== reqIdRef.current) return;
       setDashData(data);
     } catch (e) {
-      setError(e.message);
+      if (reqId === reqIdRef.current) setError(e.message);
     } finally {
-      setLoading(false);
+      if (reqId === reqIdRef.current) setLoading(false);
     }
   }, [viewAs, periodWeeks, selectedOrigin]);
 
@@ -201,7 +225,6 @@ export default function DashboardPage({ user: initialUser }) {
           borderRight: "1px solid var(--border)",
           padding: "20px 12px",
           display: "flex", flexDirection: "column", gap: 4,
-          backdropFilter: "blur(12px)",
         }}>
           {/* Brand */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 8px 20px" }}>
@@ -305,8 +328,8 @@ export default function DashboardPage({ user: initialUser }) {
                   width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
                   padding: "8px 10px", borderRadius: 8, fontSize: 12, fontFamily: "inherit",
                   cursor: "pointer", transition: "all 0.2s",
-                  background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.4)",
-                  color: "#a78bfa", fontWeight: 600,
+                  background: "var(--panel-glow)", border: "1px solid var(--border)",
+                  color: "var(--text-primary)", fontWeight: 600,
                 }}>
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 140 }}>
                   {viewAs.type === "manager" ? "👑 Manager (Tổng)" : viewAs.type === "cs" ? `👤 Nhân sự: ${viewAs.value}` : `📦 KH: ${viewAs.value}`}
@@ -341,8 +364,8 @@ export default function DashboardPage({ user: initialUser }) {
                           }}
                           style={{
                             padding: "8px 12px", fontSize: 11.5, cursor: "pointer",
-                            color: isActive ? "#a78bfa" : "var(--text-secondary)",
-                            background: isActive ? "rgba(139,92,246,0.12)" : "transparent",
+                            color: isActive ? "var(--cyan)" : "var(--text-secondary)",
+                            background: isActive ? "var(--cyan-glow)" : "transparent",
                             fontWeight: isActive ? 700 : 400,
                             borderBottom: i < menuItems.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none",
                             transition: "background 0.15s",
@@ -398,7 +421,6 @@ export default function DashboardPage({ user: initialUser }) {
           <header className="dashboard-header" style={{
             minHeight: 60, background: "var(--bg-panel)",
             borderBottom: "1px solid var(--border)",
-            backdropFilter: "blur(12px)",
             display: "flex", alignItems: "center",
             justifyContent: "space-between",
             flexWrap: "wrap",
@@ -418,14 +440,14 @@ export default function DashboardPage({ user: initialUser }) {
                 <div style={{
                   display: "flex", alignItems: "center", gap: 5,
                   padding: "3px 10px", borderRadius: 20, fontSize: 11.5, fontWeight: 600,
-                  background: "rgba(139,92,246,0.18)", border: "1px solid rgba(139,92,246,0.5)",
-                  color: "#c4b5fd",
+                  background: "var(--cyan-glow)", border: "1px solid rgba(var(--brand-rgb),0.45)",
+                  color: "var(--cyan)",
                 }}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                   {viewAs.type === "cs" ? `Xem góc nhìn Nhân sự: ${viewAs.value}` : `Xem góc nhìn KH: ${viewAs.value}`}
                   <button
                     onClick={() => setViewAs({ type: "manager", value: null })}
-                    style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "#c4b5fd", lineHeight: 1, marginLeft: 2 }}>✕</button>
+                    style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--cyan)", lineHeight: 1, marginLeft: 2 }}>✕</button>
                 </div>
               )}
             </div>
@@ -490,8 +512,7 @@ export default function DashboardPage({ user: initialUser }) {
               <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--green)" }}>
                 <div style={{
                   width: 7, height: 7, borderRadius: "50%",
-                  background: "var(--green)", boxShadow: "0 0 8px var(--green)",
-                  animation: "spin 2s linear infinite",
+                  background: "var(--green)",
                 }} />
                 LIVE
               </div>
@@ -515,24 +536,9 @@ export default function DashboardPage({ user: initialUser }) {
               <TabAuditLog />
             ) : (
               <>
-                {/* Full-page loader */}
-                {loading && (
-                  <div style={{ display: "flex", justifyContent: "center", paddingTop: 60 }}>
-                    <TruckLoader size={88} label="Đang tải dữ liệu..." />
-                  </div>
-                )}
-
-                {filtering && !loading && (
-                  <div style={{
-                    position: "absolute", top: 12, right: 24, zIndex: 10,
-                    display: "flex", alignItems: "center", gap: 6,
-                    fontSize: 11, color: "var(--cyan)",
-                    background: "rgba(var(--brand-rgb),0.1)", border: "1px solid rgba(var(--brand-rgb),0.2)",
-                    borderRadius: 20, padding: "4px 10px",
-                  }}>
-                    <div className="spinner" style={{ width: 10, height: 10 }} />
-                    Đang lọc...
-                  </div>
+                {/* Refetch: keep current content, show a thin progress bar */}
+                {loading && dashData && (
+                  <div className="top-progress" style={{ position: "sticky", top: 0, marginTop: -24, marginBottom: 22 }} />
                 )}
 
                 {error && !loading && (
@@ -544,7 +550,9 @@ export default function DashboardPage({ user: initialUser }) {
                   </div>
                 )}
 
-                {!loading && !error && dashData && <LTLDashboard view={activeTab} data={dashData.ltl} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} fetchProvinceOrders={fetchProvinceOrders} pendingPickup={dashData.pendingPickup} fetchPendingOrders={fetchPendingOrders} />}
+                {!dashData && loading && <DashboardSkeleton view={activeTab} />}
+
+                {dashData && !(error && !loading) && <div className={loading ? "refreshing" : "fade-in"}><LTLDashboard view={activeTab} data={dashData.ltl} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} fetchProvinceOrders={fetchProvinceOrders} pendingPickup={dashData.pendingPickup} fetchPendingOrders={fetchPendingOrders} kpiDelta={dashData.kpiDelta} /></div>}
               </>
             )}
           </main>

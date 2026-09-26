@@ -162,7 +162,6 @@ export default function ProvinceMapPanel({
               border: "1px solid var(--border)",
               borderRadius: 12,
               padding: "16px 20px",
-              backdropFilter: "blur(8px)",
               minHeight: 310,
               transition: "all 0.2s ease-out",
             }}>
@@ -268,7 +267,6 @@ export default function ProvinceMapPanel({
               border: "1px solid var(--border)",
               borderRadius: 12,
               padding: "16px 20px",
-              backdropFilter: "blur(8px)",
               minHeight: 310,
               transition: "all 0.2s ease-out",
             }}>

@@ -124,7 +124,6 @@ export default function AIChatDrawer() {
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
-            backdropFilter: "blur(12px)",
           }}
         >
           {/* Header */}

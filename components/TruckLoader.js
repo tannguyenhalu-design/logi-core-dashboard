@@ -18,7 +18,6 @@ export default function TruckLoader({ size = 64, label = "Đang đồng bộ d�
         border: "1px solid var(--border)",
         borderRadius: 16,
         boxShadow: "0 12px 40px rgba(0,0,0,0.3)",
-        backdropFilter: "blur(16px)",
       }}
     >
       {/* Brand Loader Illustration — FULL SIZE */}

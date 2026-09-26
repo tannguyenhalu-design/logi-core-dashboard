@@ -20,11 +20,11 @@ export const CHART_THEME = {
     muted: "#94a3b8",
     grid: "rgba(255,255,255,0.05)",
     tooltipBg: "rgba(15,23,42,0.95)",
-    tooltipBorder: "rgba(20, 224, 196, 0.3)",
+    tooltipBorder: "rgba(249, 115, 22, 0.35)",
     tooltipTitle: "#ffffff",
     tooltipBody: "#f1f5f9",
     legend: "#ffffff",
-    cyan: "#14e0c4",
+    cyan: "#f97316",
   },
   light: {
     text: "#0f172a",
@@ -60,6 +60,11 @@ export function useTheme() {
   return theme;
 }
 
+// Entry animations replayed on every filter change and were the main source
+// of jank; data updates now apply instantly.
+Chart.defaults.animation = false;
+Chart.defaults.responsiveAnimationDuration = 0;
+
 export function useChart(canvasRef, config, deps, theme = "dark") {
   const chartRef = useRef(null);
   useEffect(() => {
@@ -71,9 +76,23 @@ export function useChart(canvasRef, config, deps, theme = "dark") {
     Chart.defaults.plugins.tooltip.titleColor = t.tooltipTitle;
     Chart.defaults.plugins.tooltip.bodyColor = t.tooltipBody;
     Chart.defaults.plugins.legend.labels.color = t.legend;
-    if (chartRef.current) chartRef.current.destroy();
-    chartRef.current = new Chart(canvasRef.current, config());
-    return () => { if (chartRef.current) chartRef.current.destroy(); };
+    const cfg = config();
+    const existing = chartRef.current;
+    // Update in place when possible — destroying and rebuilding the canvas
+    // on every filter change re-allocates everything and flickers.
+    if (existing && existing.config.type === cfg.type) {
+      existing.data = cfg.data;
+      existing.options = cfg.options;
+      existing.update("none");
+      return;
+    }
+    if (existing) existing.destroy();
+    chartRef.current = new Chart(canvasRef.current, cfg);
     // eslint-disable-next-line
   }, [...deps, theme]);
+
+  useEffect(() => () => {
+    if (chartRef.current) chartRef.current.destroy();
+    chartRef.current = null;
+  }, []);
 }

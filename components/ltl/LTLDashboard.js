@@ -101,7 +101,7 @@ function WeeklyByClientSection({ ordersByProjectAndWeek, ordersByMonth }) {
 // view: "ltl" (Tổng quan) | "map" (Bản đồ tỉnh thành) | "damage" (Hư hỏng & Rủi ro)
 // — all 3 read the same already-fetched /api/data payload, so switching tabs
 // never refetches.
-export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders, pendingPickup, fetchPendingOrders }) {
+export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders, pendingPickup, fetchPendingOrders, kpiDelta }) {
   const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
   const [selectedProvinceOrders, setSelectedProvinceOrders] = useState(null);
   // Fetched on demand (see fetchProvinceOrders in pages/dashboard.js) instead
@@ -190,43 +190,68 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
           </button>
         </div>
       )}
-      {showOverview && <div className="grid-4">
-        <KpiCard
-          icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>}
-          label={data.filterMode === "delivered" ? "GTC (ngày giao)" : "Tổng Đơn (lấy hàng)"}
-          value={fmt(data.totalOrders)}
-          sub="Tính theo số lượng đơn"
-          colorClass="text-cyan"
-        />
-        {data.filterMode !== "delivered" && (
-          <KpiCard
-            icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>}
-            label="GTC trong kỳ"
-            value={fmt(data.deliveredThisMonthCount)}
-            sub="Tính theo ngày giao thực tế"
-            colorClass="text-green"
-          />
-        )}
-
-        <KpiCard
-          icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>}
-          label="Đơn Late"
-          value={fmt(data.lateCount)}
-          sub={`${data.evalCount > 0 ? (100 - data.ontimePct).toFixed(1) : 0}% tỷ lệ late`}
-          colorClass="text-red"
-        />
-        <KpiCard
-          icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>}
-          label="Ca Hư Hỏng (Rillnet)"
-          value={fmt(data.totalBroken)}
-          sub={
-            aiInsights?.compensationSummary
-              ? `${fmt(aiInsights.compensationSummary.csTickCount)} đền bù (toàn hệ thống)`
-              : `${data.brokenCompensated} đền bù`
-          }
-          colorClass="text-amber"
-        />
-      </div>}
+      {showOverview && (() => {
+        const kd = kpiDelta;
+        const pct = (v) => `${Math.abs(v).toLocaleString("vi-VN", { maximumFractionDigits: 1 })}%`;
+        // higherIsBetter decides the colour; the arrow always shows direction.
+        const mk = (v, unit, higherIsBetter) => {
+          if (v == null) return null;
+          if (v === 0) return { text: unit === "pt" ? "0 điểm" : "0%", tone: "flat" };
+          const up = v > 0;
+          const text = `${up ? "▲" : "▼"} ${unit === "pt" ? `${Math.abs(v).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} điểm` : pct(v)}`;
+          return { text, tone: up === higherIsBetter ? "good" : "bad" };
+        };
+        const compare = (valText) => {
+          if (!kd) return null;
+          if (kd.incomplete) return "Kỳ trước nằm ngoài phạm vi dữ liệu (trước 07/2026)";
+          if (kd.mode === "window") return `${kd.currentLabel}: ${valText} · so cùng kỳ ${kd.compareLabel}`;
+          return `so ${kd.compareLabel}`;
+        };
+        const ok = kd && !kd.incomplete;
+        const hasEval = data.evalCount > 0;
+        const ontimeClass = !hasEval ? "" : data.ontimePct >= 90 ? "text-green" : data.ontimePct >= 80 ? "text-amber" : "text-red";
+        const fmtPct1 = (v) => (v == null ? "—" : `${Number(v).toLocaleString("vi-VN", { maximumFractionDigits: 1 })}%`);
+        return (
+          <div className="grid-4">
+            <KpiCard
+              accent
+              label={data.filterMode === "delivered" ? "GTC (ngày giao)" : "Tổng đơn (lấy hàng)"}
+              value={fmt(data.totalOrders)}
+              delta={ok ? mk(kd.orders.deltaPct, "%", true) : null}
+              compare={compare(ok ? `${fmt(kd.orders.cur)} đơn` : "")}
+              sub={data.filterMode !== "delivered" ? `GTC trong kỳ: ${fmt(data.deliveredThisMonthCount)} (theo ngày giao)` : "Tính theo ngày giao thực tế"}
+            />
+            <KpiCard
+              label="Tỷ lệ On-time"
+              value={hasEval ? fmtPct1(data.ontimePct) : "—"}
+              valueClass={ontimeClass}
+              delta={ok ? mk(kd.ontime.deltaPoints, "pt", true) : null}
+              compare={compare(ok ? fmtPct1(kd.ontime.cur) : "")}
+              sub={`${fmt(data.ontimeCount)} ontime / ${fmt(data.evalCount)} đơn đã đánh giá`}
+            />
+            <KpiCard
+              label="Đơn Late"
+              value={fmt(data.lateCount)}
+              valueClass="text-red"
+              delta={ok ? mk(kd.late.deltaPct, "%", false) : null}
+              compare={compare(ok ? `${fmt(kd.late.cur)} đơn` : "")}
+              sub={`${hasEval ? (100 - data.ontimePct).toLocaleString("vi-VN", { maximumFractionDigits: 1 }) : 0}% tỷ lệ late`}
+            />
+            <KpiCard
+              label="Ca hư hỏng (Rillnet)"
+              value={fmt(data.totalBroken)}
+              valueClass="text-amber"
+              delta={ok ? mk(kd.damage.deltaPct, "%", false) : null}
+              compare={compare(ok ? `${fmt(kd.damage.cur)} ca` : "")}
+              sub={
+                aiInsights?.compensationSummary
+                  ? `${fmt(aiInsights.compensationSummary.csTickCount)} đền bù (toàn hệ thống)`
+                  : `${data.brokenCompensated} đền bù`
+              }
+            />
+          </div>
+        );
+      })()}
 
       {showOverview && pendingPickup?.count > 0 && (
         <button
@@ -471,7 +496,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
       {selectedProvinceOrders && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+          background: "rgba(0,0,0,0.6)",
           display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999
         }} onClick={closeProvModal}>
           <div style={{
