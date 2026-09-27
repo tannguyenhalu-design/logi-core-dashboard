@@ -15,6 +15,7 @@ const TabUsers      = dynamic(() => import("../components/TabUsers"),      { ssr
 const TabAuditLog   = dynamic(() => import("../components/TabAuditLog"),   { ssr: false });
 const TabSystemHealth = dynamic(() => import("../components/TabSystemHealth"), { ssr: false });
 const TabCompanyReport = dynamic(() => import("../components/TabCompanyReport"), { ssr: false });
+const TabTrials = dynamic(() => import("../components/TabTrials"), { ssr: false });
 const ExecutiveReport = dynamic(() => import("../components/ExecutiveReport"), { ssr: false });
 const TabBrain      = dynamic(() => import("../components/TabBrain"),      { ssr: false });
 const AIChatDrawer  = dynamic(() => import("../components/AIChatDrawer"),  { ssr: false });
@@ -52,7 +53,7 @@ export default function DashboardPage({ user: initialUser }) {
   // Any pre-refactor tab (operations/tachtrip/ftl) still in an old session
   // cookie means the user had dashboard access — same mapping as lib/users.js.
   const canSeeLTL = isManager || (user.tabs || []).some((t) => LEGACY_TABS.includes(t));
-  const [activeTab, setActiveTab] = useState(canSeeLTL ? "ltl" : "none"); // LTL_VIEWS id | 'report' | 'users' | 'auditlog' | 'health' | 'brain' | 'none'
+  const [activeTab, setActiveTab] = useState(canSeeLTL ? "ltl" : "none"); // LTL_VIEWS id | 'report' | 'trials' | 'users' | 'auditlog' | 'health' | 'brain' | 'none'
   const isLTLView = LTL_VIEWS.some((v) => v.id === activeTab);
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [selectedProjects, setSelectedProjects] = useState([]);
@@ -314,6 +315,23 @@ export default function DashboardPage({ user: initialUser }) {
                 Báo cáo công ty
               </div>
             )}
+            {(user.role === "manager" || user.role === "sd3") && (
+              <div
+                className={`nav-item ${activeTab === "trials" ? "active" : ""}`}
+                onClick={() => setActiveTab("trials")}
+                style={{
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
+                  color: activeTab === "trials" ? "#fff" : "var(--text-muted)",
+                  background: activeTab === "trials" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 3h6"/><path d="M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"/><path d="M7.5 14h9"/>
+                </svg>
+                Sổ tay cải tiến
+              </div>
+            )}
             {user.role === "manager" && (
               <div
                 className={`nav-item ${activeTab === "users" ? "active" : ""}`}
@@ -499,6 +517,7 @@ export default function DashboardPage({ user: initialUser }) {
               <div style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)" }}>
                 {LTL_VIEWS.find((v) => v.id === activeTab)?.label
                   || (activeTab === "report" ? "Báo cáo công ty"
+                  : activeTab === "trials" ? "Sổ tay Cải tiến & Đo lường Giải pháp"
                   : activeTab === "users" ? "Quản lý người dùng"
                   : activeTab === "auditlog" ? "Nhật Ký Hoạt Động"
                   : activeTab === "health" ? "Trạng thái hệ thống"
@@ -599,6 +618,8 @@ export default function DashboardPage({ user: initialUser }) {
               </div>
             ) : activeTab === "report" ? (
               <TabCompanyReport />
+            ) : activeTab === "trials" ? (
+              <TabTrials />
             ) : activeTab === "users" ? (
               <TabUsers />
             ) : activeTab === "brain" ? (
