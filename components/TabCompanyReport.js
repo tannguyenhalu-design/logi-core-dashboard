@@ -114,7 +114,11 @@ function deltas(r, delta) {
   };
 }
 
-function ReportTable({ title, countTitle, rateTitle, sec, higherIsBetter }) {
+// Bể vỡ extras (user 27/09): every % shows its "cases/GTC" underneath (a
+// small GTC makes one case look huge), and case counts are clickable to list
+// the orders behind them (onPick(row, col | null) — null = whole row).
+function ReportTable({ title, countTitle, rateTitle, sec, higherIsBetter, onPick, picked, children }) {
+  const showGtc = sec.rows.some((r) => Array.isArray(r.gtc));
   const cols = sec.cols;
   const hasDelta = !!sec.delta;
   const colLabel = (c) => (c.mature === false ? `${c.label}*` : c.label);
@@ -147,10 +151,30 @@ function ReportTable({ title, countTitle, rateTitle, sec, higherIsBetter }) {
                 ? ((d.rate > 0) === higherIsBetter ? "var(--green)" : "var(--red)") : "inherit";
               return (
                 <tr key={k} style={tot}>
-                  <td style={{ ...td, textAlign: "left" }}>{r.name}</td>
-                  {r.counts.map((v, i) => <td key={"c" + i} style={{ ...td, ...(i === 0 ? sep : {}) }}>{fmtNum(v)}</td>)}
+                  <td style={{ ...td, textAlign: "left", ...(onPick ? { cursor: "pointer", textDecoration: "underline dotted" } : {}), ...(picked && picked.row === k && picked.col == null ? { color: "var(--cyan)" } : {}) }}
+                    onClick={onPick ? () => onPick(k, null) : undefined} title={onPick ? "Xem các ca của dòng này" : undefined}>{r.name}</td>
+                  {r.counts.map((v, i) => {
+                    const on = picked && picked.row === k && picked.col === i;
+                    const clickable = onPick && Number(v) > 0;
+                    return (
+                      <td key={"c" + i} onClick={clickable ? () => onPick(k, i) : undefined} title={clickable ? "Bấm để xem mã đơn" : undefined}
+                        style={{ ...td, ...(i === 0 ? sep : {}), ...(clickable ? { cursor: "pointer", color: "var(--cyan)", fontWeight: 700, textDecoration: "underline" } : {}), ...(on ? { background: "rgba(var(--brand-rgb),0.22)" } : {}) }}>
+                        {fmtNum(v)}
+                      </td>
+                    );
+                  })}
                   {hasDelta && <td style={td}>{d.count == null ? "" : `${d.count > 0 ? "+" : ""}${Math.round(d.count * 100)}%`}</td>}
-                  {r.rates.map((v, i) => <td key={"r" + i} style={{ ...td, ...(i === 0 ? sep : {}) }}>{fmtPct(v)}</td>)}
+                  {r.rates.map((v, i) => {
+                    const g = showGtc && r.gtc ? r.gtc[i] : null;
+                    const small = g != null && g > 0 && g < 50;
+                    return (
+                      <td key={"r" + i} style={{ ...td, ...(i === 0 ? sep : {}), ...(small ? { color: "var(--text-muted)" } : {}) }}
+                        title={g != null ? `${fmtNum(r.counts[i])} ca / ${fmtNum(g)} đơn giao thành công${small ? " — mẫu số nhỏ, % dao động mạnh" : ""}` : undefined}>
+                        {fmtPct(v)}
+                        {g != null && <div style={{ fontSize: 10.5, opacity: 0.75, fontWeight: 400 }}>{fmtNum(r.counts[i])}/{fmtNum(g)}{small && Number(r.counts[i]) > 0 ? " ⚠" : ""}</div>}
+                      </td>
+                    );
+                  })}
                   {hasDelta && <td style={{ ...td, color: rateColor, fontWeight: rateColor === "inherit" ? undefined : 700 }}>
                     {d.rate == null ? "" : `${d.rate > 0 ? "+" : ""}${d.rate.toFixed(1)} đ`}
                   </td>}
@@ -159,6 +183,140 @@ function ReportTable({ title, countTitle, rateTitle, sec, higherIsBetter }) {
             })}
           </tbody>
         </table>
+      </div>
+      {showGtc && <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>Dưới mỗi % là ca / GTC (đơn giao thành công). ⚠ = GTC dưới 50 đơn, 1 ca đã ra % cao. Bấm số ca để xem mã đơn.</div>}
+      {children}
+    </div>
+  );
+}
+
+// Cases behind one Bể vỡ cell (or a whole row / the total row).
+function casesFor(report, rowIdx, colIdx) {
+  if (!report) return [];
+  const sec = report.damage;
+  const row = sec.rows[rowIdx];
+  if (!row) return [];
+  const all = [...(report.details.damageCases || []), ...(report.details.damageCasesMonthOnly || [])];
+  // Older locks have no `mondays` / `monday`: fall back to the case's week
+  // label, or for a month column to the month of its detection-week Monday.
+  const mondayOfCase = (c) => {
+    if (c.monday) return c.monday;
+    const m = String(c.case_date || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!m) return "";
+    const t = Date.UTC(+m[3], +m[2] - 1, +m[1]);
+    return new Date(t - ((new Date(t).getUTCDay() + 6) % 7) * DAY).toISOString().slice(0, 10);
+  };
+  const inCol = (c, i) => {
+    const col = sec.cols[i];
+    if (col.mondays) return col.mondays.includes(mondayOfCase(c));
+    return col.kind === "month" ? mondayOfCase(c).slice(0, 7) === col.key : c.week === col.label;
+  };
+  const nameOf = (c) => (c.client === "DigiWorld" ? "Digiworld" : c.client);
+  const cols = colIdx == null ? sec.cols.map((_, i) => i) : [colIdx];
+  const seen = new Set();
+  return all.filter((c) => {
+    if (!row.total && nameOf(c) !== row.name) return false;
+    if (!cols.some((i) => inCol(c, i))) return false;
+    if (seen.has(c.order_code)) return false;
+    seen.add(c.order_code);
+    return true;
+  });
+}
+
+const shortWh = (s) => String(s || "").replace(/^Kho Giao Hàng Nặng - /, "").replace(/^Key Account Warehouse /, "KA WH ").trim();
+function topOf(list, fn, n = 2) {
+  const m = new Map();
+  list.forEach((x) => { const k = fn(x); if (k) m.set(k, (m.get(k) || 0) + 1); });
+  return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
+}
+const NL = String.fromCharCode(10);
+const smallBtn = { fontSize: 12, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--text-secondary)", cursor: "pointer", fontFamily: "inherit" };
+
+function CasePanel({ title, cases, expected, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const n = cases.length;
+  const hasRoute = cases.some((c) => c.kho_lay !== undefined);
+  const created = topOf(cases, (c) => c.created_week || c.pickup_week, 4);
+  const from = topOf(cases, (c) => shortWh(c.kho_lay), 2);
+  const legs = topOf(cases, (c) => c.leg, 1);
+  const returned = cases.filter((c) => /return/i.test(c.order_status || "")).length;
+  const chip = { fontSize: 11.5, padding: "3px 9px", borderRadius: 12, background: "rgba(var(--brand-rgb),0.12)", color: "var(--text-secondary)" };
+  const copy = () => {
+    try { navigator.clipboard.writeText(cases.map((c) => c.order_code).join(NL)); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* no clipboard */ }
+  };
+  return (
+    <div style={{ marginTop: 12, border: "1px solid rgba(var(--brand-rgb),0.35)", borderRadius: 10, padding: 12, background: "rgba(var(--brand-rgb),0.04)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 700 }}>{title} · {n} ca</div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={copy} style={smallBtn}>{copied ? "✓ Đã copy" : "📋 Copy mã đơn"}</button>
+          <button onClick={onClose} style={smallBtn}>✕ Đóng</button>
+        </div>
+      </div>
+      {n > 0 && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+          {created.length > 0 && <span style={chip}>Đơn tạo: {created.map(([w, k]) => `${k} ca ${w}`).join(", ")}</span>}
+          {hasRoute && from.length > 0 && <span style={chip}>Kho lấy: {from.map(([w, k]) => `${w} ${k}/${n}`).join(", ")}</span>}
+          {legs.length > 0 && <span style={chip}>Chặng: {legs[0][0]} {legs[0][1]}/{n}</span>}
+          {returned > 0 && <span style={chip}>{returned}/{n} đơn đã hoàn</span>}
+        </div>
+      )}
+      <div style={{ overflowX: "auto", maxHeight: 360, overflowY: "auto" }}>
+        <table className="data-table" style={{ fontSize: 12 }}>
+          <thead><tr>
+            <th>Mã đơn</th><th>Khách</th><th>Phát hiện</th><th>Tạo</th><th>Giao</th><th>Trạng thái</th>
+            <th>Tuyến (kho lấy → kho giao)</th><th>Chặng nghi vấn</th><th>Kho phát hiện</th><th>Kg</th><th>Đền bù / truy thu</th>
+          </tr></thead>
+          <tbody>
+            {cases.map((c) => (
+              <tr key={c.order_code}>
+                <td style={{ fontWeight: 700 }}>{c.order_code}</td>
+                <td>{c.client === "DigiWorld" ? "Digiworld" : c.client}</td>
+                <td>{c.case_date} <span style={{ opacity: 0.6 }}>{c.week}</span></td>
+                <td>{c.created_date ? c.created_date.split("-").reverse().join("/") : "—"} <span style={{ opacity: 0.6 }}>{c.created_week || c.pickup_week || ""}</span></td>
+                <td>{c.delivered_week || "—"}</td>
+                <td>{c.order_status || ""}</td>
+                <td>{hasRoute ? <>{shortWh(c.kho_lay) || "?"}{c.from_province ? <span style={{ opacity: 0.6 }}> ({c.from_province})</span> : null} → {shortWh(c.kho_giao) || "?"}{c.to_province ? <span style={{ opacity: 0.6 }}> ({c.to_province})</span> : null}</> : "—"}</td>
+                <td>{c.leg}</td>
+                <td>{shortWh(c.warehouse)}</td>
+                <td>{c.weight_kg ?? "—"}</td>
+                <td>{c.compensated ? "Đã chốt đền" : "—"} · {c.truy_thu === "co" ? `Truy thu ${fmtNum(c.truy_thu_amount)}đ` : c.truy_thu === "khong" ? "Không truy thu" : "Chờ chốt"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {expected != null && n < expected && (
+        <div style={{ fontSize: 11.5, color: "var(--amber)", marginTop: 6 }}>
+          Bảng ghi {expected} ca nhưng bản này chỉ lưu danh sách {n} ca (bản chốt cũ không lưu ca của cột tháng trước) — xem "Số mới nhất" để có đủ.
+        </div>
+      )}
+      {n > 0 && !hasRoute && <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>Bản chốt này tạo trước khi có dữ liệu tuyến / ngày tạo — chốt lại để có đủ cột.</div>}
+    </div>
+  );
+}
+
+function InsightBox({ ins }) {
+  const [copied, setCopied] = useState(false);
+  if (!ins) return null;
+  const text = [ins.total, ...ins.clients.flatMap((c) => ["• " + c.lines[0], ...c.lines.slice(1).map((l) => "   " + l)]), ...(ins.none.length ? [`Không phát sinh ca: ${ins.none.join(", ")}.`] : [])].join(NL);
+  const copy = () => { try { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* no clipboard */ } };
+  return (
+    <div className="glass" style={{ padding: 16, marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+        <div style={{ fontSize: 14, fontWeight: 700 }}>Gợi ý insight Bể vỡ · {ins.span}{ins.prevSpan ? ` so với ${ins.prevSpan}` : ""}</div>
+        <button onClick={copy} style={{ ...smallBtn, border: "1px solid rgba(var(--brand-rgb),0.3)", background: "rgba(var(--brand-rgb),0.1)", color: "var(--cyan)", fontWeight: 600 }}>{copied ? "✓ Đã copy" : "📋 Copy gợi ý"}</button>
+      </div>
+      <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 10 }}>Hệ thống tự viết từ số liệu theo mẫu câu cố định (không dùng AI). Đã điền sẵn vào sheet Insight của file Excel — kiểm tra và sửa trước khi gửi.</div>
+      <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>{ins.total}</div>
+        {ins.clients.map((c) => (
+          <div key={c.client} style={{ marginBottom: 10 }}>
+            <div style={{ fontWeight: 600 }}>• {c.lines[0]}</div>
+            {c.lines.slice(1).map((l, i) => <div key={i} style={{ paddingLeft: 16, color: l.startsWith("⚠") ? "var(--amber)" : "var(--text-secondary)" }}>{l}</div>)}
+          </div>
+        ))}
+        {ins.none.length > 0 && <div style={{ color: "var(--text-muted)" }}>Không phát sinh ca: {ins.none.join(", ")}.</div>}
       </div>
     </div>
   );
@@ -261,6 +419,12 @@ export default function TabCompanyReport() {
   const lockSel = saved?.report?.selection || null;
   const selDiffers = saved && !sameList(lockSel, clients);
   const shown = view === "locked" && saved ? saved.report : live;
+  // Clicked Bể vỡ cell ({row, col}; col null = whole row). Tied to the report
+  // it was clicked on: another report (other period / type / view) renders
+  // with no selection instead of an index that may not exist there.
+  const [pickState, setPickState] = useState(null);
+  const pick = pickState && pickState.report === shown ? pickState : null;
+  const setPick = (p) => setPickState(p ? { ...p, report: shown } : null);
 
   const doLock = async () => {
     const who = clients ? `khách: ${clients.map(label).join(", ")}` : "mẫu đầy đủ";
@@ -425,7 +589,18 @@ export default function TabCompanyReport() {
             {" · "}* = tuần/tháng chưa đủ 7 ngày sau khi kết thúc, số còn có thể đổi.
           </div>
           <ReportTable title="Ontime LTL" countTitle="# đơn LTC" rateTitle="% ontime" sec={shown.ontime} higherIsBetter />
-          <ReportTable title="Bể vỡ và đền bù" countTitle="# case bể và đền (theo ngày phát hiện)" rateTitle="% bể đền / GTC" sec={shown.damage} higherIsBetter={false} />
+          <ReportTable title="Bể vỡ và đền bù" countTitle="# case bể và đền (theo ngày phát hiện)" rateTitle="% bể đền / GTC" sec={shown.damage} higherIsBetter={false}
+            picked={pick} onPick={(row, col) => setPick(pick && pick.row === row && pick.col === col ? null : { row, col })}>
+            {pick && shown.damage.rows[pick.row] && (
+              <CasePanel
+                title={`${shown.damage.rows[pick.row].name} · ${pick.col == null ? "tất cả các cột" : shown.damage.cols[pick.col].label}`}
+                cases={casesFor(shown, pick.row, pick.col)}
+                expected={pick.col == null ? null : Number(shown.damage.rows[pick.row].counts[pick.col]) || 0}
+                onClose={() => setPick(null)}
+              />
+            )}
+          </ReportTable>
+          <InsightBox ins={shown.insights && shown.insights.damage} />
           <ReportTable title="Hàng hoàn" countTitle="# đơn FD" rateTitle="% FD" sec={shown.fd} higherIsBetter={false} />
           <div style={{ ...small, marginTop: -4 }}>
             % bể đền của mỗi khách = ca bể / GTC của chính khách đó. Dòng tổng chỉ cộng các khách trong bảng.
