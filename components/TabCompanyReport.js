@@ -117,7 +117,7 @@ function deltas(r, delta) {
 // Bể vỡ extras (user 27/09): every % shows its "cases/GTC" underneath (a
 // small GTC makes one case look huge), and case counts are clickable to list
 // the orders behind them (onPick(row, col | null) — null = whole row).
-function ReportTable({ title, countTitle, rateTitle, sec, higherIsBetter, onPick, picked, children }) {
+function ReportTable({ title, countTitle, rateTitle, sec, higherIsBetter, onPick, picked, pickHint, children }) {
   const showGtc = sec.rows.some((r) => Array.isArray(r.gtc));
   const cols = sec.cols;
   const hasDelta = !!sec.delta;
@@ -157,7 +157,7 @@ function ReportTable({ title, countTitle, rateTitle, sec, higherIsBetter, onPick
                     const on = picked && picked.row === k && picked.col === i;
                     const clickable = onPick && Number(v) > 0;
                     return (
-                      <td key={"c" + i} onClick={clickable ? () => onPick(k, i) : undefined} title={clickable ? "Bấm để xem mã đơn" : undefined}
+                      <td key={"c" + i} onClick={clickable ? () => onPick(k, i) : undefined} title={clickable ? pickHint || "Bấm để xem mã đơn" : undefined}
                         style={{ ...td, ...(i === 0 ? sep : {}), ...(clickable ? { cursor: "pointer", color: "var(--cyan)", fontWeight: 700, textDecoration: "underline" } : {}), ...(on ? { background: "rgba(var(--brand-rgb),0.22)" } : {}) }}>
                         {fmtNum(v)}
                       </td>
@@ -185,6 +185,7 @@ function ReportTable({ title, countTitle, rateTitle, sec, higherIsBetter, onPick
         </table>
       </div>
       {showGtc && <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>Dưới mỗi % là ca / GTC (đơn giao thành công). ⚠ = GTC dưới 50 đơn, 1 ca đã ra % cao. Bấm số ca để xem mã đơn.</div>}
+      {!showGtc && onPick && <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>{pickHint}. Bấm tên khách để xem mọi tuần.</div>}
       {children}
     </div>
   );
@@ -296,28 +297,170 @@ function CasePanel({ title, cases, expected, onClose }) {
   );
 }
 
-function InsightBox({ ins }) {
+// Draft insight block (Bể vỡ / Ontime / Hàng hoàn) — same text as the
+// Insight sheet of the Excel file.
+function InsightBox({ ins, title, noneLabel = "Không phát sinh" }) {
   const [copied, setCopied] = useState(false);
-  if (!ins) return null;
-  const text = [ins.total, ...ins.clients.flatMap((c) => ["• " + c.lines[0], ...c.lines.slice(1).map((l) => "   " + l)]), ...(ins.none.length ? [`Không phát sinh ca: ${ins.none.join(", ")}.`] : [])].join(NL);
+  if (!ins || !(ins.clients.length || ins.total)) return null;
+  const none = ins.none || [];
+  const text = [ins.total, ins.pending, ...ins.clients.flatMap((c) => ["• " + c.lines[0], ...c.lines.slice(1).map((l) => "   " + l)]),
+    ...(none.length ? [`${noneLabel}: ${none.join(", ")}.`] : [])].filter(Boolean).join(NL);
   const copy = () => { try { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* no clipboard */ } };
+  const tone = (l) => (l.startsWith("⚠") || l.startsWith("⏳") ? "var(--amber)" : "var(--text-secondary)");
   return (
     <div className="glass" style={{ padding: 16, marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-        <div style={{ fontSize: 14, fontWeight: 700 }}>Gợi ý insight Bể vỡ · {ins.span}{ins.prevSpan ? ` so với ${ins.prevSpan}` : ""}</div>
+        <div style={{ fontSize: 14, fontWeight: 700 }}>Gợi ý insight {title} · {ins.span}{ins.prevSpan ? ` so với ${ins.prevSpan}` : ""}</div>
         <button onClick={copy} style={{ ...smallBtn, border: "1px solid rgba(var(--brand-rgb),0.3)", background: "rgba(var(--brand-rgb),0.1)", color: "var(--cyan)", fontWeight: 600 }}>{copied ? "✓ Đã copy" : "📋 Copy gợi ý"}</button>
       </div>
-      <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 10 }}>Hệ thống tự viết từ số liệu theo mẫu câu cố định (không dùng AI). Đã điền sẵn vào sheet Insight của file Excel — kiểm tra và sửa trước khi gửi.</div>
+      <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 10 }}>
+        Hệ thống tự viết từ số liệu theo mẫu câu cố định (không dùng AI). Đã điền sẵn vào sheet Insight của file Excel — kiểm tra và sửa trước khi gửi.
+        {ins.note ? ` ${ins.note}` : ""}{ins.routeRule ? ` Tuyến trễ nổi bật = ${ins.routeRule}.` : ""}
+      </div>
       <div style={{ fontSize: 13, lineHeight: 1.6 }}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>{ins.total}</div>
+        {ins.total && <div style={{ fontWeight: 700, marginBottom: ins.pending ? 2 : 8 }}>{ins.total}</div>}
+        {ins.pending && <div style={{ color: "var(--amber)", marginBottom: 8 }}>{ins.pending}</div>}
         {ins.clients.map((c) => (
           <div key={c.client} style={{ marginBottom: 10 }}>
             <div style={{ fontWeight: 600 }}>• {c.lines[0]}</div>
-            {c.lines.slice(1).map((l, i) => <div key={i} style={{ paddingLeft: 16, color: l.startsWith("⚠") ? "var(--amber)" : "var(--text-secondary)" }}>{l}</div>)}
+            {c.lines.slice(1).map((l, i) => <div key={i} style={{ paddingLeft: 16, color: tone(l) }}>{l}</div>)}
           </div>
         ))}
-        {ins.none.length > 0 && <div style={{ color: "var(--text-muted)" }}>Không phát sinh ca: {ins.none.join(", ")}.</div>}
+        {none.length > 0 && <div style={{ color: "var(--text-muted)" }}>{noneLabel}: {none.join(", ")}.</div>}
       </div>
+    </div>
+  );
+}
+
+// Orders behind an Ontime / Hàng hoàn cell. Only the report's week columns
+// carry order lists (an earlier-month column would be thousands of orders) —
+// `available` tells the panel to say so instead of showing an empty list.
+function flowFor(report, key, rowIdx, colIdx) {
+  const sec = report[key];
+  const row = sec && sec.rows[rowIdx];
+  if (!row) return { available: false, reason: "old", orders: [] };
+  if (!row.clients || !sec.cols.every((c) => c.mondays)) return { available: false, reason: "old", orders: [] };
+  const weekMondays = new Set(sec.cols.filter((c) => c.kind === "week").flatMap((c) => c.mondays));
+  const cols = colIdx == null ? sec.cols.map((_, i) => i).filter((i) => sec.cols[i].kind === "week") : [colIdx];
+  if (!cols.every((i) => sec.cols[i].mondays.every((m) => weekMondays.has(m)))) return { available: false, reason: "month", orders: [] };
+  const mondays = new Set(cols.flatMap((i) => sec.cols[i].mondays));
+  const clients = new Set(row.clients);
+  const list = key === "ontime" ? report.details.lateOrders || [] : report.details.fdOrders || [];
+  const orders = list.filter((o) => clients.has(o.client) && mondays.has(o.monday));
+  let routes = null;
+  if (key === "ontime") {
+    const m = new Map();
+    for (const c of clients) for (const mon of mondays) for (const [k, v] of Object.entries(((report.details.ontimeRoutes || {})[c] || {})[mon] || {})) {
+      const o = m.get(k) || { n: 0, late: 0 }; o.n += v[0]; o.late += v[1]; m.set(k, o);
+    }
+    routes = [...m.entries()].map(([k, o]) => ({ route: k, ...o, rate: o.n ? (o.n - o.late) / o.n : null }));
+  }
+  return { available: true, orders, routes };
+}
+
+const LATE_ROUTE_MIN = 3, LATE_ROUTE_GAP = 0.05; // user rule 27/09 (same as the insight)
+const shortRoute = (k) => String(k).split(" → ").map(shortWh).join(" → ");
+
+function OrdersPanel({ kind, title, data, expected, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const orders = data.orders;
+  const n = orders.length;
+  const copy = () => { try { navigator.clipboard.writeText(orders.map((o) => o.order_code).join(NL)); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* no clipboard */ } };
+  const chip = { fontSize: 11.5, padding: "3px 9px", borderRadius: 12, background: "rgba(var(--brand-rgb),0.12)", color: "var(--text-secondary)" };
+  const box = { marginTop: 12, border: "1px solid rgba(var(--brand-rgb),0.35)", borderRadius: 10, padding: 12, background: "rgba(var(--brand-rgb),0.04)" };
+  if (!data.available) {
+    return (
+      <div style={box}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700 }}>{title}</div>
+          <button onClick={onClose} style={smallBtn}>✕ Đóng</button>
+        </div>
+        <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 6 }}>
+          {data.reason === "month"
+            ? "Cột tháng trước không lưu danh sách đơn (quá nhiều đơn). Muốn xem, chọn loại Tháng và kỳ tháng đó."
+            : "Bản chốt này tạo trước khi có dữ liệu chi tiết — xem \"Số mới nhất\" hoặc chốt lại."}
+        </div>
+      </div>
+    );
+  }
+  let routeRows = [], rowRate = null, buckets = null;
+  if (kind === "ontime") {
+    const ev = data.routes.reduce((a, r) => a + r.n, 0), lt = data.routes.reduce((a, r) => a + r.late, 0);
+    rowRate = ev ? (ev - lt) / ev : null;
+    routeRows = data.routes.filter((r) => r.late > 0).sort((a, b) => b.late - a.late || a.rate - b.rate)
+      .map((r) => ({ ...r, hot: r.late >= LATE_ROUTE_MIN && rowRate != null && r.rate <= rowRate - LATE_ROUTE_GAP }));
+    buckets = [orders.filter((o) => o.days_late === 1).length, orders.filter((o) => o.days_late === 2).length, orders.filter((o) => o.days_late >= 3).length];
+  }
+  const hubs = kind === "fd" ? topOf(orders, (o) => shortWh(o.kho_giao), 3) : [];
+  const withDmg = kind === "fd" ? orders.filter((o) => o.has_damage).length : 0;
+  return (
+    <div style={box}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 700 }}>{title} · {n} {kind === "ontime" ? "đơn trễ" : "đơn hoàn"}</div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={copy} style={smallBtn}>{copied ? "✓ Đã copy" : "📋 Copy mã đơn"}</button>
+          <button onClick={onClose} style={smallBtn}>✕ Đóng</button>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+        {kind === "ontime" && <>
+          <span style={chip}>{fmtPct(rowRate)} ontime · {n} trễ / {data.routes.reduce((a, r) => a + r.n, 0)} đơn đã giao được tính</span>
+          {n > 0 && <span style={chip}>Trễ 1 ngày: {buckets[0]} · 2 ngày: {buckets[1]} · từ 3 ngày: {buckets[2]}</span>}
+        </>}
+        {kind === "fd" && n > 0 && <>
+          <span style={chip}>Kho giao: {hubs.map(([h, k]) => `${h} ${k}`).join(", ")}</span>
+          <span style={chip}>{withDmg}/{n} đơn có ca bể Rillnet</span>
+        </>}
+      </div>
+      {kind === "ontime" && routeRows.length > 0 && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Tuyến có đơn trễ <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>— tô đỏ: ≥ {LATE_ROUTE_MIN} đơn trễ và thấp hơn {fmtPct(rowRate)} của dòng này ≥ 5 điểm</span></div>
+          <div style={{ overflowX: "auto", maxHeight: 220, overflowY: "auto" }}>
+            <table className="data-table" style={{ fontSize: 12 }}>
+              <thead><tr><th>Tuyến (kho lấy → kho giao)</th><th style={{ textAlign: "right" }}>Đơn được tính</th><th style={{ textAlign: "right" }}>Trễ</th><th style={{ textAlign: "right" }}>% ontime</th></tr></thead>
+              <tbody>
+                {routeRows.map((r) => (
+                  <tr key={r.route} style={r.hot ? { color: "var(--red)", fontWeight: 700 } : undefined}>
+                    <td>{shortRoute(r.route)}</td><td style={{ textAlign: "right" }}>{fmtNum(r.n)}</td><td style={{ textAlign: "right" }}>{fmtNum(r.late)}</td><td style={{ textAlign: "right" }}>{fmtPct(r.rate)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      {n > 0 && (
+        <div style={{ overflowX: "auto", maxHeight: 320, overflowY: "auto" }}>
+          <table className="data-table" style={{ fontSize: 12 }}>
+            <thead><tr>
+              <th>Mã đơn</th><th>Khách</th><th>Ngày lấy</th>
+              {kind === "ontime" ? <><th>Hạn giao</th><th>Ngày giao</th><th style={{ textAlign: "right" }}>Trễ</th></> : <th>Trạng thái</th>}
+              <th>Tuyến (kho lấy → kho giao)</th><th>Tỉnh giao</th><th style={{ textAlign: "right" }}>Kg</th>
+              {kind === "fd" && <th>Ca bể</th>}
+            </tr></thead>
+            <tbody>
+              {[...orders].sort((a, b) => (kind === "ontime" ? b.days_late - a.days_late : 0) || a.order_code.localeCompare(b.order_code)).map((o) => (
+                <tr key={o.order_code}>
+                  <td style={{ fontWeight: 700 }}>{o.order_code}</td>
+                  <td>{o.client === "DigiWorld" ? "Digiworld" : o.client}</td>
+                  <td>{String(o.pickup_date || o.pickup_time || "").slice(0, 10).split("-").reverse().join("/")} <span style={{ opacity: 0.6 }}>{o.week}</span></td>
+                  {kind === "ontime"
+                    ? <><td>{String(o.deadline || "").split("-").reverse().join("/")}</td><td>{String(o.delivered_date || "").split("-").reverse().join("/")}</td>
+                      <td style={{ textAlign: "right", ...(o.days_late >= 3 ? { color: "var(--red)", fontWeight: 700 } : {}) }}>{o.days_late ?? "—"} ngày</td></>
+                    : <td>{o.status}</td>}
+                  <td>{shortWh(o.kho_lay) || "?"} → {shortWh(o.kho_giao) || "?"}</td>
+                  <td>{o.to_province || ""}</td>
+                  <td style={{ textAlign: "right" }}>{o.weight_kg ?? "—"}</td>
+                  {kind === "fd" && <td>{o.has_damage ? "Có" : ""}</td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {expected != null && n !== expected && (
+        <div style={{ fontSize: 11.5, color: "var(--amber)", marginTop: 6 }}>Bảng ghi {expected} nhưng danh sách có {n} — báo lại để kiểm tra.</div>
+      )}
     </div>
   );
 }
@@ -425,6 +568,9 @@ export default function TabCompanyReport() {
   const [pickState, setPickState] = useState(null);
   const pick = pickState && pickState.report === shown ? pickState : null;
   const setPick = (p) => setPickState(p ? { ...p, report: shown } : null);
+  // One open panel at a time, across the three tables ({sec, row, col}).
+  const pickOf = (sec) => (pick && pick.sec === sec ? pick : null);
+  const togglePick = (sec) => (row, col) => setPick(pick && pick.sec === sec && pick.row === row && pick.col === col ? null : { sec, row, col });
 
   const doLock = async () => {
     const who = clients ? `khách: ${clients.map(label).join(", ")}` : "mẫu đầy đủ";
@@ -588,10 +734,20 @@ export default function TabCompanyReport() {
             {view === "locked" ? " · BẢN ĐÃ CHỐT" : " · số mới nhất (chưa chốt)"}
             {" · "}* = tuần/tháng chưa đủ 7 ngày sau khi kết thúc, số còn có thể đổi.
           </div>
-          <ReportTable title="Ontime LTL" countTitle="# đơn LTC" rateTitle="% ontime" sec={shown.ontime} higherIsBetter />
+          <ReportTable title="Ontime LTL" countTitle="# đơn LTC" rateTitle="% ontime" sec={shown.ontime} higherIsBetter
+            picked={pickOf("ontime")} onPick={togglePick("ontime")} pickHint="Bấm số đơn để xem đơn trễ và tuyến trễ">
+            {pickOf("ontime") && (
+              <OrdersPanel kind="ontime"
+                title={`Ontime · ${shown.ontime.rows[pick.row].name} · ${pick.col == null ? "các tuần của kỳ" : shown.ontime.cols[pick.col].label}`}
+                data={flowFor(shown, "ontime", pick.row, pick.col)}
+                expected={pick.col == null || !shown.ontime.rows[pick.row].late ? null : shown.ontime.rows[pick.row].late[pick.col]}
+                onClose={() => setPick(null)} />
+            )}
+          </ReportTable>
+          <InsightBox ins={shown.insights && shown.insights.ontime} title="Ontime" />
           <ReportTable title="Bể vỡ và đền bù" countTitle="# case bể và đền (theo ngày phát hiện)" rateTitle="% bể đền / GTC" sec={shown.damage} higherIsBetter={false}
-            picked={pick} onPick={(row, col) => setPick(pick && pick.row === row && pick.col === col ? null : { row, col })}>
-            {pick && shown.damage.rows[pick.row] && (
+            picked={pickOf("damage")} onPick={togglePick("damage")}>
+            {pickOf("damage") && shown.damage.rows[pick.row] && (
               <CasePanel
                 title={`${shown.damage.rows[pick.row].name} · ${pick.col == null ? "tất cả các cột" : shown.damage.cols[pick.col].label}`}
                 cases={casesFor(shown, pick.row, pick.col)}
@@ -600,8 +756,18 @@ export default function TabCompanyReport() {
               />
             )}
           </ReportTable>
-          <InsightBox ins={shown.insights && shown.insights.damage} />
-          <ReportTable title="Hàng hoàn" countTitle="# đơn FD" rateTitle="% FD" sec={shown.fd} higherIsBetter={false} />
+          <InsightBox ins={shown.insights && shown.insights.damage} title="Bể vỡ" noneLabel="Không phát sinh ca" />
+          <ReportTable title="Hàng hoàn" countTitle="# đơn FD" rateTitle="% FD" sec={shown.fd} higherIsBetter={false}
+            picked={pickOf("fd")} onPick={togglePick("fd")} pickHint="Bấm số đơn hoàn để xem mã đơn">
+            {pickOf("fd") && (
+              <OrdersPanel kind="fd"
+                title={`Hàng hoàn · ${shown.fd.rows[pick.row].name} · ${pick.col == null ? "các tuần của kỳ" : shown.fd.cols[pick.col].label}`}
+                data={flowFor(shown, "fd", pick.row, pick.col)}
+                expected={pick.col == null ? null : shown.fd.rows[pick.row].counts[pick.col]}
+                onClose={() => setPick(null)} />
+            )}
+          </ReportTable>
+          <InsightBox ins={shown.insights && shown.insights.fd} title="Hàng hoàn" noneLabel="Không có đơn hoàn" />
           <div style={{ ...small, marginTop: -4 }}>
             % bể đền của mỗi khách = ca bể / GTC của chính khách đó. Dòng tổng chỉ cộng các khách trong bảng.
             # đơn LTC theo ngày lấy, GTC theo ngày giao, ca bể theo ngày phát hiện (chi tiết trong file Excel).
