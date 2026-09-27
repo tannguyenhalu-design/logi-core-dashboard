@@ -582,7 +582,7 @@ Tạo cookie `logi_session` bằng `sealData()` (iron-session) với `SESSION_SE
 **Cài đặt kênh khách hàng — user ĐÃ LƯU lúc 20:22 27/09** ("3117379 - Nguyễn Thành Tân", 28 khách): so mặc định — NK Miền Bắc, NK Miền Nam, NK DC10 Bình Dương có dòng riêng ở CẢ Ontime + Hàng hoàn; CellphoneS North, Cellphones, FRT B2C, Điện máy Tân Long có dòng riêng ở Hàng hoàn; Naduco chuyển sang B2C. → Báo cáo Ontime/Hàng hoàn mẫu đầy đủ từ đó có thêm các dòng này (số tổng không đổi). **Bản tự chốt W38–W39 lúc 09:15 28/09 sẽ theo cấu hình này**; 2 bản chốt cũ (W37, tháng 08) không đổi. Bộ kiểm tra cũ `sel_test_prod` báo 6 lỗi "số/tên dòng giống bản chốt" là do nó giả định bố cục mặc định — không phải lỗi hệ thống.
 
 **Sổ tay cải tiến (28/09):**
-- [ ] Tab `ActionTrials` trên production sẽ tự tạo ở lần lưu đầu tiên. Khi kiểm thử local đã tạo 1 giải pháp test "[TEST-T01]…" rồi xoá mềm → dòng đó còn trong tab `ActionTrials` của sheet theo `.env.local` (đánh dấu `deleted_at`, không hiện trong app) — xoá tay dòng 2 nếu muốn tab sạch.
+- [ ] Tab `ActionTrials` đã được tạo lúc kiểm thử 28/09 (local và production dùng chung `GOOGLE_SHEET_ID` — production đọc ra đúng version của lần xoá test). Dòng 2 là giải pháp test "[TEST-T01]…" đã xoá mềm (`deleted_at` 18:09Z 27/09, không hiện trong app); Nhật ký có 3 dòng `trial.*` của "Test manager"/"Test sd3". Có thể xoá tay dòng 2 nếu muốn tab sạch.
 
 **Cần user chốt:**
 - [ ] **Kỳ báo cáo 2 tuần cuối năm 2026**: 2026 có 53 tuần ISO; W53 (28/12–03/01) và 2027-W01 (04/01–10/01) đều lẻ → theo luật tuần lẻ thì kỳ W52–W53 và kỳ W53–W1 chồng nhau 1 tuần, và không có "tuần 54" để báo cáo. Hỏi user trước kỳ báo cáo cuối 12/2026.
