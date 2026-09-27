@@ -258,12 +258,39 @@ const PRINT_VERDICT = {
   ineffective: { color: "#991b1b", bg: "#fee2e2" },
 };
 
-const scopeParts = (t) => [
-  ["Khách hàng", t.clients.join(", ")],
-  ["Kho lấy", t.khoLay.length ? t.khoLay.map(shortWh).join(", ") : "Tất cả"],
-  ["Kho giao", t.khoGiao.length ? t.khoGiao.map(shortWh).join(", ") : "Tất cả"],
-  ["Tỉnh giao", t.provinces.length ? t.provinces.join(", ") : "Tất cả"],
+// Long scopes (e.g. 50 kho giao) are shown as the first few names + "+N kho"
+// (user 28/09: "thu gọn phạm vi"); the Excel file keeps the full lists.
+const compactList = (items, unit, max, render = (v) => v) => (!items.length ? "Tất cả"
+  : items.length <= max ? items.map(render).join(", ")
+    : `${items.slice(0, max).map(render).join(", ")} +${items.length - max} ${unit}`);
+const SCOPE_FIELDS = [
+  ["Khách hàng", "clients", "khách", (v) => v],
+  ["Kho lấy", "khoLay", "kho", shortWh],
+  ["Kho giao", "khoGiao", "kho", shortWh],
+  ["Tỉnh giao", "provinces", "tỉnh", (v) => v],
 ];
+const scopeParts = (t, max = 3) => SCOPE_FIELDS.map(([label, key, unit, render]) => [label, compactList(t[key], unit, max, render)]);
+
+// Modal cell: compact list with "Xem tất cả (N)" / "Thu gọn".
+function ScopeCell({ label, items, unit, render, style }) {
+  const [open, setOpen] = useState(false);
+  const MAX = 3;
+  const long = items.length > MAX;
+  return (
+    <div style={style}>
+      <div style={small}>{label}{long ? ` (${items.length} ${unit})` : ""}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, wordBreak: "break-word" }}>
+        {!items.length ? "Tất cả" : open || !long ? items.map(render).join(", ") : items.slice(0, MAX).map(render).join(", ")}
+        {long && (
+          <button type="button" onClick={() => setOpen((v) => !v)}
+            style={{ marginLeft: 6, fontSize: 11.5, fontWeight: 600, color: "var(--cyan)", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit" }}>
+            {open ? "Thu gọn" : `+${items.length - MAX} ${unit} · Xem tất cả`}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 const periodLabels = (imp) => {
   const pr = imp.periods;
   return {
@@ -394,8 +421,8 @@ function TrialDetail({ trial, impact, loading, error, onClose, onEdit }) {
 
         {/* General info */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 8, marginTop: 14 }}>
-          {scopeParts(trial).map(([k, x]) => (
-            <div key={k} style={infoCell}><div style={small}>{k}</div><div style={{ fontSize: 13, fontWeight: 600, wordBreak: "break-word" }}>{x}</div></div>
+          {SCOPE_FIELDS.map(([label, key, unit, render]) => (
+            <ScopeCell key={`${trial.id}-${key}`} label={label} items={trial[key]} unit={unit} render={render} style={infoCell} />
           ))}
           <div style={infoCell}><div style={small}>Thời gian áp dụng</div><div style={{ fontSize: 13, fontWeight: 600 }}>{fmt(trial.startDate)} → {trial.endDate ? fmt(trial.endDate) : "Ongoing"}</div></div>
           <div style={infoCell}><div style={small}>Baseline (trước khi áp dụng)</div><div style={{ fontSize: 13, fontWeight: 600 }}>{fmt(trial.baseStart)} – {fmt(trial.baseEnd)}</div></div>
@@ -517,7 +544,7 @@ function TrialPrintView({ trial, imp, rows, onClose }) {
 
         <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 14, fontSize: 12 }}>
           <tbody>
-            {[...scopeParts(trial), ["Thời gian áp dụng", `${fmt(trial.startDate)} → ${trial.endDate ? fmt(trial.endDate) : "Ongoing"}`],
+            {[...scopeParts(trial, 5).map(([k, x]) => [k, / \+\d+ (kho|tỉnh|khách)$/.test(x) ? `${x} (đủ danh sách trong file Excel)` : x]), ["Thời gian áp dụng", `${fmt(trial.startDate)} → ${trial.endDate ? fmt(trial.endDate) : "Ongoing"}`],
               ["So sánh", `${periodLabels(imp).base} vs ${periodLabels(imp).post}`]].map(([k, x]) => (
               <tr key={k}><td style={{ padding: "4px 8px 4px 0", color: C.muted, width: 150, verticalAlign: "top" }}>{k}</td><td style={{ padding: "4px 0", fontWeight: 600 }}>{x}</td></tr>
             ))}
@@ -690,16 +717,23 @@ export default function TabTrials() {
               <tbody>
                 {shown.map((t) => {
                   const on = t.id === selected;
+                  // Compact in the list (1 name or a count); full lists on hover.
+                  const part = (label, items, unit, render) => (!items.length ? "" : `${label}: ${items.length === 1 ? render(items[0]) : `${items.length} ${unit}`}`);
                   const scope = [
-                    t.khoLay.length ? `Lấy: ${t.khoLay.map(shortWh).join(", ")}` : "",
-                    t.khoGiao.length ? `Giao: ${t.khoGiao.map(shortWh).join(", ")}` : "",
-                    t.provinces.length ? `Tỉnh: ${t.provinces.join(", ")}` : "",
+                    part("Lấy", t.khoLay, "kho", shortWh),
+                    part("Giao", t.khoGiao, "kho", shortWh),
+                    part("Tỉnh", t.provinces, "tỉnh", (v) => v),
                   ].filter(Boolean).join(" · ") || "Toàn bộ đơn của khách";
+                  const scopeFull = [
+                    t.khoLay.length ? `Kho lấy: ${t.khoLay.map(shortWh).join(", ")}` : "",
+                    t.khoGiao.length ? `Kho giao: ${t.khoGiao.map(shortWh).join(", ")}` : "",
+                    t.provinces.length ? `Tỉnh giao: ${t.provinces.join(", ")}` : "",
+                  ].filter(Boolean).join(NL);
                   return (
                     <tr key={t.id} onClick={() => setSelected(on ? null : t.id)} style={{ cursor: "pointer", background: on ? "rgba(var(--brand-rgb),0.10)" : undefined }}>
                       <td style={{ fontWeight: 600, maxWidth: 320, whiteSpace: "normal" }}>{on ? "▾ " : "▸ "}{t.name}</td>
                       <td style={{ whiteSpace: "normal", maxWidth: 160 }}>{t.clients.join(", ")}</td>
-                      <td style={{ whiteSpace: "normal", maxWidth: 260, color: "var(--text-secondary)" }}>{scope}</td>
+                      <td style={{ whiteSpace: "normal", maxWidth: 260, color: "var(--text-secondary)" }} title={scopeFull || undefined}>{scope}</td>
                       <td style={{ whiteSpace: "nowrap" }}>{fmtS(t.startDate)} → {t.endDate ? fmtS(t.endDate) : "Ongoing"}</td>
                       <td><StatusBadge s={t.status} /></td>
                       <td style={{ ...small, whiteSpace: "nowrap" }}>{t.updatedBy}<br />{vnStamp(t.updatedAt)}</td>
