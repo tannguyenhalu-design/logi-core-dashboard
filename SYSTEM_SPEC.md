@@ -3,7 +3,7 @@
 > **Mục đích của file này**: đây là TÀI LIỆU DUY NHẤT cần đọc để hiểu dự án đang làm gì, đang ở trạng thái nào, và tái tạo lại toàn bộ hệ thống từ đầu — không cần đọc code trước. Viết cho 3 đối tượng: (1) quản lý muốn nắm tiến độ, (2) người mới join team, (3) 1 AI coding agent được giao tiếp quản/build lại hệ thống. Mọi con số, tên sheet, công thức, ngưỡng nghiệp vụ lấy TRỰC TIẾP từ code thật đang chạy production — không suy đoán. Nếu code thay đổi mà file này chưa cập nhật, tin code, không tin file.
 >
 > - Tạo lần đầu: 2026-09-21. Cập nhật lớn: 2026-09-26 (sáng — bổ sung trạng thái/lịch sử/runbook).
-> - **Cập nhật lần cuối: 2026-09-27** — sự cố #33 (sheet tự đảo ngày/tháng `case_date` → ghi `RAW`), ghi chú cách gán tuần trong báo cáo Excel, chốt lại W37.
+> - **Cập nhật lần cuối: 2026-09-27** — tab "Báo cáo công ty" + chọn khách key account (mục 8.0b); sự cố #33 (sheet tự đảo ngày/tháng `case_date` → ghi `RAW`), ghi chú cách gán tuần trong báo cáo Excel, chốt lại W37.
 > - Cập nhật 2026-09-26 (chiều) — sau đợt tái cấu trúc "chỉ còn LTL": xoá FTL / Vận hành SD3 / Tách chuyến, dữ liệu chạy qua snapshot Vercel Blob, máy chủ chuyển sang Singapore, giao diện phẳng màu cam GHN, vá lỗ hổng CDN. Sửa lại chỗ ghi sai trước đây về nguồn `raw_ontime` (mục 4).
 
 ---
@@ -192,7 +192,9 @@ Thanh điều hướng: **Tổng quan LTL · Bản đồ tỉnh thành · Hư h�
 - **📄 Tạo báo cáo tóm tắt** (`components/ExecutiveReport.js`): trang nền trắng gồm 4 KPI + thay đổi, xu hướng theo tháng, "Điểm cần chú ý" (on-time giảm mạnh, đơn treo, đến hạn hôm nay, chờ lấy, tuyến bể vỡ cao, kho), top 10 dự án. Nút **In / Lưu PDF** (`window.print()`, CSS `@media print` chỉ in `.exec-report`, A4) và **Copy nội dung** (văn bản gạch đầu dòng để dán slide). Theo bộ lọc đang chọn, không gọi thêm API.
 
 ### 8.0b Báo cáo chất lượng cho công ty (Excel, 27/09)
-Nút **"📊 Xuất báo cáo"** (Manager + SD3) → chọn **loại** và **kỳ** → `/api/report/biweekly?type=week|biweekly|month&period=2026-W38|2026-08` trả `.xlsx` (`&format=json` để xem/đối chiếu).
+**Tab "Báo cáo công ty"** (sidebar, Manager + SD3 — `components/TabCompanyReport.js`, thêm 27/09; nút cũ "📊 Xuất báo cáo" trong Tổng quan LTL giờ chỉ là lối tắt "📊 Báo cáo công ty" sang tab): chọn **loại** + **kỳ** + **khách**, xem trước 3 bảng (Ontime · Bể vỡ · Hàng hoàn) đúng như file Excel, tải Excel, chốt số, chuyển "Số mới nhất / Bản đã chốt", mục **"Số đã đổi kể từ lúc chốt"** (so bản chốt với số mới nhất cùng bộ khách, liệt kê từng ô), danh sách các kỳ đã chốt.
+- **Chọn khách key account** (user chốt 27/09: công ty chỉ xem 1 hoặc vài khách, không xem tổng ngành): `&clients=LG LTL|Aqua B2C` → **cả 3 bảng** chỉ hiện các khách đó (B2B trước, B2C sau), bỏ "Khác" và tổng B2B/B2C; dòng cuối **"Tổng khách đã chọn"** chỉ cộng họ — bể vỡ = Σ ca / Σ GTC của chính các khách đó (% từng khách luôn = ca của khách / GTC của chính khách). Không truyền `clients` = **Mẫu đầy đủ** (bố cục báo cáo gốc; dòng tổng bể vỡ cũng mang tên "Tổng khách đã chọn" vì chỉ cộng 7 khách của bảng). Báo cáo trả thêm `selection` + `clientOptions` (mọi khách Điện máy có đơn trong các cột, xếp theo số đơn). **1 kỳ = 1 bản chốt**, lưu kèm bộ khách; chốt lại với bộ khác = ghi đè. Excel ghi "Khách: …" ở phụ đề + ghi chú dòng tổng; sheet Chi tiết lọc theo khách.
+- API: `/api/report/biweekly?type=week|biweekly|month&period=2026-W38|2026-08` trả `.xlsx` (`&format=json` để xem/đối chiếu).
 - **Tuần**: 4 tuần ISO gần nhất (tuần chọn là cuối) + cột **±** so tuần trước (số đơn: % thay đổi; tỷ lệ: điểm, xanh = tốt / đỏ = xấu).
 - **2 tuần**: tháng trước + 3 tuần (Ontime, Hàng hoàn), 4 tuần (Bể vỡ) — đúng bố cục báo cáo gốc.
 - **Tháng**: 3 tháng gần nhất (bỏ tháng trước 07/2026 — ngoài phạm vi dữ liệu) + các tuần của tháng chọn + cột ± so tháng trước. Mặc định = tháng gần nhất đã hết tuần.
@@ -259,6 +261,7 @@ Persona xưng "Tiểu Đệ", gọi user "Đại Ca". UI: `components/AIChatDraw
 | `/api/auth/sso-login`, `/api/auth/sso-callback`, `/api/logout` | — | GHN SSO |
 | `/api/data` | session | Dữ liệu 3 góc nhìn LTL (kèm `stuck`, `anomalies`). `?province=X` → `{ok, provinceOrders}`; `?pendingPickup=1` → `{ok, pendingOrders}`; `?stuck=1` → `{ok, stuckOrders}`; `?force=true` → dựng lại snapshot trước. Header `Cache-Control: private, no-store` (BẮT BUỘC). |
 | `/api/system-health` | manager | Trạng thái từng nguồn dữ liệu (mục 8.4) |
+| `/api/report/biweekly` | **manager, sd3** | Báo cáo công ty (mục 8.0b): GET `?type&period[&clients=A|B][&version=locked][&format=json]` → xlsx/JSON; `?list=1`; POST = chốt số (lưu kèm bộ khách) |
 | `/api/scraper-heartbeat` | `SNAPSHOT_SECRET` (`x-snapshot-secret`), POST | Nhận kết quả từng bước của scraper |
 | `/api/cron/build-snapshot` | `CRON_SECRET` (Bearer) hoặc `SNAPSHOT_SECRET` (`x-snapshot-secret`) | Dựng lại snapshot Blob |
 | `/api/cron/backup` | `CRON_SECRET` | Backup hằng ngày |
