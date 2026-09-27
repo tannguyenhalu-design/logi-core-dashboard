@@ -7,7 +7,7 @@
  * data-name) replaces 63 per-path closures, and paths have no CSS
  * transitions, so hovering stays at full frame rate.
  */
-import { memo, useCallback, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import PROV_PATHS from "../lib/prov-paths.json";
 import CENTROIDS from "../lib/centroids.json";
 
@@ -69,6 +69,11 @@ function VietnamMap({
   const [hoveredProv, setHoveredProv] = useState(null);
   const hoveredRef = useRef(null);
   const leaveTimer = useRef(null);
+  // Hover is applied at most once per animation frame (2026-09-27): sweeping
+  // the mouse across several provinces fires many mouseover events per frame,
+  // only the last one is rendered.
+  const frame = useRef(0);
+  useEffect(() => () => { if (frame.current) cancelAnimationFrame(frame.current); }, []);
 
   const onOver = useCallback((e) => {
     const name = e.target?.dataset?.name;
@@ -76,8 +81,13 @@ function VietnamMap({
     if (leaveTimer.current) { clearTimeout(leaveTimer.current); leaveTimer.current = null; }
     if (hoveredRef.current === name) return;
     hoveredRef.current = name;
-    setHoveredProv(name);
-    if (onProvinceHover) onProvinceHover(name);
+    if (frame.current) return;
+    frame.current = requestAnimationFrame(() => {
+      frame.current = 0;
+      const current = hoveredRef.current;
+      setHoveredProv(current);
+      if (onProvinceHover) onProvinceHover(current);
+    });
   }, [onProvinceHover]);
 
   const onLeave = useCallback(() => {

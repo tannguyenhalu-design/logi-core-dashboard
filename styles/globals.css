@@ -26,13 +26,16 @@
   --brand-rgb: 249, 115, 22;
   --cyan: #f97316;
   --cyan-glow: rgba(249, 115, 22, 0.14);
-  --green: #10b981;
-  --green-glow: rgba(16, 185, 129, 0.2);
-  --red: #f43f5e;
-  --red-glow: rgba(244, 63, 94, 0.2);
+  /* Status colours, dark theme (2026-09-27): jade / amber / soft rose —
+     high contrast but easy on the eyes (WCAG AA ≥ 5.2:1 on panels and on
+     their own tinted chips; the old rose was 4.15:1 on its chip). */
+  --green: #2dd4bf;
+  --green-glow: rgba(45, 212, 191, 0.16);
+  --red: #fb7185;
+  --red-glow: rgba(251, 113, 133, 0.16);
   /* Pushed toward yellow so warnings don't blur into the orange accent. */
-  --amber: #eab308;
-  --amber-glow: rgba(234, 179, 8, 0.16);
+  --amber: #fbbf24;
+  --amber-glow: rgba(251, 191, 36, 0.16);
   --purple: #8b5cf6;
   --purple-glow: rgba(139, 92, 246, 0.2);
   --blue: #3b82f6;
@@ -353,8 +356,13 @@ body {
   animation: skeleton-pulse 1.2s ease-in-out infinite;
 }
 @keyframes skeleton-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
-.fade-in { animation: fade-in 0.18s ease-out; }
-@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+/* Soft enter (2026-09-27): fade + 4px rise on filter results and view switches. */
+.fade-in { animation: fade-in 0.22s ease-out; }
+.view-enter { animation: fade-in 0.22s ease-out; }
+.exception-card { animation: fade-in 0.26s ease-out both; }
+.exception-card:nth-child(2) { animation-delay: 40ms; }
+.exception-card:nth-child(3) { animation-delay: 80ms; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .refreshing { opacity: 0.55; transition: opacity 0.15s ease; pointer-events: none; }
 .top-progress {
   position: absolute; left: 0; right: 0; top: 0; height: 2px; overflow: hidden; z-index: 50;
@@ -365,7 +373,7 @@ body {
 }
 @keyframes top-progress { from { left: -35%; } to { left: 100%; } }
 @media (prefers-reduced-motion: reduce) {
-  .skeleton, .top-progress::after, .fade-in { animation: none; }
+  .skeleton, .top-progress::after, .fade-in, .view-enter, .exception-card { animation: none; }
 }
 
 /* ── Grid helpers ──

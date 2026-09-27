@@ -12,6 +12,7 @@ import ProjectPerformanceTable from "./tables/ProjectPerformanceTable";
 import ProvinceMapPanel from "./cards/ProvinceMapPanel";
 import DetailedDamageTable from "./tables/DetailedDamageTable";
 import RouteRiskMatrix from "./damage/RouteRiskMatrix";
+import ExceptionsPanel from "./cards/ExceptionsPanel";
 
 // Trend chart above only shows the COMBINED weekly total — "tuần 2 → tuần 3
 // giảm" was visible but which client drove it wasn't, and the AI chat had
@@ -207,7 +208,7 @@ const STUCK_COLUMNS = [
 // view: "ltl" (Tổng quan) | "map" (Bản đồ tỉnh thành) | "damage" (Hư hỏng & Rủi ro)
 // — all 3 read the same already-fetched /api/data payload, so switching tabs
 // never refetches.
-export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders, pendingPickup, fetchPendingOrders, kpiDelta, stuck, fetchStuckOrders, anomalies, damageRisk, riskOnly: riskOnlyProp, onRiskOnlyChange, sparkline, dueToday, fetchDueTodayOrders, onQuickRiskRoutes, onQuickLowOntime, onOpenReport, onOpenCompanyReport }) {
+export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders, pendingPickup, fetchPendingOrders, kpiDelta, stuck, fetchStuckOrders, anomalies, damageRisk, riskOnly: riskOnlyProp, onRiskOnlyChange, sparkline, dueToday, fetchDueTodayOrders, onQuickRiskRoutes, onQuickLowOntime, onOpenReport, onOpenCompanyReport, damageTrend, exceptions }) {
   const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
   const [selectedProvinceOrders, setSelectedProvinceOrders] = useState(null);
   // Fetched on demand (see fetchProvinceOrders in pages/dashboard.js) instead
@@ -227,7 +228,6 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
   const [stuckLoading, setStuckLoading] = useState(false);
   const [dueModalOpen, setDueModalOpen] = useState(false);
   const [anomModalOpen, setAnomModalOpen] = useState(false);
-  const [volMetric, setVolMetric] = useState("orders"); // "orders" | "weight"
   const [dueOrders, setDueOrders] = useState([]);
   const [dueLoading, setDueLoading] = useState(false);
   const theme = useTheme();
@@ -336,7 +336,9 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    // key={view}: switching Tổng quan / Bản đồ / Hư hỏng replays the soft
+    // enter transition (the sections differ per view anyway).
+    <div key={view} className="view-enter" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Quick filters */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, color: "var(--text-muted)", marginRight: 2 }}>Lọc nhanh:</span>
@@ -460,6 +462,8 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
         );
       })()}
 
+      {showOverview && !isClient && <ExceptionsPanel exceptions={exceptions} onFilterProject={onQuickLowOntime} />}
+
       {showOverview && (() => {
         // "Cần chú ý" — one row of 4 clickable tiles (2026-09-26), replacing
         // three full-width strips and the duplicate "Đến hạn" quick chip.
@@ -522,19 +526,12 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
       {showOverview && <div className="chart-panel" style={{ width: "100%" }}>
         <div className="chart-panel-title" style={{ flexWrap: "wrap", gap: 8 }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          <span>Sản lượng & On-time theo {data.isWeekly ? "tuần" : "tháng"}</span>
-          <span style={{ marginLeft: "auto", display: "inline-flex", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden" }}>
-            {[["orders", "Số đơn"], ["weight", "Khối lượng"]].map(([k, label]) => (
-              <button key={k} onClick={() => setVolMetric(k)} style={{
-                fontSize: 12, fontWeight: 600, padding: "4px 12px", border: "none", cursor: "pointer", fontFamily: "inherit",
-                background: volMetric === k ? "rgba(var(--brand-rgb),0.18)" : "transparent", color: volMetric === k ? "var(--cyan)" : "var(--text-muted)",
-              }}>{label}</button>
-            ))}
-          </span>
+          <span>Sản lượng & Chất lượng theo {data.isWeekly ? "tuần" : "tháng"}</span>
+          <span style={{ marginLeft: "auto", fontSize: 11.5, color: "var(--text-muted)", fontWeight: 400 }}>Cột: đơn · tấn — Đường: % on-time · % hư hỏng</span>
         </div>
-        <div style={{ height: 320 }}>
+        <div style={{ height: 340 }}>
           <VolumeTrendChart
-            metric={volMetric}
+            damageTrend={damageTrend || {}}
             ordersByMonth={data.ordersByMonth || {}}
             weightByMonth={data.weightByMonth || {}}
             ontimeByMonth={data.ontimeByMonth || {}}
@@ -545,7 +542,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
           />
         </div>
         <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6, textAlign: "center" }}>
-          ⓘ Cột nhạt = kỳ đang chạy, được so với cùng số ngày của kỳ trước (không so với cả kỳ). % on-time của kỳ đang chạy còn thay đổi vì nhiều đơn chưa giao.
+          ⓘ Cột nhạt / nét đứt = kỳ đang chạy, được so với cùng số ngày của kỳ trước (không so với cả kỳ); % on-time kỳ đang chạy còn thay đổi vì nhiều đơn chưa giao. % hư hỏng = ca bể vỡ theo ngày phát hiện / đơn giao thành công theo ngày giao (cùng định nghĩa báo cáo công ty), có trục riêng bên phải.
         </div>
       </div>}
 
