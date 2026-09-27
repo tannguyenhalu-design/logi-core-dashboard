@@ -230,7 +230,7 @@ Thanh điều hướng: **Tổng quan LTL · Bản đồ tỉnh thành · Hư h�
 Định nghĩa — dò ngược từ báo cáo W35–W37 của user và đã khớp số thật:
 - Tuần = ISO (T2–CN). Cột **"Tháng"** = các tuần ISO có **thứ 2 thuộc tháng** (2026-08 = W32–W36) → khớp tuyệt đối 7 khách. Tháng = tháng trước tháng của tuần kết thúc.
 - **# đơn LTC** = đơn theo tuần của `pickup_time` (khớp tuyệt đối LG/Samsung/Aqua/Casper/PSD). **% ontime** = ontime/(ontime+late) **chỉ đơn đã giao**.
-- Dòng **Khác** = khách ngoài danh sách, chia B2B/B2C theo `is_B2C` (snapshot có thêm cột `is_B2C`, `deliver_type`). Bảng Hàng hoàn tách riêng **Nguyễn Kim Miền Bắc** ở nhóm B2C (giống báo cáo gốc).
+- Dòng **Khác** = khách không có dòng riêng, chia B2B/B2C theo **"Cài đặt kênh khách hàng"** (từ 27/09; khách chưa cài đặt → đa số `is_B2C` của các đơn — trước 27/09 lấy theo đơn đầu tiên, đã sửa). Snapshot có thêm cột `is_B2C`, `deliver_type`. Mặc định bảng Hàng hoàn tách riêng **Nguyễn Kim Miền Bắc** ở nhóm B2C (giống báo cáo gốc) — nay là cài đặt "dòng riêng ở Hàng hoàn" của khách này.
 - **FD** = `deliver_type = return` theo tuần lấy; % FD = FD / # đơn LTC.
 - **Bể vỡ** = `countedDamage` theo tuần của ngày phát hiện (`case_date`); % = ca / GTC (đơn đã giao theo tuần giao) — thống nhất cho mọi khách (báo cáo cũ có vài ô PSD/Casper/Digiworld không khớp mẫu số nào).
 - Nguồn FTL đã xét: `raw_ftl_orders` ngừng từ 27/08; `ftl_order_history` (sheet Booking, Apps Script mỗi 2h) đếm được số đơn khớp báo cáo (bỏ "Hủy đơn", DGW tách cùng tỉnh/khác tỉnh) nhưng **không có hạn giao** → không tính ontime.
@@ -316,6 +316,8 @@ nextjs-dashboard/
 │  ├─ KpiCard.js            # Thẻ KPI phẳng + delta + skeleton
 │  ├─ VietnamMap.js         # Bản đồ SVG tối ưu (layer memo + overlay hover)
 │  ├─ TabAIInsights.js      # Các section so sánh cùng kỳ / bể vỡ / khách mới
+│  ├─ TabCompanyReport.js   # Tab "Báo cáo công ty": chọn kỳ/khách, 3 bảng, xem sâu, gợi ý insight, chốt số (mục 8.0b)
+│  ├─ ClientChannelSettings.js # Cài đặt kênh khách hàng (Manager sửa, SD3 xem)
 │  ├─ TabUsers.js, TabAuditLog.js, TabBrain.js, AIChatDrawer.js, FilterBar.js, ThemeToggle.js, TruckLoader.js
 ├─ lib/
 │  ├─ sheets.js             # Đọc/ghi Sheets + cache Map 5 phút
@@ -325,6 +327,12 @@ nextjs-dashboard/
 │  ├─ transform-ai-insights.js, dm-clients.js, vn-regions.js, csv-export.js
 │  ├─ auth.js, sso.js, users.js, audit-log.js, backup.js, damage-claims.js
 │  ├─ ai-*.js, kpi-sync.js, rillnet-sync.js
+│  ├─ biweekly-report.js    # computeReport: báo cáo công ty 3 loại + insight + chi tiết (mục 8.0b)
+│  ├─ biweekly-xlsx.js      # Xuất Excel 7 sheet
+│  ├─ report-locks.js       # Chốt số (Blob private reports/…)
+│  ├─ report-cache.js       # Cache báo cáo đã tính theo snapshot + phiên bản cấu hình
+│  ├─ client-channels.js    # Cài đặt kênh khách hàng (tab ClientChannels) + mặc định + đa số is_B2C
+│  ├─ damage-rules.js, damage-risk.js
 │  └─ prov-paths.json (37KB, 1 chữ số thập phân), centroids.json, backup-data.json (cũ)
 ├─ cloud-scraper/           # Mục 6 (còn script FTL cũ đã tắt cron)
 ├─ styles/globals.css       # Token sáng/tối, KPI, skeleton, progress
