@@ -80,12 +80,35 @@ function recentMonths() {
     return { value: k, label: `Tháng ${k.slice(5, 7)}/${k.slice(0, 4)}` };
   }).filter((o) => o.value >= "2026-07");
 }
-const optionsFor = (type) => (type === "month" ? recentMonths() : recentWeeks(type === "biweekly"));
+// The period still running today (user 27/09: "giữa tuần sếp bất chợt kêu
+// báo cáo thì sao?") — listed first, numbers so far. Week: this week.
+// 2 tuần: the odd-ending period that contains this week. Tháng: the month of
+// this week's Monday (a month = the weeks whose Monday falls in it).
+function liveOption(type) {
+  const base = thisMonday();
+  const mon = ymd(new Date(base));
+  const key = (m) => { const { year, week } = isoWeek(m); return `${year}-W${String(week).padStart(2, "0")}`; };
+  if (type === "month") { const k = mon.slice(0, 7); return { value: k, label: `Tháng ${k.slice(5, 7)}/${k.slice(0, 4)} · đang diễn ra`, live: true }; }
+  if (type === "biweekly") {
+    const end = isoWeek(mon).week % 2 === 1 ? mon : ymd(new Date(base + 7 * DAY));
+    return { value: key(end), label: `${twoWeekName(end, true)} · đang diễn ra`, live: true };
+  }
+  return { value: key(mon), label: `W${isoWeek(mon).week} (${fmtDM(mon)} – ${fmtDM(ymd(new Date(base + 6 * DAY)))}) · đang diễn ra`, live: true };
+}
+const optionsFor = (type) => {
+  const live = liveOption(type);
+  const done = (type === "month" ? recentMonths() : recentWeeks(type === "biweekly")).filter((o) => o.value !== live.value);
+  return [live, ...done];
+};
+// The usual report is the last finished period — the running one is opt-in.
+const defaultPeriodFor = (type) => { const o = optionsFor(type); return (o.find((x) => !x.live) || o[0]).value; };
+const isLive = (type, period) => liveOption(type).value === period;
 const periodLabel = (type, period) => {
-  if (type === "month") return `Tháng ${period.slice(5, 7)}/${period.slice(0, 4)}`;
+  const live = isLive(type, period) ? " · đang diễn ra" : "";
+  if (type === "month") return `Tháng ${period.slice(5, 7)}/${period.slice(0, 4)}${live}`;
   const mon = mondayOfWeekKey(period);
   if (!mon) return period;
-  return type === "biweekly" ? twoWeekName(mon, true) : `W${isoWeek(mon).week}`;
+  return (type === "biweekly" ? twoWeekName(mon, true) : `W${isoWeek(mon).week}`) + live;
 };
 
 function readPicked() {
@@ -489,7 +512,7 @@ function diffReports(locked, live) {
 
 export default function TabCompanyReport() {
   const [type, setType] = useState("biweekly");
-  const [period, setPeriod] = useState(() => optionsFor("biweekly")[0].value);
+  const [period, setPeriod] = useState(() => defaultPeriodFor("biweekly"));
   const [mode, setMode] = useState("full"); // "full" = original layout | "pick" = chosen key accounts
   const [picked, setPicked] = useState([]);
   const [view, setView] = useState("live");
@@ -556,7 +579,7 @@ export default function TabCompanyReport() {
     setPicked(next); savePicked(next); setMsg(null);
   };
   const setAll = (list) => { setPicked(list); savePicked(list); setMsg(null); };
-  const changeType = (t) => { setType(t); setPeriod(optionsFor(t)[0].value); setMsg(null); };
+  const changeType = (t) => { setType(t); setPeriod(defaultPeriodFor(t)); setMsg(null); };
 
   const changes = useMemo(() => diffReports(saved?.report, lockLive), [saved, lockLive]);
   const lockSel = saved?.report?.selection || null;
@@ -576,7 +599,7 @@ export default function TabCompanyReport() {
     const who = clients ? `khách: ${clients.map(label).join(", ")}` : "mẫu đầy đủ";
     const text = saved
       ? `Kỳ này đã chốt lúc ${vnTime(saved.lock.lockedAt)} (${lockSel ? `khách: ${lockSel.map(label).join(", ")}` : "mẫu đầy đủ"}).\nChốt lại sẽ GHI ĐÈ bằng số hiện tại, ${who}. Tiếp tục?`
-      : `Chốt số ${periodLabel(type, period)} (${who})? Số hiện tại sẽ được lưu để tải lại đúng như vậy về sau.`;
+      : `Chốt số ${periodLabel(type, period)} (${who})? Số hiện tại sẽ được lưu để tải lại đúng như vậy về sau.${isLive(type, period) ? `${NL}${NL}Lưu ý: kỳ này CHƯA KẾT THÚC — bản chốt chỉ có số đến thời điểm này.` : ""}`;
     if (!confirm(text)) return;
     setBusy(true); setMsg(null);
     try {
