@@ -35,14 +35,29 @@ function thisMonday() {
   const t = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
   return t - ((new Date(t).getUTCDay() + 6) % 7) * DAY;
 }
+const fmtDM = (s) => `${s.slice(8, 10)}/${s.slice(5, 7)}`;
+// "2026-W39" → Monday "2026-09-21"
+function mondayOfWeekKey(key) {
+  const m = String(key).match(/^(\d{4})-W(\d{1,2})$/);
+  if (!m) return null;
+  const jan4 = new Date(Date.UTC(+m[1], 0, 4));
+  return ymd(new Date(jan4.getTime() - ((jan4.getUTCDay() + 6) % 7) * DAY + (+m[2] - 1) * 7 * DAY));
+}
+// A "2 tuần" period is named after both of its weeks (user 27/09:
+// "2 tuần 38 - 39 (14/09 - 27/09)"): W38–W39 (14/09 – 27/09).
+function twoWeekName(mon, withDates) {
+  const prev = ymd(new Date(Date.parse(mon) - 7 * DAY));
+  const name = `W${isoWeek(prev).week}–W${isoWeek(mon).week}`;
+  return withDates ? `${name} (${fmtDM(prev)} – ${fmtDM(ymd(new Date(Date.parse(mon) + 6 * DAY)))})` : name;
+}
 // Last 10 completed ISO weeks, newest first.
-function recentWeeks() {
+function recentWeeks(twoWeeks = false) {
   const base = thisMonday();
-  const fmt = (s) => `${s.slice(8, 10)}/${s.slice(5, 7)}`;
   return Array.from({ length: 10 }, (_, i) => {
     const mon = ymd(new Date(base - (i + 1) * 7 * DAY));
     const { year, week } = isoWeek(mon);
-    return { value: `${year}-W${String(week).padStart(2, "0")}`, label: `W${week} (${fmt(mon)} – ${fmt(ymd(new Date(Date.parse(mon) + 6 * DAY)))})` };
+    const value = `${year}-W${String(week).padStart(2, "0")}`;
+    return { value, label: twoWeeks ? twoWeekName(mon, true) : `W${week} (${fmtDM(mon)} – ${fmtDM(ymd(new Date(Date.parse(mon) + 6 * DAY)))})` };
   });
 }
 // Months whose Monday-weeks have all ended (a month = weeks with Monday in it).
@@ -57,8 +72,13 @@ function recentMonths() {
     return { value: k, label: `Tháng ${k.slice(5, 7)}/${k.slice(0, 4)}` };
   }).filter((o) => o.value >= "2026-07");
 }
-const optionsFor = (type) => (type === "month" ? recentMonths() : recentWeeks());
-const periodLabel = (type, period) => (type === "month" ? `Tháng ${period.slice(5, 7)}/${period.slice(0, 4)}` : period.replace(/^\d{4}-/, ""));
+const optionsFor = (type) => (type === "month" ? recentMonths() : recentWeeks(type === "biweekly"));
+const periodLabel = (type, period) => {
+  if (type === "month") return `Tháng ${period.slice(5, 7)}/${period.slice(0, 4)}`;
+  const mon = mondayOfWeekKey(period);
+  if (!mon) return period;
+  return type === "biweekly" ? twoWeekName(mon, true) : `W${isoWeek(mon).week}`;
+};
 
 function readPicked() {
   try { const v = JSON.parse(localStorage.getItem(PICK_KEY) || "null"); return Array.isArray(v) ? v : []; } catch { return []; }
