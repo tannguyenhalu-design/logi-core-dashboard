@@ -337,6 +337,8 @@ nextjs-dashboard/
 
 **Ca hư hỏng / đền bù / truy thu** (chốt 27/09 — theo đúng "Báo cáo bể vỡ" của Rillnet, `lib/damage-rules.js`): **ca hư hỏng** = ca có trong danh sách báo cáo (`counted = 1`: CS tick 💰 · đơn cũ bù tay · đã chốt tiền) — phiếu kho chưa thành ca (lưu từ giao diện cũ) vẫn ở sheet nhưng không tính; **đã chốt đền bù cho khách** = `_LB.tt[mã].chap_nhan_denbu === true` HOẶC `den_chot` (đúng hàm `_lbCndbRows` của trang); **truy thu** = `_LB.tt[mã].quyet_dinh` co/khong (chưa có = chờ chốt) + `tong_tien` — là tiền thu hồi từ bên gây lỗi, KHÔNG phải tiền đền cho khách (Rillnet chưa ghi tiền đền cho khách, trang "Tổng hợp" đền bù luôn = 0 nên không dùng nữa). Đối chiếu 27/09 (DM, 01/07–26/09): Rillnet 149 / 67 / 65 ca · 465.933.814đ — dashboard 148 / 67 / 65 · 465.933.814đ (lệch 1 ca Aqua `GYXG63UB` lấy hàng 26/06, ngoài phạm vi). Lưu ý tỷ lệ: Rillnet chia cho đơn đã giao/hoàn đúng những ngày có ca (149/8.754 = 1,70%), dashboard chia cho đơn lấy hàng.
 
+**Lịch kỳ báo cáo 2 tuần** (user chốt 27/09, mục 8.0b): báo cáo gửi công ty ở **tuần chẵn**, gồm số **2 tuần liền trước** → kỳ luôn kết thúc ở **tuần lẻ**. Báo cáo W30 = W28–W29 · W32 = W30–W31 · … · W38 = W36–W37 · **W40 = W38–W39 (14/09–27/09)**. Mã kỳ = tuần cuối (`2026-W39`). Hệ thống chỉ cho chọn/tạo kỳ tuần lẻ (`isBiweeklyEnd` trong `lib/biweekly-report.js`; API trả 400 cho kỳ tuần chẵn). Tuần = ISO (T2–CN), mốc giờ VN.
+
 **Ghi ngày vào Google Sheets** (chốt 27/09, sự cố #33): dữ liệu có ngày dạng chuỗi `dd/mm/yyyy` phải ghi bằng `valueInputOption: "RAW"`. `USER_ENTERED` để sheet (locale Mỹ) tự chuyển → ngày ≤ 12 bị đảo ngày/tháng. Mọi code đọc ngày chấp nhận cả `dd/mm/yyyy` lẫn `yyyy-mm-dd`.
 
 **Hư hỏng (cũ, raw_damage)**: `so_tien_ket_luan > 0` → "Đền bù"; `case_status` "đền bù"/"đã đi tiền" → "Đền bù"; "từ chối" → "Đã xử lý (không đền bù)"; còn lại "Chưa xử lý".
@@ -497,6 +499,7 @@ Tạo cookie `logi_session` bằng `sealData()` (iron-session) với `SESSION_SE
 | 21 – 22/09 | Tạo SYSTEM_SPEC; phát hiện lệch 1.072 đơn. |
 | **26/09 — tái cấu trúc "chỉ LTL"** | Xoá FTL / Vận hành SD3 / Tách chuyến (54 file); vá rò dữ liệu CDN; snapshot Vercel Blob (dựng sau mỗi lần scraper sync); tách "Đơn chờ lấy"; delta KPI theo bộ lọc; sửa khối bể vỡ theo bộ lọc; chuyển sang Singapore; giao diện phẳng cam GHN, skeleton, Chart.js không animation, bản đồ tối ưu. Commit `90df799` → `ad9dca0`. Cuối ngày: sửa Hồng Đạt ("PO"), thêm FRT Digital, nhận diện khách theo `nganh_hang = DM`. |
 | 26/09 (khuya) | Tab Hư hỏng: ma trận Kho lấy × Miền giao, tuyến rủi ro, rủi ro theo dự án, pipeline khiếu nại 4 bước + khung chi tiết (Manager/SD3 sửa); lọc nhanh; sparkline 7 ngày; báo cáo tóm tắt in/copy. |
+| 27/09 | Sửa gốc lỗi đảo ngày `case_date` (sự cố #33); báo cáo công ty Excel 3 loại + **Chốt số**; tab **Báo cáo công ty** + chọn khách key account; lịch kỳ 2 tuần tuần lẻ / báo cáo tuần chẵn; chốt W37 (2 tuần) + tháng 08. |
 | 26/09 (tối) | Tab **Trạng thái hệ thống** + heartbeat scraper; **Đơn treo / cần chú ý**; **On-time giảm mạnh**; **Tiểu Đệ 100% LTL** đọc snapshot, bỏ doanh thu/FTL/task. Commit `c65ce7f` + Phase C. |
 
 ---
@@ -513,6 +516,9 @@ Tạo cookie `logi_session` bằng `sealData()` (iron-session) với `SESSION_SE
 - [ ] Chuyển `/api/ontime-by-project` sang đọc snapshot (AI chat đã chuyển 26/09).
 - [ ] Dọn: script FTL cũ trong `cloud-scraper/`, `/api/hello`, `lib/backup-data.json`, biến env thừa (mục 14), tab Sheets FTL cũ, file rác gốc repo (`_tmp_populate_specs.mjs`, `test_groq_*.js`, `scripts/dump_0.csv`, `scripts/scraper_log.txt`).
 - [ ] Đồng bộ lại các file `.env*` local với production (đang lệch).
+
+**Cần user chốt:**
+- [ ] **Kỳ báo cáo 2 tuần cuối năm 2026**: 2026 có 53 tuần ISO; W53 (28/12–03/01) và 2027-W01 (04/01–10/01) đều lẻ → theo luật tuần lẻ thì kỳ W52–W53 và kỳ W53–W1 chồng nhau 1 tuần, và không có "tuần 54" để báo cáo. Hỏi user trước kỳ báo cáo cuối 12/2026.
 
 **Ý tưởng chưa làm:** đội Agent AI tự sửa lỗi/nâng cấp (từ audit 14/08) — cần chốt cơ chế duyệt trước.
 
