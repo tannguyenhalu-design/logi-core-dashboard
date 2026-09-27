@@ -199,6 +199,7 @@ Thanh điều hướng: **Tổng quan LTL · Bản đồ tỉnh thành · Hư h�
   - **Mẫu số GTC**: mỗi ô % trên tab hiện kèm `ca/GTC`; GTC < 50 tô xám (có ca thì ⚠). Excel: bảng Bể vỡ thêm khối **"# GTC (đơn giao thành công — mẫu số)"** bên phải (sau khối %, không đổi vị trí các cột cũ).
   - **Gợi ý insight** (`report.insights.damage`, hàm `damageInsights` trong `lib/biweekly-report.js`): **viết theo mẫu câu cố định từ số đã tính, KHÔNG dùng AI** (tránh bịa số — sự cố #9, #30). Kỳ trọng tâm: 2 tuần (2 tuần cuối vs 2 tuần trước), tuần (tuần cuối vs tuần trước), tháng (tháng chọn vs tháng trước). Mỗi khách có ca: số ca + % trên GTC, so kỳ trước, đơn tạo tuần nào (đánh dấu đơn tạo trước kỳ = phát hiện muộn), kho lấy, tuyến lặp lại (≥ 2 ca), kho phát hiện, chặng nghi vấn, số đơn đã hoàn, đền bù/truy thu, cảnh báo mẫu số nhỏ (GTC < 50). Hiện trên tab (nút copy) và **điền sẵn vào sheet Insight** mục "Bể vỡ và đền bù" với dòng "Gợi ý của hệ thống … kiểm tra, sửa hoặc xoá trước khi gửi"; ô trống "Nhận định của bạn" vẫn giữ.
   - **Excel sheet Chi tiết**: 19 cột — thêm Ngày tạo, Tuần tạo, Kho lấy, Tỉnh lấy, Kho giao, Tỉnh giao, Kg; xếp theo khách rồi tuần.
+  - Lưu ý code (lỗi bắt được khi tự test 27/09, trước khi deploy): ô đang chọn gắn với đúng báo cáo lúc bấm (`pickState.report === shown`). Không lưu chỉ số dòng/cột trơn — đổi Tháng (7 cột) → 2 tuần (4 cột) sẽ trỏ vào cột không tồn tại và làm treo tab.
   - Đợt này chỉ làm Bể vỡ; Ontime (khách/tuyến trễ) và Hàng hoàn chưa có xem sâu/gợi ý (để đợt sau nếu user cần).
 - API: `/api/report/biweekly?type=week|biweekly|month&period=2026-W38|2026-08` trả `.xlsx` (`&format=json` để xem/đối chiếu).
 - **Tuần**: 4 tuần ISO gần nhất (tuần chọn là cuối) + cột **±** so tuần trước (số đơn: % thay đổi; tỷ lệ: điểm, xanh = tốt / đỏ = xấu).
@@ -506,7 +507,7 @@ Tạo cookie `logi_session` bằng `sealData()` (iron-session) với `SESSION_SE
 | 21 – 22/09 | Tạo SYSTEM_SPEC; phát hiện lệch 1.072 đơn. |
 | **26/09 — tái cấu trúc "chỉ LTL"** | Xoá FTL / Vận hành SD3 / Tách chuyến (54 file); vá rò dữ liệu CDN; snapshot Vercel Blob (dựng sau mỗi lần scraper sync); tách "Đơn chờ lấy"; delta KPI theo bộ lọc; sửa khối bể vỡ theo bộ lọc; chuyển sang Singapore; giao diện phẳng cam GHN, skeleton, Chart.js không animation, bản đồ tối ưu. Commit `90df799` → `ad9dca0`. Cuối ngày: sửa Hồng Đạt ("PO"), thêm FRT Digital, nhận diện khách theo `nganh_hang = DM`. |
 | 26/09 (khuya) | Tab Hư hỏng: ma trận Kho lấy × Miền giao, tuyến rủi ro, rủi ro theo dự án, pipeline khiếu nại 4 bước + khung chi tiết (Manager/SD3 sửa); lọc nhanh; sparkline 7 ngày; báo cáo tóm tắt in/copy. |
-| 27/09 | Sửa gốc lỗi đảo ngày `case_date` (sự cố #33); báo cáo công ty Excel 3 loại + **Chốt số**; tab **Báo cáo công ty** + chọn khách key account; lịch kỳ 2 tuần tuần lẻ / báo cáo tuần chẵn; chốt W37 (2 tuần) + tháng 08. |
+| 27/09 | Sửa gốc lỗi đảo ngày `case_date` (sự cố #33); báo cáo công ty Excel 3 loại + **Chốt số**; tab **Báo cáo công ty** + chọn khách key account; lịch kỳ 2 tuần tuần lẻ / báo cáo tuần chẵn; chốt W37 (2 tuần) + tháng 08.; bể vỡ **xem sâu** (bấm số ca → mã đơn, tuyến, ngày tạo), mẫu số GTC, **gợi ý insight tự viết** (không AI); chốt tạm W38–W39 + lịch tự chốt bản cuối 09:15 28/09. |
 | 26/09 (tối) | Tab **Trạng thái hệ thống** + heartbeat scraper; **Đơn treo / cần chú ý**; **On-time giảm mạnh**; **Tiểu Đệ 100% LTL** đọc snapshot, bỏ doanh thu/FTL/task. Commit `c65ce7f` + Phase C. |
 
 ---
@@ -523,6 +524,10 @@ Tạo cookie `logi_session` bằng `sealData()` (iron-session) với `SESSION_SE
 - [ ] Chuyển `/api/ontime-by-project` sang đọc snapshot (AI chat đã chuyển 26/09).
 - [ ] Dọn: script FTL cũ trong `cloud-scraper/`, `/api/hello`, `lib/backup-data.json`, biến env thừa (mục 14), tab Sheets FTL cũ, file rác gốc repo (`_tmp_populate_specs.mjs`, `test_groq_*.js`, `scripts/dump_0.csv`, `scripts/scraper_log.txt`).
 - [ ] Đồng bộ lại các file `.env*` local với production (đang lệch).
+
+**Báo cáo công ty (đang theo dõi):**
+- [ ] **09:15 T2 28/09** — scheduled task `chot-so-w38-w39` tự chốt bản cuối kỳ W38–W39 (báo cáo W40), đè bản tạm 14:54 27/09. Kiểm tra kết quả lần chạy (mục Scheduled trong app); nếu báo "chưa sẵn sàng" (vd scraper hết phiên) → user đăng nhập lại qua noVNC rồi chốt tay. Script: `D:/Điện Máy/.claude/report-lock/lock_and_verify.cjs` (ngoài repo; `--dry` để chạy thử không chốt; thoát 0 = chốt + kiểm tra đạt, 2 = dữ liệu chưa về/không chốt, 3 = đã có người chốt/không đè, 1 = kiểm tra lỗi).
+- [ ] Xem sâu + gợi ý insight cho **Ontime** (khách/tuyến trễ) và **Hàng hoàn** — chưa làm, chờ user yêu cầu.
 
 **Cần user chốt:**
 - [ ] **Kỳ báo cáo 2 tuần cuối năm 2026**: 2026 có 53 tuần ISO; W53 (28/12–03/01) và 2027-W01 (04/01–10/01) đều lẻ → theo luật tuần lẻ thì kỳ W52–W53 và kỳ W53–W1 chồng nhau 1 tuần, và không có "tuần 54" để báo cáo. Hỏi user trước kỳ báo cáo cuối 12/2026.
