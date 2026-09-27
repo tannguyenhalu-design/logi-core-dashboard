@@ -8,7 +8,10 @@
  * GET  ?list=1                                     → locked reports
  * POST ?type=…&period=…                            → "Chốt số": store the
  *        current numbers so the same file can be re-downloaded later
+ *        [&cv=<version>]  config version the tab just saved → re-read it
  * Manager + SD3 only. Reads the LTL snapshot — does not touch /api/data.
+ * Rows are grouped by the "Cài đặt kênh khách hàng" config (lib/client-channels.js);
+ * computed reports are cached in memory per snapshot + config version.
  * (`week=` is still accepted for the biweekly type, the original param.)
  */
 import { getSession } from "../../../lib/auth";
@@ -17,10 +20,24 @@ import { computeReport, defaultPeriod, normalizePeriod, normalizeClients, REPORT
 import { buildBiweeklyWorkbook } from "../../../lib/biweekly-xlsx";
 import { saveLock, readLock, listLocks } from "../../../lib/report-locks";
 import { logAction } from "../../../lib/audit-log";
+import { readClientChannels } from "../../../lib/client-channels";
+import { reportCacheKey, getCachedReport, setCachedReport } from "../../../lib/report-cache";
 
 export const config = { maxDuration: 60 };
 
 const FILE_PREFIX = { week: "Tuan", biweekly: "2-tuan", month: "Thang" };
+
+// Latest numbers, grouped by the current channel config (cached per instance).
+async function liveReport(type, period, clients, minVersion) {
+  const [base, { config, version }] = await Promise.all([loadLtlBase(), readClientChannels({ minVersion })]);
+  const now = Date.now();
+  const key = reportCacheKey({ builtAt: base.builtAt, version, type, period, clients, now });
+  const hit = getCachedReport(key);
+  if (hit) return hit;
+  const report = { ...computeReport(base, { type, period, clients, channelConfig: config }, now), channelsVersion: version || null };
+  setCachedReport(key, report);
+  return report;
+}
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "private, no-store");
@@ -45,9 +62,10 @@ export default async function handler(req, res) {
         : type === "biweekly" ? "Kỳ 2 tuần phải kết thúc ở tuần lẻ, vd 2026-W39 (= W38–W39, báo cáo W40)" : "period phải dạng 2026-W38" });
     }
     const clients = normalizeClients(req.query.clients);
+    const cv = String(req.query.cv || "");
 
     if (req.method === "POST") {
-      const report = computeReport(await loadLtlBase(), { type, period, clients });
+      const report = await liveReport(type, period, clients, cv);
       const meta = await saveLock(type, period, report, actor);
       await logAction({ actor, action: "report.lock", target: `${type} ${period}`, details: { dataAsOf: report.dataAsOf, clients: clients || "mẫu đầy đủ" } }).catch(() => {});
       return res.status(200).json({ ok: true, lock: meta });
@@ -61,7 +79,7 @@ export default async function handler(req, res) {
       report = saved.report;
       lock = { lockedAt: saved.lockedAt, lockedBy: saved.lockedBy };
     } else {
-      report = computeReport(await loadLtlBase(), { type, period, clients });
+      report = await liveReport(type, period, clients, cv);
     }
     if (req.query.format === "json") return res.status(200).json({ ok: true, report, lock });
 

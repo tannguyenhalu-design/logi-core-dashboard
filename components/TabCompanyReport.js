@@ -11,6 +11,7 @@
  * selection it was made with, and the tab lists what changed since.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ClientChannelSettings from "./ClientChannelSettings";
 
 const DAY = 86400000;
 const ymd = (d) => d.toISOString().slice(0, 10);
@@ -526,6 +527,10 @@ export default function TabCompanyReport() {
   const [msg, setMsg] = useState(null);
   const [search, setSearch] = useState("");
   const reqId = useRef(0);
+  // Version of the channel config just saved here: sent as &cv= so whichever
+  // server instance answers re-reads the config instead of a cached copy.
+  const [cv, setCv] = useState("");
+  const cvParam = cv ? `&cv=${encodeURIComponent(cv)}` : "";
 
   useEffect(() => { const p = readPicked(); if (p.length) setPicked(p); }, []);
   const clients = mode === "pick" ? picked : null;
@@ -542,7 +547,7 @@ export default function TabCompanyReport() {
     const id = ++reqId.current;
     setLoading(true); setErr(null);
     const t = setTimeout(() => {
-      fetch(apiUrl(type, period, clients, "&format=json"))
+      fetch(apiUrl(type, period, clients, `&format=json${cvParam}`))
         .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
         .then(({ ok, j }) => { if (id !== reqId.current) return; if (!ok || !j.ok) throw new Error(j.error || "Không tải được báo cáo"); setLive(j.report); })
         .catch((e) => { if (id === reqId.current) setErr(e.message); })
@@ -550,7 +555,7 @@ export default function TabCompanyReport() {
     }, mode === "pick" ? 450 : 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type, period, mode, JSON.stringify(picked)]);
+  }, [type, period, mode, JSON.stringify(picked), cv]);
 
   // The locked version of this period (if any) + latest numbers with ITS selection.
   const isLocked = locks.some((l) => l.type === type && l.period === period);
@@ -561,10 +566,10 @@ export default function TabCompanyReport() {
     fetch(apiUrl(type, period, null, "&version=locked&format=json")).then((r) => r.json()).then((j) => {
       if (cancel || !j.ok) return;
       setSaved({ report: j.report, lock: j.lock });
-      return fetch(apiUrl(type, period, j.report.selection, "&format=json")).then((r) => r.json()).then((k) => { if (!cancel && k.ok) setLockLive(k.report); });
+      return fetch(apiUrl(type, period, j.report.selection, `&format=json${cvParam}`)).then((r) => r.json()).then((k) => { if (!cancel && k.ok) setLockLive(k.report); });
     }).catch(() => {});
     return () => { cancel = true; };
-  }, [type, period, isLocked]);
+  }, [type, period, isLocked, cv]);
 
   // Any Điện máy client in the window; the full list comes with every report.
   const clientOptions = useMemo(() => {
@@ -692,6 +697,8 @@ export default function TabCompanyReport() {
           )}
         </div>
       </div>
+
+      <ClientChannelSettings onSaved={(v) => { setCv(v); setMsg(null); }} />
 
       {/* ── Lock status + actions ── */}
       <div className="glass" style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
