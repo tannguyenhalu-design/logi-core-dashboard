@@ -12,7 +12,6 @@ import ProjectPerformanceTable from "./tables/ProjectPerformanceTable";
 import ProvinceMapPanel from "./cards/ProvinceMapPanel";
 import DetailedDamageTable from "./tables/DetailedDamageTable";
 import RouteRiskMatrix from "./damage/RouteRiskMatrix";
-import BiweeklyExport from "../BiweeklyExport";
 
 // Trend chart above only shows the COMBINED weekly total — "tuần 2 → tuần 3
 // giảm" was visible but which client drove it wasn't, and the AI chat had
@@ -208,7 +207,7 @@ const STUCK_COLUMNS = [
 // view: "ltl" (Tổng quan) | "map" (Bản đồ tỉnh thành) | "damage" (Hư hỏng & Rủi ro)
 // — all 3 read the same already-fetched /api/data payload, so switching tabs
 // never refetches.
-export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders, pendingPickup, fetchPendingOrders, kpiDelta, stuck, fetchStuckOrders, anomalies, damageRisk, riskOnly: riskOnlyProp, onRiskOnlyChange, sparkline, dueToday, fetchDueTodayOrders, onQuickRiskRoutes, onQuickLowOntime, onOpenReport }) {
+export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders, pendingPickup, fetchPendingOrders, kpiDelta, stuck, fetchStuckOrders, anomalies, damageRisk, riskOnly: riskOnlyProp, onRiskOnlyChange, sparkline, dueToday, fetchDueTodayOrders, onQuickRiskRoutes, onQuickLowOntime, onOpenReport, onOpenCompanyReport }) {
   const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
   const [selectedProvinceOrders, setSelectedProvinceOrders] = useState(null);
   // Fetched on demand (see fetchProvinceOrders in pages/dashboard.js) instead
@@ -356,7 +355,12 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
           📉 Dự án On-time &lt; {LOW_ONTIME_PCT}% <b style={{ color: "var(--cyan)" }}>{fmt(lowOntimeProjects.length)}</b>{lowOntimeActive && " ✕"}
         </button>
         <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          {(userRole === "manager" || userRole === "sd3") && <BiweeklyExport />}
+          {(userRole === "manager" || userRole === "sd3") && onOpenCompanyReport && (
+            <button onClick={onOpenCompanyReport} title="Mở tab Báo cáo công ty" style={{
+              display: "flex", alignItems: "center", gap: 6, background: "rgba(var(--brand-rgb),0.1)", border: "1px solid rgba(var(--brand-rgb),0.3)",
+              color: "var(--cyan)", padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+            }}>📊 Báo cáo công ty</button>
+          )}
           {onOpenReport && (
             <button onClick={onOpenReport} style={{
               display: "flex", alignItems: "center", gap: 6, background: "rgba(var(--brand-rgb),0.1)", border: "1px solid rgba(var(--brand-rgb),0.3)",

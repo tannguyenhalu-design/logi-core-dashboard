@@ -14,6 +14,7 @@ const LTLDashboard  = dynamic(() => import("../components/ltl/LTLDashboard"), { 
 const TabUsers      = dynamic(() => import("../components/TabUsers"),      { ssr: false });
 const TabAuditLog   = dynamic(() => import("../components/TabAuditLog"),   { ssr: false });
 const TabSystemHealth = dynamic(() => import("../components/TabSystemHealth"), { ssr: false });
+const TabCompanyReport = dynamic(() => import("../components/TabCompanyReport"), { ssr: false });
 const ExecutiveReport = dynamic(() => import("../components/ExecutiveReport"), { ssr: false });
 const TabBrain      = dynamic(() => import("../components/TabBrain"),      { ssr: false });
 const AIChatDrawer  = dynamic(() => import("../components/AIChatDrawer"),  { ssr: false });
@@ -51,7 +52,7 @@ export default function DashboardPage({ user: initialUser }) {
   // Any pre-refactor tab (operations/tachtrip/ftl) still in an old session
   // cookie means the user had dashboard access — same mapping as lib/users.js.
   const canSeeLTL = isManager || (user.tabs || []).some((t) => LEGACY_TABS.includes(t));
-  const [activeTab, setActiveTab] = useState(canSeeLTL ? "ltl" : "none"); // LTL_VIEWS id | 'users' | 'auditlog' | 'health' | 'brain' | 'none'
+  const [activeTab, setActiveTab] = useState(canSeeLTL ? "ltl" : "none"); // LTL_VIEWS id | 'report' | 'users' | 'auditlog' | 'health' | 'brain' | 'none'
   const isLTLView = LTL_VIEWS.some((v) => v.id === activeTab);
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [selectedProjects, setSelectedProjects] = useState([]);
@@ -296,6 +297,23 @@ export default function DashboardPage({ user: initialUser }) {
                 {v.label}
               </div>
             ))}
+            {(user.role === "manager" || user.role === "sd3") && (
+              <div
+                className={`nav-item ${activeTab === "report" ? "active" : ""}`}
+                onClick={() => setActiveTab("report")}
+                style={{
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
+                  color: activeTab === "report" ? "#fff" : "var(--text-muted)",
+                  background: activeTab === "report" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/>
+                </svg>
+                Báo cáo công ty
+              </div>
+            )}
             {user.role === "manager" && (
               <div
                 className={`nav-item ${activeTab === "users" ? "active" : ""}`}
@@ -480,7 +498,8 @@ export default function DashboardPage({ user: initialUser }) {
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)" }}>
                 {LTL_VIEWS.find((v) => v.id === activeTab)?.label
-                  || (activeTab === "users" ? "Quản lý người dùng"
+                  || (activeTab === "report" ? "Báo cáo công ty"
+                  : activeTab === "users" ? "Quản lý người dùng"
                   : activeTab === "auditlog" ? "Nhật Ký Hoạt Động"
                   : activeTab === "health" ? "Trạng thái hệ thống"
                   : activeTab === "brain" ? "Bộ Não Tiểu Đệ"
@@ -578,6 +597,8 @@ export default function DashboardPage({ user: initialUser }) {
               }}>
                 Tài khoản của bạn chưa được cấp quyền xem mục nào. Vui lòng liên hệ quản lý.
               </div>
+            ) : activeTab === "report" ? (
+              <TabCompanyReport />
             ) : activeTab === "users" ? (
               <TabUsers />
             ) : activeTab === "brain" ? (
@@ -617,7 +638,7 @@ export default function DashboardPage({ user: initialUser }) {
 
                 {!dashData && loading && <DashboardSkeleton view={activeTab} />}
 
-                {dashData && !(error && !loading) && <div className={loading ? "refreshing" : "fade-in"}><LTLDashboard view={activeTab} data={dashData.ltl} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} fetchProvinceOrders={fetchProvinceOrders} pendingPickup={dashData.pendingPickup} fetchPendingOrders={fetchPendingOrders} kpiDelta={dashData.kpiDelta} stuck={dashData.stuck} fetchStuckOrders={fetchStuckOrders} anomalies={dashData.anomalies} damageRisk={dashData.damageRisk} riskOnly={riskOnly} onRiskOnlyChange={setRiskOnly} sparkline={dashData.sparkline} dueToday={dashData.dueToday} fetchDueTodayOrders={fetchDueTodayOrders} onQuickRiskRoutes={() => { setRiskOnly(true); setActiveTab("damage"); }} onQuickLowOntime={setSelectedProjects} onOpenReport={() => setReportOpen(true)} /></div>}
+                {dashData && !(error && !loading) && <div className={loading ? "refreshing" : "fade-in"}><LTLDashboard view={activeTab} data={dashData.ltl} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} fetchProvinceOrders={fetchProvinceOrders} pendingPickup={dashData.pendingPickup} fetchPendingOrders={fetchPendingOrders} kpiDelta={dashData.kpiDelta} stuck={dashData.stuck} fetchStuckOrders={fetchStuckOrders} anomalies={dashData.anomalies} damageRisk={dashData.damageRisk} riskOnly={riskOnly} onRiskOnlyChange={setRiskOnly} sparkline={dashData.sparkline} dueToday={dashData.dueToday} fetchDueTodayOrders={fetchDueTodayOrders} onQuickRiskRoutes={() => { setRiskOnly(true); setActiveTab("damage"); }} onQuickLowOntime={setSelectedProjects} onOpenReport={() => setReportOpen(true)} onOpenCompanyReport={() => setActiveTab("report")} /></div>}
               </>
             )}
           </main>

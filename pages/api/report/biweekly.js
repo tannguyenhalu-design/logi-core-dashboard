@@ -3,6 +3,8 @@
  *
  * GET  ?type=week|biweekly|month&period=2026-W38|2026-08
  *        [&version=live|locked] [&format=json]      → .xlsx (or JSON)
+ *        [&clients=LG LTL|Aqua B2C]                 → only these clients,
+ *        total row "Tổng khách đã chọn" (omit = full layout)
  * GET  ?list=1                                     → locked reports
  * POST ?type=…&period=…                            → "Chốt số": store the
  *        current numbers so the same file can be re-downloaded later
@@ -11,7 +13,7 @@
  */
 import { getSession } from "../../../lib/auth";
 import { loadLtlBase } from "../../../lib/ltl-snapshot";
-import { computeReport, defaultPeriod, normalizePeriod, REPORT_TYPES } from "../../../lib/biweekly-report";
+import { computeReport, defaultPeriod, normalizePeriod, normalizeClients, REPORT_TYPES } from "../../../lib/biweekly-report";
 import { buildBiweeklyWorkbook } from "../../../lib/biweekly-xlsx";
 import { saveLock, readLock, listLocks } from "../../../lib/report-locks";
 import { logAction } from "../../../lib/audit-log";
@@ -39,11 +41,12 @@ export default async function handler(req, res) {
     const rawPeriod = req.query.period || req.query.week;
     const period = rawPeriod ? normalizePeriod(type, rawPeriod) : defaultPeriod(type);
     if (!period) return res.status(400).json({ error: type === "month" ? "period phải dạng 2026-08" : "period phải dạng 2026-W38" });
+    const clients = normalizeClients(req.query.clients);
 
     if (req.method === "POST") {
-      const report = computeReport(await loadLtlBase(), { type, period });
+      const report = computeReport(await loadLtlBase(), { type, period, clients });
       const meta = await saveLock(type, period, report, actor);
-      await logAction({ actor, action: "report.lock", target: `${type} ${period}`, details: { dataAsOf: report.dataAsOf } }).catch(() => {});
+      await logAction({ actor, action: "report.lock", target: `${type} ${period}`, details: { dataAsOf: report.dataAsOf, clients: clients || "mẫu đầy đủ" } }).catch(() => {});
       return res.status(200).json({ ok: true, lock: meta });
     }
     if (req.method !== "GET") return res.status(405).end();
@@ -55,7 +58,7 @@ export default async function handler(req, res) {
       report = saved.report;
       lock = { lockedAt: saved.lockedAt, lockedBy: saved.lockedBy };
     } else {
-      report = computeReport(await loadLtlBase(), { type, period });
+      report = computeReport(await loadLtlBase(), { type, period, clients });
     }
     if (req.query.format === "json") return res.status(200).json({ ok: true, report, lock });
 
