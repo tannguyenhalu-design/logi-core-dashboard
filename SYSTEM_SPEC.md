@@ -3,7 +3,7 @@
 > **Mục đích của file này**: đây là TÀI LIỆU DUY NHẤT cần đọc để hiểu dự án đang làm gì, đang ở trạng thái nào, và tái tạo lại toàn bộ hệ thống từ đầu — không cần đọc code trước. Viết cho 3 đối tượng: (1) quản lý muốn nắm tiến độ, (2) người mới join team, (3) 1 AI coding agent được giao tiếp quản/build lại hệ thống. Mọi con số, tên sheet, công thức, ngưỡng nghiệp vụ lấy TRỰC TIẾP từ code thật đang chạy production — không suy đoán. Nếu code thay đổi mà file này chưa cập nhật, tin code, không tin file.
 >
 > - Tạo lần đầu: 2026-09-21. Cập nhật lớn: 2026-09-26 (sáng — bổ sung trạng thái/lịch sử/runbook).
-> - **Cập nhật lần cuối: 2026-09-27** — tab "Báo cáo công ty" + chọn khách key account (mục 8.0b); sự cố #33 (sheet tự đảo ngày/tháng `case_date` → ghi `RAW`), ghi chú cách gán tuần trong báo cáo Excel, chốt lại W37.
+> - **Cập nhật lần cuối: 2026-09-27** — chốt lại W37 + tháng 08 lúc 14:22 (bảng "Các kỳ đã chốt", mục 8.0b); tab "Báo cáo công ty" + chọn khách key account (mục 8.0b); sự cố #33 (sheet tự đảo ngày/tháng `case_date` → ghi `RAW`), ghi chú cách gán tuần trong báo cáo Excel, chốt lại W37.
 > - Cập nhật 2026-09-26 (chiều) — sau đợt tái cấu trúc "chỉ còn LTL": xoá FTL / Vận hành SD3 / Tách chuyến, dữ liệu chạy qua snapshot Vercel Blob, máy chủ chuyển sang Singapore, giao diện phẳng màu cam GHN, vá lỗ hổng CDN. Sửa lại chỗ ghi sai trước đây về nguồn `raw_ontime` (mục 4).
 
 ---
@@ -199,6 +199,12 @@ Thanh điều hướng: **Tổng quan LTL · Bản đồ tỉnh thành · Hư h�
 - **2 tuần**: tháng trước + 3 tuần (Ontime, Hàng hoàn), 4 tuần (Bể vỡ) — đúng bố cục báo cáo gốc.
 - **Tháng**: 3 tháng gần nhất (bỏ tháng trước 07/2026 — ngoài phạm vi dữ liệu) + các tuần của tháng chọn + cột ± so tháng trước. Mặc định = tháng gần nhất đã hết tuần.
 - **Chốt số** (`POST` cùng tham số, `lib/report-locks.js`): lưu nguyên báo cáo vào Blob private `reports/{type}/{period}.json` (kèm người chốt, giờ chốt, ghi Nhật ký). Tải lại bằng `&version=locked` — file ghi "SỐ ĐÃ CHỐT lúc …", tên file có hậu tố `-da-chot`. Chốt lại = ghi đè (có xác nhận). `?list=1` liệt kê kỳ đã chốt. Lý do: số tuần gần nhất còn đổi (đơn giao/hoàn muộn, ca bể vỡ nhập muộn) — đối chiếu 27/09: W36 khớp gần hết báo cáo cũ, W37 lệch ở ontime/FD/bể vỡ vì báo cáo cũ chốt 14/09. Code: `lib/biweekly-report.js` (tính) + `lib/biweekly-xlsx.js` (exceljs). 6 sheet: **Ontime LTL** (tháng + 3 tuần) · **Bể vỡ** (4 tuần, kèm mục ghi chú **"CÁCH GÁN TUẦN"** — thêm 27/09 theo yêu cầu user: # đơn LTC theo ngày lấy, GTC theo ngày giao, ca bể theo ngày phát hiện; ví dụ "lấy W37, giao W38, phát hiện W38 → ca tính W38"; % bể là tỷ lệ tham chiếu theo tuần, không phải tỷ lệ bể của đúng các đơn giao tuần đó) · **Hàng hoàn** (tháng + 3 tuần) · **FTL** (khung trống, user tự điền — chưa có nguồn có hạn giao) · **Insight** (ô trống) · **Chi tiết** (ca bể vỡ + đơn FD; mỗi ca bể có **Tuần phát hiện · Tuần lấy · Tuần giao · Trạng thái đơn** để đối chiếu khi bị hỏi — W34–W37: 33/68 ca phát hiện ngay tuần lấy, 35 ca muộn 1–5 tuần; 34/68 ca là đơn hoàn, không nằm trong GTC). Tuần < 7 ngày sau khi kết thúc gắn `*` (chưa chốt).
+- **Các kỳ đã chốt (tính đến 27/09):**
+  | Kỳ | Chốt lúc (giờ VN) | Bộ khách | Ghi chú |
+  |---|---|---|---|
+  | 2 tuần W37 (07–13/09) | **14:22 27/09** | Mẫu đầy đủ | Lần 3. Lần 1 (13:27) sai Aqua W37 = 5 do lỗi đảo ngày (sự cố #33); lần 2 (13:48) đúng số (tổng bể vỡ W34–W37 = 24/21/8/15) nhưng dòng tổng còn tên cũ "Tổng Điện máy". Lần 3 chỉ đổi tên dòng tổng thành "Tổng khách đã chọn" + thêm ghi chú mới — số giữ nguyên. |
+  | Tháng 08/2026 (W32–W36) | **14:22 27/09** | Mẫu đầy đủ | Lần 2. Lần 1 (14:01) đúng số, dòng tổng còn tên cũ. Lần 2 chỉ đổi tên + ghi chú — số giữ nguyên (bể vỡ tháng 07/08 = 30/85). |
+  Kiểm tra mỗi lần chốt lại: số Ontime/Bể vỡ/Hàng hoàn + danh sách ca trong Chi tiết giống hệt bản trước, đọc lại file Excel khớp từng ô.
 
 Định nghĩa — dò ngược từ báo cáo W35–W37 của user và đã khớp số thật:
 - Tuần = ISO (T2–CN). Cột **"Tháng"** = các tuần ISO có **thứ 2 thuộc tháng** (2026-08 = W32–W36) → khớp tuyệt đối 7 khách. Tháng = tháng trước tháng của tuần kết thúc.
