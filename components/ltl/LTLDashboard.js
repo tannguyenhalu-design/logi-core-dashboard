@@ -12,6 +12,7 @@ import ProjectPerformanceTable from "./tables/ProjectPerformanceTable";
 import ProvinceMapPanel from "./cards/ProvinceMapPanel";
 import DetailedDamageTable from "./tables/DetailedDamageTable";
 import RouteRiskMatrix from "./damage/RouteRiskMatrix";
+import BiweeklyExport from "../BiweeklyExport";
 
 // Trend chart above only shows the COMBINED weekly total — "tuần 2 → tuần 3
 // giảm" was visible but which client drove it wasn't, and the AI chat had
@@ -355,6 +356,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
           📉 Dự án On-time &lt; {LOW_ONTIME_PCT}% <b style={{ color: "var(--cyan)" }}>{fmt(lowOntimeProjects.length)}</b>{lowOntimeActive && " ✕"}
         </button>
         <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          {(userRole === "manager" || userRole === "sd3") && <BiweeklyExport />}
           {onOpenReport && (
             <button onClick={onOpenReport} style={{
               display: "flex", alignItems: "center", gap: 6, background: "rgba(var(--brand-rgb),0.1)", border: "1px solid rgba(var(--brand-rgb),0.3)",

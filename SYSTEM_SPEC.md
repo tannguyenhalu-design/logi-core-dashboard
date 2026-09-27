@@ -190,6 +190,17 @@ Thanh điều hướng: **Tổng quan LTL · Bản đồ tỉnh thành · Hư h�
 - **Lọc nhanh** (chốt 26/09): **⏰ Đến hạn hôm nay** (đơn đã lấy, chưa giao, hạn giao = hôm nay → mở danh sách `/api/data?dueToday=1`); **⚠ Tuyến rủi ro cao** (chuyển sang tab Hư hỏng, bật "chỉ tuyến rủi ro cao"); **📉 Dự án On-time < 90%** (tự chọn các dự án < 90% với ≥ 20 đơn đã đánh giá trong kỳ đang xem; bấm lần nữa để bỏ).
 - **📄 Tạo báo cáo tóm tắt** (`components/ExecutiveReport.js`): trang nền trắng gồm 4 KPI + thay đổi, xu hướng theo tháng, "Điểm cần chú ý" (on-time giảm mạnh, đơn treo, đến hạn hôm nay, chờ lấy, tuyến bể vỡ cao, kho), top 10 dự án. Nút **In / Lưu PDF** (`window.print()`, CSS `@media print` chỉ in `.exec-report`, A4) và **Copy nội dung** (văn bản gạch đầu dòng để dán slide). Theo bộ lọc đang chọn, không gọi thêm API.
 
+### 8.0b Báo cáo 2 tuần cho công ty (Excel, 27/09)
+Nút **"📊 Xuất báo cáo 2 tuần"** (Manager + SD3) → chọn tuần kết thúc → `/api/report/biweekly?week=2026-W37` trả `.xlsx` (`&format=json` để xem/đối chiếu). Code: `lib/biweekly-report.js` (tính) + `lib/biweekly-xlsx.js` (exceljs). 6 sheet: **Ontime LTL** (tháng + 3 tuần) · **Bể vỡ** (4 tuần) · **Hàng hoàn** (tháng + 3 tuần) · **FTL** (khung trống, user tự điền — chưa có nguồn có hạn giao) · **Insight** (ô trống) · **Chi tiết** (ca bể vỡ + đơn FD). Tuần < 7 ngày sau khi kết thúc gắn `*` (chưa chốt).
+
+Định nghĩa — dò ngược từ báo cáo W35–W37 của user và đã khớp số thật:
+- Tuần = ISO (T2–CN). Cột **"Tháng"** = các tuần ISO có **thứ 2 thuộc tháng** (2026-08 = W32–W36) → khớp tuyệt đối 7 khách. Tháng = tháng trước tháng của tuần kết thúc.
+- **# đơn LTC** = đơn theo tuần của `pickup_time` (khớp tuyệt đối LG/Samsung/Aqua/Casper/PSD). **% ontime** = ontime/(ontime+late) **chỉ đơn đã giao**.
+- Dòng **Khác** = khách ngoài danh sách, chia B2B/B2C theo `is_B2C` (snapshot có thêm cột `is_B2C`, `deliver_type`). Bảng Hàng hoàn tách riêng **Nguyễn Kim Miền Bắc** ở nhóm B2C (giống báo cáo gốc).
+- **FD** = `deliver_type = return` theo tuần lấy; % FD = FD / # đơn LTC.
+- **Bể vỡ** = `countedDamage` theo tuần của ngày phát hiện (`case_date`); % = ca / GTC (đơn đã giao theo tuần giao) — thống nhất cho mọi khách (báo cáo cũ có vài ô PSD/Casper/Digiworld không khớp mẫu số nào).
+- Nguồn FTL đã xét: `raw_ftl_orders` ngừng từ 27/08; `ftl_order_history` (sheet Booking, Apps Script mỗi 2h) đếm được số đơn khớp báo cáo (bỏ "Hủy đơn", DGW tách cùng tỉnh/khác tỉnh) nhưng **không có hạn giao** → không tính ontime.
+
 ### 8.1 Tổng quan LTL (`view="ltl"`) — bố cục gọn lại 26/09 (khuya)
 Thứ tự từ trên xuống:
 1. **5 thẻ KPI** (`.grid-5`): Tổng đơn · **Khối lượng (tấn)** (mới, kèm kg/đơn) · On-time · Late · Ca hư hỏng. Mỗi thẻ có delta so kỳ trước (luật mục 12, delta KPI giờ có cả `weight`) và **sparkline 7 ngày** (SVG nhẹ; 7 ngày lấy hàng gần nhất, theo dự án/điểm lấy/viewAs, không theo tháng; on-time/late 2 ngày cuối nét đứt; ca hỏng theo `case_date`).
