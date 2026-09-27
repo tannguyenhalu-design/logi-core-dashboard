@@ -43,22 +43,30 @@ function mondayOfWeekKey(key) {
   const jan4 = new Date(Date.UTC(+m[1], 0, 4));
   return ymd(new Date(jan4.getTime() - ((jan4.getUTCDay() + 6) % 7) * DAY + (+m[2] - 1) * 7 * DAY));
 }
-// A "2 tuần" period is named after both of its weeks (user 27/09:
-// "2 tuần 38 - 39 (14/09 - 27/09)"): W38–W39 (14/09 – 27/09).
+// A "2 tuần" period is named after both of its weeks and the week it is
+// reported in (user 27/09: reports go out in EVEN weeks and cover the two
+// weeks before — "báo cáo tuần 40 = số tuần 38 - 39 (14/09 - 27/09)"),
+// so a period always ends on an odd week: "Báo cáo W40 · W38–W39 (14/09 – 27/09)".
 function twoWeekName(mon, withDates) {
   const prev = ymd(new Date(Date.parse(mon) - 7 * DAY));
-  const name = `W${isoWeek(prev).week}–W${isoWeek(mon).week}`;
+  const report = isoWeek(ymd(new Date(Date.parse(mon) + 7 * DAY))).week;
+  const name = `Báo cáo W${report} · W${isoWeek(prev).week}–W${isoWeek(mon).week}`;
   return withDates ? `${name} (${fmtDM(prev)} – ${fmtDM(ymd(new Date(Date.parse(mon) + 6 * DAY)))})` : name;
 }
-// Last 10 completed ISO weeks, newest first.
+// Last completed ISO weeks, newest first (10 weeks, or the last 6
+// odd-ending 2-week periods).
 function recentWeeks(twoWeeks = false) {
   const base = thisMonday();
-  return Array.from({ length: 10 }, (_, i) => {
-    const mon = ymd(new Date(base - (i + 1) * 7 * DAY));
+  const out = [];
+  for (let i = 1; out.length < (twoWeeks ? 6 : 10); i++) {
+    const mon = ymd(new Date(base - i * 7 * DAY));
     const { year, week } = isoWeek(mon);
+    if (twoWeeks && week % 2 === 0) continue;
+    if (twoWeeks && ymd(new Date(Date.parse(mon) - 7 * DAY)) < "2026-06-29") break; // before the data (07/2026)
     const value = `${year}-W${String(week).padStart(2, "0")}`;
-    return { value, label: twoWeeks ? twoWeekName(mon, true) : `W${week} (${fmtDM(mon)} – ${fmtDM(ymd(new Date(Date.parse(mon) + 6 * DAY)))})` };
-  });
+    out.push({ value, label: twoWeeks ? twoWeekName(mon, true) : `W${week} (${fmtDM(mon)} – ${fmtDM(ymd(new Date(Date.parse(mon) + 6 * DAY)))})` });
+  }
+  return out;
 }
 // Months whose Monday-weeks have all ended (a month = weeks with Monday in it).
 function recentMonths() {
@@ -305,7 +313,7 @@ export default function TabCompanyReport() {
           </select>
           <div style={small}>
             {type === "week" && "4 tuần gần nhất (tuần chọn là tuần cuối) + cột ± so với tuần trước."}
-            {type === "biweekly" && "Tháng trước + 3 tuần (Ontime, Hàng hoàn), 4 tuần (Bể vỡ) — như báo cáo hiện tại."}
+            {type === "biweekly" && "Báo cáo gửi ở tuần chẵn, gồm số 2 tuần liền trước (vd báo cáo W40 = W38–W39). Bảng: tháng trước + 3 tuần (Ontime, Hàng hoàn), 4 tuần (Bể vỡ)."}
             {type === "month" && "3 tháng gần nhất + các tuần của tháng chọn + cột ± so với tháng trước."}
           </div>
         </div>

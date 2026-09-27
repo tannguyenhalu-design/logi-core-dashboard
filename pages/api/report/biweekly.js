@@ -40,7 +40,10 @@ export default async function handler(req, res) {
     if (!REPORT_TYPES[type]) return res.status(400).json({ error: "type phải là week, biweekly hoặc month" });
     const rawPeriod = req.query.period || req.query.week;
     const period = rawPeriod ? normalizePeriod(type, rawPeriod) : defaultPeriod(type);
-    if (!period) return res.status(400).json({ error: type === "month" ? "period phải dạng 2026-08" : "period phải dạng 2026-W38" });
+    if (!period) {
+      return res.status(400).json({ error: type === "month" ? "period phải dạng 2026-08"
+        : type === "biweekly" ? "Kỳ 2 tuần phải kết thúc ở tuần lẻ, vd 2026-W39 (= W38–W39, báo cáo W40)" : "period phải dạng 2026-W38" });
+    }
     const clients = normalizeClients(req.query.clients);
 
     if (req.method === "POST") {
