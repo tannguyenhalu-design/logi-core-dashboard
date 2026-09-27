@@ -466,7 +466,7 @@ Tạo cookie `logi_session` bằng `sealData()` (iron-session) với `SESSION_SE
     - **Hậu quả:** báo cáo 2 tuần W37 chốt lần đầu (13:27 27/09) có Aqua W37 = 5 (đúng 4), tổng 16 (đúng 15). Dashboard/biểu đồ theo ngày phát hiện cũng lệch ca sang tháng khác.
     - **Sửa (commit `2e4e66d`):** ghi dữ liệu `raw_damage_causes` bằng **`RAW`** (lưu nguyên chuỗi, sheet không tự chuyển kiểu). Chạy lại scraper (quét toàn bộ từ 01/07) → cả 499 ca `counted` về đúng `dd/mm/yyyy`; dựng lại snapshot; **chốt lại W37 lúc 13:48 27/09** (Aqua W37 = 4, khớp báo cáo cũ của user).
     - **Kiểm tra sau sửa:** 0 ca `counted` còn dạng ISO; 0 ca có ngày khớp kiểu đảo so với ngày ticket trong `source`; tính lại độc lập từ sheet gốc + snapshot khớp 100% bảng Bể vỡ (ca + GTC từng khách).
-    - **Còn sót (vô hại):** 27 dòng không `counted` (phiếu kho cũ không thành ca) vẫn dạng ISO có thể đảo — không vào báo cáo/dashboard nào.
+    - **27 dòng ISO còn lại (đã xử lý 27/09):** đều là phiếu "Kho báo" không `counted`, đồng bộ 17/08 bởi scraper đời cũ tự ghi ISO. Kiểm tra: 27 dòng giảm dần liền mạch 16/08 → 08/07 nếu giữ nguyên, còn nếu đảo thì ra ngày sau lần đồng bộ (vd 08/12) hoặc trước 07/2026 → **ngày vốn đúng, chỉ sai định dạng**. Đã đổi sang `dd/mm/yyyy` (ghi `RAW`, chỉ cột `case_date`, các cột khác giữ nguyên) → sheet giờ 556/556 dòng cùng một định dạng. Báo cáo W37, tháng 07, tháng 08 không đổi số.
     - **Không nhầm với:** 24 ca có ngày phát hiện **sau** ngày lập ticket (vd phát hiện 17/08, ticket 26/07) — đó là "ngày phát sinh sự vụ" CS nhập trên Rillnet, không phải lỗi đảo; báo cáo đi theo đúng ngày Rillnet nhóm ca.
     - **Luật rút ra:** ghi ngày/số dạng chuỗi vào Google Sheets **luôn dùng `RAW`**, không dùng `USER_ENTERED` (mục 12).
 
