@@ -3,7 +3,8 @@
  * Manager + SD3 only.
  *   GET                 → { trials, version, canEdit, canDelete, statuses }
  *   GET ?options=1      → form pickers: client → kho lấy / kho giao / tỉnh giao
- *   GET ?impact=<id>    → Baseline vs Post-Trial, with the control group
+ *   GET ?impact=<id>    → Baseline vs Post-Trial, with the control group and
+ *                         the automated verdict; &format=xlsx → evaluation report file
  *   POST { action: "save", trial }   → create / update (Manager + SD3)
  *   POST { action: "delete", id }    → soft delete (Manager only)
  * `v` = version the browser last saved: forces a fresh sheet read on an
@@ -14,6 +15,7 @@ import { loadLtlBase } from "../../lib/ltl-snapshot";
 import { vnToday } from "../../lib/ltl-dashboard";
 import { logAction } from "../../lib/audit-log";
 import { readTrials, saveTrial, deleteTrial, validateTrial, scopeOptions, computeTrialImpact, STATUSES, fmt } from "../../lib/trials";
+import { buildTrialWorkbook } from "../../lib/trial-xlsx";
 
 const scopeText = (t) => [
   t.clients.join(", "),
@@ -41,7 +43,16 @@ export default async function handler(req, res) {
         const [base, { trials }] = await Promise.all([loadLtlBase(), readTrials({ minVersion })]);
         const trial = trials.find((t) => t.id === String(req.query.impact));
         if (!trial) return res.status(404).json({ error: "Không tìm thấy giải pháp (có thể đã bị xoá)" });
-        return res.status(200).json({ ok: true, trial, impact: computeTrialImpact(base, trial, vnToday()) });
+        const impact = computeTrialImpact(base, trial, vnToday());
+        if (req.query.format === "xlsx") {
+          // Same impact object as the screen → the file shows the same numbers.
+          const buf = await buildTrialWorkbook(trial, impact, { exportedBy: actor });
+          logAction({ actor, action: "trial.export", target: trial.name, details: { id: trial.id, verdict: impact.verdict.label } }).catch(() => {});
+          res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+          res.setHeader("Content-Disposition", `attachment; filename="Danh-gia-giai-phap-${trial.id}.xlsx"`);
+          return res.status(200).send(Buffer.from(buf));
+        }
+        return res.status(200).json({ ok: true, trial, impact });
       }
       const { trials, version } = await readTrials({ minVersion });
       return res.status(200).json({ ok: true, trials, version, canEdit: true, canDelete: role === "manager", statuses: STATUSES });

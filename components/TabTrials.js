@@ -4,8 +4,13 @@
  * and, for the selected one, the measured Baseline vs Post-Trial effect with
  * a control group (same clients outside the scope) — numbers ready to copy
  * into Excel / chat or screenshot, no manual Excel work. Math: lib/trials.js.
+ * Clicking a trial (or saving one) opens the evaluation report in a large
+ * modal: general info, automated verdict, Before vs After table, cases;
+ * "Xuất báo cáo đánh giá" = Excel (lib/trial-xlsx.js, same impact object as
+ * the screen) · "In / Lưu PDF" = white A4 page · copy summary / table.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 const DAY = 86400000;
 const NL = String.fromCharCode(10);
@@ -222,6 +227,8 @@ function metricRows(imp) {
   return [
     { key: "orders", name: "Tổng sản lượng (đơn)", b: n0(t.base.orders), p: n0(t.post.orders), d: sgn(t.delta.orders, n0), dp: pct(t.delta.ordersPct), dRaw: t.delta.orders, good: 0,
       cb: n0(c.base.orders), cp: n0(c.post.orders), cd: pct(c.delta.ordersPct), cdRaw: c.delta.ordersPct, net: "—" },
+    { key: "tons", name: "Tổng tấn", b: n1(t.base.tons), p: n1(t.post.tons), d: sgn(t.delta.tons, n1), dp: pct(t.delta.tonsPct), dRaw: t.delta.tons, good: 0,
+      cb: n1(c.base.tons), cp: n1(c.post.tons), cd: pct(c.delta.tonsPct), cdRaw: c.delta.tonsPct, net: "—" },
     { key: "ontime", name: "Tỷ lệ On-time (%)", b: t.base.ontimePct == null ? "—" : `${n1(t.base.ontimePct)}%`, p: t.post.ontimePct == null ? "—" : `${n1(t.post.ontimePct)}%`,
       sub: [`${n0(t.base.late)} trễ / ${n0(t.base.evaluated)}`, `${n0(t.post.late)} trễ / ${n0(t.post.evaluated)}`],
       d: t.delta.ontimePts == null ? "—" : `${sgn(t.delta.ontimePts, n1)} điểm`, dp: "", dRaw: t.delta.ontimePts, good: 1,
@@ -231,136 +238,353 @@ function metricRows(imp) {
     { key: "cases", name: "Tổng số ca bể vỡ (ca)", b: n0(t.base.cases), p: n0(t.post.cases), d: sgn(t.delta.cases, n0), dp: pct(t.delta.casesPct), dRaw: t.delta.cases, good: -1,
       cb: n0(c.base.cases), cp: n0(c.post.cases), cd: sgn(c.delta.cases, n0), cdRaw: c.delta.cases, net: "—" },
     { key: "per1k", name: "Ca bể vỡ / 1.000 đơn", b: n2(t.base.per1k), p: n2(t.post.per1k), d: sgn(t.delta.per1k, n2), dp: pct(t.delta.per1kPct), dRaw: t.delta.per1k, good: -1,
-      cb: n2(c.base.per1k), cp: n2(c.post.per1k), cd: sgn(c.delta.per1k, n2), cdRaw: c.delta.per1k,
-      net: imp.net.per1k == null ? "—" : sgn(imp.net.per1k, n2), netRaw: imp.net.per1k },
+      // Control change and net effect in % (user decision 28/09: net = % change of scope − % change of control)
+      cb: n2(c.base.per1k), cp: n2(c.post.per1k), cd: pct(c.delta.per1kPct), cdRaw: c.delta.per1kPct,
+      net: imp.net.per1kPct == null ? "—" : pct(imp.net.per1kPct), netRaw: imp.net.per1kPct },
   ];
 }
 
-function ImpactPanel({ trial, impact, loading, error }) {
+const VERDICT_STYLE = {
+  excellent: { color: "var(--green)", bg: "var(--green-glow)", icon: "🏆" },
+  improved: { color: "var(--blue)", bg: "var(--blue-glow)", icon: "✅" },
+  watch: { color: "var(--amber)", bg: "var(--amber-glow)", icon: "⏳" },
+  ineffective: { color: "var(--red)", bg: "var(--red-glow)", icon: "⚠" },
+};
+// Light colours for the white print page.
+const PRINT_VERDICT = {
+  excellent: { color: "#065f46", bg: "#d1fae5" },
+  improved: { color: "#075985", bg: "#e0f2fe" },
+  watch: { color: "#92400e", bg: "#fef3c7" },
+  ineffective: { color: "#991b1b", bg: "#fee2e2" },
+};
+
+const scopeParts = (t) => [
+  ["Khách hàng", t.clients.join(", ")],
+  ["Kho lấy", t.khoLay.length ? t.khoLay.map(shortWh).join(", ") : "Tất cả"],
+  ["Kho giao", t.khoGiao.length ? t.khoGiao.map(shortWh).join(", ") : "Tất cả"],
+  ["Tỉnh giao", t.provinces.length ? t.provinces.join(", ") : "Tất cả"],
+];
+const periodLabels = (imp) => {
+  const pr = imp.periods;
+  return {
+    base: `Trước (${fmtS(pr.base.from)}–${fmtS(pr.base.to)} · ${imp.baseDays} ngày)`,
+    post: `Sau (${fmtS(pr.post.from)}–${fmtS(pr.post.to)} · ${imp.postDays} ngày${pr.post.ongoing ? ", đến hôm nay" : ""})`,
+  };
+};
+
+// Text for "Copy tóm tắt" — the same lines as the screen and the files.
+function summaryText(trial, imp) {
+  const L = periodLabels(imp);
+  const v = imp.verdict;
+  return [
+    `BÁO CÁO ĐÁNH GIÁ GIẢI PHÁP: ${trial.name}`,
+    `Trạng thái: ${trial.status} · Áp dụng ${fmt(trial.startDate)} → ${trial.endDate ? fmt(trial.endDate) : "Ongoing"}`,
+    `Phạm vi: ${scopeParts(trial).map(([k, x]) => `${k}: ${x}`).join(" · ")}`,
+    `So sánh: ${L.base} vs ${L.post}`,
+    "",
+    `KẾT LUẬN: ${v.label.toUpperCase()}${v.basis === "net" ? " (theo hiệu quả ròng, đã trừ nhóm đối chứng)" : ""}`,
+    ...v.reasons.map((s) => `• ${s}`),
+    ...v.notes.map((s) => `Lưu ý: ${s}`),
+    "",
+    "Số liệu:",
+    ...imp.summary.map((s) => `• ${s}`),
+    ...imp.warnings.map((w) => `⚠ ${w.text}`),
+    `(SD3 Dashboard Điện Máy, số liệu cập nhật ${vnStamp(imp.dataAsOf)})`,
+  ].join(NL);
+}
+
+function VerdictBox({ v }) {
+  const st = VERDICT_STYLE[v.level];
+  return (
+    <div style={{ marginTop: 14, padding: "12px 14px", borderRadius: 10, background: st.bg, border: `1px solid ${st.color}`, borderLeftWidth: 4 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>Nhận định tự động</span>
+        <span style={{ fontSize: 17, fontWeight: 800, color: st.color }}>{st.icon} {v.label}</span>
+        <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{v.basis === "net" ? "theo hiệu quả ròng (đã trừ nhóm đối chứng)" : "theo thay đổi của phạm vi"}</span>
+      </div>
+      <div style={{ marginTop: 6 }}>
+        {v.reasons.map((s, i) => <div key={i} style={{ fontSize: 13, lineHeight: 1.55 }}>• {s}</div>)}
+        {v.notes.map((s, i) => <div key={`n${i}`} style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>Lưu ý: {s}</div>)}
+      </div>
+      <details style={{ marginTop: 6 }}>
+        <summary style={{ fontSize: 11.5, color: "var(--text-muted)", cursor: "pointer" }}>Luật nhận định</summary>
+        <div style={{ ...small, marginTop: 4 }}>
+          <b>Cải thiện xuất sắc</b>: ca/1.000 đơn giảm ≥ {-v.rules.damageStrong}% hoặc on-time +≥ {v.rules.ontimeStrong} điểm, chỉ số còn lại không xấu đi ·{" "}
+          <b>Có cải thiện</b>: giảm ≥ {-v.rules.damageGood}% hoặc +≥ {v.rules.ontimeGood} điểm, không chỉ số nào xấu đi ·{" "}
+          <b>Không hiệu quả</b>: ca/1.000 đơn tăng ≥ {v.rules.damageBad}% hoặc on-time −≥ {-v.rules.ontimeBad} điểm, không có chỉ số bù lại · còn lại: <b>Cần theo dõi thêm</b>.
+          Dùng hiệu quả ròng khi đối chứng có ≥ {v.rules.minControlOrders} đơn mỗi giai đoạn (bể vỡ: % thay đổi của phạm vi − % thay đổi của đối chứng; on-time: điểm). Chưa đủ dữ liệu (giai đoạn sau &lt; 14 ngày hoặc &lt; 100 đơn) → Cần theo dõi thêm; tổng ca bể vỡ 2 giai đoạn &lt; {v.rules.minCases} → không xét bể vỡ.
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function TrialDetail({ trial, impact, loading, error, onClose, onEdit }) {
   const [copied, setCopied] = useState(null);
   const [showCases, setShowCases] = useState(false);
-  useEffect(() => { setShowCases(false); }, [trial?.id]);
-  if (error) return <div className="glass" style={{ padding: 16, color: "var(--red)", fontSize: 13 }}>⚠ {error}</div>;
-  if (!impact) return <div className="glass" style={{ padding: 16, ...small }}>{loading ? "Đang tính hiệu quả…" : "Bấm vào 1 giải pháp để xem hiệu quả."}</div>;
-  const imp = impact, pr = imp.periods;
-  const rows = metricRows(imp);
-  const baseLbl = `Trước (${fmtS(pr.base.from)}–${fmtS(pr.base.to)} · ${imp.baseDays} ngày)`;
-  const postLbl = `Sau (${fmtS(pr.post.from)}–${fmtS(pr.post.to)} · ${imp.postDays} ngày${pr.post.ongoing ? ", đến hôm nay" : ""})`;
-  const scope = [
-    imp.scope.clients.join(", "),
-    imp.scope.khoLay.length ? `Kho lấy: ${imp.scope.khoLay.map(shortWh).join(", ")}` : "",
-    imp.scope.khoGiao.length ? `Kho giao: ${imp.scope.khoGiao.map(shortWh).join(", ")}` : "",
-    imp.scope.provinces.length ? `Tỉnh giao: ${imp.scope.provinces.join(", ")}` : "",
-  ].filter(Boolean);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [printing, setPrinting] = useState(false);
+  useEffect(() => { setShowCases(false); setMsg(null); }, [trial?.id]);
+  useEffect(() => {
+    const esc = (e) => { if (e.key === "Escape") (printing ? setPrinting(false) : onClose()); };
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [printing, onClose]);
+
+  const imp = impact;
+  const rows = imp ? metricRows(imp) : [];
+  const L = imp ? periodLabels(imp) : null;
+  const pr = imp?.periods;
 
   const copy = (kind) => {
     let text;
     if (kind === "table") {
-      const head = ["Chỉ số", baseLbl, postLbl, "Chênh lệch", "% thay đổi", ...(imp.hasControl ? ["Đối chứng trước", "Đối chứng sau", "Đối chứng thay đổi", "Hiệu quả ròng"] : [])];
+      const head = ["Chỉ số", L.base, L.post, "Chênh lệch", "% thay đổi", ...(imp.hasControl ? ["Đối chứng trước", "Đối chứng sau", "Đối chứng thay đổi", "Hiệu quả ròng"] : [])];
       // Plain "-" and no "±" so Excel reads the pasted cells as numbers.
       const cell = (v) => String(v).replace(/−/g, "-").replace(/^±/, "");
       text = [head, ...rows.map((r) => [r.name, r.b, r.p, r.d, r.dp || "", ...(imp.hasControl ? [r.cb, r.cp, r.cd, r.net] : [])].map(cell))].map((r) => r.join(TAB)).join(NL);
-    } else {
-      text = [
-        `${trial.name} — ${trial.status}`,
-        `Phạm vi: ${scope.join(" · ")}`,
-        `So sánh: ${baseLbl} vs ${postLbl}`,
-        ...imp.summary.map((s) => `• ${s}`),
-        ...imp.warnings.map((w) => `⚠ ${w.text}`),
-        `(Số liệu SD3 Dashboard, cập nhật ${vnStamp(imp.dataAsOf)})`,
-      ].join(NL);
-    }
+    } else text = summaryText(trial, imp);
     try { navigator.clipboard.writeText(text); setCopied(kind); setTimeout(() => setCopied(null), 1500); } catch { /* no clipboard */ }
+  };
+  const downloadXlsx = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const r = await fetch(`/api/trials?impact=${encodeURIComponent(trial.id)}&format=xlsx`);
+      if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || "Không xuất được file"); }
+      const url = URL.createObjectURL(await r.blob());
+      const a = document.createElement("a");
+      a.href = url; a.download = `Danh-gia-giai-phap-${trial.id}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } catch (e) {
+      setMsg(`⚠ ${e.message}`);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const th = { padding: "8px 10px", textAlign: "right", whiteSpace: "nowrap", fontSize: 12 };
   const td = { padding: "8px 10px", textAlign: "right", whiteSpace: "nowrap", fontSize: 13, borderBottom: "1px solid var(--panel-border-soft, var(--border))" };
   const ctd = { ...td, color: "var(--text-muted)", fontSize: 12.5 };
-  const cases = imp.trial.base.caseCodes.concat(imp.trial.post.caseCodes);
+  const cases = imp ? imp.trial.base.caseCodes.concat(imp.trial.post.caseCodes) : [];
+  const infoCell = { background: "rgba(var(--brand-rgb),0.05)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 10px", minWidth: 0 };
 
   return (
-    <div className="glass fade-in" style={{ padding: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.35 }}>{trial.name} <StatusBadge s={trial.status} /></div>
-          <div style={{ ...small, marginTop: 4 }}>{scope.join(" · ")}</div>
-          <div style={{ ...small }}>Áp dụng {fmt(trial.startDate)} → {trial.endDate ? fmt(trial.endDate) : "Ongoing"} · Baseline {fmt(trial.baseStart)} – {fmt(trial.baseEnd)}</div>
+    <div role="dialog" aria-modal="true" aria-label={trial.name}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,0.55)", display: "flex", justifyContent: "center", alignItems: "flex-start", padding: "24px 12px", overflowY: "auto" }}>
+      <div className="fade-in" style={{ width: "100%", maxWidth: 1120, background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, boxShadow: "0 20px 60px rgba(0,0,0,0.45)", boxSizing: "border-box" }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
+          <div style={{ minWidth: 0, flex: "1 1 320px" }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>Báo cáo đánh giá giải pháp · {trial.id}</div>
+            <div style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.35, marginTop: 2 }}>{trial.name} <StatusBadge s={trial.status} /></div>
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            {onEdit && <button style={ghost} onClick={onEdit}>✎ Sửa</button>}
+            <button style={primary} disabled={!imp || busy} onClick={downloadXlsx}>{busy ? "Đang xuất…" : "📥 Xuất báo cáo đánh giá (Excel)"}</button>
+            <button style={ghost} disabled={!imp} onClick={() => setPrinting(true)}>🖨 In / Lưu PDF</button>
+            <button style={ghost} disabled={!imp} onClick={() => copy("text")}>{copied === "text" ? "✓ Đã copy" : "📋 Copy tóm tắt"}</button>
+            <button style={ghost} disabled={!imp} onClick={() => copy("table")}>{copied === "table" ? "✓ Đã copy" : "📋 Copy bảng"}</button>
+            <button style={{ ...ghost, padding: "6px 10px" }} onClick={onClose} aria-label="Đóng" title="Đóng (Esc)">✕</button>
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <button style={ghost} onClick={() => copy("table")}>{copied === "table" ? "✓ Đã copy" : "📋 Copy bảng (Excel)"}</button>
-          <button style={ghost} onClick={() => copy("text")}>{copied === "text" ? "✓ Đã copy" : "📋 Copy tóm tắt"}</button>
+        {msg && <div style={{ fontSize: 12.5, marginTop: 8, color: "var(--red)" }}>{msg}</div>}
+
+        {/* General info */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 8, marginTop: 14 }}>
+          {scopeParts(trial).map(([k, x]) => (
+            <div key={k} style={infoCell}><div style={small}>{k}</div><div style={{ fontSize: 13, fontWeight: 600, wordBreak: "break-word" }}>{x}</div></div>
+          ))}
+          <div style={infoCell}><div style={small}>Thời gian áp dụng</div><div style={{ fontSize: 13, fontWeight: 600 }}>{fmt(trial.startDate)} → {trial.endDate ? fmt(trial.endDate) : "Ongoing"}</div></div>
+          <div style={infoCell}><div style={small}>Baseline (trước khi áp dụng)</div><div style={{ fontSize: 13, fontWeight: 600 }}>{fmt(trial.baseStart)} – {fmt(trial.baseEnd)}</div></div>
+          <div style={infoCell}><div style={small}>Người tạo</div><div style={{ fontSize: 13, fontWeight: 600 }}>{trial.createdBy || "—"} <span style={{ ...small, fontWeight: 400 }}>{vnStamp(trial.createdAt)}</span></div></div>
+          <div style={infoCell}><div style={small}>Cập nhật lần cuối</div><div style={{ fontSize: 13, fontWeight: 600 }}>{trial.updatedBy || "—"} <span style={{ ...small, fontWeight: 400 }}>{vnStamp(trial.updatedAt)}</span></div></div>
         </div>
+        <div style={{ ...infoCell, marginTop: 8 }}>
+          <div style={small}>Mô tả giải pháp</div>
+          <div style={{ fontSize: 13, whiteSpace: "pre-wrap", lineHeight: 1.55 }}>{trial.description || <span style={{ color: "var(--text-muted)" }}>Chưa có mô tả.</span>}</div>
+        </div>
+
+        {error ? <div style={{ marginTop: 14, color: "var(--red)", fontSize: 13 }}>⚠ {error}</div>
+          : !imp ? <div style={{ marginTop: 14, ...small }}>{loading ? "Đang tính hiệu quả…" : ""}</div> : (
+            <>
+              <VerdictBox v={imp.verdict} />
+
+              {imp.warnings.length > 0 && (
+                <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 4 }}>
+                  {imp.warnings.map((w, i) => <div key={i} style={{ fontSize: 12.5, color: "var(--amber)" }}>⚠ {w.text}</div>)}
+                </div>
+              )}
+
+              <div style={{ fontSize: 13.5, fontWeight: 700, marginTop: 16 }}>So sánh Trước & Sau</div>
+              <div style={{ overflowX: "auto", marginTop: 6 }}>
+                <table className="data-table" style={{ fontSize: 12.5, minWidth: imp.hasControl ? 820 : 520 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ ...th, textAlign: "left" }} rowSpan={2}>Chỉ số</th>
+                      <th style={{ ...th, textAlign: "center", borderBottom: "1px solid var(--border)" }} colSpan={4}>Phạm vi áp dụng giải pháp</th>
+                      {imp.hasControl && <th style={{ ...th, textAlign: "center", borderBottom: "1px solid var(--border)", color: "var(--text-muted)" }} colSpan={3} title="Đơn của cùng khách nhưng KHÔNG thuộc phạm vi giải pháp, cùng 2 giai đoạn">Đối chứng (phần còn lại của khách)</th>}
+                      {imp.hasControl && <th style={{ ...th }} rowSpan={2} title="Thay đổi của phạm vi trừ thay đổi của đối chứng — phần cải thiện không giải thích được bằng mùa vụ / biến động chung">Hiệu quả ròng</th>}
+                    </tr>
+                    <tr>
+                      <th style={th}>Trước<div style={{ ...small, fontWeight: 400, fontSize: 11 }}>{fmtS(pr.base.from)}–{fmtS(pr.base.to)} · {imp.baseDays} ngày</div></th>
+                      <th style={th}>Sau<div style={{ ...small, fontWeight: 400, fontSize: 11 }}>{fmtS(pr.post.from)}–{fmtS(pr.post.to)} · {imp.postDays} ngày{pr.post.ongoing ? "*" : ""}</div></th>
+                      <th style={th}>Chênh lệch</th><th style={th}>% thay đổi</th>
+                      {imp.hasControl && <><th style={th}>Trước</th><th style={th}>Sau</th><th style={th}>Thay đổi</th></>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr key={r.key}>
+                        <td style={{ ...td, textAlign: "left", fontWeight: 600 }}>{r.name}</td>
+                        <td style={td}>{r.b}{r.sub && <div style={{ ...small, fontSize: 11 }}>{r.sub[0]}</div>}</td>
+                        <td style={{ ...td, fontWeight: 700 }}>{r.p}{r.sub && <div style={{ ...small, fontSize: 11, fontWeight: 400 }}>{r.sub[1]}</div>}</td>
+                        <td style={{ ...td, fontWeight: 700, color: toneOf(r.dRaw, r.good) }}>{r.d}</td>
+                        <td style={{ ...td, color: toneOf(r.dRaw, r.good) }}>{r.dp || ""}</td>
+                        {imp.hasControl && <><td style={ctd}>{r.cb}</td><td style={ctd}>{r.cp}</td><td style={ctd}>{r.cd}</td></>}
+                        {imp.hasControl && <td style={{ ...td, fontWeight: 700, color: toneOf(r.netRaw, r.good) }}>{r.net}</td>}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {!imp.hasControl && (
+                <div style={{ ...small, marginTop: 4 }}>
+                  {imp.scope.hasRouteScope ? "Không có đơn đối chứng (khách không có đơn ngoài phạm vi trong 2 giai đoạn)." : "Phạm vi là toàn bộ đơn của khách nên không có nhóm đối chứng — thu hẹp theo kho / tỉnh để có đối chứng."}
+                </div>
+              )}
+
+              <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: "rgba(var(--brand-rgb),0.06)", border: "1px solid var(--border)" }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 4 }}>Số liệu tóm tắt</div>
+                {imp.summary.map((s, i) => <div key={i} style={{ fontSize: 13, lineHeight: 1.55 }}>• {s}</div>)}
+              </div>
+
+              {cases.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  <button style={{ ...ghost, padding: "4px 10px", fontSize: 12 }} onClick={() => setShowCases((v) => !v)}>{showCases ? "Ẩn danh sách ca" : `Xem ${cases.length} ca bể vỡ trong phạm vi`}</button>
+                  {showCases && (
+                    <div style={{ overflowX: "auto", maxHeight: 260, overflowY: "auto", marginTop: 6 }}>
+                      <table className="data-table" style={{ fontSize: 12 }}>
+                        <thead><tr><th>Giai đoạn</th><th>Mã đơn</th><th>Ngày phát hiện</th><th>Chặng nghi lỗi</th><th>Kho phát hiện</th></tr></thead>
+                        <tbody>
+                          {cases.map((c) => (
+                            <tr key={c.order_code}><td>{c.period === "base" ? "Trước" : "Sau"}</td><td style={{ fontWeight: 700 }}>{c.order_code}</td><td>{c.case_date}</td><td>{c.leg}</td><td>{shortWh(c.warehouse)}</td></tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={{ ...small, marginTop: 10 }}>
+                {pr.post.ongoing && "* Ongoing: giai đoạn sau tính đến hôm nay. "}
+                Cách tính: đơn theo <b>ngày lấy hàng</b> trong từng giai đoạn · Tấn = tổng khối lượng đơn · On-time = đúng hạn / (đúng hạn + trễ), chỉ đơn đã có kết quả · Ca bể vỡ = ca trong &quot;Báo cáo bể vỡ&quot; Rillnet <b>gắn theo đơn</b> (đơn lấy ở giai đoạn nào thì ca tính vào giai đoạn đó) · Ca/1.000 đơn = ca ÷ đơn lấy × 1.000 · Hiệu quả ròng = thay đổi của phạm vi − thay đổi của đối chứng (on-time: điểm; ca/1.000 đơn: % thay đổi của phạm vi − % thay đổi của đối chứng). Xanh = tốt lên, đỏ = xấu đi. Số liệu cập nhật {vnStamp(imp.dataAsOf)}.
+              </div>
+            </>
+          )}
       </div>
+      {/* Portal to <body>: printing a page nested in the scrolling modal would clip it to one page. */}
+      {printing && imp && createPortal(<TrialPrintView trial={trial} imp={imp} rows={rows} onClose={() => setPrinting(false)} />, document.body)}
+    </div>
+  );
+}
 
-      {imp.warnings.length > 0 && (
-        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 4 }}>
-          {imp.warnings.map((w, i) => <div key={i} style={{ fontSize: 12.5, color: "var(--amber)" }}>⚠ {w.text}</div>)}
+// White A4 page for "In / Lưu PDF" — reuses the .exec-report print CSS of
+// the "Báo cáo tóm tắt" (only this block is printed).
+function TrialPrintView({ trial, imp, rows, onClose }) {
+  const C = { text: "#111827", muted: "#6b7280", line: "#e5e7eb", head: "#0f7c7b", green: "#15803d", red: "#dc2626" };
+  const pv = PRINT_VERDICT[imp.verdict.level];
+  const pr = imp.periods;
+  const tone = (v, good) => (v == null || !good || Math.abs(v) < 1e-9 ? C.text : v * good > 0 ? C.green : C.red);
+  const cell = { padding: "6px 8px", borderBottom: `1px solid ${C.line}`, textAlign: "right", whiteSpace: "nowrap", fontSize: 12 };
+  const hcell = { ...cell, background: C.head, color: "#fff", fontWeight: 700, borderBottom: "none" };
+  const cases = imp.trial.base.caseCodes.concat(imp.trial.post.caseCodes);
+  const btn = { fontSize: 13, padding: "7px 14px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, border: `1px solid ${C.line}`, background: "#fff", color: C.text };
+  return (
+    <div className="exec-report" style={{ position: "fixed", inset: 0, zIndex: 3000, background: "#e5e7eb", overflowY: "auto", color: C.text }}>
+      <div className="no-print" style={{ position: "sticky", top: 0, display: "flex", gap: 8, justifyContent: "flex-end", padding: "12px 20px", background: "#f3f4f6", borderBottom: `1px solid ${C.line}` }}>
+        <span style={{ marginRight: "auto", fontSize: 13, color: C.muted, alignSelf: "center" }}>Xem trước bản in — chọn &quot;Lưu dưới dạng PDF&quot; trong hộp thoại in để lưu file.</span>
+        <button style={{ ...btn, background: "#c2410c", borderColor: "#c2410c", color: "#fff" }} onClick={() => window.print()}>🖨 In / Lưu PDF</button>
+        <button style={btn} onClick={onClose}>Đóng</button>
+      </div>
+      <div className="exec-page" style={{ maxWidth: 820, margin: "20px auto", background: "#fff", padding: "32px 36px", boxShadow: "0 4px 20px rgba(0,0,0,0.12)", fontFamily: "inherit" }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.head, letterSpacing: 0.6, textTransform: "uppercase" }}>SD3 Dashboard Điện Máy · Báo cáo đánh giá hiệu quả giải pháp</div>
+        <div style={{ fontSize: 20, fontWeight: 800, marginTop: 4, lineHeight: 1.3 }}>{trial.name}</div>
+        <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Mã {trial.id} · Trạng thái: {trial.status} · Số liệu cập nhật {vnStamp(imp.dataAsOf)}</div>
+
+        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 14, fontSize: 12 }}>
+          <tbody>
+            {[...scopeParts(trial), ["Thời gian áp dụng", `${fmt(trial.startDate)} → ${trial.endDate ? fmt(trial.endDate) : "Ongoing"}`],
+              ["So sánh", `${periodLabels(imp).base} vs ${periodLabels(imp).post}`]].map(([k, x]) => (
+              <tr key={k}><td style={{ padding: "4px 8px 4px 0", color: C.muted, width: 150, verticalAlign: "top" }}>{k}</td><td style={{ padding: "4px 0", fontWeight: 600 }}>{x}</td></tr>
+            ))}
+            {trial.description && <tr><td style={{ padding: "4px 8px 4px 0", color: C.muted, verticalAlign: "top" }}>Mô tả</td><td style={{ padding: "4px 0", whiteSpace: "pre-wrap" }}>{trial.description}</td></tr>}
+          </tbody>
+        </table>
+
+        <div style={{ marginTop: 16, padding: "12px 14px", borderRadius: 8, background: pv.bg, color: pv.color, breakInside: "avoid" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Nhận định tự động{imp.verdict.basis === "net" ? " · theo hiệu quả ròng (đã trừ nhóm đối chứng)" : ""}</div>
+          <div style={{ fontSize: 18, fontWeight: 800, marginTop: 2 }}>{imp.verdict.label}</div>
+          {imp.verdict.reasons.map((s, i) => <div key={i} style={{ fontSize: 12, marginTop: 3, color: C.text }}>• {s}</div>)}
+          {imp.verdict.notes.map((s, i) => <div key={`n${i}`} style={{ fontSize: 11.5, marginTop: 3, color: C.muted }}>Lưu ý: {s}</div>)}
         </div>
-      )}
 
-      <div style={{ overflowX: "auto", marginTop: 12 }}>
-        <table className="data-table" style={{ fontSize: 12.5, minWidth: imp.hasControl ? 820 : 520 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginTop: 18 }}>So sánh Trước & Sau</div>
+        <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 6, breakInside: "avoid" }}>
           <thead>
             <tr>
-              <th style={{ ...th, textAlign: "left" }} rowSpan={2}>Chỉ số</th>
-              <th style={{ ...th, textAlign: "center", borderBottom: "1px solid var(--border)" }} colSpan={4}>Phạm vi áp dụng giải pháp</th>
-              {imp.hasControl && <th style={{ ...th, textAlign: "center", borderBottom: "1px solid var(--border)", color: "var(--text-muted)" }} colSpan={3} title="Đơn của cùng khách nhưng KHÔNG thuộc phạm vi giải pháp, cùng 2 giai đoạn">Đối chứng (phần còn lại của khách)</th>}
-              {imp.hasControl && <th style={{ ...th }} rowSpan={2} title="Thay đổi của phạm vi trial trừ thay đổi của đối chứng — phần cải thiện không giải thích được bằng mùa vụ / biến động chung">Hiệu quả ròng</th>}
-            </tr>
-            <tr>
-              <th style={th}>Trước<div style={{ ...small, fontWeight: 400, fontSize: 11 }}>{fmtS(pr.base.from)}–{fmtS(pr.base.to)} · {imp.baseDays} ngày</div></th>
-              <th style={th}>Sau<div style={{ ...small, fontWeight: 400, fontSize: 11 }}>{fmtS(pr.post.from)}–{fmtS(pr.post.to)} · {imp.postDays} ngày{pr.post.ongoing ? "*" : ""}</div></th>
-              <th style={th}>Chênh lệch</th><th style={th}>% thay đổi</th>
-              {imp.hasControl && <><th style={th}>Trước</th><th style={th}>Sau</th><th style={th}>Thay đổi</th></>}
+              <th style={{ ...hcell, textAlign: "left" }}>Chỉ số</th>
+              <th style={hcell}>Trước<div style={{ fontWeight: 400, fontSize: 10 }}>{fmtS(pr.base.from)}–{fmtS(pr.base.to)}</div></th>
+              <th style={hcell}>Sau<div style={{ fontWeight: 400, fontSize: 10 }}>{fmtS(pr.post.from)}–{fmtS(pr.post.to)}</div></th>
+              <th style={hcell}>Chênh lệch</th><th style={hcell}>%</th>
+              {imp.hasControl && <><th style={hcell}>Đối chứng<div style={{ fontWeight: 400, fontSize: 10 }}>trước → sau</div></th><th style={hcell}>Hiệu quả ròng</th></>}
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.key}>
-                <td style={{ ...td, textAlign: "left", fontWeight: 600 }}>{r.name}</td>
-                <td style={td}>{r.b}{r.sub && <div style={{ ...small, fontSize: 11 }}>{r.sub[0]}</div>}</td>
-                <td style={{ ...td, fontWeight: 700 }}>{r.p}{r.sub && <div style={{ ...small, fontSize: 11, fontWeight: 400 }}>{r.sub[1]}</div>}</td>
-                <td style={{ ...td, fontWeight: 700, color: toneOf(r.dRaw, r.good) }}>{r.d}</td>
-                <td style={{ ...td, color: toneOf(r.dRaw, r.good) }}>{r.dp || ""}</td>
-                {imp.hasControl && <><td style={ctd}>{r.cb}</td><td style={ctd}>{r.cp}</td><td style={ctd}>{r.cd}</td></>}
-                {imp.hasControl && <td style={{ ...td, fontWeight: 700, color: toneOf(r.netRaw, r.good) }}>{r.net}</td>}
+                <td style={{ ...cell, textAlign: "left", fontWeight: 600 }}>{r.name}</td>
+                <td style={cell}>{r.b}</td>
+                <td style={{ ...cell, fontWeight: 700 }}>{r.p}</td>
+                <td style={{ ...cell, fontWeight: 700, color: tone(r.dRaw, r.good) }}>{r.d}</td>
+                <td style={{ ...cell, color: tone(r.dRaw, r.good) }}>{r.dp || ""}</td>
+                {imp.hasControl && <><td style={{ ...cell, color: C.muted }}>{r.cb} → {r.cp}</td><td style={{ ...cell, fontWeight: 700, color: tone(r.netRaw, r.good) }}>{r.net}</td></>}
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+        </div>
 
-      <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: "rgba(var(--brand-rgb),0.06)", border: "1px solid var(--border)" }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 4 }}>Kết quả</div>
-        {imp.summary.map((s, i) => <div key={i} style={{ fontSize: 13, lineHeight: 1.55 }}>• {s}</div>)}
-        {!imp.hasControl && (
-          <div style={{ ...small, marginTop: 4 }}>
-            {imp.scope.hasRouteScope ? "Không có đơn đối chứng (khách không có đơn ngoài phạm vi trong 2 giai đoạn)." : "Phạm vi là toàn bộ đơn của khách nên không có nhóm đối chứng — thu hẹp theo kho / tỉnh để có đối chứng."}
+        {imp.warnings.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            {imp.warnings.map((w, i) => <div key={i} style={{ fontSize: 11.5, color: "#92400e", marginTop: 2 }}>⚠ {w.text}</div>)}
           </div>
         )}
-      </div>
 
-      {cases.length > 0 && (
-        <div style={{ marginTop: 10 }}>
-          <button style={{ ...ghost, padding: "4px 10px", fontSize: 12 }} onClick={() => setShowCases((v) => !v)}>{showCases ? "Ẩn danh sách ca" : `Xem ${cases.length} ca bể vỡ trong phạm vi`}</button>
-          {showCases && (
-            <div style={{ overflowX: "auto", maxHeight: 260, overflowY: "auto", marginTop: 6 }}>
-              <table className="data-table" style={{ fontSize: 12 }}>
-                <thead><tr><th>Giai đoạn</th><th>Mã đơn</th><th>Ngày phát hiện</th><th>Chặng nghi lỗi</th><th>Kho phát hiện</th></tr></thead>
-                <tbody>
-                  {cases.map((c) => (
-                    <tr key={c.order_code}><td>{c.period === "base" ? "Trước" : "Sau"}</td><td style={{ fontWeight: 700 }}>{c.order_code}</td><td>{c.case_date}</td><td>{c.leg}</td><td>{shortWh(c.warehouse)}</td></tr>
-                  ))}
-                </tbody>
-              </table>
+        {cases.length > 0 && (
+          <>
+            <div style={{ fontSize: 13, fontWeight: 700, marginTop: 18 }}>Ca bể vỡ trong phạm vi ({cases.length})</div>
+            <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 6, fontSize: 11 }}>
+              <thead><tr>{["Giai đoạn", "Mã đơn", "Ngày phát hiện", "Chặng nghi lỗi", "Kho phát hiện"].map((h) => <th key={h} style={{ ...hcell, textAlign: "left", fontSize: 11 }}>{h}</th>)}</tr></thead>
+              <tbody>
+                {cases.map((c) => (
+                  <tr key={c.order_code}>{[c.period === "base" ? "Trước" : "Sau", c.order_code, c.case_date, c.leg, shortWh(c.warehouse)].map((x, i) => <td key={i} style={{ ...cell, textAlign: "left", fontSize: 11 }}>{x}</td>)}</tr>
+                ))}
+              </tbody>
+            </table>
             </div>
-          )}
-        </div>
-      )}
+          </>
+        )}
 
-      <div style={{ ...small, marginTop: 10 }}>
-        {pr.post.ongoing && "* Ongoing: giai đoạn sau tính đến hôm nay. "}
-        Cách tính: đơn theo <b>ngày lấy hàng</b> trong từng giai đoạn · On-time = đúng hạn / (đúng hạn + trễ), chỉ đơn đã có kết quả · Ca bể vỡ = ca trong "Báo cáo bể vỡ" Rillnet <b>gắn theo đơn</b> (đơn lấy ở giai đoạn nào thì ca tính vào giai đoạn đó) · Ca/1.000 đơn = ca ÷ đơn lấy × 1.000 · Hiệu quả ròng = thay đổi của phạm vi − thay đổi của đối chứng. Xanh = tốt lên, đỏ = xấu đi.
+        <div style={{ fontSize: 10.5, color: C.muted, marginTop: 18, lineHeight: 1.5, borderTop: `1px solid ${C.line}`, paddingTop: 8 }}>
+          Cách tính: đơn theo ngày lấy hàng · Tấn = tổng khối lượng đơn · On-time = đúng hạn / (đúng hạn + trễ), chỉ đơn đã có kết quả · Ca bể vỡ = ca trong &quot;Báo cáo bể vỡ&quot; Rillnet gắn theo đơn · Ca/1.000 đơn = ca ÷ đơn lấy × 1.000 · Đối chứng = đơn của cùng khách ngoài phạm vi, cùng 2 giai đoạn · Hiệu quả ròng = thay đổi của phạm vi − thay đổi của đối chứng (on-time: điểm; ca/1.000 đơn: % thay đổi của phạm vi − % thay đổi của đối chứng).
+          {" "}In lúc {vnStamp(new Date().toISOString())}.
+        </div>
       </div>
     </div>
   );
@@ -434,6 +658,7 @@ export default function TabTrials() {
   };
 
   const cur = impacts[impactKey];
+  const closeDetail = useCallback(() => setSelected(null), []);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div className="glass" style={{ padding: 16 }}>
@@ -496,7 +721,10 @@ export default function TabTrials() {
         )}
       </div>
 
-      {sel && <ImpactPanel trial={sel} impact={cur?.impact} error={cur?.error} loading={loadingImpact} />}
+      {sel && (
+        <TrialDetail trial={sel} impact={cur?.impact} error={cur?.error} loading={loadingImpact}
+          onClose={closeDetail} onEdit={() => { setSelected(null); startEdit(sel); }} />
+      )}
     </div>
   );
 }
