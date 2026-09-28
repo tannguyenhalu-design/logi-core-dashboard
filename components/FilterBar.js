@@ -1,6 +1,7 @@
 /**
  * components/FilterBar.js
- * Multi-select filter bar for months and projects.
+ * Filter bar: Ngày lấy / Ngày giao, months, projects, and a từ → đến date
+ * range typed/shown as dd/mm/yyyy (quick presets removed 28/09).
  * When role='client', project filter is locked to user's assigned project.
  */
 import { useState, useRef, useEffect } from "react";
@@ -106,6 +107,64 @@ function MultiSelect({ label, options, selected, onChange, locked, placeholder }
   );
 }
 
+// Date input shown as dd/mm/yyyy whatever the browser language (the native
+// <input type="date"> showed mm/dd/yyyy — user 28/09). Type "14/09/2026" (or
+// 14/9/26) and press Enter / leave the box, or click 📅 to open the calendar.
+// value / onChange use yyyy-mm-dd, like the API.
+const toDMY = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(iso || "") ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : "");
+function parseDMY(text) {
+  const m = String(text || "").trim().match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})$/);
+  if (!m) return null;
+  const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+  const mo = Number(m[2]), d = Number(m[1]);
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null;
+  return dt.toISOString().slice(0, 10);
+}
+function DateField({ value, onChange, placeholder, label }) {
+  const [text, setText] = useState(toDMY(value));
+  const [bad, setBad] = useState(false);
+  const picker = useRef(null);
+  useEffect(() => { setText(toDMY(value)); setBad(false); }, [value]);
+  const commit = () => {
+    if (!text.trim()) { setBad(false); if (value) onChange(""); return; }
+    const iso = parseDMY(text);
+    if (!iso) { setBad(true); return; }
+    setBad(false);
+    if (iso !== value) onChange(iso);
+    else setText(toDMY(iso));
+  };
+  const openPicker = () => {
+    const el = picker.current;
+    if (!el) return;
+    try { if (el.showPicker) el.showPicker(); else el.click(); } catch { el.focus(); }
+  };
+  return (
+    <span style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+      <input
+        type="text" inputMode="numeric" aria-label={label} placeholder={placeholder} value={text}
+        title={bad ? "Nhập dạng ngày/tháng/năm, vd 14/09/2026" : label}
+        onChange={(e) => { setText(e.target.value); setBad(false); }}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } }}
+        style={{
+          background: value ? "rgba(var(--brand-rgb),0.1)" : "transparent",
+          border: bad ? "1px solid var(--red)" : "1px solid transparent",
+          color: value ? "var(--cyan)" : "var(--text-secondary)",
+          borderRadius: 6, padding: "4px 22px 4px 6px",
+          fontSize: 11.5, outline: "none", fontFamily: "inherit", width: 100,
+        }}
+      />
+      <button type="button" onClick={openPicker} aria-label={`Chọn ${label} trên lịch`} title="Chọn trên lịch"
+        style={{ position: "absolute", right: 2, background: "none", border: "none", cursor: "pointer", padding: 2, fontSize: 11, lineHeight: 1, color: "var(--text-muted)" }}>📅</button>
+      {/* hidden native picker, only used for its calendar popup */}
+      <input ref={picker} type="date" tabIndex={-1} aria-hidden="true" value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+        style={{ position: "absolute", right: 0, bottom: 0, width: 1, height: 1, opacity: 0, pointerEvents: "none", border: 0, padding: 0 }} />
+    </span>
+  );
+}
+
 export default function FilterBar({
   selectedMonths, onMonthsChange,
   selectedProjects, onProjectsChange,
@@ -115,47 +174,6 @@ export default function FilterBar({
 }) {
   const projectOptions = availableProjects.map((p) => ({ value: p, label: p }));
   const isClientLocked = userRole === "client";
-
-  // Quick date preset helpers
-  const setPreset = (preset) => {
-    const now = new Date();
-    const toISO = (d) => d.toISOString().slice(0, 10);
-    const today = toISO(now);
-    if (preset === "today") {
-      onDateChange(today, today);
-    } else if (preset === "3d") {
-      const from = new Date(now); from.setDate(from.getDate() - 2);
-      onDateChange(toISO(from), today);
-    } else if (preset === "7d") {
-      const from = new Date(now); from.setDate(from.getDate() - 6);
-      onDateChange(toISO(from), today);
-    } else if (preset === "month") {
-      const from = new Date(now.getFullYear(), now.getMonth(), 1);
-      onDateChange(toISO(from), today);
-    } else {
-      onDateChange("", ""); // clear
-    }
-  };
-
-  const isPresetActive = (preset) => {
-    const now = new Date();
-    const toISO = (d) => d.toISOString().slice(0, 10);
-    const today = toISO(now);
-    if (preset === "today") return dateFrom === today && dateTo === today;
-    if (preset === "3d") { const f = new Date(now); f.setDate(f.getDate()-2); return dateFrom === toISO(f) && dateTo === today; }
-    if (preset === "7d") { const f = new Date(now); f.setDate(f.getDate()-6); return dateFrom === toISO(f) && dateTo === today; }
-    if (preset === "month") { const f = new Date(now.getFullYear(), now.getMonth(), 1); return dateFrom === toISO(f) && dateTo === today; }
-    if (preset === "all") return !dateFrom && !dateTo;
-    return false;
-  };
-
-  const presets = [
-    { key: "today", label: "Hôm nay" },
-    { key: "3d",    label: "3 ngày" },
-    { key: "7d",    label: "7 ngày" },
-    { key: "month", label: "Tháng này" },
-    { key: "all",   label: "Tất cả" },
-  ];
 
   return (
     <div className="filter-bar">
@@ -206,62 +224,17 @@ export default function FilterBar({
         placeholder="Tất cả dự án"
       />
 
-      {/* Date range picker */}
+      {/* Date range (user 28/09: only "từ ngày → đến ngày" in ngày/tháng/năm; the
+          Hôm nay / 3 ngày / 7 ngày / Tháng này / Tất cả buttons were removed) */}
       {onDateChange && (
-        <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-          {/* Quick presets */}
-          <div style={{
-            display: "flex", background: "var(--panel-glow)",
-            border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", flexShrink: 0,
-          }}>
-            {presets.map((p) => (
-              <button
-                key={p.key}
-                onClick={() => setPreset(p.key)}
-                style={{
-                  padding: "6px 8px", fontSize: 11, border: "none", cursor: "pointer",
-                  fontFamily: "inherit", fontWeight: isPresetActive(p.key) ? 700 : 400,
-                  background: isPresetActive(p.key) ? "rgba(var(--brand-rgb),0.2)" : "transparent",
-                  color: isPresetActive(p.key) ? "var(--cyan)" : "var(--text-muted)",
-                  transition: "all 0.15s",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Custom date inputs */}
-          <div style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--panel-glow)", padding: "2px", borderRadius: 8, border: "1px solid var(--border)" }}>
-            <input
-              type="date"
-              value={dateFrom || ""}
-              onChange={(e) => onDateChange(e.target.value, dateTo || "")}
-              style={{
-                background: dateFrom ? "rgba(var(--brand-rgb),0.1)" : "transparent",
-                border: "none",
-                color: dateFrom ? "var(--cyan)" : "var(--text-secondary)",
-                borderRadius: 6, padding: "4px 4px",
-                fontSize: 11.5, outline: "none", cursor: "pointer",
-                fontFamily: "inherit", width: 118,
-              }}
-            />
-            <span style={{ color: "var(--border)", fontSize: 11, fontWeight: 700 }}>→</span>
-            <input
-              type="date"
-              value={dateTo || ""}
-              onChange={(e) => onDateChange(dateFrom || "", e.target.value)}
-              style={{
-                background: dateTo ? "rgba(var(--brand-rgb),0.1)" : "transparent",
-                border: "none",
-                color: dateTo ? "var(--cyan)" : "var(--text-secondary)",
-                borderRadius: 6, padding: "4px 4px",
-                fontSize: 11.5, outline: "none", cursor: "pointer",
-                fontFamily: "inherit", width: 118,
-              }}
-            />
-          </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--panel-glow)", padding: "2px", borderRadius: 8, border: "1px solid var(--border)" }}>
+          <DateField label="Từ ngày" placeholder="Từ ngày" value={dateFrom || ""} onChange={(v) => onDateChange(v, dateTo || "")} />
+          <span style={{ color: "var(--border)", fontSize: 11, fontWeight: 700 }}>→</span>
+          <DateField label="Đến ngày" placeholder="Đến ngày" value={dateTo || ""} onChange={(v) => onDateChange(dateFrom || "", v)} />
+          {(dateFrom || dateTo) && (
+            <button type="button" onClick={() => onDateChange("", "")} title="Xoá khoảng ngày" aria-label="Xoá khoảng ngày"
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 12, padding: "2px 6px" }}>✕</button>
+          )}
         </div>
       )}
 
