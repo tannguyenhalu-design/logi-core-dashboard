@@ -565,6 +565,7 @@ Tạo cookie `logi_session` bằng `sealData()` (iron-session) với `SESSION_SE
 | 28/09 (12:55) | **Ontime = cách tính báo cáo công ty** (cờ `odr_success`, loại đơn hoàn/huỷ) thay V2 — trùng 41/41 ô công thức user, khớp 32/41 ô bảng công ty; chốt lại W38–W39 12:48. Phát hiện `odr_success_1st_attempt` trống → chưa tính được SLA lần giao đầu. |
 | 28/09 (13:30) | Chẩn đoán % bể vỡ LG W38 lệch Rillnet (cùng 9 ca, khác mẫu số: LTC 657 vs GTC Rillnet ≈539); duyệt **Kế hoạch C** lấy GTC từ Rillnet (chưa làm, phiên mới). |
 | 28/09 (14:00) | Thanh lọc: bỏ nút nhanh Hôm nay/3 ngày/7 ngày/Tháng này/Tất cả; ô Từ ngày → Đến ngày dạng ngày/tháng/năm (gõ được + lịch + ✕ xoá). |
+| 28/09 (14:30) | Kế hoạch B bổ sung theo ví dụ PSD (2 dòng CCDC thùng nhựa 220L tạo rời vì chưa có nút đi tiếp giai đoạn): gộp thành 1 giải pháp Trial 1 (MN→MB) + Trial 2 (MN→MT), baseline chung 01/08–24/08, nút "➕ Bắt đầu giai đoạn tiếp theo", giai đoạn chạy song song (chưa làm, phiên mới). |
 | 26/09 (tối) | Tab **Trạng thái hệ thống** + heartbeat scraper; **Đơn treo / cần chú ý**; **On-time giảm mạnh**; **Tiểu Đệ 100% LTL** đọc snapshot, bỏ doanh thu/FTL/task. Commit `c65ce7f` + Phase C. |
 
 ---
