@@ -740,7 +740,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
                     <tr><td colSpan="5" style={{ padding: 20, textAlign: "center", color: "var(--text-muted)" }}>Không có đơn hàng nào</td></tr>
                   ) : (
                     provOrdersList.map((odr, idx) => {
-                      // Same rule as the ontime KPI (V2, 28/09); older responses without `outcome` fall back to the flag.
+                      // Same rule as the ontime KPI (company-report rule, 28/09); older responses without `outcome` fall back to the flag.
                       const outcome = odr.outcome !== undefined ? odr.outcome : (String(odr.odr_success || "").toLowerCase().includes("late") ? "late" : "ontime");
                       const isLate = outcome === "late";
                       return (
@@ -759,7 +759,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
                             {isLate ? (
                               <span style={{ background: "rgba(244,63,94,0.15)", color: "var(--red)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 }}>Late</span>
                             ) : outcome == null ? (
-                              <span style={{ background: "rgba(127,127,127,0.15)", color: "var(--text-muted)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 }}>Đang giao</span>
+                              <span style={{ background: "rgba(127,127,127,0.15)", color: "var(--text-muted)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 }} title="Không tính vào % ontime">{/return|cancel/i.test(String(odr.status || "")) ? "Hoàn / huỷ" : "Chưa có KQ"}</span>
                             ) : (
                               <span style={{ background: "rgba(16,185,129,0.15)", color: "var(--green)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 }}>Ontime</span>
                             )}

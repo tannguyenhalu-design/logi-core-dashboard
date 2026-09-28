@@ -816,7 +816,7 @@ export default function TabCompanyReport() {
           <InsightBox ins={shown.insights && shown.insights.fd} title="Hàng hoàn" noneLabel="Không có đơn hoàn" />
           <div style={{ ...small, marginTop: -4 }}>
             % bể đền của mỗi khách = ca bể (theo ngày phát hiện) / đơn LTC của chính khách đó (theo ngày lấy). Dòng tổng chỉ cộng các khách trong bảng.
-            # đơn LTC theo ngày lấy, ca bể theo ngày phát hiện (chi tiết trong file Excel). On-time = đơn LTC có cờ ontime / (đơn LTC − đơn chưa giao còn trong hạn); đơn chưa giao quá hạn và đơn hoàn/huỷ tính là trễ.
+            # đơn LTC theo ngày lấy, ca bể theo ngày phát hiện (chi tiết trong file Excel). On-time = đơn có cờ ontime / đơn có cờ ontime hoặc late (cờ GHN), loại đơn hoàn/huỷ — cùng cách tính báo cáo công ty.
             FTL và Insight điền tay trong file Excel.
           </div>
         </div>
