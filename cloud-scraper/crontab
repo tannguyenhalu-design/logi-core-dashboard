@@ -4,6 +4,11 @@
 50 12 * * * /bin/bash /app/run_scrapers.sh
 50 17 * * * /bin/bash /app/run_scrapers.sh
 
+# Keep the dashboard's Vercel functions warm during working hours
+# (07:00-20:00 ICT, every 5 minutes) — see keep_warm.sh.
+*/5 7-19 * * * /bin/bash /app/keep_warm.sh >/dev/null 2>&1
+0 20 * * * /bin/bash /app/keep_warm.sh >/dev/null 2>&1
+
 # FTL orders — DISABLED 2026-08-27 per user instruction: no more CDP/browser
 # automation into portal.ghn.vn (both of these ran ftl_scraper.py and/or
 # ftl_enrich_vehicle.py, which scraped that portal directly). raw_ftl_orders

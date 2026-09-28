@@ -12,6 +12,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ClientChannelSettings from "./ClientChannelSettings";
+import { getJSON, prefetchJSON, dropPrefetched } from "../lib/prefetch";
 
 const DAY = 86400000;
 const ymd = (d) => d.toISOString().slice(0, 10);
@@ -122,6 +123,22 @@ function savePicked(list) {
 const sameList = (a, b) => JSON.stringify(a || null) === JSON.stringify(b || null);
 const apiUrl = (type, period, clients, extra = "") =>
   `/api/report/biweekly?type=${type}&period=${encodeURIComponent(period)}${clients && clients.length ? `&clients=${encodeURIComponent(clients.join("|"))}` : ""}${extra}`;
+const LOCKS_URL = "/api/report/biweekly?list=1";
+// Tables load without the drill-down lists (`details`, ~90% of the JSON);
+// those come with &part=details when a cell is first clicked (Kế hoạch A · P7).
+const LITE = "&format=json&lite=1";
+
+// Idle prefetch from the dashboard (Kế hoạch A · P4): what this tab asks for
+// first when opened with its defaults — lock list + the default period.
+export function prefetch() {
+  const period = defaultPeriodFor("biweekly");
+  prefetchJSON(LOCKS_URL).then(({ ok, j }) => {
+    if (ok && j.ok && j.locks.some((l) => l.type === "biweekly" && l.period === period)) {
+      prefetchJSON(apiUrl("biweekly", period, null, "&version=locked" + LITE));
+    }
+  }).catch(() => {});
+  prefetchJSON(apiUrl("biweekly", period, null, LITE)).catch(() => {});
+}
 
 const fmtPct = (v) => (v == null || v === "" ? "" : `${(v * 100).toFixed(1)}%`);
 const fmtNum = (v) => (v === "" || v == null ? "" : Number(v).toLocaleString("vi-VN"));
@@ -268,6 +285,21 @@ function topOf(list, fn, n = 2) {
 }
 const NL = String.fromCharCode(10);
 const smallBtn = { fontSize: 12, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--text-secondary)", cursor: "pointer", fontFamily: "inherit" };
+
+// Drill-down panel placeholder while its list loads (or failed to).
+function DetailsLoading({ title, error, onClose }) {
+  return (
+    <div style={{ marginTop: 12, border: "1px solid rgba(var(--brand-rgb),0.35)", borderRadius: 10, padding: 12, background: "rgba(var(--brand-rgb),0.04)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 700 }}>{title}</div>
+        <button onClick={onClose} style={smallBtn}>✕ Đóng</button>
+      </div>
+      <div style={{ fontSize: 12.5, color: error ? "var(--red)" : "var(--text-muted)", marginTop: 6 }}>
+        {error ? `⚠ ${error} — đóng rồi bấm lại ô số để thử lại.` : "Đang tải danh sách…"}
+      </div>
+    </div>
+  );
+}
 
 function CasePanel({ title, cases, expected, onClose }) {
   const [copied, setCopied] = useState(false);
@@ -547,6 +579,16 @@ export default function TabCompanyReport() {
   // server instance answers re-reads the config instead of a cached copy.
   const [cv, setCv] = useState("");
   const cvParam = cv ? `&cv=${encodeURIComponent(cv)}` : "";
+  // "↻ Làm mới" (Kế hoạch A · P3: the tab now stays mounted when you leave it,
+  // so its numbers are kept until you ask for newer ones).
+  const [refreshKey, setRefreshKey] = useState(0);
+  // Drill-down lists, loaded on first click: report object → its details URL,
+  // details URL → details (or the pending request).
+  const srcRef = useRef(new WeakMap());
+  const detailsRef = useRef(new Map());
+  const [detailsErr, setDetailsErr] = useState(null);
+  const [, setDetailsTick] = useState(0);
+  const remember = (report, detailsUrl) => { if (report) srcRef.current.set(report, detailsUrl); return report; };
 
   useEffect(() => { const p = readPicked(); if (p.length) setPicked(p); }, []);
   const clients = mode === "pick" ? picked : null;
@@ -554,8 +596,9 @@ export default function TabCompanyReport() {
   const base = optionsFor(type);
   const options = base.some((o) => o.value === period) ? base : [...base, { value: period, label: periodLabel(type, period) }];
 
-  const loadLocks = useCallback(() => fetch("/api/report/biweekly?list=1").then((r) => r.json()).then((j) => { if (j.ok) setLocks(j.locks); }).catch(() => {}), []);
-  useEffect(() => { loadLocks(); }, [loadLocks]);
+  const loadLocks = useCallback((fresh = false) => getJSON(fresh ? LOCKS_URL + "&fresh=1" : LOCKS_URL)
+    .then(({ j }) => { if (j.ok) setLocks(j.locks); }).catch(() => {}), []);
+  useEffect(() => { loadLocks(refreshKey > 0); }, [loadLocks, refreshKey]);
 
   // Latest numbers for the current selection (debounced while ticking clients).
   useEffect(() => {
@@ -563,15 +606,18 @@ export default function TabCompanyReport() {
     const id = ++reqId.current;
     setLoading(true); setErr(null);
     const t = setTimeout(() => {
-      fetch(apiUrl(type, period, clients, `&format=json${cvParam}`))
-        .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
-        .then(({ ok, j }) => { if (id !== reqId.current) return; if (!ok || !j.ok) throw new Error(j.error || "Không tải được báo cáo"); setLive(j.report); })
+      getJSON(apiUrl(type, period, clients, `${LITE}${cvParam}`))
+        .then(({ ok, j }) => {
+          if (id !== reqId.current) return;
+          if (!ok || !j.ok) throw new Error(j.error || "Không tải được báo cáo");
+          setLive(remember(j.report, apiUrl(type, period, clients, `&format=json&part=details${cvParam}`)));
+        })
         .catch((e) => { if (id === reqId.current) setErr(e.message); })
         .finally(() => { if (id === reqId.current) setLoading(false); });
     }, mode === "pick" ? 450 : 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type, period, mode, JSON.stringify(picked), cv]);
+  }, [type, period, mode, JSON.stringify(picked), cv, refreshKey]);
 
   // The locked version of this period (if any) + latest numbers with ITS selection.
   const isLocked = locks.some((l) => l.type === type && l.period === period);
@@ -579,13 +625,16 @@ export default function TabCompanyReport() {
     setSaved(null); setLockLive(null);
     if (!isLocked) { setView("live"); return; }
     let cancel = false;
-    fetch(apiUrl(type, period, null, "&version=locked&format=json")).then((r) => r.json()).then((j) => {
+    getJSON(apiUrl(type, period, null, "&version=locked" + LITE)).then(({ j }) => {
       if (cancel || !j.ok) return;
-      setSaved({ report: j.report, lock: j.lock });
-      return fetch(apiUrl(type, period, j.report.selection, `&format=json${cvParam}`)).then((r) => r.json()).then((k) => { if (!cancel && k.ok) setLockLive(k.report); });
+      setSaved({ report: remember(j.report, apiUrl(type, period, null, "&version=locked&format=json&part=details")), lock: j.lock });
+      const sel = j.report.selection;
+      return getJSON(apiUrl(type, period, sel, `${LITE}${cvParam}`)).then(({ j: k }) => {
+        if (!cancel && k.ok) setLockLive(remember(k.report, apiUrl(type, period, sel, `&format=json&part=details${cvParam}`)));
+      });
     }).catch(() => {});
     return () => { cancel = true; };
-  }, [type, period, isLocked, cv]);
+  }, [type, period, isLocked, cv, refreshKey]);
 
   // Any Điện máy client in the window; the full list comes with every report.
   const clientOptions = useMemo(() => {
@@ -614,7 +663,33 @@ export default function TabCompanyReport() {
   const setPick = (p) => setPickState(p ? { ...p, report: shown } : null);
   // One open panel at a time, across the three tables ({sec, row, col}).
   const pickOf = (sec) => (pick && pick.sec === sec ? pick : null);
-  const togglePick = (sec) => (row, col) => setPick(pick && pick.sec === sec && pick.row === row && pick.col === col ? null : { sec, row, col });
+  const togglePick = (sec) => (row, col) => { setDetailsErr(null); setPick(pick && pick.sec === sec && pick.row === row && pick.col === col ? null : { sec, row, col }); };
+
+  // The shown report with its drill-down lists, once loaded (null until then).
+  const detailsOf = (r) => {
+    if (!r) return null;
+    if (r.details) return r.details; // complete JSON already carries them
+    if (r.hasDetails === false) return {};
+    const d = detailsRef.current.get(srcRef.current.get(r));
+    return d && typeof d.then !== "function" ? d : null;
+  };
+  const shownDetails = detailsOf(shown);
+  const full = shown && shownDetails ? (shown.details ? shown : { ...shown, details: shownDetails }) : null;
+  useEffect(() => {
+    if (!pick || !shown || detailsErr || detailsOf(shown)) return;
+    const url = srcRef.current.get(shown);
+    if (!url || detailsRef.current.has(url)) return;
+    const req = getJSON(url).then(({ ok, j }) => {
+      if (!ok || !j.ok) throw new Error(j.error || "Không tải được danh sách");
+      detailsRef.current.set(url, j.details || {});
+      // Data rebuilt between loading the tables and this click → reload the
+      // tables too, so the list and the numbers above it come from one snapshot.
+      if (j.dataAsOf && shown.dataAsOf && j.dataAsOf !== shown.dataAsOf) { dropPrefetched("/api/report/"); setRefreshKey((k) => k + 1); }
+    }).catch((e) => { detailsRef.current.delete(url); setDetailsErr(e.message); })
+      .finally(() => setDetailsTick((t) => t + 1));
+    detailsRef.current.set(url, req);
+  });
+  const refresh = () => { dropPrefetched("/api/report/"); detailsRef.current.clear(); setDetailsErr(null); setPick(null); setMsg(null); setRefreshKey((k) => k + 1); };
 
   const doLock = async () => {
     const who = clients ? `khách: ${clients.map(label).join(", ")}` : "mẫu đầy đủ";
@@ -628,10 +703,11 @@ export default function TabCompanyReport() {
       const j = await r.json();
       if (!r.ok || !j.ok) throw new Error(j.error || "Không chốt được");
       setMsg(`✓ Đã chốt số lúc ${vnTime(j.lock.lockedAt)}`);
-      await loadLocks();
+      dropPrefetched("/api/report/");
+      await loadLocks(true);
       setSaved(null);
-      const k = await fetch(apiUrl(type, period, null, "&version=locked&format=json")).then((x) => x.json());
-      if (k.ok) { setSaved({ report: k.report, lock: k.lock }); setLockLive(live); }
+      const k = await fetch(apiUrl(type, period, null, "&version=locked" + LITE)).then((x) => x.json());
+      if (k.ok) { setSaved({ report: remember(k.report, apiUrl(type, period, null, "&version=locked&format=json&part=details")), lock: k.lock }); setLockLive(live); }
     } catch (e) {
       setMsg(`⚠ ${e.message}`);
     } finally {
@@ -730,6 +806,7 @@ export default function TabCompanyReport() {
             <button style={btn} disabled={mode === "pick" && !picked.length} onClick={() => { window.location.href = apiUrl(type, period, clients); }}>⬇ Tải Excel (số mới nhất)</button>
             {saved && <button style={btn} onClick={() => { window.location.href = apiUrl(type, period, null, "&version=locked"); }}>⬇ Tải bản đã chốt</button>}
             <button style={ghost} disabled={busy || (mode === "pick" && !picked.length)} onClick={doLock}>{busy ? "Đang chốt…" : saved ? "🔒 Chốt lại" : "🔒 Chốt số kỳ này"}</button>
+            <button style={ghost} disabled={busy} onClick={refresh} title="Tải lại số mới nhất và danh sách kỳ đã chốt">↻ Làm mới</button>
           </div>
         </div>
         {msg && <div style={{ fontSize: 12.5, color: msg.startsWith("✓") ? "var(--green)" : "var(--red)" }}>{msg}</div>}
@@ -782,10 +859,11 @@ export default function TabCompanyReport() {
           </div>
           <ReportTable title="Ontime LTL" countTitle="# đơn LTC" rateTitle="% ontime" sec={shown.ontime} higherIsBetter
             picked={pickOf("ontime")} onPick={togglePick("ontime")} pickHint="Bấm số đơn để xem đơn trễ và tuyến trễ">
-            {pickOf("ontime") && (
+            {pickOf("ontime") && !full && <DetailsLoading title={`Ontime · ${shown.ontime.rows[pick.row].name}`} error={detailsErr} onClose={() => setPick(null)} />}
+            {pickOf("ontime") && full && (
               <OrdersPanel kind="ontime"
                 title={`Ontime · ${shown.ontime.rows[pick.row].name} · ${pick.col == null ? "các tuần của kỳ" : shown.ontime.cols[pick.col].label}`}
-                data={flowFor(shown, "ontime", pick.row, pick.col)}
+                data={flowFor(full, "ontime", pick.row, pick.col)}
                 expected={pick.col == null || !shown.ontime.rows[pick.row].late ? null : shown.ontime.rows[pick.row].late[pick.col]}
                 onClose={() => setPick(null)} />
             )}
@@ -793,10 +871,11 @@ export default function TabCompanyReport() {
           <InsightBox ins={shown.insights && shown.insights.ontime} title="Ontime" />
           <ReportTable title="Bể vỡ và đền bù" countTitle="# case bể và đền (theo ngày phát hiện)" rateTitle={shown.damage.rows.some((r) => Array.isArray(r.ltc)) ? "% bể đền / LTC" : "% bể đền / GTC"} sec={shown.damage} higherIsBetter={false}
             picked={pickOf("damage")} onPick={togglePick("damage")}>
-            {pickOf("damage") && shown.damage.rows[pick.row] && (
+            {pickOf("damage") && shown.damage.rows[pick.row] && !full && <DetailsLoading title={shown.damage.rows[pick.row].name} error={detailsErr} onClose={() => setPick(null)} />}
+            {pickOf("damage") && shown.damage.rows[pick.row] && full && (
               <CasePanel
                 title={`${shown.damage.rows[pick.row].name} · ${pick.col == null ? "tất cả các cột" : shown.damage.cols[pick.col].label}`}
-                cases={casesFor(shown, pick.row, pick.col)}
+                cases={casesFor(full, pick.row, pick.col)}
                 expected={pick.col == null ? null : Number(shown.damage.rows[pick.row].counts[pick.col]) || 0}
                 onClose={() => setPick(null)}
               />
@@ -805,10 +884,11 @@ export default function TabCompanyReport() {
           <InsightBox ins={shown.insights && shown.insights.damage} title="Bể vỡ" noneLabel="Không phát sinh ca" />
           <ReportTable title="Hàng hoàn" countTitle="# đơn FD" rateTitle="% FD" sec={shown.fd} higherIsBetter={false}
             picked={pickOf("fd")} onPick={togglePick("fd")} pickHint="Bấm số đơn hoàn để xem mã đơn">
-            {pickOf("fd") && (
+            {pickOf("fd") && !full && <DetailsLoading title={`Hàng hoàn · ${shown.fd.rows[pick.row].name}`} error={detailsErr} onClose={() => setPick(null)} />}
+            {pickOf("fd") && full && (
               <OrdersPanel kind="fd"
                 title={`Hàng hoàn · ${shown.fd.rows[pick.row].name} · ${pick.col == null ? "các tuần của kỳ" : shown.fd.cols[pick.col].label}`}
-                data={flowFor(shown, "fd", pick.row, pick.col)}
+                data={flowFor(full, "fd", pick.row, pick.col)}
                 expected={pick.col == null ? null : shown.fd.rows[pick.row].counts[pick.col]}
                 onClose={() => setPick(null)} />
             )}

@@ -210,6 +210,11 @@ export default function TabUsers() {
             Dành cho Quản trị viên cấp quyền truy cập các Tab và gán tên PIC cho nhân sự.
           </p>
         </div>
+        <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={fetchUsers} title="Tải lại danh sách người dùng"
+          style={{ background: "transparent", color: "var(--text-secondary)", border: "1px solid var(--border)", padding: "9px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+          ↻ Tải lại
+        </button>
         <button
           onClick={() => {
             setNewEmployeeId("");
@@ -223,6 +228,7 @@ export default function TabUsers() {
         >
           ➕ Thêm người dùng
         </button>
+        </div>
       </div>
 
       {error && (

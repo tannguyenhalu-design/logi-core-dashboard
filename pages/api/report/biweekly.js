@@ -5,7 +5,11 @@
  *        [&version=live|locked] [&format=json]      → .xlsx (or JSON)
  *        [&clients=LG LTL|Aqua B2C]                 → only these clients,
  *        total row "Tổng khách đã chọn" (omit = full layout)
- * GET  ?list=1                                     → locked reports
+ *        [&format=json&lite=1]  → same JSON without `details` (the drill-down
+ *        lists — ~90% of the size); the tab loads them with &part=details
+ *        only when a cell is clicked (Kế hoạch A · P7, 28/09). Plain
+ *        format=json stays complete (script lock_and_verify.cjs reads it).
+ * GET  ?list=1 [&fresh=1]                          → locked reports
  * POST ?type=…&period=…                            → "Chốt số": store the
  *        current numbers so the same file can be re-downloaded later
  *        [&cv=<version>]  config version the tab just saved → re-read it
@@ -17,11 +21,11 @@
 import { getSession } from "../../../lib/auth";
 import { loadLtlBase } from "../../../lib/ltl-snapshot";
 import { computeReport, defaultPeriod, normalizePeriod, normalizeClients, REPORT_TYPES } from "../../../lib/biweekly-report";
-import { buildBiweeklyWorkbook } from "../../../lib/biweekly-xlsx";
 import { saveLock, readLock, listLocks } from "../../../lib/report-locks";
 import { logAction } from "../../../lib/audit-log";
 import { readClientChannels } from "../../../lib/client-channels";
 import { reportCacheKey, getCachedReport, setCachedReport } from "../../../lib/report-cache";
+import { isWarmPing, answerWarm } from "../../../lib/warm";
 
 export const config = { maxDuration: 60 };
 
@@ -41,6 +45,13 @@ async function liveReport(type, period, clients, minVersion) {
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "private, no-store");
+  if (isWarmPing(req)) {
+    // Snapshot + channel config + lock list in memory, and the default
+    // report (what the tab opens on) computed into the report cache.
+    return answerWarm(res, async () => {
+      await Promise.all([liveReport("biweekly", defaultPeriod("biweekly"), null, ""), listLocks({ fresh: true })]);
+    });
+  }
   const session = await getSession(req, res);
   if (!session?.user) return res.status(401).json({ error: "Unauthorized" });
   if (!["manager", "sd3"].includes(session.user.role)) {
@@ -50,7 +61,7 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === "GET" && req.query.list) {
-      return res.status(200).json({ ok: true, locks: await listLocks() });
+      return res.status(200).json({ ok: true, locks: await listLocks({ fresh: req.query.fresh === "1" }) });
     }
 
     const type = String(req.query.type || "biweekly");
@@ -81,8 +92,17 @@ export default async function handler(req, res) {
     } else {
       report = await liveReport(type, period, clients, cv);
     }
-    if (req.query.format === "json") return res.status(200).json({ ok: true, report, lock });
+    if (req.query.format === "json") {
+      if (req.query.part === "details") return res.status(200).json({ ok: true, dataAsOf: report.dataAsOf || null, details: report.details || null });
+      if (req.query.lite === "1") {
+        const { details: _d, ...lite } = report;
+        return res.status(200).json({ ok: true, report: { ...lite, hasDetails: !!report.details }, lock });
+      }
+      return res.status(200).json({ ok: true, report, lock });
+    }
 
+    // exceljs (~0.3s to load) only when a file is actually downloaded.
+    const { buildBiweeklyWorkbook } = await import("../../../lib/biweekly-xlsx");
     const buf = await buildBiweeklyWorkbook(report, lock);
     logAction({ actor, action: "report.export", target: `${type} ${period}${lock ? " (đã chốt)" : ""}` }).catch(() => {});
     const name = `Bao-cao-Dien-may-${FILE_PREFIX[type]}-${period}${lock ? "-da-chot" : ""}.xlsx`;

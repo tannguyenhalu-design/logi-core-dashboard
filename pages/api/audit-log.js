@@ -4,9 +4,12 @@
  */
 import { getSession } from "../../lib/auth";
 import { getAuditLog } from "../../lib/audit-log";
+import { isWarmPing, answerWarm } from "../../lib/warm";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).end();
+  res.setHeader("Cache-Control", "private, no-store");
+  if (isWarmPing(req)) return answerWarm(res, () => getAuditLog(300));
   const session = await getSession(req, res);
   if (!session?.user) return res.status(401).json({ error: "Unauthorized" });
   if (session.user.role !== "manager") {

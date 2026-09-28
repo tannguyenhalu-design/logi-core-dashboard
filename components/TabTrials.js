@@ -12,6 +12,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { getJSON, prefetchJSON, dropPrefetched } from "../lib/prefetch";
 import DateField from "./DateField";
 import { useChart, useTheme } from "./ltl/charts/chartUtils";
 
@@ -676,6 +677,11 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
 
 const EMPTY_PHASE = { id: "", label: "Trial 1", khoLay: [], khoGiao: [], provinces: [], startDate: "", endDate: "", ongoing: true, status: "Đang trial", description: "" };
 
+// Idle prefetch from the dashboard (Kế hoạch A · P4): the solution list.
+export function prefetch() {
+  prefetchJSON("/api/trials").catch(() => {});
+}
+
 export default function TabTrials() {
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
@@ -687,10 +693,14 @@ export default function TabTrials() {
   const [q, setQ] = useState("");
   const [msg, setMsg] = useState(null);
 
-  const load = (v = version) => fetch(`/api/trials${v ? `?v=${encodeURIComponent(v)}` : ""}`).then((r) => r.json())
-    .then((j) => { if (!j.ok) throw new Error(j.error || "Không tải được danh sách"); setData(j); setErr(null); return j; })
+  // First load may use the idle-prefetched list; later loads (after a save,
+  // "↻ Làm mới") always ask the server.
+  const load = (v = version, first = false) => (first ? getJSON("/api/trials") : fetch(`/api/trials${v ? `?v=${encodeURIComponent(v)}` : ""}`).then((r) => r.json().then((j) => ({ ok: r.ok, j }))))
+    .then(({ j }) => { if (!j.ok) throw new Error(j.error || "Không tải được danh sách"); setData(j); setErr(null); return j; })
     .catch((e) => setErr(e.message));
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(version, true); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [reloading, setReloading] = useState(false);
+  const reload = () => { dropPrefetched("/api/trials"); setReloading(true); load().finally(() => setReloading(false)); };
   useEffect(() => {
     if (!form || options) return;
     fetch("/api/trials?options=1").then((r) => r.json()).then((j) => { if (j.ok) setOptions(j.options); else setMsg(`⚠ ${j.error}`); }).catch((e) => setMsg(`⚠ ${e.message}`));
@@ -732,7 +742,10 @@ export default function TabTrials() {
             <div style={{ fontSize: 15, fontWeight: 700 }}>Sổ tay Cải tiến & Đo lường Giải pháp</div>
             <div style={small}>Mỗi giải pháp đi qua các giai đoạn Trial 1 → Trial 2 → … → Nhân rộng cả nước, cùng 1 baseline; đo hiệu quả thật từ LTL + Rillnet và theo dõi tiếp sau khi thành công.</div>
           </div>
-          {!form && <button style={primary} onClick={newSolution}>＋ Thêm giải pháp</button>}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={ghost} onClick={reload} disabled={reloading} title="Tải lại danh sách giải pháp và số đo mới nhất">{reloading ? "Đang tải…" : "↻ Làm mới"}</button>
+            {!form && <button style={primary} onClick={newSolution}>＋ Thêm giải pháp</button>}
+          </div>
         </div>
         {msg && <div style={{ fontSize: 12.5, marginTop: 8, color: msg.startsWith("✓") ? "var(--green)" : "var(--red)" }}>{msg}</div>}
       </div>

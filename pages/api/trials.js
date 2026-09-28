@@ -25,6 +25,7 @@ import {
   computeSolutionReport, phaseTrial, SOLUTION_STATUSES, PHASE_STATUSES, MAX_IMAGES,
 } from "../../lib/solutions";
 import { uploadPhaseImage, readPhaseImage, deletePhaseImage, isImagePath } from "../../lib/trial-images";
+import { isWarmPing, answerWarm } from "../../lib/warm";
 
 export const config = { api: { bodyParser: { sizeLimit: "4mb" } } };
 
@@ -39,6 +40,7 @@ const fileName = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").repla
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "private, no-store");
+  if (isWarmPing(req)) return answerWarm(res, () => Promise.all([loadLtlBase(), readSolutions()]));
   const session = await getSession(req, res);
   if (!session?.user) return res.status(401).json({ error: "Unauthorized" });
   const role = session.user.role;
