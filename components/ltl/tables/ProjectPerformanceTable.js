@@ -75,7 +75,7 @@ export default function ProjectPerformanceTable({ projectSummaries = {} }) {
               {head("ontime", "On-time")}
               {head("late", "Late")}
               {head("damage", "Ca hỏng")}
-              {head("per1000", "Ca / 1.000 đơn")}
+              {head("per1000", "% Bể vỡ")}
             </tr>
           </thead>
           <tbody>
@@ -98,7 +98,7 @@ export default function ProjectPerformanceTable({ projectSummaries = {} }) {
                 </td>
                 <td style={td}>{n(r.late)}</td>
                 <td style={td}>{r.damage ? n(r.damage) : <span style={{ color: "var(--text-muted)" }}>—</span>}</td>
-                <td style={td}>{r.damage ? n(r.per1000, 1) : <span style={{ color: "var(--text-muted)" }}>—</span>}</td>
+                <td style={td} title="% bể vỡ = ca bể vỡ ÷ đơn lấy (như báo cáo công ty)">{r.damage ? `${(r.per1000 / 10).toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : <span style={{ color: "var(--text-muted)" }}>—</span>}</td>
               </tr>
             ))}
           </tbody>

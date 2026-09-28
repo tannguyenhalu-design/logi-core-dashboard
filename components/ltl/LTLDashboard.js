@@ -577,7 +577,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
           { label: "Ca hư hỏng (kỳ đang lọc)", value: fmt(data.totalBroken), sub: damageTrend ? `${damageTrend.currentRangeLabel}: ${fmt(damageTrend.curDamageCount)} ca · cùng kỳ: ${fmt(damageTrend.prevDamageCount)} ca` : "" },
           { label: "Tỷ lệ bể vỡ trung bình", value: damageRisk ? `${damageRisk.avgRate.toLocaleString("vi-VN")}%` : "—", sub: damageRisk ? `${fmt(damageRisk.totalDamaged)} đơn có ca / ${fmt(damageRisk.totalOrders)} đơn` : "" },
           { label: "Tuyến rủi ro cao", value: fmt(damageRisk?.riskyRouteCount || 0), sub: damageRisk ? `≥ ${damageRisk.rule.multiplier}× TB, ≥ ${damageRisk.rule.minOrders} đơn` : "" },
-          { label: "Dự án rủi ro cao", value: fmt(riskyProjects), sub: "Ca / 1.000 đơn ≥ 2× trung bình" },
+          { label: "Dự án rủi ro cao", value: fmt(riskyProjects), sub: "% bể vỡ ≥ 2× trung bình" },
           ...(() => {
             // Same cases as "Ca hư hỏng (kỳ đang lọc)" — Rillnet definitions.
             const cases = data.detailedDamageCases || [];

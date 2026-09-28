@@ -194,7 +194,7 @@ export default function RouteRiskMatrix({ risk, riskOnly = false, onRiskOnlyChan
         <div className="chart-panel-title" style={{ flexWrap: "wrap", gap: 8 }}>
           <span>🏷️ Rủi ro theo dự án</span>
           <span style={{ fontSize: 12, fontWeight: 400, color: "var(--text-muted)" }}>
-            Số ca bể vỡ trên 1.000 đơn · trung bình {(avgRate * 10).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} ca/1.000 đơn
+            % bể vỡ = đơn có ca bể vỡ ÷ đơn lấy · trung bình {Number(avgRate || 0).toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%
           </span>
         </div>
         {risk.totalAmount > 0 && (
@@ -207,7 +207,7 @@ export default function RouteRiskMatrix({ risk, riskOnly = false, onRiskOnlyChan
             <thead>
               <tr>
                 <th>Dự án</th><th style={{ textAlign: "right" }}>Đơn</th><th style={{ textAlign: "right" }}>Ca bể vỡ</th>
-                <th style={{ textAlign: "right" }}>Ca / 1.000 đơn</th><th style={{ width: "30%" }}></th>
+                <th style={{ textAlign: "right" }}>% Bể vỡ</th><th style={{ width: "30%" }}></th>
                 <th style={{ textAlign: "right" }}>Đã chốt đền bù</th>
                 <th style={{ textAlign: "right" }}>Truy thu (đã duyệt)</th>
               </tr>
@@ -223,7 +223,7 @@ export default function RouteRiskMatrix({ risk, riskOnly = false, onRiskOnlyChan
                       <td style={{ textAlign: "right", fontSize: 12 }}>{fmt(p.orders)}</td>
                       <td style={{ textAlign: "right", fontSize: 12 }}>{fmt(p.damaged)}</td>
                       <td style={{ textAlign: "right", fontSize: 12, fontWeight: 700, color: high ? "var(--red)" : "var(--text-primary)" }}>
-                        {p.per1000?.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}{high && " ⚠"}
+                        {p.per1000 == null ? "—" : `${(p.per1000 / 10).toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`}{high && " ⚠"}
                       </td>
                       <td>
                         <div style={{ height: 8, borderRadius: 4, background: "var(--border)" }}>
