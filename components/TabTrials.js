@@ -1,20 +1,22 @@
 /**
- * components/TabTrials.js — "Sổ tay Cải tiến & Đo lường Giải pháp" (28/09).
- * List of improvement trials (Manager + SD3 create / edit, Manager deletes)
- * and, for the selected one, the measured Baseline vs Post-Trial effect with
- * a control group (same clients outside the scope) — numbers ready to copy
- * into Excel / chat or screenshot, no manual Excel work. Math: lib/trials.js.
- * Clicking a trial (or saving one) opens the evaluation report in a large
- * modal: general info, automated verdict, Before vs After table, cases;
- * "Xuất báo cáo đánh giá" = Excel (lib/trial-xlsx.js, same impact object as
- * the screen) · "In / Lưu PDF" = white A4 page · copy summary / table.
+ * components/TabTrials.js — "Sổ tay Cải tiến & Đo lường Giải pháp" with
+ * PHASES (KẾ HOẠCH B, user decisions 2026-09-28).
+ *
+ * Outer table: one row per GIẢI PHÁP with its phases as chips (Trial 1 ✅ ·
+ * Trial 2 ⏳), monitoring alerts, and [Sửa] [➕ Giai đoạn tiếp] [Xoá].
+ * Detail (large modal): shared baseline, phase comparison, weekly chart,
+ * "Theo dõi sau thành công" (month / week vs the period before), each
+ * phase's before/after + verdict + photos; export Word / Excel / In-PDF.
+ * Phases run in parallel; "➕ Giai đoạn tiếp" pre-fills the next name and
+ * copies the previous phase's scope. Math: lib/trials.js + lib/solutions.js.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import DateField from "./DateField";
+import { useChart, useTheme } from "./ltl/charts/chartUtils";
 
 const DAY = 86400000;
 const NL = String.fromCharCode(10);
-const TAB = String.fromCharCode(9);
 const vnToday = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
 const addDays = (iso, n) => new Date(Date.parse(iso) + n * DAY).toISOString().slice(0, 10);
 const daysBetween = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / DAY) + 1;
@@ -24,33 +26,44 @@ const n0 = (x) => (x == null ? "—" : Math.round(x).toLocaleString("vi-VN"));
 const n1 = (x) => (x == null ? "—" : x.toLocaleString("vi-VN", { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
 const n2 = (x) => (x == null ? "—" : x.toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const sgn = (x, f) => (x == null ? "—" : `${x > 0 ? "+" : x < 0 ? "−" : "±"}${f(Math.abs(x))}`);
-// ISO timestamp → "hh:mm dd/mm" (Vietnam time)
-const vnStamp = (iso) => {
-  if (!iso || Number.isNaN(Date.parse(iso))) return "";
-  const v = new Date(Date.parse(iso) + 7 * 3600 * 1000).toISOString();
-  return `${v.slice(11, 16)} ${v.slice(8, 10)}/${v.slice(5, 7)}`;
-};
+const pctTxt = (x) => (x == null ? "—" : `${n1(x)}%`);
+const vnStamp = (iso) => { if (!iso || Number.isNaN(Date.parse(iso))) return ""; const v = new Date(Date.parse(iso) + 7 * 3600 * 1000).toISOString(); return `${v.slice(11, 16)} ${v.slice(8, 10)}/${v.slice(5, 7)}`; };
 const shortWh = (s) => String(s || "").replace(/^Kho Giao Hàng Nặng - /, "").replace(/^Key Account Warehouse /, "KA WH ").trim();
 
 const STATUS_STYLE = {
-  "Đang trial": { color: "var(--cyan)", bg: "rgba(var(--brand-rgb),0.12)" },
-  "Thành công (Đã nhân rộng)": { color: "var(--green)", bg: "var(--green-glow, rgba(45,212,191,0.14))" },
-  "Đã hủy": { color: "var(--text-muted)", bg: "rgba(127,127,127,0.14)" },
+  "Đang trial": { color: "var(--cyan)", bg: "rgba(var(--brand-rgb),0.12)", icon: "⏳" },
+  "Thành công": { color: "var(--green)", bg: "var(--green-glow, rgba(45,212,191,0.14))", icon: "✅" },
+  "Đã thành solution chung": { color: "var(--green)", bg: "var(--green-glow, rgba(45,212,191,0.14))", icon: "🏁" },
+  "Dừng": { color: "var(--text-muted)", bg: "rgba(127,127,127,0.14)", icon: "⏹" },
+  "Đã hủy": { color: "var(--text-muted)", bg: "rgba(127,127,127,0.14)", icon: "⏹" },
 };
-const EMPTY = { id: "", name: "", clients: [], khoLay: [], khoGiao: [], provinces: [], baseStart: "", baseEnd: "", startDate: "", endDate: "", ongoing: true, status: "Đang trial", description: "" };
+const VERDICT_STYLE = {
+  excellent: { color: "var(--green)", bg: "var(--green-glow)", icon: "🏆" },
+  improved: { color: "var(--blue)", bg: "var(--blue-glow)", icon: "✅" },
+  watch: { color: "var(--amber)", bg: "var(--amber-glow)", icon: "⏳" },
+  ineffective: { color: "var(--red)", bg: "var(--red-glow)", icon: "⚠" },
+};
+const PHASE_COLORS = ["#f97316", "#2dd4bf", "#60a5fa", "#fbbf24", "#a78bfa", "#fb7185"];
 
 const btnBase = { fontSize: 12.5, padding: "6px 12px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 };
 const primary = { ...btnBase, background: "rgba(var(--brand-rgb),0.12)", border: "1px solid rgba(var(--brand-rgb),0.35)", color: "var(--cyan)" };
 const ghost = { ...btnBase, background: "transparent", border: "1px solid var(--border)", color: "var(--text-secondary)" };
 const danger = { ...ghost, color: "var(--red)" };
+const mini = (b) => ({ ...b, padding: "3px 8px", fontSize: 11.5 });
 const seg = (on) => ({ ...btnBase, fontWeight: 500, padding: "4px 10px", background: on ? "rgba(var(--brand-rgb),0.16)" : "transparent", border: "1px solid var(--border)", color: on ? "var(--cyan)" : "var(--text-muted)" });
 const input = { padding: "7px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--input-bg)", color: "var(--text-primary)", fontFamily: "inherit", fontSize: 13, width: "100%", boxSizing: "border-box" };
+const dateInput = { ...input, width: "100%", padding: "7px 26px 7px 8px", fontSize: 13, border: "1px solid var(--border)", background: "var(--input-bg)" };
 const small = { fontSize: 11.5, color: "var(--text-muted)", lineHeight: 1.5 };
 const label = { fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 4, display: "block" };
+const grid = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 12 };
 
 function StatusBadge({ s }) {
   const st = STATUS_STYLE[s] || STATUS_STYLE["Đang trial"];
   return <span style={{ fontSize: 11.5, fontWeight: 600, padding: "2px 8px", borderRadius: 10, color: st.color, background: st.bg, whiteSpace: "nowrap" }}>{s}</span>;
+}
+function VerdictChip({ level, text }) {
+  const st = VERDICT_STYLE[level] || VERDICT_STYLE.watch;
+  return <span style={{ fontSize: 11, fontWeight: 700, color: st.color, whiteSpace: "nowrap" }}>{st.icon} {text}</span>;
 }
 
 // Searchable multi-select with order counts. Empty selection = "tất cả".
@@ -66,7 +79,6 @@ function MultiPick({ options, selected, onChange, placeholder, emptyText, disabl
   }, [open]);
   const sel = new Set(selected);
   const shown = options.filter((o) => !q || o.value.toLowerCase().includes(q.toLowerCase()));
-  // Selected values no longer offered (e.g. client removed) stay visible to un-tick.
   const orphans = selected.filter((v) => !options.some((o) => o.value === v));
   const toggle = (v) => onChange(sel.has(v) ? selected.filter((x) => x !== v) : [...selected, v]);
   const summary = !selected.length ? placeholder : selected.length <= 2 ? selected.map(render).join(", ") : `${selected.length} mục đã chọn`;
@@ -90,8 +102,8 @@ function MultiPick({ options, selected, onChange, placeholder, emptyText, disabl
             {!shown.length && !orphans.length && <div style={small}>{emptyText || "Không có mục khớp."}</div>}
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-            <button type="button" style={{ ...ghost, padding: "3px 8px", fontSize: 11.5 }} onClick={() => onChange([])}>Bỏ chọn hết</button>
-            <button type="button" style={{ ...primary, padding: "3px 8px", fontSize: 11.5 }} onClick={() => setOpen(false)}>Xong</button>
+            <button type="button" style={mini(ghost)} onClick={() => onChange([])}>Bỏ chọn hết</button>
+            <button type="button" style={mini(primary)} onClick={() => setOpen(false)}>Xong</button>
           </div>
         </div>
       )}
@@ -99,112 +111,99 @@ function MultiPick({ options, selected, onChange, placeholder, emptyText, disabl
   );
 }
 
-// Baseline suggestion: same length as the post period, right before start.
-function suggestBaseline(startDate, endDate) {
-  if (!startDate) return null;
-  const today = vnToday();
-  const postTo = endDate || (today > startDate ? today : addDays(startDate, 13));
-  const len = Math.max(7, daysBetween(startDate, postTo));
-  const baseEnd = addDays(startDate, -1);
-  return { baseStart: addDays(baseEnd, -(len - 1)), baseEnd };
+const unionOpts = (options, clients, field) => {
+  const m = {};
+  for (const c of clients || []) for (const [k, n] of Object.entries(options?.[c]?.[field] || {})) m[k] = (m[k] || 0) + n;
+  return Object.entries(m).map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count);
+};
+const scopeLine = (p) => [
+  p.khoLay?.length ? `Lấy: ${p.khoLay.length === 1 ? shortWh(p.khoLay[0]) : `${p.khoLay.length} kho`}` : "",
+  p.khoGiao?.length ? `Giao: ${p.khoGiao.length === 1 ? shortWh(p.khoGiao[0]) : `${p.khoGiao.length} kho`}` : "",
+  p.provinces?.length ? `Tỉnh: ${p.provinces.length <= 2 ? p.provinces.join(", ") : `${p.provinces.length} tỉnh`}` : "",
+].filter(Boolean).join(" · ") || "Toàn bộ đơn của khách";
+
+// Scope pickers of a phase (options = clients of the solution).
+function ScopeFields({ f, set, options, clients }) {
+  return (
+    <>
+      <div><span style={label}>Kho lấy (xuất)</span><MultiPick options={unionOpts(options, clients, "khoLay")} selected={f.khoLay} onChange={(v) => set({ khoLay: v })} placeholder="Tất cả kho lấy" emptyText="Chọn khách trước" render={shortWh} /></div>
+      <div><span style={label}>Kho giao</span><MultiPick options={unionOpts(options, clients, "khoGiao")} selected={f.khoGiao} onChange={(v) => set({ khoGiao: v })} placeholder="Tất cả kho giao" emptyText="Chọn khách trước" render={shortWh} /></div>
+      <div><span style={label}>Tỉnh giao</span><MultiPick options={unionOpts(options, clients, "provinces")} selected={f.provinces} onChange={(v) => set({ provinces: v })} placeholder="Tất cả tỉnh giao" emptyText="Chọn khách trước" /></div>
+    </>
+  );
+}
+function PhaseDates({ f, set, statuses }) {
+  return (
+    <>
+      <div><span style={label}>Ngày bắt đầu giai đoạn *</span><DateField label="Ngày bắt đầu" placeholder="dd/mm/yyyy" value={f.startDate} onChange={(v) => set({ startDate: v })} inputStyle={dateInput} wrapStyle={{ width: "100%" }} /></div>
+      <div>
+        <span style={label}>Ngày kết thúc</span>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {f.ongoing ? <div style={{ ...input, color: "var(--text-muted)" }}>Đang chạy (Ongoing)</div>
+            : <DateField label="Ngày kết thúc" placeholder="dd/mm/yyyy" value={f.endDate} onChange={(v) => set({ endDate: v })} inputStyle={dateInput} wrapStyle={{ width: "100%" }} />}
+          <label style={{ fontSize: 12.5, whiteSpace: "nowrap", display: "flex", gap: 4, alignItems: "center", cursor: "pointer" }}>
+            <input type="checkbox" checked={f.ongoing} onChange={(e) => set({ ongoing: e.target.checked })} /> Ongoing
+          </label>
+        </div>
+      </div>
+      <div><span style={label}>Trạng thái giai đoạn</span>
+        <select style={input} value={f.status} onChange={(e) => set({ status: e.target.value })}>{statuses.map((s) => <option key={s} value={s}>{s}</option>)}</select>
+      </div>
+    </>
+  );
+}
+async function post(body) {
+  const r = await fetch("/api/trials", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.ok) throw new Error(j.error || "Không lưu được");
+  return j;
 }
 
-function TrialForm({ initial, options, statuses, onCancel, onSaved }) {
+// New solution (+ Trial 1) / edit solution / turn a legacy trial into a solution.
+function SolutionForm({ initial, isNew, legacyPhase, options, statuses, onCancel, onSaved }) {
   const [f, setF] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const set = (patch) => { setF((x) => ({ ...x, ...patch })); setErr(null); };
-
   const clientOpts = useMemo(() => Object.entries(options || {}).map(([value, o]) => ({ value, count: o.orders })).sort((a, b) => b.count - a.count), [options]);
-  // Kho / tỉnh offered = union over the chosen clients.
-  const pick = (field) => {
-    const m = {};
-    for (const c of f.clients) for (const [k, n] of Object.entries(options?.[c]?.[field] || {})) m[k] = (m[k] || 0) + n;
-    return Object.entries(m).map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count);
-  };
-  const sug = suggestBaseline(f.startDate, f.ongoing ? "" : f.endDate);
-  const baseLen = f.baseStart && f.baseEnd && f.baseEnd >= f.baseStart ? daysBetween(f.baseStart, f.baseEnd) : null;
-
+  const firstStart = isNew ? f.phase.startDate : (f.firstPhaseStart || "");
+  const sug = firstStart ? (() => { const today = vnToday(); const len = Math.max(7, daysBetween(firstStart, today > firstStart ? today : addDays(firstStart, 13))); const be = addDays(firstStart, -1); return { baseStart: addDays(be, -(len - 1)), baseEnd: be }; })() : null;
   const submit = async () => {
     setBusy(true); setErr(null);
     try {
-      const r = await fetch("/api/trials", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "save", trial: { ...f, endDate: f.ongoing ? "" : f.endDate } }),
-      });
-      const j = await r.json();
-      if (!r.ok || !j.ok) throw new Error(j.error || "Không lưu được");
+      const body = { action: "saveSolution", solution: { id: f.id, name: f.name, clients: f.clients, baseStart: f.baseStart, baseEnd: f.baseEnd, status: f.status, description: f.description } };
+      if (isNew) body.firstPhase = { ...f.phase, endDate: f.phase.ongoing ? "" : f.phase.endDate };
+      if (legacyPhase) { body.adoptPhaseIds = [legacyPhase.id]; body.adoptLabels = ["Trial 1"]; }
+      const j = await post(body);
       onSaved(j);
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setBusy(false);
-    }
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
   };
-
+  const setPhase = (patch) => set({ phase: { ...f.phase, ...patch } });
   return (
     <div className="glass fade-in" style={{ padding: 16, marginBottom: 16 }}>
-      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>{f.id ? "Sửa giải pháp" : "Thêm giải pháp mới"}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
-        <div style={{ gridColumn: "1 / -1" }}>
-          <span style={label}>Tên giải pháp / chiến dịch *</span>
-          <input style={input} value={f.name} onChange={(e) => set({ name: e.target.value })} placeholder="VD: [LG-T01] Tách tuyến đi thẳng kho B2B → GXT Tân Bình" />
+      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{isNew ? "Thêm giải pháp mới" : legacyPhase ? "Lưu thành giải pháp có giai đoạn" : "Sửa giải pháp"}</div>
+      {legacyPhase && <div style={{ ...small, marginBottom: 8, color: "var(--amber)" }}>Giải pháp cũ (chưa có giai đoạn): lưu xong nó thành giải pháp gồm <b>Trial 1</b> = phạm vi và thời gian hiện tại. Sau đó dùng "➕ Giai đoạn tiếp".</div>}
+      <div style={grid}>
+        <div style={{ gridColumn: "1 / -1" }}><span style={label}>Tên giải pháp *</span><input style={input} value={f.name} onChange={(e) => set({ name: e.target.value })} placeholder="VD: Sử dụng CCDC thùng nhựa 220L — PSD Miền Nam" /></div>
+        <div><span style={label}>Khách hàng áp dụng *</span><MultiPick options={clientOpts} selected={f.clients} onChange={(v) => set({ clients: v })} placeholder={options ? "Chọn khách…" : "Đang tải…"} disabled={!options} /></div>
+        <div><span style={label}>Trạng thái giải pháp</span><select style={input} value={f.status} onChange={(e) => set({ status: e.target.value })}>{statuses.solution.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
+        <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, alignItems: "end", padding: 12, borderRadius: 8, border: "1px dashed var(--border)" }}>
+          <div style={{ gridColumn: "1 / -1", fontSize: 12.5, fontWeight: 700 }}>Baseline CHUNG — trước giai đoạn đầu tiên (mọi giai đoạn so với khoảng này) *</div>
+          <div><span style={label}>Từ ngày</span><DateField label="Baseline từ" placeholder="dd/mm/yyyy" value={f.baseStart} onChange={(v) => set({ baseStart: v })} inputStyle={dateInput} wrapStyle={{ width: "100%" }} /></div>
+          <div><span style={label}>Đến ngày</span><DateField label="Baseline đến" placeholder="dd/mm/yyyy" value={f.baseEnd} onChange={(v) => set({ baseEnd: v })} inputStyle={dateInput} wrapStyle={{ width: "100%" }} /></div>
+          <div><button type="button" style={{ ...ghost, width: "100%" }} disabled={!sug} onClick={() => sug && set(sug)}>↺ Gợi ý: cùng số ngày, ngay trước</button></div>
+          <div style={{ gridColumn: "1 / -1", ...small }}>{sug ? `Gợi ý ${fmt(sug.baseStart)} – ${fmt(sug.baseEnd)} (ngay trước ngày bắt đầu giai đoạn đầu). ` : ""}Nên tránh khoảng có sự kiện bất thường. Dữ liệu có từ 01/07/2026.</div>
         </div>
-        <div>
-          <span style={label}>Khách hàng áp dụng *</span>
-          <MultiPick options={clientOpts} selected={f.clients} onChange={(v) => set({ clients: v })} placeholder={options ? "Chọn khách…" : "Đang tải danh sách…"} disabled={!options} />
-        </div>
-        <div>
-          <span style={label}>Kho lấy (xuất)</span>
-          <MultiPick options={pick("khoLay")} selected={f.khoLay} onChange={(v) => set({ khoLay: v })} placeholder="Tất cả kho lấy" emptyText="Chọn khách trước" render={shortWh} />
-        </div>
-        <div>
-          <span style={label}>Kho giao</span>
-          <MultiPick options={pick("khoGiao")} selected={f.khoGiao} onChange={(v) => set({ khoGiao: v })} placeholder="Tất cả kho giao" emptyText="Chọn khách trước" render={shortWh} />
-        </div>
-        <div>
-          <span style={label}>Tỉnh giao</span>
-          <MultiPick options={pick("provinces")} selected={f.provinces} onChange={(v) => set({ provinces: v })} placeholder="Tất cả tỉnh giao" emptyText="Chọn khách trước" />
-        </div>
-        <div>
-          <span style={label}>Ngày bắt đầu áp dụng *</span>
-          <input type="date" style={input} value={f.startDate} onChange={(e) => set({ startDate: e.target.value })} />
-        </div>
-        <div>
-          <span style={label}>Ngày kết thúc</span>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <input type="date" style={{ ...input, opacity: f.ongoing ? 0.45 : 1 }} disabled={f.ongoing} value={f.ongoing ? "" : f.endDate} onChange={(e) => set({ endDate: e.target.value })} />
-            <label style={{ fontSize: 12.5, whiteSpace: "nowrap", display: "flex", gap: 4, alignItems: "center", cursor: "pointer" }}>
-              <input type="checkbox" checked={f.ongoing} onChange={(e) => set({ ongoing: e.target.checked })} /> Ongoing
-            </label>
+        <div style={{ gridColumn: "1 / -1" }}><span style={label}>Mô tả chung</span><textarea style={{ ...input, minHeight: 70, resize: "vertical" }} value={f.description} onChange={(e) => set({ description: e.target.value })} placeholder="Giải pháp là gì, sản phẩm áp dụng, CCDC, người phụ trách…" /></div>
+        {isNew && (
+          <div style={{ gridColumn: "1 / -1", ...grid, padding: 12, borderRadius: 8, background: "rgba(var(--brand-rgb),0.05)", border: "1px solid var(--border)" }}>
+            <div style={{ gridColumn: "1 / -1", fontSize: 12.5, fontWeight: 700 }}>Giai đoạn đầu tiên</div>
+            <div><span style={label}>Tên giai đoạn *</span><input style={input} value={f.phase.label} onChange={(e) => setPhase({ label: e.target.value })} /></div>
+            <ScopeFields f={f.phase} set={setPhase} options={options} clients={f.clients} />
+            <PhaseDates f={f.phase} set={setPhase} statuses={statuses.phase} />
+            <div style={{ gridColumn: "1 / -1" }}><span style={label}>Mô tả giai đoạn</span><textarea style={{ ...input, minHeight: 50, resize: "vertical" }} value={f.phase.description} onChange={(e) => setPhase({ description: e.target.value })} placeholder="Tuyến áp dụng, thay đổi so với trước…" /></div>
           </div>
-        </div>
-        <div>
-          <span style={label}>Trạng thái</span>
-          <select style={input} value={f.status} onChange={(e) => set({ status: e.target.value })}>
-            {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, alignItems: "end", padding: 12, borderRadius: 8, border: "1px dashed var(--border)" }}>
-          <div style={{ gridColumn: "1 / -1", fontSize: 12.5, fontWeight: 700 }}>Baseline — giai đoạn TRƯỚC khi áp dụng (để so sánh) *</div>
-          <div><span style={label}>Từ ngày</span><input type="date" style={input} value={f.baseStart} onChange={(e) => set({ baseStart: e.target.value })} /></div>
-          <div><span style={label}>Đến ngày</span><input type="date" style={input} value={f.baseEnd} onChange={(e) => set({ baseEnd: e.target.value })} /></div>
-          <div>
-            <button type="button" style={{ ...ghost, width: "100%" }} disabled={!sug} onClick={() => sug && set(sug)}>
-              ↺ Gợi ý: cùng số ngày, ngay trước
-            </button>
-          </div>
-          <div style={{ gridColumn: "1 / -1", ...small }}>
-            {baseLen ? `Baseline ${baseLen} ngày. ` : ""}
-            {sug ? `Gợi ý ${fmt(sug.baseStart)} – ${fmt(sug.baseEnd)} (${daysBetween(sug.baseStart, sug.baseEnd)} ngày, bằng độ dài giai đoạn sau${f.ongoing ? " tính đến hôm nay" : ""}). ` : "Nhập ngày bắt đầu để có gợi ý. "}
-            Nên tránh khoảng có sự kiện bất thường (Tết, sale lớn). Dữ liệu có từ 01/07/2026.
-          </div>
-        </div>
-        <div style={{ gridColumn: "1 / -1" }}>
-          <span style={label}>Mô tả chi tiết giải pháp</span>
-          <textarea style={{ ...input, minHeight: 80, resize: "vertical" }} value={f.description} onChange={(e) => set({ description: e.target.value })}
-            placeholder="Làm gì, vì sao, ai phụ trách, kỳ vọng chỉ số nào cải thiện…" />
-        </div>
+        )}
       </div>
       {err && <div style={{ fontSize: 12.5, color: "var(--red)", marginTop: 10 }}>⚠ {err}</div>}
       <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
@@ -215,549 +214,590 @@ function TrialForm({ initial, options, statuses, onCancel, onSaved }) {
   );
 }
 
-// good = the direction that means "better" for this metric (1 up, -1 down, 0 neutral)
-function toneOf(x, good) {
-  if (x == null || !good || Math.abs(x) < 1e-9) return "var(--text-secondary)";
-  return x * good > 0 ? "var(--green)" : "var(--red)";
+// New phase ("➕ Giai đoạn tiếp") or edit a phase.
+function PhaseForm({ solution, initial, options, statuses, onCancel, onSaved }) {
+  const [f, setF] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const set = (patch) => { setF((x) => ({ ...x, ...patch })); setErr(null); };
+  const submit = async () => {
+    setBusy(true); setErr(null);
+    try { onSaved(await post({ action: "savePhase", solutionId: solution.id, phase: { ...f, endDate: f.ongoing ? "" : f.endDate } })); }
+    catch (e) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const allOrders = () => set({ khoLay: [], khoGiao: [], provinces: [] });
+  return (
+    <div className="glass fade-in" style={{ padding: 16, marginBottom: 16 }}>
+      <div style={{ fontSize: 14, fontWeight: 700 }}>{f.id ? `Sửa ${f.label}` : "➕ Giai đoạn tiếp theo"} <span style={{ ...small, fontWeight: 400 }}>· {solution.name}</span></div>
+      <div style={{ ...small, marginBottom: 10 }}>Baseline chung {fmt(solution.baseStart)} – {fmt(solution.baseEnd)} · khách {solution.clients.join(", ")}. {f.id ? "" : "Phạm vi đã chép từ giai đoạn trước — sửa lại cho giai đoạn này. Giai đoạn cũ vẫn chạy song song."}</div>
+      <div style={grid}>
+        <div><span style={label}>Tên giai đoạn *</span><input style={input} value={f.label} onChange={(e) => set({ label: e.target.value })} list="phase-names" />
+          <datalist id="phase-names">{["Trial 1", "Trial 2", "Trial 3", "Trial 4", "Nhân rộng cả nước"].map((n) => <option key={n} value={n} />)}</datalist></div>
+        <ScopeFields f={f} set={set} options={options} clients={solution.clients} />
+        <div style={{ display: "flex", alignItems: "end" }}><button type="button" style={{ ...ghost, width: "100%" }} onClick={allOrders} title="Bỏ chọn kho / tỉnh = toàn bộ đơn của khách">🌏 Cả nước (toàn bộ đơn)</button></div>
+        <PhaseDates f={f} set={set} statuses={statuses.phase} />
+        <div style={{ gridColumn: "1 / -1" }}><span style={label}>Mô tả giai đoạn</span><textarea style={{ ...input, minHeight: 60, resize: "vertical" }} value={f.description} onChange={(e) => set({ description: e.target.value })} placeholder="Tuyến áp dụng, thay đổi so với giai đoạn trước…" /></div>
+      </div>
+      {err && <div style={{ fontSize: 12.5, color: "var(--red)", marginTop: 10 }}>⚠ {err}</div>}
+      <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+        <button style={primary} disabled={busy} onClick={submit}>{busy ? "Đang lưu…" : "💾 Lưu giai đoạn"}</button>
+        <button style={ghost} disabled={busy} onClick={onCancel}>Huỷ</button>
+      </div>
+    </div>
+  );
 }
+const nextLabel = (sol) => {
+  const nums = sol.phases.map((p) => (String(p.label).match(/^Trial\s*(\d+)/i) || [])[1]).filter(Boolean).map(Number);
+  return `Trial ${(nums.length ? Math.max(...nums) : sol.phases.length) + 1}`;
+};
+const nextPhasePreset = (sol) => {
+  const last = sol.phases[sol.phases.length - 1] || {};
+  return { id: "", label: nextLabel(sol), khoLay: last.khoLay || [], khoGiao: last.khoGiao || [], provinces: last.provinces || [], startDate: vnToday(), endDate: "", ongoing: true, status: "Đang trial", description: "" };
+};
 
+// ── Report pieces ──────────────────────────────────────────────────────
+function toneOf(x, good) { if (x == null || !good || Math.abs(x) < 1e-9) return "var(--text-secondary)"; return x * good > 0 ? "var(--green)" : "var(--red)"; }
 function metricRows(imp) {
   const t = imp.trial, c = imp.control;
   const pct = (x) => (x == null ? "—" : `${sgn(x, n1)}%`);
   return [
-    { key: "orders", name: "Tổng sản lượng (đơn)", b: n0(t.base.orders), p: n0(t.post.orders), d: sgn(t.delta.orders, n0), dp: pct(t.delta.ordersPct), dRaw: t.delta.orders, good: 0,
-      cb: n0(c.base.orders), cp: n0(c.post.orders), cd: pct(c.delta.ordersPct), cdRaw: c.delta.ordersPct, net: "—" },
-    { key: "tons", name: "Tổng tấn", b: n1(t.base.tons), p: n1(t.post.tons), d: sgn(t.delta.tons, n1), dp: pct(t.delta.tonsPct), dRaw: t.delta.tons, good: 0,
-      cb: n1(c.base.tons), cp: n1(c.post.tons), cd: pct(c.delta.tonsPct), cdRaw: c.delta.tonsPct, net: "—" },
-    { key: "ontime", name: "Tỷ lệ On-time (%)", b: t.base.ontimePct == null ? "—" : `${n1(t.base.ontimePct)}%`, p: t.post.ontimePct == null ? "—" : `${n1(t.post.ontimePct)}%`,
-      sub: [`${n0(t.base.late)} trễ / ${n0(t.base.evaluated)}`, `${n0(t.post.late)} trễ / ${n0(t.post.evaluated)}`],
-      d: t.delta.ontimePts == null ? "—" : `${sgn(t.delta.ontimePts, n1)} điểm`, dp: "", dRaw: t.delta.ontimePts, good: 1,
-      cb: c.base.ontimePct == null ? "—" : `${n1(c.base.ontimePct)}%`, cp: c.post.ontimePct == null ? "—" : `${n1(c.post.ontimePct)}%`,
-      cd: c.delta.ontimePts == null ? "—" : `${sgn(c.delta.ontimePts, n1)} điểm`, cdRaw: c.delta.ontimePts,
-      net: imp.net.ontimePts == null ? "—" : `${sgn(imp.net.ontimePts, n1)} điểm`, netRaw: imp.net.ontimePts },
-    { key: "cases", name: "Tổng số ca bể vỡ (ca)", b: n0(t.base.cases), p: n0(t.post.cases), d: sgn(t.delta.cases, n0), dp: pct(t.delta.casesPct), dRaw: t.delta.cases, good: -1,
-      cb: n0(c.base.cases), cp: n0(c.post.cases), cd: sgn(c.delta.cases, n0), cdRaw: c.delta.cases, net: "—" },
-    { key: "per1k", name: "Ca bể vỡ / 1.000 đơn", b: n2(t.base.per1k), p: n2(t.post.per1k), d: sgn(t.delta.per1k, n2), dp: pct(t.delta.per1kPct), dRaw: t.delta.per1k, good: -1,
-      // Control change and net effect in % (user decision 28/09: net = % change of scope − % change of control)
-      cb: n2(c.base.per1k), cp: n2(c.post.per1k), cd: pct(c.delta.per1kPct), cdRaw: c.delta.per1kPct,
-      net: imp.net.per1kPct == null ? "—" : pct(imp.net.per1kPct), netRaw: imp.net.per1kPct },
+    { key: "orders", name: "Tổng đơn", b: n0(t.base.orders), p: n0(t.post.orders), d: sgn(t.delta.orders, n0), dp: pct(t.delta.ordersPct), dRaw: t.delta.orders, good: 0, cb: n0(c.base.orders), cp: n0(c.post.orders), net: "—" },
+    { key: "tons", name: "Tổng tấn", b: n1(t.base.tons), p: n1(t.post.tons), d: sgn(t.delta.tons, n1), dp: pct(t.delta.tonsPct), dRaw: t.delta.tons, good: 0, cb: n1(c.base.tons), cp: n1(c.post.tons), net: "—" },
+    { key: "ontime", name: "% On-time", b: pctTxt(t.base.ontimePct), p: pctTxt(t.post.ontimePct), d: t.delta.ontimePts == null ? "—" : `${sgn(t.delta.ontimePts, n1)} điểm`, dp: "", dRaw: t.delta.ontimePts, good: 1, cb: pctTxt(c.base.ontimePct), cp: pctTxt(c.post.ontimePct), net: imp.net.ontimePts == null ? "—" : `${sgn(imp.net.ontimePts, n1)} điểm`, netRaw: imp.net.ontimePts },
+    { key: "cases", name: "Ca bể vỡ", b: n0(t.base.cases), p: n0(t.post.cases), d: sgn(t.delta.cases, n0), dp: pct(t.delta.casesPct), dRaw: t.delta.cases, good: -1, cb: n0(c.base.cases), cp: n0(c.post.cases), net: "—" },
+    { key: "per1k", name: "Ca / 1.000 đơn", b: n2(t.base.per1k), p: n2(t.post.per1k), d: sgn(t.delta.per1k, n2), dp: pct(t.delta.per1kPct), dRaw: t.delta.per1k, good: -1, cb: n2(c.base.per1k), cp: n2(c.post.per1k), net: imp.net.per1kPct == null ? "—" : pct(imp.net.per1kPct), netRaw: imp.net.per1kPct },
   ];
 }
+const th = { padding: "7px 9px", textAlign: "right", whiteSpace: "nowrap", fontSize: 11.5 };
+const td = { padding: "7px 9px", textAlign: "right", whiteSpace: "nowrap", fontSize: 12.5, borderBottom: "1px solid var(--panel-border-soft, var(--border))" };
 
-const VERDICT_STYLE = {
-  excellent: { color: "var(--green)", bg: "var(--green-glow)", icon: "🏆" },
-  improved: { color: "var(--blue)", bg: "var(--blue-glow)", icon: "✅" },
-  watch: { color: "var(--amber)", bg: "var(--amber-glow)", icon: "⏳" },
-  ineffective: { color: "var(--red)", bg: "var(--red-glow)", icon: "⚠" },
-};
-// Light colours for the white print page.
-const PRINT_VERDICT = {
-  excellent: { color: "#065f46", bg: "#d1fae5" },
-  improved: { color: "#075985", bg: "#e0f2fe" },
-  watch: { color: "#92400e", bg: "#fef3c7" },
-  ineffective: { color: "#991b1b", bg: "#fee2e2" },
-};
-
-// Long scopes (e.g. 50 kho giao) are shown as the first few names + "+N kho"
-// (user 28/09: "thu gọn phạm vi"); the Excel file keeps the full lists.
-const compactList = (items, unit, max, render = (v) => v) => (!items.length ? "Tất cả"
-  : items.length <= max ? items.map(render).join(", ")
-    : `${items.slice(0, max).map(render).join(", ")} +${items.length - max} ${unit}`);
-const SCOPE_FIELDS = [
-  ["Khách hàng", "clients", "khách", (v) => v],
-  ["Kho lấy", "khoLay", "kho", shortWh],
-  ["Kho giao", "khoGiao", "kho", shortWh],
-  ["Tỉnh giao", "provinces", "tỉnh", (v) => v],
-];
-const scopeParts = (t, max = 3) => SCOPE_FIELDS.map(([label, key, unit, render]) => [label, compactList(t[key], unit, max, render)]);
-
-// Modal cell: compact list with "Xem tất cả (N)" / "Thu gọn".
-function ScopeCell({ label, items, unit, render, style }) {
-  const [open, setOpen] = useState(false);
-  const MAX = 3;
-  const long = items.length > MAX;
-  return (
-    <div style={style}>
-      <div style={small}>{label}{long ? ` (${items.length} ${unit})` : ""}</div>
-      <div style={{ fontSize: 13, fontWeight: 600, wordBreak: "break-word" }}>
-        {!items.length ? "Tất cả" : open || !long ? items.map(render).join(", ") : items.slice(0, MAX).map(render).join(", ")}
-        {long && (
-          <button type="button" onClick={() => setOpen((v) => !v)}
-            style={{ marginLeft: 6, fontSize: 11.5, fontWeight: 600, color: "var(--cyan)", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit" }}>
-            {open ? "Thu gọn" : `+${items.length - MAX} ${unit} · Xem tất cả`}
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-const periodLabels = (imp) => {
-  const pr = imp.periods;
-  return {
-    base: `Trước (${fmtS(pr.base.from)}–${fmtS(pr.base.to)} · ${imp.baseDays} ngày)`,
-    post: `Sau (${fmtS(pr.post.from)}–${fmtS(pr.post.to)} · ${imp.postDays} ngày${pr.post.ongoing ? ", đến hôm nay" : ""})`,
-  };
-};
-
-// Text for "Copy tóm tắt" — the same lines as the screen and the files.
-function summaryText(trial, imp) {
-  const L = periodLabels(imp);
-  const v = imp.verdict;
-  return [
-    `BÁO CÁO ĐÁNH GIÁ GIẢI PHÁP: ${trial.name}`,
-    `Trạng thái: ${trial.status} · Áp dụng ${fmt(trial.startDate)} → ${trial.endDate ? fmt(trial.endDate) : "Ongoing"}`,
-    `Phạm vi: ${scopeParts(trial).map(([k, x]) => `${k}: ${x}`).join(" · ")}`,
-    `So sánh: ${L.base} vs ${L.post}`,
-    "",
-    `KẾT LUẬN: ${v.label.toUpperCase()}${v.basis === "net" ? " (theo hiệu quả ròng, đã trừ nhóm đối chứng)" : ""}`,
-    ...v.reasons.map((s) => `• ${s}`),
-    ...v.notes.map((s) => `Lưu ý: ${s}`),
-    "",
-    "Số liệu:",
-    ...imp.summary.map((s) => `• ${s}`),
-    ...imp.warnings.map((w) => `⚠ ${w.text}`),
-    `(SD3 Dashboard Điện Máy, số liệu cập nhật ${vnStamp(imp.dataAsOf)})`,
-  ].join(NL);
-}
-
-function VerdictBox({ v }) {
-  const st = VERDICT_STYLE[v.level];
-  return (
-    <div style={{ marginTop: 14, padding: "12px 14px", borderRadius: 10, background: st.bg, border: `1px solid ${st.color}`, borderLeftWidth: 4 }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>Nhận định tự động</span>
-        <span style={{ fontSize: 17, fontWeight: 800, color: st.color }}>{st.icon} {v.label}</span>
-        <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{v.basis === "net" ? "theo hiệu quả ròng (đã trừ nhóm đối chứng)" : "theo thay đổi của phạm vi"}</span>
-      </div>
-      <div style={{ marginTop: 6 }}>
-        {v.reasons.map((s, i) => <div key={i} style={{ fontSize: 13, lineHeight: 1.55 }}>• {s}</div>)}
-        {v.notes.map((s, i) => <div key={`n${i}`} style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>Lưu ý: {s}</div>)}
-      </div>
-      <details style={{ marginTop: 6 }}>
-        <summary style={{ fontSize: 11.5, color: "var(--text-muted)", cursor: "pointer" }}>Luật nhận định</summary>
-        <div style={{ ...small, marginTop: 4 }}>
-          <b>Cải thiện xuất sắc</b>: ca/1.000 đơn giảm ≥ {-v.rules.damageStrong}% hoặc on-time +≥ {v.rules.ontimeStrong} điểm, chỉ số còn lại không xấu đi ·{" "}
-          <b>Có cải thiện</b>: giảm ≥ {-v.rules.damageGood}% hoặc +≥ {v.rules.ontimeGood} điểm, không chỉ số nào xấu đi ·{" "}
-          <b>Không hiệu quả</b>: ca/1.000 đơn tăng ≥ {v.rules.damageBad}% hoặc on-time −≥ {-v.rules.ontimeBad} điểm, không có chỉ số bù lại · còn lại: <b>Cần theo dõi thêm</b>.
-          Dùng hiệu quả ròng khi đối chứng có ≥ {v.rules.minControlOrders} đơn mỗi giai đoạn (bể vỡ: % thay đổi của phạm vi − % thay đổi của đối chứng; on-time: điểm). Chưa đủ dữ liệu (giai đoạn sau &lt; 14 ngày hoặc &lt; 100 đơn) → Cần theo dõi thêm; tổng ca bể vỡ 2 giai đoạn &lt; {v.rules.minCases} → không xét bể vỡ.
-        </div>
-      </details>
-    </div>
-  );
-}
-
-function TrialDetail({ trial, impact, loading, error, onClose, onEdit }) {
-  const [copied, setCopied] = useState(null);
+function PhaseImpact({ impact }) {
   const [showCases, setShowCases] = useState(false);
+  const imp = impact, pr = imp.periods, v = imp.verdict, st = VERDICT_STYLE[v.level];
+  const rows = metricRows(imp);
+  const cases = imp.trial.base.caseCodes.concat(imp.trial.post.caseCodes);
+  return (
+    <div>
+      <div style={{ padding: "10px 12px", borderRadius: 8, background: st.bg, border: `1px solid ${st.color}`, borderLeftWidth: 4, marginBottom: 8 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Nhận định</span>
+          <span style={{ fontSize: 15, fontWeight: 800, color: st.color }}>{st.icon} {v.label}</span>
+          <span style={small}>{v.basis === "net" ? "theo hiệu quả ròng (đã trừ nhóm đối chứng)" : "theo thay đổi của phạm vi"}</span>
+        </div>
+        {v.reasons.map((s, i) => <div key={i} style={{ fontSize: 12.5, lineHeight: 1.5 }}>• {s}</div>)}
+        {v.notes.map((s, i) => <div key={`n${i}`} style={{ ...small }}>Lưu ý: {s}</div>)}
+      </div>
+      {imp.warnings.map((w, i) => <div key={i} style={{ fontSize: 12, color: "var(--amber)" }}>⚠ {w.text}</div>)}
+      <div style={{ overflowX: "auto", marginTop: 6 }}>
+        <table className="data-table" style={{ fontSize: 12, minWidth: imp.hasControl ? 760 : 480 }}>
+          <thead><tr>
+            <th style={{ ...th, textAlign: "left" }}>Chỉ số</th>
+            <th style={th}>Trước<div style={{ ...small, fontWeight: 400, fontSize: 10.5 }}>{fmtS(pr.base.from)}–{fmtS(pr.base.to)}</div></th>
+            <th style={th}>Sau<div style={{ ...small, fontWeight: 400, fontSize: 10.5 }}>{fmtS(pr.post.from)}–{fmtS(pr.post.to)}{pr.post.ongoing ? "*" : ""}</div></th>
+            <th style={th}>Chênh lệch</th><th style={th}>%</th>
+            {imp.hasControl && <><th style={th}>Đối chứng trước → sau</th><th style={th} title="Thay đổi của phạm vi trừ thay đổi của đối chứng">Hiệu quả ròng</th></>}
+          </tr></thead>
+          <tbody>{rows.map((r) => (
+            <tr key={r.key}>
+              <td style={{ ...td, textAlign: "left", fontWeight: 600 }}>{r.name}</td>
+              <td style={td}>{r.b}</td><td style={{ ...td, fontWeight: 700 }}>{r.p}</td>
+              <td style={{ ...td, fontWeight: 700, color: toneOf(r.dRaw, r.good) }}>{r.d}</td><td style={{ ...td, color: toneOf(r.dRaw, r.good) }}>{r.dp}</td>
+              {imp.hasControl && <><td style={{ ...td, color: "var(--text-muted)" }}>{r.cb} → {r.cp}</td><td style={{ ...td, fontWeight: 700, color: toneOf(r.netRaw, r.good) }}>{r.net}</td></>}
+            </tr>))}</tbody>
+        </table>
+      </div>
+      {cases.length > 0 && (
+        <div style={{ marginTop: 6 }}>
+          <button style={mini(ghost)} onClick={() => setShowCases((x) => !x)}>{showCases ? "Ẩn ca bể vỡ" : `Xem ${cases.length} ca bể vỡ`}</button>
+          {showCases && (
+            <div style={{ overflowX: "auto", maxHeight: 220, overflowY: "auto", marginTop: 4 }}>
+              <table className="data-table" style={{ fontSize: 11.5 }}><thead><tr><th>Giai đoạn</th><th>Mã đơn</th><th>Ngày phát hiện</th><th>Chặng</th><th>Kho phát hiện</th></tr></thead>
+                <tbody>{cases.map((c) => <tr key={c.order_code}><td>{c.period === "base" ? "Trước" : "Sau"}</td><td style={{ fontWeight: 700 }}>{c.order_code}</td><td>{c.case_date}</td><td>{c.leg}</td><td>{shortWh(c.warehouse)}</td></tr>)}</tbody></table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Photos: compress to ≤ 1.600px JPEG in the browser, upload, caption, delete (Manager).
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL("image/jpeg", 0.82));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Không đọc được ảnh")); };
+    img.src = url;
+  });
+}
+function ImageGallery({ phase, canEdit, canDelete, onChanged }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [images, setImages] = useState(phase.images || []);
+  const [big, setBig] = useState(null);
+  useEffect(() => { setImages(phase.images || []); }, [phase.id, phase.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  const upload = async (files) => {
+    setBusy(true); setMsg(null);
+    try {
+      let last = null;
+      for (const file of files) {
+        if (images.length >= 10) throw new Error("Mỗi giai đoạn tối đa 10 ảnh");
+        const dataUrl = await compressImage(file);
+        last = await post({ action: "uploadImage", phaseId: phase.id, dataUrl, caption: file.name.replace(/\.[^.]+$/, "") });
+        setImages(last.images);
+      }
+      if (last) onChanged(last.version);
+    } catch (e) { setMsg(`⚠ ${e.message}`); } finally { setBusy(false); }
+  };
+  const caption = async (path, text) => { try { const j = await post({ action: "captionImage", phaseId: phase.id, path, caption: text }); setImages(j.images); onChanged(j.version); } catch (e) { setMsg(`⚠ ${e.message}`); } };
+  const remove = async (path) => { if (!confirm("Xoá ảnh này?")) return; try { const j = await post({ action: "deleteImage", phaseId: phase.id, path }); setImages(j.images); onChanged(j.version); } catch (e) { setMsg(`⚠ ${e.message}`); } };
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12.5, fontWeight: 700 }}>Ảnh minh hoạ ({images.length}/10)</span>
+        {canEdit && images.length < 10 && (
+          <label style={{ ...mini(primary), display: "inline-flex", alignItems: "center", gap: 4 }}>
+            {busy ? "Đang tải lên…" : "📷 Thêm ảnh"}
+            <input type="file" accept="image/*" multiple hidden disabled={busy} onChange={(e) => { const fl = [...e.target.files]; e.target.value = ""; if (fl.length) upload(fl); }} />
+          </label>
+        )}
+        {msg && <span style={{ fontSize: 12, color: "var(--red)" }}>{msg}</span>}
+      </div>
+      {images.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8, marginTop: 8 }}>
+          {images.map((im) => (
+            <div key={im.path} style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", background: "var(--bg-panel)" }}>
+              <img src={`/api/trials?image=${encodeURIComponent(im.path)}`} alt={im.caption || "ảnh"} loading="lazy" onClick={() => setBig(im)} style={{ width: "100%", height: 110, objectFit: "cover", cursor: "zoom-in", display: "block" }} />
+              <div style={{ padding: 6 }}>
+                {canEdit ? <input defaultValue={im.caption} placeholder="Chú thích…" onBlur={(e) => { if (e.target.value !== (im.caption || "")) caption(im.path, e.target.value); }} style={{ ...input, fontSize: 11.5, padding: "4px 6px" }} />
+                  : <div style={{ fontSize: 11.5 }}>{im.caption}</div>}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+                  <span style={{ ...small, fontSize: 10.5 }}>{im.by} · {vnStamp(im.at)}</span>
+                  {canDelete && <button style={{ ...mini(danger), padding: "1px 6px" }} onClick={() => remove(im.path)}>Xoá</button>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {big && createPortal(
+        <div onClick={() => setBig(null)} style={{ position: "fixed", inset: 0, zIndex: 4000, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", cursor: "zoom-out", padding: 20 }}>
+          <img src={`/api/trials?image=${encodeURIComponent(big.path)}`} alt={big.caption || "ảnh"} style={{ maxWidth: "95vw", maxHeight: "85vh", borderRadius: 6 }} />
+          {big.caption && <div style={{ color: "#fff", marginTop: 10, fontSize: 14 }}>{big.caption}</div>}
+        </div>, document.body)}
+    </div>
+  );
+}
+
+// Dashed vertical line + label where the baseline ends and each phase starts.
+// Static plugin reading options.plugins.phaseMarkers (useChart updates options in place).
+const PHASE_MARKERS = {
+  id: "phaseMarkers",
+  afterDatasetsDraw(chart, _args, opts) {
+    const { ctx, chartArea, scales } = chart;
+    if (!opts || !opts.marks) return;
+    ctx.save();
+    opts.marks.forEach((m, j) => {
+      const idx = opts.keys.indexOf(m.key);
+      if (idx < 0) return;
+      const xp = scales.x.getPixelForValue(idx);
+      ctx.strokeStyle = m.color; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(xp, chartArea.top); ctx.lineTo(xp, chartArea.bottom); ctx.stroke();
+      ctx.setLineDash([]); ctx.fillStyle = m.color; ctx.font = "10px sans-serif"; ctx.fillText(m.text, xp + 3, chartArea.top + 10 + (j % 3) * 11);
+    });
+    ctx.restore();
+  },
+};
+
+// Weekly series per phase (Ca/1.000 đơn or On-time), with a marker where each phase starts.
+function WeeklyChart({ report }) {
+  const [metric, setMetric] = useState("per1k");
+  const theme = useTheme();
+  const canvas = useRef(null);
+  const labels = report.phases[0] ? report.phases[0].series.map((w) => w.label) : [];
+  const keys = report.phases[0] ? report.phases[0].series.map((w) => w.key) : [];
+  // week holding the first day after the baseline
+  const afterBase = report.baseline.to ? addDays(report.baseline.to, 1) : null;
+  const baseEndKey = afterBase ? keys.filter((k) => k <= afterBase).pop() || null : null;
+  useChart(canvas, () => ({
+    type: "line",
+    data: {
+      labels,
+      datasets: report.phases.map((x, i) => ({
+        label: x.phase.label, borderColor: PHASE_COLORS[i % PHASE_COLORS.length], backgroundColor: PHASE_COLORS[i % PHASE_COLORS.length],
+        data: x.series.map((w) => (metric === "per1k" ? (w.orders ? +w.per1k.toFixed(2) : null) : (w.ontimePct == null ? null : +w.ontimePct.toFixed(1)))),
+        spanGaps: true, tension: 0.25, pointRadius: 2.5, borderWidth: 2,
+      })),
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { datalabels: { display: false }, legend: { position: "bottom" },
+        phaseMarkers: { keys, marks: [...(baseEndKey && !report.phases.some((x) => x.startWeek === baseEndKey) ? [{ key: baseEndKey, text: "hết baseline", color: "#94a3b8" }] : []), ...report.phases.map((x, i) => ({ key: x.startWeek, text: x.phase.label, color: PHASE_COLORS[i % PHASE_COLORS.length] }))] },
+        tooltip: { callbacks: { afterLabel: (ctx) => { const w = report.phases[ctx.datasetIndex].series[ctx.dataIndex]; return `${w.orders} đơn · ${w.cases} ca bể · on-time ${w.ontimePct == null ? "—" : w.ontimePct.toFixed(1) + "%"}`; } } } },
+      scales: { y: { beginAtZero: metric === "per1k", title: { display: true, text: metric === "per1k" ? "Ca / 1.000 đơn" : "% On-time" } } },
+    },
+    plugins: [PHASE_MARKERS],
+  }), [report, metric], theme);
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 13, fontWeight: 700, marginRight: 6 }}>Theo tuần</span>
+        <button style={seg(metric === "per1k")} onClick={() => setMetric("per1k")}>Ca / 1.000 đơn</button>
+        <button style={seg(metric === "ontime")} onClick={() => setMetric("ontime")}>% On-time</button>
+        <span style={small}>mỗi đường = phạm vi của 1 giai đoạn (tính cả trước khi áp dụng); vạch đứt = bắt đầu giai đoạn</span>
+      </div>
+      <div style={{ height: 260 }}><canvas ref={canvas} /></div>
+    </div>
+  );
+}
+
+function MonitorView({ x, baseline }) {
+  const [kind, setKind] = useState("month");
+  const m = x.monitor[kind];
+  return (
+    <div style={{ marginTop: 10, padding: 10, borderRadius: 8, border: "1px solid var(--border)" }}>
+      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+        <span style={{ fontSize: 12.5, fontWeight: 700 }}>📈 Theo dõi sau thành công — {x.phase.label}</span>
+        <button style={seg(kind === "month")} onClick={() => setKind("month")}>Theo tháng</button>
+        <button style={seg(kind === "week")} onClick={() => setKind("week")}>Theo tuần</button>
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table className="data-table" style={{ fontSize: 12, minWidth: 720 }}>
+          <thead><tr><th style={{ ...th, textAlign: "left" }}>Kỳ</th><th style={th}>Đơn</th><th style={th}>Tấn</th><th style={th}>% On-time</th><th style={th}>Ca bể</th><th style={th}>Ca/1.000</th><th style={th}>On-time so kỳ trước</th><th style={th}>Ca/1.000 so kỳ trước</th><th style={{ ...th, textAlign: "left" }}>Cảnh báo</th></tr></thead>
+          <tbody>
+            <tr style={{ color: "var(--text-muted)", fontStyle: "italic" }}><td style={{ ...td, textAlign: "left" }}>Baseline <span style={small}>{fmtS(baseline.from)}–{fmtS(baseline.to)}</span></td><td style={td}>{n0(m.baseline.orders)}</td><td style={td}>{n1(m.baseline.tons)}</td><td style={td}>{pctTxt(m.baseline.ontimePct)}</td><td style={td}>{n0(m.baseline.cases)}</td><td style={td}>{n2(m.baseline.per1k)}</td><td style={td} /><td style={td} /><td style={td} /></tr>
+            {m.rows.map((r) => (
+              <tr key={r.key}>
+                <td style={{ ...td, textAlign: "left", fontWeight: 600 }} title={`${fmt(r.from)} – ${fmt(r.to)}${r.sameDays ? " · so cùng số ngày kỳ trước" : ""}`}>{r.label}{r.running ? "*" : ""} <span style={small}>{fmtS(r.from)}–{fmtS(r.to)}</span></td>
+                <td style={td}>{n0(r.stats.orders)}</td><td style={td}>{n1(r.stats.tons)}</td><td style={td}>{pctTxt(r.stats.ontimePct)}</td><td style={td}>{n0(r.stats.cases)}</td><td style={td}>{n2(r.stats.per1k)}</td>
+                <td style={{ ...td, color: toneOf(r.vs && r.vs.ontimePts, 1) }}>{r.vs && r.vs.ontimePts != null ? `${sgn(r.vs.ontimePts, n1)} điểm` : "—"}</td>
+                <td style={{ ...td, color: toneOf(r.vs && r.vs.damageOk ? r.vs.per1kPct : null, -1) }}>{r.vs && r.vs.damageOk && r.vs.per1kPct != null ? `${sgn(r.vs.per1kPct, n1)}%` : r.vs && !r.vs.damageOk ? <span style={small}>&lt; 5 ca</span> : "—"}</td>
+                <td style={{ ...td, textAlign: "left", color: "var(--red)", fontWeight: 700 }}>{r.alerts.length ? `⚠ ${r.alerts.join(", ")}` : ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ ...small, marginTop: 4 }}>* kỳ đang chạy — so với cùng số ngày của kỳ trước. Tháng = các tuần có thứ 2 thuộc tháng (như báo cáo công ty). Cảnh báo: ca/1.000 đơn tăng ≥ 10% hoặc on-time giảm ≥ 1 điểm so kỳ trước (&lt; 5 ca ở 2 kỳ → bỏ trục bể vỡ; tuần &lt; 100 đơn không cảnh báo).</div>
+    </div>
+  );
+}
+
+async function download(url, name, setMsg) {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || "Không xuất được file"); }
+    const cd = r.headers.get("content-disposition") || "";
+    const fname = (cd.match(/filename="([^"]+)"/) || [])[1] || name;
+    const u = URL.createObjectURL(await r.blob());
+    const a = document.createElement("a"); a.href = u; a.download = fname; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(u), 2000);
+  } catch (e) { setMsg(`⚠ ${e.message}`); }
+}
+
+function summaryText(sol, report) {
+  const L = [`GIẢI PHÁP: ${sol.name}`, `Khách: ${sol.clients.join(", ")} · Trạng thái: ${sol.status} · Baseline chung ${fmt(sol.baseStart)} – ${fmt(sol.baseEnd)}`, ""];
+  for (const c of report.comparison) {
+    L.push(`${c.label} (${fmt(c.startDate)} → ${c.endDate ? fmt(c.endDate) : "nay"}, ${c.status}): ${c.verdict} — ${n0(c.post.orders)} đơn, on-time ${pctTxt(c.post.ontimePct)} (${c.delta.ontimePts == null ? "—" : sgn(c.delta.ontimePts, n1) + " điểm"} so baseline), ca/1.000 đơn ${n2(c.post.per1k)} (${c.delta.per1kPct == null ? "—" : sgn(c.delta.per1kPct, n1) + "%"})`);
+  }
+  report.alerts.forEach((a) => L.push(`⚠ ${a.text}`));
+  L.push(`(SD3 Dashboard Điện Máy, số liệu cập nhật ${vnStamp(report.dataAsOf)})`);
+  return L.join(NL);
+}
+
+// White A4 page for "In / Lưu PDF" (reuses the .exec-report print CSS).
+function SolutionPrintView({ sol, report, onClose }) {
+  const C = { text: "#111827", muted: "#6b7280", line: "#e5e7eb", head: "#0f7c7b", green: "#15803d", red: "#dc2626" };
+  const PV = { excellent: ["#065f46", "#d1fae5"], improved: ["#075985", "#e0f2fe"], watch: ["#92400e", "#fef3c7"], ineffective: ["#991b1b", "#fee2e2"] };
+  const cell = { padding: "5px 7px", borderBottom: `1px solid ${C.line}`, textAlign: "right", whiteSpace: "nowrap", fontSize: 11 };
+  const hc = { ...cell, background: C.head, color: "#fff", fontWeight: 700, borderBottom: "none" };
+  const btn = { fontSize: 13, padding: "7px 14px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, border: `1px solid ${C.line}`, background: "#fff", color: C.text };
+  return (
+    <div className="exec-report" style={{ position: "fixed", inset: 0, zIndex: 3000, background: "#e5e7eb", overflowY: "auto", color: C.text }}>
+      <div className="no-print" style={{ position: "sticky", top: 0, display: "flex", gap: 8, justifyContent: "flex-end", padding: "12px 20px", background: "#f3f4f6", borderBottom: `1px solid ${C.line}` }}>
+        <span style={{ marginRight: "auto", fontSize: 13, color: C.muted, alignSelf: "center" }}>Xem trước bản in — chọn &quot;Lưu dưới dạng PDF&quot; để lưu file.</span>
+        <button style={{ ...btn, background: "#c2410c", borderColor: "#c2410c", color: "#fff" }} onClick={() => window.print()}>🖨 In / Lưu PDF</button>
+        <button style={btn} onClick={onClose}>Đóng</button>
+      </div>
+      <div className="exec-page" style={{ maxWidth: 820, margin: "20px auto", background: "#fff", padding: "30px 34px", boxShadow: "0 4px 20px rgba(0,0,0,0.12)" }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.head, textTransform: "uppercase" }}>SD3 Dashboard Điện Máy · Báo cáo đánh giá giải pháp</div>
+        <div style={{ fontSize: 20, fontWeight: 800, marginTop: 4 }}>{sol.name}</div>
+        <div style={{ fontSize: 12, color: C.muted }}>Khách {sol.clients.join(", ")} · {sol.status} · Baseline chung {fmt(sol.baseStart)} – {fmt(sol.baseEnd)} · số liệu {vnStamp(report.dataAsOf)}</div>
+        {sol.description && <div style={{ fontSize: 12, marginTop: 8, whiteSpace: "pre-wrap" }}>{sol.description}</div>}
+        <div style={{ fontSize: 13, fontWeight: 700, marginTop: 14 }}>So sánh các giai đoạn</div>
+        <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", marginTop: 6 }}>
+          <thead><tr>{["Giai đoạn", "Thời gian", "Đơn", "% On-time", "Ca/1.000", "On-time so BL", "Ca/1.000 so BL", "Nhận định"].map((h, i) => <th key={h} style={{ ...hc, textAlign: i < 2 ? "left" : "right" }}>{h}</th>)}</tr></thead>
+          <tbody>{report.comparison.map((c) => (
+            <tr key={c.phaseId}><td style={{ ...cell, textAlign: "left", fontWeight: 700 }}>{c.label}</td><td style={{ ...cell, textAlign: "left" }}>{fmtS(c.postFrom)}–{fmtS(c.postTo)}</td><td style={cell}>{n0(c.post.orders)}</td><td style={cell}>{pctTxt(c.post.ontimePct)}</td><td style={cell}>{n2(c.post.per1k)}</td>
+              <td style={cell}>{c.delta.ontimePts == null ? "—" : `${sgn(c.delta.ontimePts, n1)} đ`}</td><td style={cell}>{c.delta.per1kPct == null ? "—" : `${sgn(c.delta.per1kPct, n1)}%`}</td><td style={{ ...cell, color: PV[c.verdictLevel][0], fontWeight: 700 }}>{c.verdict}</td></tr>))}</tbody>
+        </table></div>
+        {report.alerts.map((a, i) => <div key={i} style={{ fontSize: 11.5, color: C.red, marginTop: 4 }}>⚠ {a.text}</div>)}
+        {report.phases.map((x) => {
+          const v = x.impact.verdict, T = x.impact.trial, [fc, bc] = PV[v.level];
+          return (
+            <div key={x.phase.id} style={{ marginTop: 18, breakInside: "avoid" }}>
+              <div style={{ fontSize: 14, fontWeight: 800 }}>{x.phase.label} <span style={{ fontSize: 11, color: C.muted, fontWeight: 400 }}>· {fmt(x.phase.startDate)} → {x.phase.endDate ? fmt(x.phase.endDate) : "nay"} · {x.phase.status} · {scopeLine(x.phase)}</span></div>
+              <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 6, background: bc, color: fc }}><b>{v.label}</b>{v.reasons.map((s, i) => <div key={i} style={{ fontSize: 11.5, color: C.text }}>• {s}</div>)}</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 6 }}><thead><tr>{["Chỉ số", "Trước", "Sau", "Chênh lệch"].map((h, i) => <th key={h} style={{ ...hc, textAlign: i ? "right" : "left" }}>{h}</th>)}</tr></thead>
+                <tbody>{[["Đơn", n0(T.base.orders), n0(T.post.orders), sgn(T.delta.orders, n0)], ["% On-time", pctTxt(T.base.ontimePct), pctTxt(T.post.ontimePct), T.delta.ontimePts == null ? "—" : `${sgn(T.delta.ontimePts, n1)} điểm`], ["Ca bể", n0(T.base.cases), n0(T.post.cases), sgn(T.delta.cases, n0)], ["Ca/1.000 đơn", n2(T.base.per1k), n2(T.post.per1k), T.delta.per1kPct == null ? "—" : `${sgn(T.delta.per1kPct, n1)}%`]].map((r) => <tr key={r[0]}>{r.map((c2, i) => <td key={i} style={{ ...cell, textAlign: i ? "right" : "left" }}>{c2}</td>)}</tr>)}</tbody></table>
+              {(x.phase.images || []).length > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
+                  {x.phase.images.map((im) => <figure key={im.path} style={{ margin: 0 }}><img src={`/api/trials?image=${encodeURIComponent(im.path)}`} alt={im.caption || ""} style={{ width: "100%", borderRadius: 4 }} /><figcaption style={{ fontSize: 10.5, color: C.muted, textAlign: "center" }}>{im.caption}</figcaption></figure>)}
+                </div>
+              )}
+              {x.monitor && (
+                <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8 }}><thead><tr>{["Theo dõi (tháng)", "Đơn", "% On-time", "Ca/1.000", "On-time so kỳ trước", "Ca/1.000 so kỳ trước"].map((h, i) => <th key={h} style={{ ...hc, textAlign: i ? "right" : "left" }}>{h}</th>)}</tr></thead>
+                  <tbody>{x.monitor.month.rows.map((r) => <tr key={r.key}><td style={{ ...cell, textAlign: "left" }}>{r.label}{r.running ? "*" : ""}</td><td style={cell}>{n0(r.stats.orders)}</td><td style={cell}>{pctTxt(r.stats.ontimePct)}</td><td style={cell}>{n2(r.stats.per1k)}</td><td style={cell}>{r.vs && r.vs.ontimePts != null ? `${sgn(r.vs.ontimePts, n1)} đ` : "—"}</td><td style={cell}>{r.vs && r.vs.damageOk && r.vs.per1kPct != null ? `${sgn(r.vs.per1kPct, n1)}%` : "—"}</td></tr>)}</tbody></table>
+              )}
+            </div>
+          );
+        })}
+        <div style={{ fontSize: 10, color: C.muted, marginTop: 16, borderTop: `1px solid ${C.line}`, paddingTop: 6 }}>Mỗi giai đoạn so với cùng baseline chung trên phạm vi của chính nó. On-time = cờ GHN ontime / (ontime + late), loại đơn hoàn/huỷ. Ca/1.000 đơn = ca bể (gắn theo đơn) ÷ đơn lấy × 1.000. In lúc {vnStamp(new Date().toISOString())}.</div>
+      </div>
+    </div>
+  );
+}
+
+function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolution, onNextPhase, onEditPhase, onDeletePhase, onChanged }) {
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState(null);
+  const [msg, setMsg] = useState(null);
+  const [open, setOpen] = useState({});
   const [printing, setPrinting] = useState(false);
-  useEffect(() => { setShowCases(false); setMsg(null); }, [trial?.id]);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    setData(null); setErr(null);
+    fetch(`/api/trials?solution=${encodeURIComponent(sol.id)}${version ? `&v=${encodeURIComponent(version)}` : ""}`).then((r) => r.json())
+      .then((j) => { if (!j.ok) throw new Error(j.error || "Không tính được"); setData(j); setOpen(Object.fromEntries(j.report.phases.map((x, i) => [x.phase.id, i === j.report.phases.length - 1]))); })
+      .catch((e) => setErr(e.message));
+  }, [sol.id, version]);
   useEffect(() => {
     const esc = (e) => { if (e.key === "Escape") (printing ? setPrinting(false) : onClose()); };
     document.addEventListener("keydown", esc);
     return () => document.removeEventListener("keydown", esc);
   }, [printing, onClose]);
-
-  const imp = impact;
-  const rows = imp ? metricRows(imp) : [];
-  const L = imp ? periodLabels(imp) : null;
-  const pr = imp?.periods;
-
-  const copy = (kind) => {
-    let text;
-    if (kind === "table") {
-      const head = ["Chỉ số", L.base, L.post, "Chênh lệch", "% thay đổi", ...(imp.hasControl ? ["Đối chứng trước", "Đối chứng sau", "Đối chứng thay đổi", "Hiệu quả ròng"] : [])];
-      // Plain "-" and no "±" so Excel reads the pasted cells as numbers.
-      const cell = (v) => String(v).replace(/−/g, "-").replace(/^±/, "");
-      text = [head, ...rows.map((r) => [r.name, r.b, r.p, r.d, r.dp || "", ...(imp.hasControl ? [r.cb, r.cp, r.cd, r.net] : [])].map(cell))].map((r) => r.join(TAB)).join(NL);
-    } else text = summaryText(trial, imp);
-    try { navigator.clipboard.writeText(text); setCopied(kind); setTimeout(() => setCopied(null), 1500); } catch { /* no clipboard */ }
-  };
-  const downloadXlsx = async () => {
-    setBusy(true); setMsg(null);
-    try {
-      const r = await fetch(`/api/trials?impact=${encodeURIComponent(trial.id)}&format=xlsx`);
-      if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || "Không xuất được file"); }
-      const url = URL.createObjectURL(await r.blob());
-      const a = document.createElement("a");
-      a.href = url; a.download = `Danh-gia-giai-phap-${trial.id}.xlsx`;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
-    } catch (e) {
-      setMsg(`⚠ ${e.message}`);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const th = { padding: "8px 10px", textAlign: "right", whiteSpace: "nowrap", fontSize: 12 };
-  const td = { padding: "8px 10px", textAlign: "right", whiteSpace: "nowrap", fontSize: 13, borderBottom: "1px solid var(--panel-border-soft, var(--border))" };
-  const ctd = { ...td, color: "var(--text-muted)", fontSize: 12.5 };
-  const cases = imp ? imp.trial.base.caseCodes.concat(imp.trial.post.caseCodes) : [];
-  const infoCell = { background: "rgba(var(--brand-rgb),0.05)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 10px", minWidth: 0 };
-
+  const report = data?.report, s = data?.solution || sol;
   return (
-    <div role="dialog" aria-modal="true" aria-label={trial.name}
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    <div role="dialog" aria-modal="true" aria-label={sol.name} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
       style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,0.55)", display: "flex", justifyContent: "center", alignItems: "flex-start", padding: "24px 12px", overflowY: "auto" }}>
-      <div className="fade-in" style={{ width: "100%", maxWidth: 1120, background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, boxShadow: "0 20px 60px rgba(0,0,0,0.45)", boxSizing: "border-box" }}>
-        {/* Header */}
+      <div className="fade-in" style={{ width: "100%", maxWidth: 1160, background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, boxShadow: "0 20px 60px rgba(0,0,0,0.45)", boxSizing: "border-box" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
           <div style={{ minWidth: 0, flex: "1 1 320px" }}>
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>Báo cáo đánh giá giải pháp · {trial.id}</div>
-            <div style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.35, marginTop: 2 }}>{trial.name} <StatusBadge s={trial.status} /></div>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Giải pháp · {s.phases.length} giai đoạn</div>
+            <div style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.35, marginTop: 2 }}>{s.name} <StatusBadge s={s.status} /></div>
+            <div style={small}>Khách {s.clients.join(", ")} · Baseline chung <b>{fmt(s.baseStart)} – {fmt(s.baseEnd)}</b></div>
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-            {onEdit && <button style={ghost} onClick={onEdit}>✎ Sửa</button>}
-            <button style={primary} disabled={!imp || busy} onClick={downloadXlsx}>{busy ? "Đang xuất…" : "📥 Xuất báo cáo đánh giá (Excel)"}</button>
-            <button style={ghost} disabled={!imp} onClick={() => setPrinting(true)}>🖨 In / Lưu PDF</button>
-            <button style={ghost} disabled={!imp} onClick={() => copy("text")}>{copied === "text" ? "✓ Đã copy" : "📋 Copy tóm tắt"}</button>
-            <button style={ghost} disabled={!imp} onClick={() => copy("table")}>{copied === "table" ? "✓ Đã copy" : "📋 Copy bảng"}</button>
+            {canEdit && <button style={ghost} onClick={onEditSolution}>✎ Sửa giải pháp</button>}
+            {canEdit && !s.legacy && <button style={primary} onClick={onNextPhase}>➕ Giai đoạn tiếp</button>}
+            <button style={ghost} disabled={!report} onClick={() => download(`/api/trials?solution=${encodeURIComponent(s.id)}&format=docx`, "bao-cao.docx", setMsg)}>📄 Xuất Word</button>
+            <button style={ghost} disabled={!report} onClick={() => download(`/api/trials?solution=${encodeURIComponent(s.id)}&format=xlsx`, "bao-cao.xlsx", setMsg)}>📥 Excel</button>
+            <button style={ghost} disabled={!report} onClick={() => setPrinting(true)}>🖨 In / PDF</button>
+            <button style={ghost} disabled={!report} onClick={() => { try { navigator.clipboard.writeText(summaryText(s, report)); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* */ } }}>{copied ? "✓ Đã copy" : "📋 Copy tóm tắt"}</button>
             <button style={{ ...ghost, padding: "6px 10px" }} onClick={onClose} aria-label="Đóng" title="Đóng (Esc)">✕</button>
           </div>
         </div>
-        {msg && <div style={{ fontSize: 12.5, marginTop: 8, color: "var(--red)" }}>{msg}</div>}
-
-        {/* General info */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 8, marginTop: 14 }}>
-          {SCOPE_FIELDS.map(([label, key, unit, render]) => (
-            <ScopeCell key={`${trial.id}-${key}`} label={label} items={trial[key]} unit={unit} render={render} style={infoCell} />
-          ))}
-          <div style={infoCell}><div style={small}>Thời gian áp dụng</div><div style={{ fontSize: 13, fontWeight: 600 }}>{fmt(trial.startDate)} → {trial.endDate ? fmt(trial.endDate) : "Ongoing"}</div></div>
-          <div style={infoCell}><div style={small}>Baseline (trước khi áp dụng)</div><div style={{ fontSize: 13, fontWeight: 600 }}>{fmt(trial.baseStart)} – {fmt(trial.baseEnd)}</div></div>
-          <div style={infoCell}><div style={small}>Người tạo</div><div style={{ fontSize: 13, fontWeight: 600 }}>{trial.createdBy || "—"} <span style={{ ...small, fontWeight: 400 }}>{vnStamp(trial.createdAt)}</span></div></div>
-          <div style={infoCell}><div style={small}>Cập nhật lần cuối</div><div style={{ fontSize: 13, fontWeight: 600 }}>{trial.updatedBy || "—"} <span style={{ ...small, fontWeight: 400 }}>{vnStamp(trial.updatedAt)}</span></div></div>
-        </div>
-        <div style={{ ...infoCell, marginTop: 8 }}>
-          <div style={small}>Mô tả giải pháp</div>
-          <div style={{ fontSize: 13, whiteSpace: "pre-wrap", lineHeight: 1.55 }}>{trial.description || <span style={{ color: "var(--text-muted)" }}>Chưa có mô tả.</span>}</div>
-        </div>
-
-        {error ? <div style={{ marginTop: 14, color: "var(--red)", fontSize: 13 }}>⚠ {error}</div>
-          : !imp ? <div style={{ marginTop: 14, ...small }}>{loading ? "Đang tính hiệu quả…" : ""}</div> : (
-            <>
-              <VerdictBox v={imp.verdict} />
-
-              {imp.warnings.length > 0 && (
-                <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 4 }}>
-                  {imp.warnings.map((w, i) => <div key={i} style={{ fontSize: 12.5, color: "var(--amber)" }}>⚠ {w.text}</div>)}
-                </div>
-              )}
-
-              <div style={{ fontSize: 13.5, fontWeight: 700, marginTop: 16 }}>So sánh Trước & Sau</div>
-              <div style={{ overflowX: "auto", marginTop: 6 }}>
-                <table className="data-table" style={{ fontSize: 12.5, minWidth: imp.hasControl ? 820 : 520 }}>
-                  <thead>
-                    <tr>
-                      <th style={{ ...th, textAlign: "left" }} rowSpan={2}>Chỉ số</th>
-                      <th style={{ ...th, textAlign: "center", borderBottom: "1px solid var(--border)" }} colSpan={4}>Phạm vi áp dụng giải pháp</th>
-                      {imp.hasControl && <th style={{ ...th, textAlign: "center", borderBottom: "1px solid var(--border)", color: "var(--text-muted)" }} colSpan={3} title="Đơn của cùng khách nhưng KHÔNG thuộc phạm vi giải pháp, cùng 2 giai đoạn">Đối chứng (phần còn lại của khách)</th>}
-                      {imp.hasControl && <th style={{ ...th }} rowSpan={2} title="Thay đổi của phạm vi trừ thay đổi của đối chứng — phần cải thiện không giải thích được bằng mùa vụ / biến động chung">Hiệu quả ròng</th>}
-                    </tr>
-                    <tr>
-                      <th style={th}>Trước<div style={{ ...small, fontWeight: 400, fontSize: 11 }}>{fmtS(pr.base.from)}–{fmtS(pr.base.to)} · {imp.baseDays} ngày</div></th>
-                      <th style={th}>Sau<div style={{ ...small, fontWeight: 400, fontSize: 11 }}>{fmtS(pr.post.from)}–{fmtS(pr.post.to)} · {imp.postDays} ngày{pr.post.ongoing ? "*" : ""}</div></th>
-                      <th style={th}>Chênh lệch</th><th style={th}>% thay đổi</th>
-                      {imp.hasControl && <><th style={th}>Trước</th><th style={th}>Sau</th><th style={th}>Thay đổi</th></>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r) => (
-                      <tr key={r.key}>
-                        <td style={{ ...td, textAlign: "left", fontWeight: 600 }}>{r.name}</td>
-                        <td style={td}>{r.b}{r.sub && <div style={{ ...small, fontSize: 11 }}>{r.sub[0]}</div>}</td>
-                        <td style={{ ...td, fontWeight: 700 }}>{r.p}{r.sub && <div style={{ ...small, fontSize: 11, fontWeight: 400 }}>{r.sub[1]}</div>}</td>
-                        <td style={{ ...td, fontWeight: 700, color: toneOf(r.dRaw, r.good) }}>{r.d}</td>
-                        <td style={{ ...td, color: toneOf(r.dRaw, r.good) }}>{r.dp || ""}</td>
-                        {imp.hasControl && <><td style={ctd}>{r.cb}</td><td style={ctd}>{r.cp}</td><td style={ctd}>{r.cd}</td></>}
-                        {imp.hasControl && <td style={{ ...td, fontWeight: 700, color: toneOf(r.netRaw, r.good) }}>{r.net}</td>}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {!imp.hasControl && (
-                <div style={{ ...small, marginTop: 4 }}>
-                  {imp.scope.hasRouteScope ? "Không có đơn đối chứng (khách không có đơn ngoài phạm vi trong 2 giai đoạn)." : "Phạm vi là toàn bộ đơn của khách nên không có nhóm đối chứng — thu hẹp theo kho / tỉnh để có đối chứng."}
-                </div>
-              )}
-
-              <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: "rgba(var(--brand-rgb),0.06)", border: "1px solid var(--border)" }}>
-                <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 4 }}>Số liệu tóm tắt</div>
-                {imp.summary.map((s, i) => <div key={i} style={{ fontSize: 13, lineHeight: 1.55 }}>• {s}</div>)}
-              </div>
-
-              {cases.length > 0 && (
-                <div style={{ marginTop: 10 }}>
-                  <button style={{ ...ghost, padding: "4px 10px", fontSize: 12 }} onClick={() => setShowCases((v) => !v)}>{showCases ? "Ẩn danh sách ca" : `Xem ${cases.length} ca bể vỡ trong phạm vi`}</button>
-                  {showCases && (
-                    <div style={{ overflowX: "auto", maxHeight: 260, overflowY: "auto", marginTop: 6 }}>
-                      <table className="data-table" style={{ fontSize: 12 }}>
-                        <thead><tr><th>Giai đoạn</th><th>Mã đơn</th><th>Ngày phát hiện</th><th>Chặng nghi lỗi</th><th>Kho phát hiện</th></tr></thead>
-                        <tbody>
-                          {cases.map((c) => (
-                            <tr key={c.order_code}><td>{c.period === "base" ? "Trước" : "Sau"}</td><td style={{ fontWeight: 700 }}>{c.order_code}</td><td>{c.case_date}</td><td>{c.leg}</td><td>{shortWh(c.warehouse)}</td></tr>
-                          ))}
-                        </tbody>
-                      </table>
+        {msg && <div style={{ fontSize: 12.5, color: "var(--red)", marginTop: 6 }}>{msg}</div>}
+        {s.description && <div style={{ marginTop: 10, fontSize: 13, whiteSpace: "pre-wrap", padding: "8px 10px", borderRadius: 8, background: "rgba(var(--brand-rgb),0.05)", border: "1px solid var(--border)" }}>{s.description}</div>}
+        {s.legacy && <div style={{ marginTop: 8, fontSize: 12.5, color: "var(--amber)" }}>Giải pháp cũ (trước khi có giai đoạn). Bấm "✎ Sửa giải pháp" để lưu thành giải pháp có giai đoạn, rồi mới thêm giai đoạn tiếp.</div>}
+        {err ? <div style={{ color: "var(--red)", marginTop: 12 }}>⚠ {err}</div> : !report ? <div style={{ ...small, marginTop: 12 }}>Đang tính…</div> : (
+          <>
+            {report.alerts.length > 0 && <div style={{ marginTop: 10 }}>{report.alerts.map((a, i) => <div key={i} style={{ fontSize: 12.5, color: "var(--red)", fontWeight: 700 }}>⚠ {a.text}</div>)}</div>}
+            <div style={{ fontSize: 13.5, fontWeight: 700, marginTop: 14 }}>So sánh các giai đoạn <span style={{ ...small, fontWeight: 400 }}>(cùng baseline chung, mỗi giai đoạn trên phạm vi của nó)</span></div>
+            <div style={{ overflowX: "auto", marginTop: 6 }}>
+              <table className="data-table" style={{ fontSize: 12, minWidth: 900 }}>
+                <thead><tr><th style={{ ...th, textAlign: "left" }}>Giai đoạn</th><th style={{ ...th, textAlign: "left" }}>Phạm vi</th><th style={th}>Giai đoạn sau</th><th style={th}>Đơn</th><th style={th}>Tấn</th><th style={th}>% On-time</th><th style={th}>Ca/1.000</th><th style={th}>On-time so baseline</th><th style={th}>Ca/1.000 so baseline</th><th style={th} title="Số của giai đoạn này trừ giai đoạn liền trước">So GĐ trước</th><th style={{ ...th, textAlign: "left" }}>Nhận định</th></tr></thead>
+                <tbody>{report.comparison.map((c) => (
+                  <tr key={c.phaseId}>
+                    <td style={{ ...td, textAlign: "left", fontWeight: 700 }}>{c.label} <StatusBadge s={c.status} /></td>
+                    <td style={{ ...td, textAlign: "left", whiteSpace: "normal", minWidth: 200, maxWidth: 260, color: "var(--text-secondary)" }}>{scopeLine(c.scope)}</td>
+                    <td style={td}>{fmtS(c.postFrom)}–{fmtS(c.postTo)} <span style={small}>{c.postDays}n</span></td>
+                    <td style={td}>{n0(c.post.orders)}</td><td style={td}>{n1(c.post.tons)}</td><td style={{ ...td, fontWeight: 700 }}>{pctTxt(c.post.ontimePct)}</td><td style={{ ...td, fontWeight: 700 }}>{n2(c.post.per1k)}</td>
+                    <td style={{ ...td, color: toneOf(c.delta.ontimePts, 1) }}>{c.delta.ontimePts == null ? "—" : `${sgn(c.delta.ontimePts, n1)} đ`}</td>
+                    <td style={{ ...td, color: toneOf(c.delta.per1kPct, -1) }}>{c.delta.per1kPct == null ? "—" : `${sgn(c.delta.per1kPct, n1)}%`}</td>
+                    <td style={td}>{c.vsPrev ? <span title="on-time · ca/1.000"><span style={{ color: toneOf(c.vsPrev.ontimePts, 1) }}>{c.vsPrev.ontimePts == null ? "—" : `${sgn(c.vsPrev.ontimePts, n1)} đ`}</span> · <span style={{ color: toneOf(c.vsPrev.per1kPct, -1) }}>{c.vsPrev.per1kPct == null ? "—" : `${sgn(c.vsPrev.per1kPct, n1)}%`}</span></span> : "—"}</td>
+                    <td style={{ ...td, textAlign: "left" }}><VerdictChip level={c.verdictLevel} text={c.verdict} /></td>
+                  </tr>))}</tbody>
+              </table>
+            </div>
+            <div style={{ marginTop: 14 }}><WeeklyChart report={report} /></div>
+            {report.phases.map((x) => {
+              const isOpen = open[x.phase.id];
+              return (
+                <div key={x.phase.id} style={{ marginTop: 14, border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "10px 12px", background: "rgba(var(--brand-rgb),0.06)", cursor: "pointer" }} onClick={() => setOpen((o) => ({ ...o, [x.phase.id]: !o[x.phase.id] }))}>
+                    <span style={{ fontWeight: 800 }}>{isOpen ? "▾" : "▸"} {x.phase.label}</span>
+                    <StatusBadge s={x.phase.status} />
+                    <span style={small}>{fmt(x.phase.startDate)} → {x.phase.endDate ? fmt(x.phase.endDate) : "Ongoing"} · {scopeLine(x.phase)}</span>
+                    <VerdictChip level={x.impact.verdict.level} text={x.impact.verdict.label} />
+                    <span style={{ marginLeft: "auto", display: "flex", gap: 6 }} onClick={(e) => e.stopPropagation()}>
+                      {canEdit && !s.legacy && <button style={mini(ghost)} onClick={() => onEditPhase(x.phase)}>Sửa GĐ</button>}
+                      {canDelete && !s.legacy && s.phases.length > 1 && <button style={mini(danger)} onClick={() => onDeletePhase(x.phase)}>Xoá GĐ</button>}
+                    </span>
+                  </div>
+                  {isOpen && (
+                    <div style={{ padding: 12 }}>
+                      {x.phase.description && <div style={{ fontSize: 12.5, whiteSpace: "pre-wrap", marginBottom: 8 }}>{x.phase.description}</div>}
+                      {(x.phase.khoGiao.length > 1 || x.phase.provinces.length > 2 || x.phase.khoLay.length > 1) && (
+                        <details style={{ ...small, marginBottom: 6 }}>
+                          <summary style={{ cursor: "pointer" }}>Xem phạm vi chi tiết</summary>
+                          {x.phase.khoLay.length > 0 && <div><b>Kho lấy ({x.phase.khoLay.length}):</b> {x.phase.khoLay.map(shortWh).join(", ")}</div>}
+                          {x.phase.khoGiao.length > 0 && <div><b>Kho giao ({x.phase.khoGiao.length}):</b> {x.phase.khoGiao.map(shortWh).join(", ")}</div>}
+                          {x.phase.provinces.length > 0 && <div><b>Tỉnh giao ({x.phase.provinces.length}):</b> {x.phase.provinces.join(", ")}</div>}
+                        </details>
+                      )}
+                      <PhaseImpact impact={x.impact} />
+                      {x.monitor && <MonitorView x={x} baseline={report.baseline} />}
+                      {!s.legacy && <ImageGallery phase={x.phase} canEdit={canEdit} canDelete={canDelete} onChanged={onChanged} />}
                     </div>
                   )}
                 </div>
-              )}
-
-              <div style={{ ...small, marginTop: 10 }}>
-                {pr.post.ongoing && "* Ongoing: giai đoạn sau tính đến hôm nay. "}
-                Cách tính: đơn theo <b>ngày lấy hàng</b> trong từng giai đoạn · Tấn = tổng khối lượng đơn · On-time = đúng hạn / (đúng hạn + trễ), chỉ đơn đã có kết quả · Ca bể vỡ = ca trong &quot;Báo cáo bể vỡ&quot; Rillnet <b>gắn theo đơn</b> (đơn lấy ở giai đoạn nào thì ca tính vào giai đoạn đó) · Ca/1.000 đơn = ca ÷ đơn lấy × 1.000 · Hiệu quả ròng = thay đổi của phạm vi − thay đổi của đối chứng (on-time: điểm; ca/1.000 đơn: % thay đổi của phạm vi − % thay đổi của đối chứng). Xanh = tốt lên, đỏ = xấu đi. Số liệu cập nhật {vnStamp(imp.dataAsOf)}.
-              </div>
-            </>
-          )}
-      </div>
-      {/* Portal to <body>: printing a page nested in the scrolling modal would clip it to one page. */}
-      {printing && imp && createPortal(<TrialPrintView trial={trial} imp={imp} rows={rows} onClose={() => setPrinting(false)} />, document.body)}
-    </div>
-  );
-}
-
-// White A4 page for "In / Lưu PDF" — reuses the .exec-report print CSS of
-// the "Báo cáo tóm tắt" (only this block is printed).
-function TrialPrintView({ trial, imp, rows, onClose }) {
-  const C = { text: "#111827", muted: "#6b7280", line: "#e5e7eb", head: "#0f7c7b", green: "#15803d", red: "#dc2626" };
-  const pv = PRINT_VERDICT[imp.verdict.level];
-  const pr = imp.periods;
-  const tone = (v, good) => (v == null || !good || Math.abs(v) < 1e-9 ? C.text : v * good > 0 ? C.green : C.red);
-  const cell = { padding: "6px 8px", borderBottom: `1px solid ${C.line}`, textAlign: "right", whiteSpace: "nowrap", fontSize: 12 };
-  const hcell = { ...cell, background: C.head, color: "#fff", fontWeight: 700, borderBottom: "none" };
-  const cases = imp.trial.base.caseCodes.concat(imp.trial.post.caseCodes);
-  const btn = { fontSize: 13, padding: "7px 14px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, border: `1px solid ${C.line}`, background: "#fff", color: C.text };
-  return (
-    <div className="exec-report" style={{ position: "fixed", inset: 0, zIndex: 3000, background: "#e5e7eb", overflowY: "auto", color: C.text }}>
-      <div className="no-print" style={{ position: "sticky", top: 0, display: "flex", gap: 8, justifyContent: "flex-end", padding: "12px 20px", background: "#f3f4f6", borderBottom: `1px solid ${C.line}` }}>
-        <span style={{ marginRight: "auto", fontSize: 13, color: C.muted, alignSelf: "center" }}>Xem trước bản in — chọn &quot;Lưu dưới dạng PDF&quot; trong hộp thoại in để lưu file.</span>
-        <button style={{ ...btn, background: "#c2410c", borderColor: "#c2410c", color: "#fff" }} onClick={() => window.print()}>🖨 In / Lưu PDF</button>
-        <button style={btn} onClick={onClose}>Đóng</button>
-      </div>
-      <div className="exec-page" style={{ maxWidth: 820, margin: "20px auto", background: "#fff", padding: "32px 36px", boxShadow: "0 4px 20px rgba(0,0,0,0.12)", fontFamily: "inherit" }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: C.head, letterSpacing: 0.6, textTransform: "uppercase" }}>SD3 Dashboard Điện Máy · Báo cáo đánh giá hiệu quả giải pháp</div>
-        <div style={{ fontSize: 20, fontWeight: 800, marginTop: 4, lineHeight: 1.3 }}>{trial.name}</div>
-        <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Mã {trial.id} · Trạng thái: {trial.status} · Số liệu cập nhật {vnStamp(imp.dataAsOf)}</div>
-
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 14, fontSize: 12 }}>
-          <tbody>
-            {[...scopeParts(trial, 5).map(([k, x]) => [k, / \+\d+ (kho|tỉnh|khách)$/.test(x) ? `${x} (đủ danh sách trong file Excel)` : x]), ["Thời gian áp dụng", `${fmt(trial.startDate)} → ${trial.endDate ? fmt(trial.endDate) : "Ongoing"}`],
-              ["So sánh", `${periodLabels(imp).base} vs ${periodLabels(imp).post}`]].map(([k, x]) => (
-              <tr key={k}><td style={{ padding: "4px 8px 4px 0", color: C.muted, width: 150, verticalAlign: "top" }}>{k}</td><td style={{ padding: "4px 0", fontWeight: 600 }}>{x}</td></tr>
-            ))}
-            {trial.description && <tr><td style={{ padding: "4px 8px 4px 0", color: C.muted, verticalAlign: "top" }}>Mô tả</td><td style={{ padding: "4px 0", whiteSpace: "pre-wrap" }}>{trial.description}</td></tr>}
-          </tbody>
-        </table>
-
-        <div style={{ marginTop: 16, padding: "12px 14px", borderRadius: 8, background: pv.bg, color: pv.color, breakInside: "avoid" }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Nhận định tự động{imp.verdict.basis === "net" ? " · theo hiệu quả ròng (đã trừ nhóm đối chứng)" : ""}</div>
-          <div style={{ fontSize: 18, fontWeight: 800, marginTop: 2 }}>{imp.verdict.label}</div>
-          {imp.verdict.reasons.map((s, i) => <div key={i} style={{ fontSize: 12, marginTop: 3, color: C.text }}>• {s}</div>)}
-          {imp.verdict.notes.map((s, i) => <div key={`n${i}`} style={{ fontSize: 11.5, marginTop: 3, color: C.muted }}>Lưu ý: {s}</div>)}
-        </div>
-
-        <div style={{ fontSize: 13, fontWeight: 700, marginTop: 18 }}>So sánh Trước & Sau</div>
-        <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 6, breakInside: "avoid" }}>
-          <thead>
-            <tr>
-              <th style={{ ...hcell, textAlign: "left" }}>Chỉ số</th>
-              <th style={hcell}>Trước<div style={{ fontWeight: 400, fontSize: 10 }}>{fmtS(pr.base.from)}–{fmtS(pr.base.to)}</div></th>
-              <th style={hcell}>Sau<div style={{ fontWeight: 400, fontSize: 10 }}>{fmtS(pr.post.from)}–{fmtS(pr.post.to)}</div></th>
-              <th style={hcell}>Chênh lệch</th><th style={hcell}>%</th>
-              {imp.hasControl && <><th style={hcell}>Đối chứng<div style={{ fontWeight: 400, fontSize: 10 }}>trước → sau</div></th><th style={hcell}>Hiệu quả ròng</th></>}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.key}>
-                <td style={{ ...cell, textAlign: "left", fontWeight: 600 }}>{r.name}</td>
-                <td style={cell}>{r.b}</td>
-                <td style={{ ...cell, fontWeight: 700 }}>{r.p}</td>
-                <td style={{ ...cell, fontWeight: 700, color: tone(r.dRaw, r.good) }}>{r.d}</td>
-                <td style={{ ...cell, color: tone(r.dRaw, r.good) }}>{r.dp || ""}</td>
-                {imp.hasControl && <><td style={{ ...cell, color: C.muted }}>{r.cb} → {r.cp}</td><td style={{ ...cell, fontWeight: 700, color: tone(r.netRaw, r.good) }}>{r.net}</td></>}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
-
-        {imp.warnings.length > 0 && (
-          <div style={{ marginTop: 12 }}>
-            {imp.warnings.map((w, i) => <div key={i} style={{ fontSize: 11.5, color: "#92400e", marginTop: 2 }}>⚠ {w.text}</div>)}
-          </div>
-        )}
-
-        {cases.length > 0 && (
-          <>
-            <div style={{ fontSize: 13, fontWeight: 700, marginTop: 18 }}>Ca bể vỡ trong phạm vi ({cases.length})</div>
-            <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 6, fontSize: 11 }}>
-              <thead><tr>{["Giai đoạn", "Mã đơn", "Ngày phát hiện", "Chặng nghi lỗi", "Kho phát hiện"].map((h) => <th key={h} style={{ ...hcell, textAlign: "left", fontSize: 11 }}>{h}</th>)}</tr></thead>
-              <tbody>
-                {cases.map((c) => (
-                  <tr key={c.order_code}>{[c.period === "base" ? "Trước" : "Sau", c.order_code, c.case_date, c.leg, shortWh(c.warehouse)].map((x, i) => <td key={i} style={{ ...cell, textAlign: "left", fontSize: 11 }}>{x}</td>)}</tr>
-                ))}
-              </tbody>
-            </table>
-            </div>
+              );
+            })}
+            <div style={{ ...small, marginTop: 12 }}>Cách tính: đơn theo ngày lấy hàng · On-time = cờ GHN ontime / (ontime + late), loại đơn hoàn/huỷ · Ca bể vỡ gắn theo đơn · Ca/1.000 đơn = ca ÷ đơn lấy × 1.000 · Đối chứng = đơn cùng khách ngoài phạm vi giai đoạn · Nhận định theo luật cố định. Số liệu cập nhật {vnStamp(report.dataAsOf)}.</div>
           </>
         )}
-
-        <div style={{ fontSize: 10.5, color: C.muted, marginTop: 18, lineHeight: 1.5, borderTop: `1px solid ${C.line}`, paddingTop: 8 }}>
-          Cách tính: đơn theo ngày lấy hàng · Tấn = tổng khối lượng đơn · On-time = đúng hạn / (đúng hạn + trễ), chỉ đơn đã có kết quả · Ca bể vỡ = ca trong &quot;Báo cáo bể vỡ&quot; Rillnet gắn theo đơn · Ca/1.000 đơn = ca ÷ đơn lấy × 1.000 · Đối chứng = đơn của cùng khách ngoài phạm vi, cùng 2 giai đoạn · Hiệu quả ròng = thay đổi của phạm vi − thay đổi của đối chứng (on-time: điểm; ca/1.000 đơn: % thay đổi của phạm vi − % thay đổi của đối chứng).
-          {" "}In lúc {vnStamp(new Date().toISOString())}.
-        </div>
       </div>
+      {printing && report && createPortal(<SolutionPrintView sol={s} report={report} onClose={() => setPrinting(false)} />, document.body)}
     </div>
   );
 }
 
+const EMPTY_PHASE = { id: "", label: "Trial 1", khoLay: [], khoGiao: [], provinces: [], startDate: "", endDate: "", ongoing: true, status: "Đang trial", description: "" };
+
 export default function TabTrials() {
-  const [data, setData] = useState(null); // { trials, version, canDelete, statuses }
+  const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
   const [version, setVersion] = useState("");
   const [options, setOptions] = useState(null);
-  const [editing, setEditing] = useState(null); // form initial values
+  const [form, setForm] = useState(null); // { kind: "solution"|"phase", ... }
   const [selected, setSelected] = useState(null);
-  const [impacts, setImpacts] = useState({}); // `${id}|${updatedAt}` → { impact } | { error }
-  const [loadingImpact, setLoadingImpact] = useState(false);
   const [filter, setFilter] = useState("all");
   const [q, setQ] = useState("");
   const [msg, setMsg] = useState(null);
 
-  const load = (v = version) => fetch(`/api/trials${v ? `?v=${encodeURIComponent(v)}` : ""}`)
-    .then((r) => r.json())
+  const load = (v = version) => fetch(`/api/trials${v ? `?v=${encodeURIComponent(v)}` : ""}`).then((r) => r.json())
     .then((j) => { if (!j.ok) throw new Error(j.error || "Không tải được danh sách"); setData(j); setErr(null); return j; })
     .catch((e) => setErr(e.message));
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!editing || options) return;
+    if (!form || options) return;
     fetch("/api/trials?options=1").then((r) => r.json()).then((j) => { if (j.ok) setOptions(j.options); else setMsg(`⚠ ${j.error}`); }).catch((e) => setMsg(`⚠ ${e.message}`));
-  }, [editing, options]);
+  }, [form, options]);
 
-  const trials = data?.trials || [];
-  const sel = trials.find((t) => t.id === selected) || null;
-  const impactKey = sel ? `${sel.id}|${sel.updatedAt}` : "";
-  useEffect(() => {
-    if (!sel || impacts[impactKey]) return;
-    setLoadingImpact(true);
-    fetch(`/api/trials?impact=${encodeURIComponent(sel.id)}${version ? `&v=${encodeURIComponent(version)}` : ""}`)
-      .then((r) => r.json())
-      .then((j) => setImpacts((m) => ({ ...m, [impactKey]: j.ok ? { impact: j.impact } : { error: j.error || "Không tính được" } })))
-      .catch((e) => setImpacts((m) => ({ ...m, [impactKey]: { error: e.message } })))
-      .finally(() => setLoadingImpact(false));
-  }, [impactKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const counts = useMemo(() => Object.fromEntries((data?.statuses || []).map((s) => [s, trials.filter((t) => t.status === s).length])), [trials, data]);
-  const shown = trials.filter((t) => (filter === "all" || t.status === filter)
-    && (!q || `${t.name} ${t.clients.join(" ")} ${t.khoLay.join(" ")} ${t.khoGiao.join(" ")} ${t.provinces.join(" ")}`.toLowerCase().includes(q.toLowerCase())));
-
-  const startEdit = (t) => {
-    setMsg(null);
-    setEditing(t ? { ...EMPTY, ...t, ongoing: !t.endDate } : { ...EMPTY });
-    if (typeof window !== "undefined") window.scrollTo?.({ top: 0, behavior: "smooth" });
-  };
-  const onSaved = async (j) => {
-    setVersion(j.version);
-    setEditing(null);
-    setMsg(`✓ ${j.created ? "Đã thêm" : "Đã lưu"} "${j.trial.name}"`);
-    await load(j.version);
-    setSelected(j.trial.id);
-  };
-  const remove = async (t) => {
-    if (!confirm(`Xoá giải pháp "${t.name}"?\nDòng vẫn được giữ trong Google Sheet (đánh dấu đã xoá) để tra cứu.`)) return;
-    try {
-      const r = await fetch("/api/trials", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete", id: t.id }) });
-      const j = await r.json();
-      if (!r.ok || !j.ok) throw new Error(j.error || "Không xoá được");
-      setVersion(j.version);
-      if (selected === t.id) setSelected(null);
-      setMsg(`✓ Đã xoá "${t.name}"`);
-      await load(j.version);
-    } catch (e) {
-      setMsg(`⚠ ${e.message}`);
-    }
-  };
-
-  const cur = impacts[impactKey];
+  const statuses = data?.statuses || { solution: ["Đang trial", "Đã thành solution chung", "Đã hủy"], phase: ["Đang trial", "Thành công", "Dừng"] };
+  const sols = data?.solutions || [];
+  const sel = sols.find((s) => s.id === selected) || null;
+  const counts = useMemo(() => Object.fromEntries(statuses.solution.map((s) => [s, sols.filter((x) => x.status === s).length])), [sols, statuses]);
+  const shown = sols.filter((s) => (filter === "all" || s.status === filter)
+    && (!q || `${s.name} ${s.clients.join(" ")} ${s.phases.map((p) => `${p.label} ${p.khoLay.join(" ")} ${p.khoGiao.join(" ")} ${p.provinces.join(" ")}`).join(" ")}`.toLowerCase().includes(q.toLowerCase())));
   const closeDetail = useCallback(() => setSelected(null), []);
+  const top = () => { if (typeof window !== "undefined") window.scrollTo?.({ top: 0, behavior: "smooth" }); };
+
+  const newSolution = () => { setMsg(null); setForm({ kind: "solution", isNew: true, initial: { id: "", name: "", clients: [], baseStart: "", baseEnd: "", status: "Đang trial", description: "", phase: { ...EMPTY_PHASE, startDate: vnToday() } } }); top(); };
+  const editSolution = (s) => {
+    setMsg(null); setSelected(null);
+    const legacyPhase = s.legacy ? s.phases[0] : null;
+    setForm({ kind: "solution", isNew: false, legacyPhase, initial: { id: s.legacy ? "" : s.id, name: s.name, clients: s.clients, baseStart: s.baseStart, baseEnd: s.baseEnd, status: s.status, description: s.description, firstPhaseStart: s.phases[0]?.startDate || "" } });
+    top();
+  };
+  const nextPhase = (s) => { setMsg(null); setSelected(null); if (s.legacy) { editSolution(s); return; } setForm({ kind: "phase", solution: s, initial: nextPhasePreset(s) }); top(); };
+  const editPhase = (s, p) => { setMsg(null); setSelected(null); setForm({ kind: "phase", solution: s, initial: { ...p, ongoing: !p.endDate } }); top(); };
+  const afterSave = async (j, text, openId) => { setVersion(j.version); setForm(null); setMsg(`✓ ${text}`); await load(j.version); if (openId) setSelected(openId); };
+  const removeSolution = async (s) => {
+    if (!confirm(`Xoá giải pháp "${s.name}" (${s.phases.length} giai đoạn)?\nDòng vẫn giữ trong Google Sheet (đánh dấu đã xoá).`)) return;
+    try { const j = await post({ action: "deleteSolution", id: s.id }); setVersion(j.version); if (selected === s.id) setSelected(null); setMsg(`✓ Đã xoá "${s.name}"`); await load(j.version); } catch (e) { setMsg(`⚠ ${e.message}`); }
+  };
+  const removePhase = async (s, p) => {
+    if (!confirm(`Xoá ${p.label} của "${s.name}"?`)) return;
+    try { const j = await post({ action: "deletePhase", id: p.id }); setVersion(j.version); setMsg(`✓ Đã xoá ${p.label}`); await load(j.version); } catch (e) { setMsg(`⚠ ${e.message}`); }
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div className="glass" style={{ padding: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 15, fontWeight: 700 }}>Sổ tay Cải tiến & Đo lường Giải pháp</div>
-            <div style={small}>Ghi lại các giải pháp trial (tách tuyến, test CCDC…) và đo hiệu quả thật từ dữ liệu LTL + Rillnet: trước vs sau, có nhóm đối chứng.</div>
+            <div style={small}>Mỗi giải pháp đi qua các giai đoạn Trial 1 → Trial 2 → … → Nhân rộng cả nước, cùng 1 baseline; đo hiệu quả thật từ LTL + Rillnet và theo dõi tiếp sau khi thành công.</div>
           </div>
-          {!editing && <button style={primary} onClick={() => startEdit(null)}>＋ Thêm giải pháp</button>}
+          {!form && <button style={primary} onClick={newSolution}>＋ Thêm giải pháp</button>}
         </div>
         {msg && <div style={{ fontSize: 12.5, marginTop: 8, color: msg.startsWith("✓") ? "var(--green)" : "var(--red)" }}>{msg}</div>}
       </div>
 
-      {editing && (
-        <TrialForm key={editing.id || "new"} initial={editing} options={options} statuses={data?.statuses || ["Đang trial", "Thành công (Đã nhân rộng)", "Đã hủy"]}
-          onCancel={() => setEditing(null)} onSaved={onSaved} />
+      {form?.kind === "solution" && (
+        <SolutionForm key={form.initial.id || form.legacyPhase?.id || "new"} initial={form.initial} isNew={form.isNew} legacyPhase={form.legacyPhase} options={options} statuses={statuses}
+          onCancel={() => setForm(null)} onSaved={(j) => afterSave(j, j.created ? `Đã thêm giải pháp "${j.solution.name}"` : `Đã lưu "${j.solution.name}"`, j.solution.id)} />
+      )}
+      {form?.kind === "phase" && (
+        <PhaseForm key={form.initial.id || "next"} solution={form.solution} initial={form.initial} options={options} statuses={statuses}
+          onCancel={() => setForm(null)} onSaved={(j) => afterSave(j, j.created ? `Đã thêm ${j.phase.label}` : `Đã lưu ${j.phase.label}`, form.solution.id)} />
       )}
 
       <div className="glass" style={{ padding: 16 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm tên, khách, kho…" style={{ ...input, width: 220, maxWidth: "100%" }} />
-          <button style={seg(filter === "all")} onClick={() => setFilter("all")}>Tất cả ({trials.length})</button>
-          {(data?.statuses || []).map((s) => <button key={s} style={seg(filter === s)} onClick={() => setFilter(s)}>{s} ({counts[s] || 0})</button>)}
+          <button style={seg(filter === "all")} onClick={() => setFilter("all")}>Tất cả ({sols.length})</button>
+          {statuses.solution.map((s) => <button key={s} style={seg(filter === s)} onClick={() => setFilter(s)}>{s} ({counts[s] || 0})</button>)}
         </div>
         {err ? <div style={{ color: "var(--red)", fontSize: 13 }}>⚠ {err}</div> : !data ? <div style={small}>Đang tải…</div> : (
           <div style={{ overflowX: "auto" }}>
-            <table className="data-table" style={{ fontSize: 12.5, minWidth: 760 }}>
-              <thead><tr><th>Giải pháp</th><th>Khách</th><th>Phạm vi</th><th>Thời gian</th><th>Trạng thái</th><th>Cập nhật</th><th /></tr></thead>
+            <table className="data-table" style={{ fontSize: 12.5, minWidth: 900 }}>
+              <thead><tr><th>Giải pháp</th><th>Khách</th><th>Giai đoạn</th><th>Thời gian</th><th>Trạng thái</th><th>Cập nhật</th><th /></tr></thead>
               <tbody>
-                {shown.map((t) => {
-                  const on = t.id === selected;
-                  // Compact in the list (1 name or a count); full lists on hover.
-                  const part = (label, items, unit, render) => (!items.length ? "" : `${label}: ${items.length === 1 ? render(items[0]) : `${items.length} ${unit}`}`);
-                  const scope = [
-                    part("Lấy", t.khoLay, "kho", shortWh),
-                    part("Giao", t.khoGiao, "kho", shortWh),
-                    part("Tỉnh", t.provinces, "tỉnh", (v) => v),
-                  ].filter(Boolean).join(" · ") || "Toàn bộ đơn của khách";
-                  const scopeFull = [
-                    t.khoLay.length ? `Kho lấy: ${t.khoLay.map(shortWh).join(", ")}` : "",
-                    t.khoGiao.length ? `Kho giao: ${t.khoGiao.map(shortWh).join(", ")}` : "",
-                    t.provinces.length ? `Tỉnh giao: ${t.provinces.join(", ")}` : "",
-                  ].filter(Boolean).join(NL);
+                {shown.map((s) => {
+                  const first = s.phases.reduce((a, p) => (!a || p.startDate < a ? p.startDate : a), "");
+                  const upd = [s, ...s.phases].reduce((a, x) => (x.updatedAt > a.updatedAt ? x : a), s);
                   return (
-                    <tr key={t.id} onClick={() => setSelected(on ? null : t.id)} style={{ cursor: "pointer", background: on ? "rgba(var(--brand-rgb),0.10)" : undefined }}>
-                      <td style={{ fontWeight: 600, maxWidth: 320, whiteSpace: "normal" }}>{on ? "▾ " : "▸ "}{t.name}</td>
-                      <td style={{ whiteSpace: "normal", maxWidth: 160 }}>{t.clients.join(", ")}</td>
-                      <td style={{ whiteSpace: "normal", maxWidth: 260, color: "var(--text-secondary)" }} title={scopeFull || undefined}>{scope}</td>
-                      <td style={{ whiteSpace: "nowrap" }}>{fmtS(t.startDate)} → {t.endDate ? fmtS(t.endDate) : "Ongoing"}</td>
-                      <td><StatusBadge s={t.status} /></td>
-                      <td style={{ ...small, whiteSpace: "nowrap" }}>{t.updatedBy}<br />{vnStamp(t.updatedAt)}</td>
+                    <tr key={s.id} onClick={() => setSelected(s.id)} style={{ cursor: "pointer", background: s.id === selected ? "rgba(var(--brand-rgb),0.10)" : undefined }}>
+                      <td style={{ fontWeight: 600, maxWidth: 300, whiteSpace: "normal" }}>▸ {s.name}
+                        {s.alerts?.length > 0 && <div style={{ fontSize: 11.5, color: "var(--red)", fontWeight: 700, marginTop: 2 }} title={s.alerts.map((a) => a.text).join(NL)}>⚠ {s.alerts[0].text}{s.alerts.length > 1 ? ` (+${s.alerts.length - 1})` : ""}</div>}
+                        {s.legacy && <div style={{ ...small, color: "var(--amber)" }}>giải pháp cũ — bấm Sửa để chuyển sang giai đoạn</div>}
+                      </td>
+                      <td style={{ whiteSpace: "normal", maxWidth: 150 }}>{s.clients.join(", ")}</td>
+                      <td style={{ whiteSpace: "normal", maxWidth: 300 }}>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                          {s.phases.map((p) => (
+                            <span key={p.id} title={`${p.label} · ${p.status} · ${fmt(p.startDate)} → ${p.endDate ? fmt(p.endDate) : "Ongoing"} · ${scopeLine(p)} · ${p.verdict || ""}`}
+                              style={{ fontSize: 11.5, padding: "2px 7px", borderRadius: 10, border: "1px solid var(--border)", whiteSpace: "nowrap", background: (STATUS_STYLE[p.status] || {}).bg }}>
+                              {(STATUS_STYLE[p.status] || {}).icon} {p.label}{p.monitored ? " 📈" : ""}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td style={{ whiteSpace: "nowrap" }}>{fmtS(first)} → nay</td>
+                      <td><StatusBadge s={s.status} /></td>
+                      <td style={{ ...small, whiteSpace: "nowrap" }}>{upd.updatedBy}<br />{vnStamp(upd.updatedAt)}</td>
                       <td style={{ whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
-                        <button style={{ ...ghost, padding: "3px 8px", fontSize: 11.5 }} onClick={() => startEdit(t)}>Sửa</button>
-                        {data.canDelete && <button style={{ ...danger, padding: "3px 8px", fontSize: 11.5, marginLeft: 4 }} onClick={() => remove(t)}>Xoá</button>}
+                        <button style={mini(ghost)} onClick={() => editSolution(s)}>Sửa</button>
+                        <button style={{ ...mini(primary), marginLeft: 4 }} onClick={() => nextPhase(s)} title="Bắt đầu giai đoạn tiếp theo (chép phạm vi giai đoạn trước)">➕ Giai đoạn tiếp</button>
+                        {data.canDelete && <button style={{ ...mini(danger), marginLeft: 4 }} onClick={() => removeSolution(s)}>Xoá</button>}
                       </td>
                     </tr>
                   );
                 })}
-                {!shown.length && (
-                  <tr><td colSpan={7} style={{ color: "var(--text-muted)", padding: 16 }}>
-                    {trials.length ? "Không có giải pháp khớp bộ lọc." : "Chưa có giải pháp nào — bấm \"＋ Thêm giải pháp\" để ghi giải pháp đầu tiên."}
-                  </td></tr>
-                )}
+                {!shown.length && <tr><td colSpan={7} style={{ color: "var(--text-muted)", padding: 16 }}>{sols.length ? "Không có giải pháp khớp bộ lọc." : "Chưa có giải pháp nào — bấm \"＋ Thêm giải pháp\"."}</td></tr>}
               </tbody>
             </table>
+            <div style={{ ...small, marginTop: 6 }}>✅ thành công · ⏳ đang trial · ⏹ dừng · 📈 đang theo dõi sau thành công · ⚠ kỳ mới xấu hơn kỳ trước.</div>
           </div>
         )}
       </div>
 
       {sel && (
-        <TrialDetail trial={sel} impact={cur?.impact} error={cur?.error} loading={loadingImpact}
-          onClose={closeDetail} onEdit={() => { setSelected(null); startEdit(sel); }} />
+        <SolutionDetail sol={sel} version={version} canEdit canDelete={!!data?.canDelete} onClose={closeDetail}
+          onEditSolution={() => editSolution(sel)} onNextPhase={() => nextPhase(sel)}
+          onEditPhase={(p) => editPhase(sel, p)} onDeletePhase={(p) => removePhase(sel, p)}
+          onChanged={(v) => { setVersion(v); load(v); }} />
       )}
     </div>
   );

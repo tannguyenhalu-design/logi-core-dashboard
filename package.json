@@ -13,6 +13,7 @@
     "@vercel/blob": "^2.8.0",
     "chart.js": "^4.5.1",
     "chartjs-plugin-datalabels": "^2.2.0",
+    "docx": "^9.8.0",
     "exceljs": "^4.4.0",
     "google-auth-library": "^10.9.0",
     "googleapis": "^173.0.0",
