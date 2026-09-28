@@ -146,9 +146,18 @@ function ReportTable({ title, countTitle, rateTitle, sec, higherIsBetter, onPick
   const cols = sec.cols;
   const hasDelta = !!sec.delta;
   const colLabel = (c) => (c.mature === false ? `${c.label}*` : c.label);
+  // Biweekly two-week totals ("2 tuần trước" / "Kỳ này", user 28/09): name on
+  // top, weeks below, a thin divider before the first one, "Kỳ này" bold.
+  const firstSpan = cols.findIndex((c) => c.kind === "span");
+  const head = (c) => (c.kind === "span"
+    ? <>{c.sub}<div style={{ fontSize: 10.5, fontWeight: 400, opacity: 0.85 }}>{colLabel(c)}</div></>
+    : colLabel(c));
+  const deltaHead = hasDelta ? (cols[sec.delta[0]].kind === "span" ? "± vs 2 tuần trước" : `± vs ${cols[sec.delta[0]].label}`) : "";
   const th = { padding: "8px 10px", textAlign: "right", whiteSpace: "nowrap", fontSize: 12 };
   const td = { padding: "7px 10px", textAlign: "right", whiteSpace: "nowrap", fontSize: 12.5, borderBottom: "1px solid var(--panel-border-soft)" };
   const sep = { borderLeft: "2px solid var(--border)" };
+  const thin = { borderLeft: "1px dashed var(--border)" };
+  const colStyle = (i) => ({ ...(i === 0 ? sep : i === firstSpan ? thin : {}), ...(cols[i].kind === "span" && cols[i].sub === "Kỳ này" ? { fontWeight: 700 } : {}) });
   return (
     <div className="glass" style={{ padding: 16, marginBottom: 16 }}>
       <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10, color: "var(--text-primary)" }}>{title}</div>
@@ -161,10 +170,10 @@ function ReportTable({ title, countTitle, rateTitle, sec, higherIsBetter, onPick
               <th style={{ ...th, textAlign: "center", ...sep }} colSpan={cols.length + (hasDelta ? 1 : 0)}>{rateTitle}</th>
             </tr>
             <tr style={{ background: "rgba(15,124,123,0.75)", color: "#fff" }}>
-              {cols.map((c, i) => <th key={"c" + c.key} style={{ ...th, ...(i === 0 ? sep : {}) }} title={c.range || ""}>{colLabel(c)}</th>)}
-              {hasDelta && <th style={th}>± vs {cols[sec.delta[0]].label}</th>}
-              {cols.map((c, i) => <th key={"r" + c.key} style={{ ...th, ...(i === 0 ? sep : {}) }}>{colLabel(c)}</th>)}
-              {hasDelta && <th style={th}>± điểm</th>}
+              {cols.map((c, i) => <th key={"c" + c.key} style={{ ...th, ...colStyle(i) }} title={c.range || ""}>{head(c)}</th>)}
+              {hasDelta && <th style={th}>{deltaHead}</th>}
+              {cols.map((c, i) => <th key={"r" + c.key} style={{ ...th, ...colStyle(i) }} title={c.range || ""}>{head(c)}</th>)}
+              {hasDelta && <th style={th}>{deltaHead.replace("±", "± điểm")}</th>}
             </tr>
           </thead>
           <tbody>
@@ -182,7 +191,7 @@ function ReportTable({ title, countTitle, rateTitle, sec, higherIsBetter, onPick
                     const clickable = onPick && Number(v) > 0;
                     return (
                       <td key={"c" + i} onClick={clickable ? () => onPick(k, i) : undefined} title={clickable ? pickHint || "Bấm để xem mã đơn" : undefined}
-                        style={{ ...td, ...(i === 0 ? sep : {}), ...(clickable ? { cursor: "pointer", color: "var(--cyan)", fontWeight: 700, textDecoration: "underline" } : {}), ...(on ? { background: "rgba(var(--brand-rgb),0.22)" } : {}) }}>
+                        style={{ ...td, ...colStyle(i), ...(clickable ? { cursor: "pointer", color: "var(--cyan)", fontWeight: 700, textDecoration: "underline" } : {}), ...(on ? { background: "rgba(var(--brand-rgb),0.22)" } : {}) }}>
                         {fmtNum(v)}
                       </td>
                     );
@@ -192,7 +201,7 @@ function ReportTable({ title, countTitle, rateTitle, sec, higherIsBetter, onPick
                     const g = showGtc && r.gtc ? r.gtc[i] : null;
                     const small = g != null && g > 0 && g < 50;
                     return (
-                      <td key={"r" + i} style={{ ...td, ...(i === 0 ? sep : {}), ...(small ? { color: "var(--text-muted)" } : {}) }}
+                      <td key={"r" + i} style={{ ...td, ...colStyle(i), ...(small ? { color: "var(--text-muted)" } : {}) }}
                         title={g != null ? `${fmtNum(r.counts[i])} ca / ${fmtNum(g)} đơn giao thành công${small ? " — mẫu số nhỏ, % dao động mạnh" : ""}` : undefined}>
                         {fmtPct(v)}
                         {g != null && <div style={{ fontSize: 10.5, opacity: 0.75, fontWeight: 400 }}>{fmtNum(r.counts[i])}/{fmtNum(g)}{small && Number(r.counts[i]) > 0 ? " ⚠" : ""}</div>}
@@ -499,9 +508,13 @@ function diffReports(locked, live) {
     a.rows.forEach((ra, idx) => {
       const rb = b.rows.find((x, j) => x.name === ra.name && (x.name !== "Khác" || j === idx)) || b.rows[idx];
       if (!rb) return;
+      // Match columns by key, not position: a lock taken before the biweekly
+      // layout changed (28/09: month column → 2-week totals) has other columns.
       a.cols.forEach((c, i) => {
-        const ca = ra.counts[i], cb = rb.counts[i];
-        const pa = fmtPct(ra.rates[i]), pb = fmtPct(rb.rates[i]);
+        const j = c.key != null ? b.cols.findIndex((x) => x.key === c.key) : i;
+        if (j < 0) return;
+        const ca = ra.counts[i], cb = rb.counts[j];
+        const pa = fmtPct(ra.rates[i]), pb = fmtPct(rb.rates[j]);
         if (ca !== cb || pa !== pb) {
           out.push({ section: name, client: ra.name, col: c.label, from: `${fmtNum(ca)}${pa ? ` · ${pa}` : ""}`, to: `${fmtNum(cb)}${pb ? ` · ${pb}` : ""}` });
         }
@@ -651,7 +664,7 @@ export default function TabCompanyReport() {
           </select>
           <div style={small}>
             {type === "week" && "4 tuần gần nhất (tuần chọn là tuần cuối) + cột ± so với tuần trước."}
-            {type === "biweekly" && "Báo cáo gửi ở tuần chẵn, gồm số 2 tuần liền trước (vd báo cáo W40 = W38–W39). Bảng: tháng trước + 3 tuần (Ontime, Hàng hoàn), 4 tuần (Bể vỡ)."}
+            {type === "biweekly" && "Báo cáo gửi ở tuần chẵn, gồm số 2 tuần liền trước (vd báo cáo W40 = W38–W39). Bảng: 4 tuần + “2 tuần trước” và “Kỳ này” (cộng 2 tuần, % tính lại trên tổng) + cột ± kỳ này so với 2 tuần trước (số: % thay đổi; %: điểm)."}
             {type === "month" && "3 tháng gần nhất + các tuần của tháng chọn + cột ± so với tháng trước."}
           </div>
         </div>
