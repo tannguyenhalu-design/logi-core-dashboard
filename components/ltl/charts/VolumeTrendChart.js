@@ -114,7 +114,7 @@ export default function VolumeTrendChart({ ordersByMonth = {}, weightByMonth = {
           },
         },
         {
-          label: "% Hư hỏng (ca / đơn giao)",
+          label: "% Hư hỏng (ca / đơn lấy)",
           type: "line",
           yAxisID: "yD",
           data: keys.map(damage),
@@ -153,7 +153,7 @@ export default function VolumeTrendChart({ ordersByMonth = {}, weightByMonth = {
                 return ` On-time: ${ontime(k) == null ? "—" : `${fmt(ontime(k), 1)}%`} (${fmt(o.late)} trễ / ${fmt(o.ontime + o.late)} đơn được tính)`;
               }
               const d = damageTrend[k] || { cases: 0, gtc: 0 };
-              return ` Hư hỏng: ${damage(k) == null ? "—" : `${fmt(damage(k), 2)}%`} (${fmt(d.cases)} ca / ${fmt(d.gtc)} đơn giao)`;
+              return ` Hư hỏng: ${damage(k) == null ? "—" : `${fmt(damage(k), 2)}%`} (${fmt(d.cases)} ca / ${fmt(d.gtc)} đơn lấy)`;
             },
           },
         },

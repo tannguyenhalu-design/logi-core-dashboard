@@ -142,7 +142,10 @@ function deltas(r, delta) {
 // small GTC makes one case look huge), and case counts are clickable to list
 // the orders behind them (onPick(row, col | null) — null = whole row).
 function ReportTable({ title, countTitle, rateTitle, sec, higherIsBetter, onPick, picked, pickHint, children }) {
-  const showGtc = sec.rows.some((r) => Array.isArray(r.gtc));
+  // Denominator row under each %: # đơn LTC (by pickup week, user 28/09); locks taken before 28/09 carry GTC.
+  const denKey = sec.rows.some((r) => Array.isArray(r.ltc)) ? "ltc" : "gtc";
+  const denName = denKey === "ltc" ? "LTC" : "GTC";
+  const showGtc = sec.rows.some((r) => Array.isArray(r[denKey]));
   const cols = sec.cols;
   const hasDelta = !!sec.delta;
   const colLabel = (c) => (c.mature === false ? `${c.label}*` : c.label);
@@ -198,11 +201,11 @@ function ReportTable({ title, countTitle, rateTitle, sec, higherIsBetter, onPick
                   })}
                   {hasDelta && <td style={td}>{d.count == null ? "" : `${d.count > 0 ? "+" : ""}${Math.round(d.count * 100)}%`}</td>}
                   {r.rates.map((v, i) => {
-                    const g = showGtc && r.gtc ? r.gtc[i] : null;
+                    const g = showGtc && r[denKey] ? r[denKey][i] : null;
                     const small = g != null && g > 0 && g < 50;
                     return (
                       <td key={"r" + i} style={{ ...td, ...colStyle(i), ...(small ? { color: "var(--text-muted)" } : {}) }}
-                        title={g != null ? `${fmtNum(r.counts[i])} ca / ${fmtNum(g)} đơn giao thành công${small ? " — mẫu số nhỏ, % dao động mạnh" : ""}` : undefined}>
+                        title={g != null ? `${fmtNum(r.counts[i])} ca / ${fmtNum(g)} ${denKey === "ltc" ? "đơn lấy thành công (LTC)" : "đơn giao thành công"}${small ? " — mẫu số nhỏ, % dao động mạnh" : ""}` : undefined}>
                         {fmtPct(v)}
                         {g != null && <div style={{ fontSize: 10.5, opacity: 0.75, fontWeight: 400 }}>{fmtNum(r.counts[i])}/{fmtNum(g)}{small && Number(r.counts[i]) > 0 ? " ⚠" : ""}</div>}
                       </td>
@@ -217,7 +220,7 @@ function ReportTable({ title, countTitle, rateTitle, sec, higherIsBetter, onPick
           </tbody>
         </table>
       </div>
-      {showGtc && <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>Dưới mỗi % là ca / GTC (đơn giao thành công). ⚠ = GTC dưới 50 đơn, 1 ca đã ra % cao. Bấm số ca để xem mã đơn.</div>}
+      {showGtc && <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>Dưới mỗi % là ca / {denName} ({denKey === "ltc" ? "đơn lấy thành công, theo ngày lấy" : "đơn giao thành công"}). ⚠ = {denName} dưới 50 đơn, 1 ca đã ra % cao. Bấm số ca để xem mã đơn.</div>}
       {!showGtc && onPick && <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>{pickHint}. Bấm tên khách để xem mọi tuần.</div>}
       {children}
     </div>
@@ -437,7 +440,7 @@ function OrdersPanel({ kind, title, data, expected, onClose }) {
       </div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
         {kind === "ontime" && <>
-          <span style={chip}>{fmtPct(rowRate)} ontime · {n} trễ / {data.routes.reduce((a, r) => a + r.n, 0)} đơn đã giao được tính</span>
+          <span style={chip}>{fmtPct(rowRate)} ontime · {n} trễ / {data.routes.reduce((a, r) => a + r.n, 0)} đơn được tính</span>
           {n > 0 && <span style={chip}>Trễ 1 ngày: {buckets[0]} · 2 ngày: {buckets[1]} · từ 3 ngày: {buckets[2]}</span>}
         </>}
         {kind === "fd" && n > 0 && <>
@@ -472,14 +475,14 @@ function OrdersPanel({ kind, title, data, expected, onClose }) {
               {kind === "fd" && <th>Ca bể</th>}
             </tr></thead>
             <tbody>
-              {[...orders].sort((a, b) => (kind === "ontime" ? b.days_late - a.days_late : 0) || a.order_code.localeCompare(b.order_code)).map((o) => (
+              {[...orders].sort((a, b) => (kind === "ontime" ? (b.days_late ?? -1) - (a.days_late ?? -1) : 0) || a.order_code.localeCompare(b.order_code)).map((o) => (
                 <tr key={o.order_code}>
                   <td style={{ fontWeight: 700 }}>{o.order_code}</td>
                   <td>{o.client === "DigiWorld" ? "Digiworld" : o.client}</td>
                   <td>{String(o.pickup_date || o.pickup_time || "").slice(0, 10).split("-").reverse().join("/")} <span style={{ opacity: 0.6 }}>{o.week}</span></td>
                   {kind === "ontime"
-                    ? <><td>{String(o.deadline || "").split("-").reverse().join("/")}</td><td>{String(o.delivered_date || "").split("-").reverse().join("/")}</td>
-                      <td style={{ textAlign: "right", ...(o.days_late >= 3 ? { color: "var(--red)", fontWeight: 700 } : {}) }}>{o.days_late ?? "—"} ngày</td></>
+                    ? <><td>{String(o.deadline || "").split("-").reverse().join("/")}</td><td>{o.delivered_date ? String(o.delivered_date).split("-").reverse().join("/") : <span style={{ color: "var(--amber)" }}>{o.late_kind || "—"}</span>}</td>
+                      <td style={{ textAlign: "right", ...(o.days_late >= 3 ? { color: "var(--red)", fontWeight: 700 } : {}) }}>{o.days_late == null ? "—" : `${o.days_late} ngày`}</td></>
                     : <td>{o.status}</td>}
                   <td>{shortWh(o.kho_lay) || "?"} → {shortWh(o.kho_giao) || "?"}</td>
                   <td>{o.to_province || ""}</td>
@@ -788,7 +791,7 @@ export default function TabCompanyReport() {
             )}
           </ReportTable>
           <InsightBox ins={shown.insights && shown.insights.ontime} title="Ontime" />
-          <ReportTable title="Bể vỡ và đền bù" countTitle="# case bể và đền (theo ngày phát hiện)" rateTitle="% bể đền / GTC" sec={shown.damage} higherIsBetter={false}
+          <ReportTable title="Bể vỡ và đền bù" countTitle="# case bể và đền (theo ngày phát hiện)" rateTitle={shown.damage.rows.some((r) => Array.isArray(r.ltc)) ? "% bể đền / LTC" : "% bể đền / GTC"} sec={shown.damage} higherIsBetter={false}
             picked={pickOf("damage")} onPick={togglePick("damage")}>
             {pickOf("damage") && shown.damage.rows[pick.row] && (
               <CasePanel
@@ -812,8 +815,8 @@ export default function TabCompanyReport() {
           </ReportTable>
           <InsightBox ins={shown.insights && shown.insights.fd} title="Hàng hoàn" noneLabel="Không có đơn hoàn" />
           <div style={{ ...small, marginTop: -4 }}>
-            % bể đền của mỗi khách = ca bể / GTC của chính khách đó. Dòng tổng chỉ cộng các khách trong bảng.
-            # đơn LTC theo ngày lấy, GTC theo ngày giao, ca bể theo ngày phát hiện (chi tiết trong file Excel).
+            % bể đền của mỗi khách = ca bể (theo ngày phát hiện) / đơn LTC của chính khách đó (theo ngày lấy). Dòng tổng chỉ cộng các khách trong bảng.
+            # đơn LTC theo ngày lấy, ca bể theo ngày phát hiện (chi tiết trong file Excel). On-time = đơn LTC có cờ ontime / (đơn LTC − đơn chưa giao còn trong hạn); đơn chưa giao quá hạn và đơn hoàn/huỷ tính là trễ.
             FTL và Insight điền tay trong file Excel.
           </div>
         </div>

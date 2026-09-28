@@ -740,7 +740,9 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
                     <tr><td colSpan="5" style={{ padding: 20, textAlign: "center", color: "var(--text-muted)" }}>Không có đơn hàng nào</td></tr>
                   ) : (
                     provOrdersList.map((odr, idx) => {
-                      const isLate = String(odr.odr_success || "").toLowerCase().includes("late");
+                      // Same rule as the ontime KPI (V2, 28/09); older responses without `outcome` fall back to the flag.
+                      const outcome = odr.outcome !== undefined ? odr.outcome : (String(odr.odr_success || "").toLowerCase().includes("late") ? "late" : "ontime");
+                      const isLate = outcome === "late";
                       return (
                         <tr key={idx} style={{ borderBottom: "1px solid var(--border)", background: idx % 2 === 0 ? "transparent" : "var(--panel-glow)" }}>
                           <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--text-primary)" }}>{odr.order_code || "N/A"}</td>
@@ -756,6 +758,8 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
                           <td style={{ padding: "10px 12px" }}>
                             {isLate ? (
                               <span style={{ background: "rgba(244,63,94,0.15)", color: "var(--red)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 }}>Late</span>
+                            ) : outcome == null ? (
+                              <span style={{ background: "rgba(127,127,127,0.15)", color: "var(--text-muted)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 }}>Đang giao</span>
                             ) : (
                               <span style={{ background: "rgba(16,185,129,0.15)", color: "var(--green)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 }}>Ontime</span>
                             )}
