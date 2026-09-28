@@ -194,7 +194,7 @@ export default function RouteRiskMatrix({ risk, riskOnly = false, onRiskOnlyChan
         <div className="chart-panel-title" style={{ flexWrap: "wrap", gap: 8 }}>
           <span>🏷️ Rủi ro theo dự án</span>
           <span style={{ fontSize: 12, fontWeight: 400, color: "var(--text-muted)" }}>
-            % bể vỡ = đơn có ca bể vỡ ÷ đơn lấy · trung bình {Number(avgRate || 0).toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%
+            % bể vỡ = số ca bể vỡ ÷ đơn lấy (như bảng Hiệu suất dự án) · trung bình {Number(risk.projectAvgRate ?? avgRate ?? 0).toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%
           </span>
         </div>
         {risk.totalAmount > 0 && (
@@ -215,13 +215,14 @@ export default function RouteRiskMatrix({ risk, riskOnly = false, onRiskOnlyChan
             <tbody>
               {(() => {
                 const max = Math.max(...risk.byProject.map((p) => p.per1000 || 0), 1);
-                return risk.byProject.filter((p) => p.damaged > 0).map((p) => {
-                  const high = p.orders >= rule.minOrders && p.per1000 >= avgRate * 10 * rule.multiplier;
+                const projAvg = risk.projectAvgRate ?? avgRate;
+                return risk.byProject.filter((p) => (p.cases ?? p.damaged) > 0).map((p) => {
+                  const high = p.orders >= rule.minOrders && p.per1000 >= projAvg * 10 * rule.multiplier;
                   return (
                     <tr key={p.name}>
                       <td style={{ fontSize: 12, fontWeight: 600 }}>{p.name}</td>
                       <td style={{ textAlign: "right", fontSize: 12 }}>{fmt(p.orders)}</td>
-                      <td style={{ textAlign: "right", fontSize: 12 }}>{fmt(p.damaged)}</td>
+                      <td style={{ textAlign: "right", fontSize: 12 }}>{fmt(p.cases ?? p.damaged)}</td>
                       <td style={{ textAlign: "right", fontSize: 12, fontWeight: 700, color: high ? "var(--red)" : "var(--text-primary)" }}>
                         {p.per1000 == null ? "—" : `${(p.per1000 / 10).toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`}{high && " ⚠"}
                       </td>

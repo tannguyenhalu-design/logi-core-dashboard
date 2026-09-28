@@ -208,7 +208,7 @@ const STUCK_COLUMNS = [
 // view: "ltl" (Tổng quan) | "map" (Bản đồ tỉnh thành) | "damage" (Hư hỏng & Rủi ro)
 // — all 3 read the same already-fetched /api/data payload, so switching tabs
 // never refetches.
-export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders, pendingPickup, fetchPendingOrders, kpiDelta, stuck, fetchStuckOrders, anomalies, damageRisk, riskOnly: riskOnlyProp, onRiskOnlyChange, sparkline, dueToday, fetchDueTodayOrders, onQuickRiskRoutes, onQuickLowOntime, onOpenReport, onOpenCompanyReport, damageTrend, exceptions }) {
+export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders, pendingPickup, fetchPendingOrders, kpiDelta, stuck, fetchStuckOrders, anomalies, damageRisk, riskOnly: riskOnlyProp, onRiskOnlyChange, sparkline, dueToday, fetchDueTodayOrders, onQuickRiskRoutes, onQuickLowOntime, onOpenReport, onOpenCompanyReport, damageTrend, exceptions, mapState }) {
   const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
   const [selectedProvinceOrders, setSelectedProvinceOrders] = useState(null);
   // Fetched on demand (see fetchProvinceOrders in pages/dashboard.js) instead
@@ -500,7 +500,17 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
         );
       })()}
 
-      {showMap && <ProvinceMapPanel
+      {/* Map fields arrive separately (/api/data?part=map, Kế hoạch A · P6) */}
+      {showMap && mapState === "loading" && (
+        <div className="chart-panel" aria-busy="true" aria-label="Đang tải bản đồ">
+          <div className="skeleton" style={{ height: 14, width: 220, marginBottom: 16 }} />
+          <div className="skeleton" style={{ height: 420 }} />
+        </div>
+      )}
+      {showMap && mapState === "error" && (
+        <div className="chart-panel" style={{ color: "var(--red)" }}>Không tải được dữ liệu bản đồ — chuyển tab khác rồi mở lại, hoặc bấm “Đồng bộ Google Sheet”.</div>
+      )}
+      {showMap && !mapState && <ProvinceMapPanel
         provinceStats={data.provinceStats}
         routeStats={data.routeStats}
         provinceDetailsMap={data.provinceDetailsMap || {}}
@@ -572,7 +582,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
           curDamageCount: src.cur?.damageCount ?? 0, prevDamageCount: src.prev?.damageCount ?? 0,
           damageDeltaPct: src.damageDeltaPct ?? null, damageIsNew: src.damageIsNew ?? false,
         } : null;
-        const riskyProjects = (damageRisk?.byProject || []).filter((p) => p.orders >= damageRisk.rule.minOrders && p.per1000 >= damageRisk.avgRate * 10 * damageRisk.rule.multiplier).length;
+        const riskyProjects = (damageRisk?.byProject || []).filter((p) => p.orders >= damageRisk.rule.minOrders && p.per1000 >= (damageRisk.projectAvgRate ?? damageRisk.avgRate) * 10 * damageRisk.rule.multiplier).length;
         const tiles = [
           { label: "Ca hư hỏng (kỳ đang lọc)", value: fmt(data.totalBroken), sub: damageTrend ? `${damageTrend.currentRangeLabel}: ${fmt(damageTrend.curDamageCount)} ca · cùng kỳ: ${fmt(damageTrend.prevDamageCount)} ca` : "" },
           { label: "Tỷ lệ bể vỡ trung bình", value: damageRisk ? `${damageRisk.avgRate.toLocaleString("vi-VN")}%` : "—", sub: damageRisk ? `${fmt(damageRisk.totalDamaged)} đơn có ca / ${fmt(damageRisk.totalOrders)} đơn` : "" },
