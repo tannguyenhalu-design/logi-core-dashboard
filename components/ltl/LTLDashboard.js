@@ -504,7 +504,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
       {showMap && mapState === "loading" && (
         <div className="chart-panel" aria-busy="true" aria-label="Đang tải bản đồ">
           <div className="skeleton" style={{ height: 14, width: 220, marginBottom: 16 }} />
-          <div className="skeleton" style={{ height: 420 }} />
+          <div className="skeleton province-map-canvas" />
         </div>
       )}
       {showMap && mapState === "error" && (

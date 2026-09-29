@@ -391,11 +391,37 @@ body {
 .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .grid-2-1 { display: grid; grid-template-columns: 2fr minmax(0, 1fr); gap: 16px; }
-.province-map-grid { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 20px; align-items: start; }
+/* Bản đồ tỉnh thành — layout A (Kế hoạch D · Phần 1, 29/09): map ~60% on the
+   left, screen-high and sticky inside <main> (the scroll container); detail
+   column on the right; one column below 1100px; phone: map full width. */
+.province-kpi-strip { display: grid; grid-template-columns: minmax(180px, 1.2fr) repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+.province-kpi-title { display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; }
+.province-map-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+.province-map-sticky { position: sticky; top: 8px; min-width: 0; }
+.province-map-canvas { height: clamp(640px, calc(100vh - 150px), 820px); }
+.province-map-side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.province-stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.province-map-panel:fullscreen { overflow-y: auto; border-radius: 0; border: none; background: var(--bg-base); }
+.province-map-panel:fullscreen .province-map-canvas { height: calc(100vh - 150px); min-height: 420px; }
+@media (max-width: 1280px) {
+  .province-kpi-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .province-kpi-title { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 8px; }
+}
+@media (max-width: 1100px) {
+  .province-map-layout { grid-template-columns: minmax(0, 1fr); }
+  .province-map-sticky { position: static; }
+  .province-map-canvas { height: clamp(480px, 75vh, 760px); }
+}
+@media (max-width: 767px) {
+  .province-map-panel { padding: 12px; }
+  .province-kpi-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .province-map-canvas { height: clamp(400px, 64vh, 600px); }
+  .map-hint { display: none; }
+}
 
 @media (max-width: 900px) {
   .grid-5, .grid-4, .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .grid-2-1, .province-map-grid { grid-template-columns: minmax(0, 1fr); }
+  .grid-2-1 { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 680px) {
