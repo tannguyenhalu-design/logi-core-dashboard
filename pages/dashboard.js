@@ -94,6 +94,22 @@ export default function DashboardPage({ user: initialUser }) {
   // Role-switcher for manager: { type: 'manager'|'pic'|'project', value: string|null }
   const [viewAs, setViewAs] = useState({ type: "manager", value: null });
   const [showRoleMenu, setShowRoleMenu] = useState(false);
+  // Phone shell (< 768px): the sidebar is a slide-out drawer behind ☰ and the
+  // header's filter row folds behind a "Lọc" button. Both flags are ignored by
+  // the desktop CSS, so the ≥ 768px layout is unchanged.
+  const [navOpen, setNavOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilterCount = (selectedMonths.length ? 1 : 0) + (selectedProjects.length ? 1 : 0) + (dateFrom || dateTo ? 1 : 0);
+  const goTab = (id) => { setActiveTab(id); setNavOpen(false); };
+  useEffect(() => {
+    if (!navOpen) return;
+    const onKey = (e) => { if (e.key === "Escape") setNavOpen(false); };
+    const mq = window.matchMedia("(min-width: 768px)");
+    const onWide = () => { if (mq.matches) setNavOpen(false); };
+    document.addEventListener("keydown", onKey);
+    mq.addEventListener("change", onWide);
+    return () => { document.removeEventListener("keydown", onKey); mq.removeEventListener("change", onWide); };
+  }, [navOpen]);
   // Real registered SD/CS staff — not every name that ever appeared in the
   // picMapping sheet (that list gets noisy with stale/duplicate entries).
   const [staffPics, setStaffPics] = useState([]);
@@ -342,8 +358,9 @@ export default function DashboardPage({ user: initialUser }) {
 
       <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
         {/* ── Sidebar ── */}
-        <aside className="app-sidebar" style={{
-          width: 220, background: "var(--bg-panel)",
+        {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />}
+        <aside id="app-sidebar" className={`app-sidebar${navOpen ? " open" : ""}`} style={{
+          background: "var(--bg-panel)",
           borderRight: "1px solid var(--border)",
           padding: "20px 12px",
           display: "flex", flexDirection: "column", gap: 4,
@@ -372,7 +389,7 @@ export default function DashboardPage({ user: initialUser }) {
               <div
                 key={v.id}
                 className={`nav-item ${activeTab === v.id ? "active" : ""}`}
-                onClick={() => setActiveTab(v.id)}
+                onClick={() => goTab(v.id)}
                 style={{
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
                   padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
@@ -389,7 +406,7 @@ export default function DashboardPage({ user: initialUser }) {
             {(user.role === "manager" || user.role === "sd3") && (
               <div
                 className={`nav-item ${activeTab === "report" ? "active" : ""}`}
-                onClick={() => setActiveTab("report")}
+                onClick={() => goTab("report")}
                 style={{
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
                   padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
@@ -406,7 +423,7 @@ export default function DashboardPage({ user: initialUser }) {
             {(user.role === "manager" || user.role === "sd3") && (
               <div
                 className={`nav-item ${activeTab === "trials" ? "active" : ""}`}
-                onClick={() => setActiveTab("trials")}
+                onClick={() => goTab("trials")}
                 style={{
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
                   padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
@@ -423,7 +440,7 @@ export default function DashboardPage({ user: initialUser }) {
             {user.role === "manager" && (
               <div
                 className={`nav-item ${activeTab === "users" ? "active" : ""}`}
-                onClick={() => setActiveTab("users")}
+                onClick={() => goTab("users")}
                 style={{
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
                   padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
@@ -440,7 +457,7 @@ export default function DashboardPage({ user: initialUser }) {
             {user.role === "manager" && (
               <div
                 className={`nav-item ${activeTab === "auditlog" ? "active" : ""}`}
-                onClick={() => setActiveTab("auditlog")}
+                onClick={() => goTab("auditlog")}
                 style={{
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
                   padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
@@ -457,7 +474,7 @@ export default function DashboardPage({ user: initialUser }) {
             {user.role === "manager" && (
               <div
                 className={`nav-item ${activeTab === "health" ? "active" : ""}`}
-                onClick={() => setActiveTab("health")}
+                onClick={() => goTab("health")}
                 style={{
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
                   padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
@@ -474,7 +491,7 @@ export default function DashboardPage({ user: initialUser }) {
             {user.role === "manager" && (
               <div
                 className={`nav-item ${activeTab === "brain" ? "active" : ""}`}
-                onClick={() => setActiveTab("brain")}
+                onClick={() => goTab("brain")}
                 style={{
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
                   padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
@@ -534,6 +551,7 @@ export default function DashboardPage({ user: initialUser }) {
                           onClick={() => {
                             setViewAs({ type: item.type, value: item.value });
                             setShowRoleMenu(false);
+                            setNavOpen(false);
                           }}
                           style={{
                             padding: "8px 12px", fontSize: 11.5, cursor: "pointer",
@@ -591,18 +609,30 @@ export default function DashboardPage({ user: initialUser }) {
         {/* ── Main content ── */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {/* Header */}
-          <header className="dashboard-header" style={{
-            minHeight: 60, background: "var(--bg-panel)",
+          {/* min-height / padding / gap live in .dashboard-header (globals.css) so the phone layout can override them */}
+          <header className={`dashboard-header${filtersOpen ? " filters-open" : ""}`} style={{
+            background: "var(--bg-panel)",
             borderBottom: "1px solid var(--border)",
             display: "flex", alignItems: "center",
             justifyContent: "space-between",
             flexWrap: "wrap",
-            padding: "10px 24px", gap: 16,
             position: "relative",
             zIndex: 100,
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)" }}>
+            <div className="header-title-group" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <button
+                type="button"
+                className="nav-toggle"
+                onClick={() => setNavOpen(true)}
+                aria-label="Mở menu"
+                aria-controls="app-sidebar"
+                aria-expanded={navOpen}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+              </button>
+              <div className="header-title" style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)" }}>
                 {LTL_VIEWS.find((v) => v.id === activeTab)?.label
                   || (activeTab === "report" ? "Báo cáo công ty"
                   : activeTab === "trials" ? "Sổ tay Cải tiến & Đo lường Giải pháp"
@@ -613,14 +643,14 @@ export default function DashboardPage({ user: initialUser }) {
                   : "SD3- Dashboard Điện Máy")}
               </div>
               {isManager && viewAs.type !== "manager" && (
-                <div style={{
+                <div className="viewas-chip" style={{
                   display: "flex", alignItems: "center", gap: 5,
                   padding: "3px 10px", borderRadius: 20, fontSize: 11.5, fontWeight: 600,
                   background: "var(--cyan-glow)", border: "1px solid rgba(var(--brand-rgb),0.45)",
                   color: "var(--cyan)",
                 }}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  {viewAs.type === "cs" ? `Xem góc nhìn Nhân sự: ${viewAs.value}` : `Xem góc nhìn KH: ${viewAs.value}`}
+                  <span className="viewas-text">{viewAs.type === "cs" ? `Xem góc nhìn Nhân sự: ${viewAs.value}` : `Xem góc nhìn KH: ${viewAs.value}`}</span>
                   <button
                     onClick={() => setViewAs({ type: "manager", value: null })}
                     style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--cyan)", lineHeight: 1, marginLeft: 2 }}>✕</button>
@@ -629,6 +659,7 @@ export default function DashboardPage({ user: initialUser }) {
             </div>
 
             {isLTLView ? (
+              <div className="header-filters">
               <FilterBar
                 selectedMonths={selectedMonths}
                 onMonthsChange={setSelectedMonths}
@@ -643,13 +674,30 @@ export default function DashboardPage({ user: initialUser }) {
                 dateTo={dateTo}
                 onDateChange={(from, to) => { setDateFrom(from); setDateTo(to); }}
               />
+              </div>
             ) : (
-              <div style={{ flex: 1 }} />
+              <div className="header-spacer" style={{ flex: 1 }} />
             )}
 
             {/* Sync & Live indicator */}
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <ThemeToggle style={{ width: "auto", border: "1px solid var(--border)", padding: "5px 10px", borderRadius: 6 }} />
+            <div className="header-actions" style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              {isLTLView && (
+                <button
+                  type="button"
+                  className="filters-toggle"
+                  onClick={() => setFiltersOpen((v) => !v)}
+                  aria-expanded={filtersOpen}
+                  title={filtersOpen ? "Ẩn bộ lọc" : "Hiện bộ lọc"}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                  Lọc
+                  {activeFilterCount > 0 && <span className="filters-count">{activeFilterCount}</span>}
+                </button>
+              )}
+              {/* display:contents on desktop (no layout change); hidden on phone — the drawer has its own toggle */}
+              <span className="header-theme">
+                <ThemeToggle style={{ width: "auto", border: "1px solid var(--border)", padding: "5px 10px", borderRadius: 6 }} />
+              </span>
 
               <button
                 onClick={async () => {
@@ -667,6 +715,9 @@ export default function DashboardPage({ user: initialUser }) {
                   }
                 }}
                 disabled={loading}
+                className="sync-btn"
+                title="Đồng bộ Google Sheet"
+                aria-label="Đồng bộ Google Sheet"
                 style={{
                   background: "rgba(var(--brand-rgb),0.1)",
                   border: "1px solid rgba(var(--brand-rgb),0.2)",
@@ -682,7 +733,7 @@ export default function DashboardPage({ user: initialUser }) {
                   transition: "all 0.2s"
                 }}
               >
-                🔄 Đồng bộ Google Sheet
+                <span>🔄<span className="sync-label"> Đồng bộ Google Sheet</span></span>
               </button>
 
               <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--green)" }}>
@@ -690,13 +741,13 @@ export default function DashboardPage({ user: initialUser }) {
                   width: 7, height: 7, borderRadius: "50%",
                   background: "var(--green)",
                 }} />
-                LIVE
+                <span className="live-label">LIVE</span>
               </div>
             </div>
           </header>
 
           {/* Dashboard body */}
-          <main style={{ flex: 1, overflowY: "auto", padding: 24, position: "relative" }}>
+          <main className="dashboard-main" style={{ flex: 1, overflowY: "auto", position: "relative" }}>
             {activeTab === "none" ? (
               <div style={{
                 background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)",
@@ -724,7 +775,7 @@ export default function DashboardPage({ user: initialUser }) {
               <>
                 {/* Refetch: keep current content, show a thin progress bar */}
                 {loading && dashData && (
-                  <div className="top-progress" style={{ position: "sticky", top: 0, marginTop: -24, marginBottom: 22 }} />
+                  <div className="top-progress main-progress" style={{ position: "sticky", top: 0 }} />
                 )}
 
                 {error && !loading && (
