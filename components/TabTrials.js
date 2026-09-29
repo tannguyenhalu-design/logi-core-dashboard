@@ -61,6 +61,18 @@ const small = { fontSize: 11.5, color: "var(--text-muted)", lineHeight: 1.5 };
 const label = { fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 4, display: "block" };
 const grid = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 12 };
 
+// Long client lists (VD 30 khách) collapse to the first few + "+N khách"; click to expand (user 29/09).
+function ClientsCompact({ clients, max = 2 }) {
+  const [open, setOpen] = useState(false);
+  const list = clients || [];
+  if (list.length <= max) return <span>{list.join(", ")}</span>;
+  const linkStyle = { background: "none", border: "none", padding: 0, marginLeft: 4, cursor: "pointer", color: "var(--cyan)", fontSize: "inherit", fontFamily: "inherit", fontWeight: 600 };
+  const toggle = (e) => { e.stopPropagation(); setOpen((v) => !v); };
+  return open
+    ? <span>{list.join(", ")} <button type="button" style={linkStyle} onClick={toggle}>Thu gọn</button></span>
+    : <span title={list.join(", ")}>{list.slice(0, max).join(", ")}<button type="button" style={linkStyle} onClick={toggle}>+{list.length - max} khách</button></span>;
+}
+
 function StatusBadge({ s }) {
   const st = STATUS_STYLE[s] || STATUS_STYLE["Đang trial"];
   return <span style={{ fontSize: 11.5, fontWeight: 600, padding: "2px 8px", borderRadius: 10, color: st.color, background: st.bg, whiteSpace: "nowrap" }}>{s}</span>;
@@ -233,7 +245,7 @@ function PhaseForm({ solution, initial, options, statuses, onCancel, onSaved }) 
   return (
     <div className="glass fade-in" style={{ padding: 16, marginBottom: 16 }}>
       <div style={{ fontSize: 14, fontWeight: 700 }}>{f.id ? `Sửa ${f.label}` : "➕ Giai đoạn tiếp theo"} <span style={{ ...small, fontWeight: 400 }}>· {solution.name}</span></div>
-      <div style={{ ...small, marginBottom: 10 }}>Baseline chung {fmt(solution.baseStart)} – {fmt(solution.baseEnd)} · khách {solution.clients.join(", ")}. {f.id ? "" : "Phạm vi đã chép từ giai đoạn trước — sửa lại cho giai đoạn này. Giai đoạn cũ vẫn chạy song song."}</div>
+      <div style={{ ...small, marginBottom: 10 }}>Baseline chung {fmt(solution.baseStart)} – {fmt(solution.baseEnd)} · khách <ClientsCompact clients={solution.clients} max={3} />. {f.id ? "" : "Phạm vi đã chép từ giai đoạn trước — sửa lại cho giai đoạn này. Giai đoạn cũ vẫn chạy song song."}</div>
       <div style={grid}>
         <div><span style={label}>Tên giai đoạn *</span><input style={input} value={f.label} onChange={(e) => set({ label: e.target.value })} list="phase-names" />
           <datalist id="phase-names">{["Trial 1", "Trial 2", "Trial 3", "Trial 4", "Nhân rộng cả nước"].map((n) => <option key={n} value={n} />)}</datalist></div>
@@ -597,7 +609,7 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
           <div style={{ minWidth: 0, flex: "1 1 320px" }}>
             <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Giải pháp · {s.phases.length} giai đoạn</div>
             <div style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.35, marginTop: 2 }}>{s.name} <StatusBadge s={s.status} /></div>
-            <div style={small}>Khách {s.clients.join(", ")} · Baseline chung <b>{fmt(s.baseStart)} – {fmt(s.baseEnd)}</b></div>
+            <div style={small}>Khách <ClientsCompact clients={s.clients} max={3} /> · Baseline chung <b>{fmt(s.baseStart)} – {fmt(s.baseEnd)}</b></div>
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
             {canEdit && <button style={ghost} onClick={onEditSolution}>✎ Sửa giải pháp</button>}
@@ -779,7 +791,7 @@ export default function TabTrials() {
                         {s.alerts?.length > 0 && <div style={{ fontSize: 11.5, color: "var(--red)", fontWeight: 700, marginTop: 2 }} title={s.alerts.map((a) => a.text).join(NL)}>⚠ {s.alerts[0].text}{s.alerts.length > 1 ? ` (+${s.alerts.length - 1})` : ""}</div>}
                         {s.legacy && <div style={{ ...small, color: "var(--amber)" }}>giải pháp cũ — bấm Sửa để chuyển sang giai đoạn</div>}
                       </td>
-                      <td style={{ whiteSpace: "normal", maxWidth: 150 }}>{s.clients.join(", ")}</td>
+                      <td style={{ whiteSpace: "normal", maxWidth: 170 }} onClick={(e) => { if (e.target.tagName === "BUTTON") e.stopPropagation(); }}><ClientsCompact clients={s.clients} /></td>
                       <td style={{ whiteSpace: "normal", maxWidth: 300 }}>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                           {s.phases.map((p) => (
