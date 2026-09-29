@@ -279,7 +279,7 @@ export function PeriodComparisonSection({ comparison, declineAlerts = [], compac
               </select>
             </div>
           )}
-          <div style={{ display: "flex", gap: 24 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "12px 24px" }}>
           <div style={{
             background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)",
             borderRadius: 10, padding: "8px 16px", minWidth: 110, textAlign: "center",

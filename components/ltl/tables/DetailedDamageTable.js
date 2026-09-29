@@ -217,6 +217,7 @@ export default function DetailedDamageTable({ cases, filter, showClaimsWorkflow 
   const selectStyle = {
     background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)",
     borderRadius: 6, fontSize: 12, padding: "6px 8px", fontFamily: "inherit", cursor: "pointer",
+    maxWidth: "100%", // long warehouse names must not push the row past a phone screen
   };
 
   return (

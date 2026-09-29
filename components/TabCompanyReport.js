@@ -731,7 +731,7 @@ export default function TabCompanyReport() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* ── Controls ── */}
       <div className="glass" style={{ padding: 16, display: "flex", flexWrap: "wrap", gap: 20 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: "1 1 260px", maxWidth: 340 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: "1 1 260px", maxWidth: 340, minWidth: "min(100%, 340px)" }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: 0.5 }}>Kỳ báo cáo</div>
           <div style={{ display: "flex", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden" }}>
             {TYPES.map(([k, l]) => <button key={k} onClick={() => changeType(k)} style={seg(type === k)}>{l}</button>)}
@@ -906,6 +906,7 @@ export default function TabCompanyReport() {
       <div className="glass" style={{ padding: 16 }}>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Các kỳ đã chốt</div>
         {locks.length === 0 ? <div style={small}>Chưa có kỳ nào được chốt.</div> : (
+          <div style={{ overflowX: "auto" }}>
           <table className="data-table">
             <thead><tr><th>Loại</th><th>Kỳ</th><th>Chốt lúc</th><th></th></tr></thead>
             <tbody>
@@ -922,6 +923,7 @@ export default function TabCompanyReport() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
