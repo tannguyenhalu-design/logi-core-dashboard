@@ -531,6 +531,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
         onProvinceClick={openProvModal}
         hotspots={damageRisk?.hotspots || []}
         hotspotRule={isClient ? null : damageRisk?.hotspotRule}
+        warehouseLayer={data.warehouseLayer ?? null}
       />}
 
       {showOverview && <div className="chart-panel" style={{ width: "100%" }}>

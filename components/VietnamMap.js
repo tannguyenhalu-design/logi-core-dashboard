@@ -14,6 +14,12 @@
  * `focusProvince` flies to a province. The view is { cx, cy, k } — centre in
  * map units + zoom factor — and the viewBox is derived from the container's
  * pixel size so it never letterboxes. Province names appear from LABEL_K up.
+ *
+ * Warehouse layer (Kế hoạch D · 2a, 29/09): `warehouses` = dots at their real
+ * position (lat/lng projected in lib/warehouse-layer.js), radius in SCREEN
+ * pixels so zooming in separates nearby warehouses instead of inflating the
+ * dots. `provinceMuted` greys the 63 provinces and makes them click-through
+ * (layer "Kho" only).
  */
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import PROV_PATHS from "../lib/prov-paths.json";
@@ -32,6 +38,11 @@ const K_MAX = 12;
 const K_STEP = 1.6;
 const LABEL_K = 2.2; // province names show from this zoom level up
 const LABEL_NAMES = Object.keys(CENTROIDS).filter((n) => PATHS[n]);
+const WH_LABEL_K = 4; // warehouse names show from this zoom level up
+// Grey = no capacity yet (bước 2b colours by % used). --text-secondary is a
+// light grey in the dark theme and a dark slate in the light one, so the dots
+// stand out from the provinces in both.
+const WH_FILL = "var(--text-secondary)";
 
 const boxCache = {};
 function provinceBox(name) {
@@ -93,9 +104,18 @@ function fillFor(name, { colorMap, provinceDetailsMap, viewMode, highlightSet })
   return "var(--map-unhighlighted)";
 }
 
-const ProvinceLayer = memo(function ProvinceLayer({ colorMap, provinceDetailsMap, viewMode, highlightProvinces, onOver, onLeave, onClick }) {
+const ProvinceLayer = memo(function ProvinceLayer({ colorMap, provinceDetailsMap, viewMode, highlightProvinces, muted, onOver, onLeave, onClick }) {
   const highlightSet = new Set(highlightProvinces);
   const ctx = { colorMap, provinceDetailsMap, viewMode, highlightSet };
+  if (muted) {
+    return (
+      <g pointerEvents="none">
+        {PATH_ENTRIES.map(([name, d]) => (
+          <path key={name} d={d} fill="var(--map-unhighlighted)" stroke="var(--map-stroke)" strokeWidth={0.6} vectorEffect="non-scaling-stroke" opacity={0.6} />
+        ))}
+      </g>
+    );
+  }
   return (
     <g onMouseOver={onOver} onMouseLeave={onLeave} onClick={onClick} style={{ cursor: "pointer" }}>
       {PATH_ENTRIES.map(([name, d]) => {
@@ -157,14 +177,20 @@ function VietnamMap({
   provinceDetailsMap = {},
   viewMode = "orders", // 'orders' | 'weight' | 'ontime' | 'damage'
   selectedProvince = null, // pinned outline (hotspot / clicked province); its own overlay, never re-renders the 63-path layer
-  focusProvince = null, // { name, n } — fly to `name` whenever `n` changes
+  focusProvince = null, // { name, n } — fly to `name` whenever `n` changes; or { x, y, k, n } — fly to a point
   legend = null, // node drawn in the bottom-left corner
   onToggleFullscreen = null, // shows the ⤢ button when given
   isFullscreen = false,
+  provinceMuted = false, // layer "Kho": grey, click-through provinces
+  warehouses = null, // [{ id, x, y, r (px), dashed, label, chip }] — biggest first
+  selectedWarehouse = null,
+  onWarehouseHover,
+  onWarehouseClick,
   className = "",
   style = {},
 }) {
   const [hoveredProv, setHoveredProv] = useState(null);
+  const [hoveredWh, setHoveredWh] = useState(null);
   const hoveredRef = useRef(null);
   const leaveTimer = useRef(null);
   // Hover is applied at most once per animation frame (2026-09-27): sweeping
@@ -232,6 +258,11 @@ function VietnamMap({
 
   // Fly to a province (hotspot / Top 8 click): its box fills about half the frame.
   useEffect(() => {
+    // A point (warehouse) instead of a province: { x, y, k, n }.
+    if (focusProvince && Number.isFinite(focusProvince.x) && sizeRef.current.W) {
+      flyTo({ cx: focusProvince.x, cy: focusProvince.y, k: focusProvince.k || 6 });
+      return;
+    }
     if (!focusProvince?.name) return;
     const b = provinceBox(focusProvince.name);
     const { W, H } = sizeRef.current;
@@ -356,6 +387,22 @@ function VietnamMap({
     if (name && onProvinceClick) onProvinceClick(name);
   }, [onProvinceClick]);
 
+  const onWhOver = useCallback((e) => {
+    const id = e.target?.dataset?.wid;
+    if (!id) return;
+    setHoveredWh(id);
+    if (onWarehouseHover) onWarehouseHover(id);
+  }, [onWarehouseHover]);
+  const onWhLeave = useCallback(() => {
+    setHoveredWh(null);
+    if (onWarehouseHover) onWarehouseHover(null);
+  }, [onWarehouseHover]);
+  const onWhClick = useCallback((e) => {
+    if (moved.current) { moved.current = false; return; }
+    const id = e.target?.dataset?.wid;
+    if (id && onWarehouseClick) onWarehouseClick(id);
+  }, [onWarehouseClick]);
+
   const { W, H } = size;
   const vb = viewBoxOf(view, W, H);
   const ppu = W ? basePpu(W, H) * view.k : 1;
@@ -400,6 +447,7 @@ function VietnamMap({
           provinceDetailsMap={provinceDetailsMap}
           viewMode={viewMode}
           highlightProvinces={highlightProvinces}
+          muted={provinceMuted}
           onOver={onOver}
           onLeave={onLeave}
           onClick={onClick}
@@ -446,11 +494,78 @@ function VietnamMap({
         </g>
 
         {view.k >= LABEL_K && W > 0 && <LabelLayer vb={vb} ppu={ppu} />}
+
+        {warehouses && warehouses.length > 0 && (
+          <g onMouseOver={onWhOver} onMouseLeave={onWhLeave} onClick={onWhClick} style={{ cursor: "pointer" }}>
+            {/* Invisible, larger hit areas (easy to tap) all BELOW the dots, so
+                a small dot's hit area never steals a click on a bigger dot. */}
+            <g>
+              {warehouses.map((w) => (
+                <circle key={w.id} data-wid={w.id} cx={w.x} cy={w.y} r={px(Math.max(w.r, 3) + 6)} fill="transparent" />
+              ))}
+            </g>
+            {warehouses.map((w) => {
+              const on = w.id === selectedWarehouse, hov = w.id === hoveredWh;
+              return (
+                <g key={w.id}>
+                  <circle
+                    data-wid={w.id} cx={w.x} cy={w.y} r={px(w.r)}
+                    fill={on ? "rgba(var(--brand-rgb),0.45)" : WH_FILL}
+                    fillOpacity={on ? 1 : 0.6}
+                    stroke={on || hov ? "var(--cyan)" : "var(--text-primary)"}
+                    strokeOpacity={on || hov ? 1 : 0.75}
+                    strokeWidth={px(on ? 2.6 : hov ? 2 : w.dashed ? 1.4 : 1)}
+                    strokeDasharray={w.dashed ? `${px(3)} ${px(2.2)}` : undefined}
+                  />
+                </g>
+              );
+            })}
+          </g>
+        )}
+        {warehouses && view.k >= WH_LABEL_K && W > 0 && (() => {
+          // Greedy, biggest dot first (the array order): a name that would
+          // overlap one already placed is skipped — zoom in further to see it.
+          const placed = [];
+          const shown = warehouses.filter((w) => {
+            if (w.x < vb[0] || w.x > vb[0] + vb[2] || w.y < vb[1] || w.y > vb[1] + vb[3]) return false;
+            const sx = (w.x - vb[0]) * ppu + w.r + 4, sy = (w.y - vb[1]) * ppu;
+            const box = { x0: sx, x1: sx + w.label.length * 6.2, y0: sy - 8, y1: sy + 8 };
+            if (placed.some((b) => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0)) return false;
+            placed.push(box);
+            return true;
+          });
+          return (
+            <g pointerEvents="none">
+              {shown.map((w) => (
+                <text
+                  key={w.id} x={w.x + px(w.r + 4)} y={w.y} dominantBaseline="middle"
+                  fontSize={px(10.5)} fontWeight={600} fill="var(--text-primary)"
+                  stroke="var(--map-ocean)" strokeWidth={px(3)} strokeLinejoin="round" paintOrder="stroke"
+                >
+                  {w.label}
+                </text>
+              ))}
+            </g>
+          );
+        })()}
       </svg>
 
       {/* Small name chip instead of the old floating box that covered the map;
           full numbers are in the detail panel beside the map. */}
-      {hoveredProv && (
+      {hoveredWh && warehouses && (() => {
+        const w = warehouses.find((x) => x.id === hoveredWh);
+        return w ? (
+          <div style={{
+            position: "absolute", top: 10, left: 10, maxWidth: "calc(100% - 64px)", pointerEvents: "none", zIndex: 2,
+            background: "var(--panel-bg)", border: "1px solid var(--cyan)",
+            borderRadius: 8, padding: "4px 10px", fontSize: 12, color: "var(--text-secondary)",
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", boxShadow: "0 2px 8px var(--shadow-soft)",
+          }}>
+            🏭 <b style={{ color: "var(--text-primary)" }}>{w.label}</b>{w.chip ? ` · ${w.chip}` : ""}
+          </div>
+        ) : null;
+      })()}
+      {hoveredProv && !hoveredWh && (
         <div
           style={{
             position: "absolute", top: 10, left: 10, maxWidth: "calc(100% - 64px)", pointerEvents: "none", zIndex: 2,

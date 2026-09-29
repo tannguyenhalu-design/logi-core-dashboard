@@ -7,7 +7,7 @@
  *   &dueToday=1      → { ok, dueTodayOrders }  (bộ lọc nhanh "Đến hạn hôm nay")
  *   &force=true      → rebuild the Blob snapshot from Google Sheets first
  *   &part=map        → { ok, provinceStats, provinceDetailsMap, originStats,
- *                      routeStats } only (tab "Bản đồ tỉnh thành")
+ *                      routeStats, warehouseLayer } only (tab "Bản đồ tỉnh thành")
  *   &withMap=1       → full body including those map fields
  *   ?warm=1 + secret → keep-warm ping (lib/warm.js)
  *
@@ -27,13 +27,14 @@ import { getSession } from "../../lib/auth";
 import { getCached, setCached } from "../../lib/mem-cache";
 import { isWarmPing, answerWarm } from "../../lib/warm";
 import { loadLtlBase, loadDefaultBody, buildLtlSnapshot } from "../../lib/ltl-snapshot";
-import { computeDashboard, applyRoleToBody, isDefaultQuery } from "../../lib/ltl-dashboard";
+import { computeDashboard, applyRoleToBody, isDefaultQuery, addWarehouseLayer } from "../../lib/ltl-dashboard";
 
 export const config = { maxDuration: 60 };
 
 // Read only by the "Bản đồ tỉnh thành" view (ProvinceMapPanel).
 // originDetailsMap is computed but no component reads it — never sent.
-const MAP_KEYS = ["provinceStats", "provinceDetailsMap", "originStats", "routeStats"];
+// warehouseLayer = the "Kho" layer (Kế hoạch D · 2a, lib/warehouse-layer.js).
+const MAP_KEYS = ["provinceStats", "provinceDetailsMap", "originStats", "routeStats", "warehouseLayer"];
 const OMIT_LTL_KEYS = new Set([...MAP_KEYS, "originDetailsMap"]);
 
 // What goes over the wire for one computed body (after applyRoleToBody).
@@ -141,7 +142,10 @@ export default async function handler(req, res) {
       await buildLtlSnapshot();
     } else if (isDefaultQuery(params)) {
       const defaultBody = await loadDefaultBody();
-      if (defaultBody) return res.status(200).json(shapeBody(applyRoleToBody(defaultBody, scope), part, withMap));
+      // A stored body from before the Kho layer (29/09) lacks warehouseLayer:
+      // the map part is computed live instead until the next rebuild.
+      const staleMap = (part === "map" || withMap) && defaultBody?.ltl && !("warehouseLayer" in defaultBody.ltl);
+      if (defaultBody && !staleMap) return res.status(200).json(shapeBody(applyRoleToBody(defaultBody, scope), part, withMap));
     }
 
     const base = await loadLtlBase();
@@ -157,6 +161,8 @@ export default async function handler(req, res) {
       body = computeDashboard(base, params);
       setCached(fullKey, body);
     }
+    // Kho layer only when the map asks for it (computed once per cached body).
+    if (part === "map" || withMap) addWarehouseLayer(base, body, filterMode);
     return res.status(200).json(shapeBody(applyRoleToBody(body, scope), part, withMap));
   } catch (err) {
     console.error("[/api/data] Error:", err);
