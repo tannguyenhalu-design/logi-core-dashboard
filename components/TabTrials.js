@@ -31,6 +31,11 @@ const sgn = (x, f) => (x == null ? "—" : `${x > 0 ? "+" : x < 0 ? "−" : "±"
 const bv = (per1k) => (per1k == null ? "—" : `${n2(per1k / 10)}%`);
 const bvd = (d) => (d == null ? "—" : `${sgn(d / 10, n2)} điểm`);
 const pctTxt = (x) => (x == null ? "—" : `${n1(x)}%`);
+// Tiền (Kế hoạch E): triệu đồng, 1 số lẻ.
+const tr = (x) => (x == null ? "—" : !x ? "0" : `${n1(x / 1e6)} tr`);
+const trd = (x) => (x == null ? "—" : `${sgn(x / 1e6, n1)} tr`);
+const MONEY_NOTE = "Tiền đền = số CS nhập theo mã đơn, có thể còn cập nhật sau QC. Truy thu = thu lại từ nhân viên GHN làm sai, không giảm thiệt hại → chỉ tham khảo, không trừ.";
+const coverageOf = (T) => `${n0(T.base.compWithAmount + T.post.compWithAmount)}/${n0(T.base.compensated + T.post.compensated)} ca đã chốt đền bù có số tiền`;
 const vnStamp = (iso) => { if (!iso || Number.isNaN(Date.parse(iso))) return ""; const v = new Date(Date.parse(iso) + 7 * 3600 * 1000).toISOString(); return `${v.slice(11, 16)} ${v.slice(8, 10)}/${v.slice(5, 7)}`; };
 const shortWh = (s) => String(s || "").replace(/^Kho Giao Hàng Nặng - /, "").replace(/^Key Account Warehouse /, "KA WH ").trim();
 
@@ -282,10 +287,32 @@ function metricRows(imp) {
     { key: "ontime", name: "% On-time", b: pctTxt(t.base.ontimePct), p: pctTxt(t.post.ontimePct), d: t.delta.ontimePts == null ? "—" : `${sgn(t.delta.ontimePts, n1)} điểm`, dp: "", dRaw: t.delta.ontimePts, good: 1, cb: pctTxt(c.base.ontimePct), cp: pctTxt(c.post.ontimePct), net: imp.net.ontimePts == null ? "—" : `${sgn(imp.net.ontimePts, n1)} điểm`, netRaw: imp.net.ontimePts },
     { key: "cases", name: "Ca bể vỡ", b: n0(t.base.cases), p: n0(t.post.cases), d: sgn(t.delta.cases, n0), dp: pct(t.delta.casesPct), dRaw: t.delta.cases, good: -1, cb: n0(c.base.cases), cp: n0(c.post.cases), net: "—" },
     { key: "per1k", name: "% Bể vỡ", b: bv(t.base.per1k), p: bv(t.post.per1k), d: bvd(t.delta.per1k), dp: pct(t.delta.per1kPct), dRaw: t.delta.per1k, good: -1, cb: bv(c.base.per1k), cp: bv(c.post.per1k), net: imp.net.per1kPct == null ? "—" : pct(imp.net.per1kPct), netRaw: imp.net.per1kPct },
+    ...(t.base.comp == null ? [] : [
+      { key: "comp", name: "Tiền đền cho khách", money: true, b: tr(t.base.comp), p: tr(t.post.comp), d: trd(t.delta.comp), dp: pct(t.delta.compPct), dRaw: t.delta.comp, good: -1, cb: tr(c.base.comp), cp: tr(c.post.comp), net: "—" },
+      { key: "compPer1k", name: "Tiền đền / 1.000 đơn", money: true, b: tr(t.base.compPer1k), p: tr(t.post.compPer1k), d: trd(t.delta.compPer1k), dp: pct(t.delta.compPer1kPct), dRaw: t.delta.compPer1k, good: -1, cb: tr(c.base.compPer1k), cp: tr(c.post.compPer1k), net: imp.net.compPer1kPct == null ? "—" : pct(imp.net.compPer1kPct), netRaw: imp.net.compPer1kPct },
+      { key: "truyThu", name: "Truy thu (tham khảo)", money: true, ref: true, b: tr(t.base.truyThu), p: tr(t.post.truyThu), d: trd(t.delta.truyThu), dp: "", dRaw: null, good: 0, cb: tr(c.base.truyThu), cp: tr(c.post.truyThu), net: "—" },
+    ]),
   ];
 }
 const th = { padding: "7px 9px", textAlign: "right", whiteSpace: "nowrap", fontSize: 11.5 };
+const thw = { ...th, whiteSpace: "normal" };
 const td = { padding: "7px 9px", textAlign: "right", whiteSpace: "nowrap", fontSize: 12.5, borderBottom: "1px solid var(--panel-border-soft, var(--border))" };
+
+// "Ước tính tiết kiệm" (Kế hoạch E) — tiền là thông tin thêm, nhận định giữ nguyên.
+function SavingsBox({ imp }) {
+  const sv = imp.savings;
+  const color = !sv.ok ? "var(--text-muted)" : sv.value >= 0 ? "var(--green)" : "var(--red)";
+  return (
+    <div style={{ marginTop: 8, padding: "8px 12px", borderRadius: 8, border: "1px dashed var(--border)", background: "rgba(var(--brand-rgb),0.04)" }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>💰 Tiền đền cho khách · ước tính</span>
+        <span style={{ fontSize: 13.5, fontWeight: 700, color }}>{sv.text}</span>
+      </div>
+      <div style={small}>{coverageOf(imp.trial)} · {MONEY_NOTE}</div>
+      {sv.notes.filter((x) => !x.startsWith("Tiền đền = ")).map((x, i) => <div key={i} style={small}>Lưu ý: {x}</div>)}
+    </div>
+  );
+}
 
 function PhaseImpact({ impact }) {
   const [showCases, setShowCases] = useState(false);
@@ -314,21 +341,22 @@ function PhaseImpact({ impact }) {
             {imp.hasControl && <><th style={th}>Đối chứng trước → sau</th><th style={th} title="Thay đổi của phạm vi trừ thay đổi của đối chứng">Hiệu quả ròng</th></>}
           </tr></thead>
           <tbody>{rows.map((r) => (
-            <tr key={r.key}>
-              <td style={{ ...td, textAlign: "left", fontWeight: 600 }}>{r.name}</td>
+            <tr key={r.key} style={r.ref ? { color: "var(--text-muted)", fontStyle: "italic" } : r.money ? { background: "rgba(var(--brand-rgb),0.04)" } : undefined}>
+              <td style={{ ...td, textAlign: "left", fontWeight: 600 }} title={r.money ? MONEY_NOTE : undefined}>{r.name}</td>
               <td style={td}>{r.b}</td><td style={{ ...td, fontWeight: 700 }}>{r.p}</td>
               <td style={{ ...td, fontWeight: 700, color: toneOf(r.dRaw, r.good) }}>{r.d}</td><td style={{ ...td, color: toneOf(r.dRaw, r.good) }}>{r.dp}</td>
               {imp.hasControl && <><td style={{ ...td, color: "var(--text-muted)" }}>{r.cb} → {r.cp}</td><td style={{ ...td, fontWeight: 700, color: toneOf(r.netRaw, r.good) }}>{r.net}</td></>}
             </tr>))}</tbody>
         </table>
       </div>
+      {imp.savings && <SavingsBox imp={imp} />}
       {cases.length > 0 && (
         <div style={{ marginTop: 6 }}>
           <button style={mini(ghost)} onClick={() => setShowCases((x) => !x)}>{showCases ? "Ẩn ca bể vỡ" : `Xem ${cases.length} ca bể vỡ`}</button>
           {showCases && (
             <div style={{ overflowX: "auto", maxHeight: 220, overflowY: "auto", marginTop: 4 }}>
-              <table className="data-table" style={{ fontSize: 11.5 }}><thead><tr><th>Giai đoạn</th><th>Mã đơn</th><th>Ngày phát hiện</th><th>Chặng</th><th>Kho phát hiện</th></tr></thead>
-                <tbody>{cases.map((c) => <tr key={c.order_code}><td>{c.period === "base" ? "Trước" : "Sau"}</td><td style={{ fontWeight: 700 }}>{c.order_code}</td><td>{c.case_date}</td><td>{c.leg}</td><td>{shortWh(c.warehouse)}</td></tr>)}</tbody></table>
+              <table className="data-table" style={{ fontSize: 11.5 }}><thead><tr><th>Giai đoạn</th><th>Mã đơn</th><th>Ngày phát hiện</th><th>Chặng</th><th>Kho phát hiện</th><th style={{ textAlign: "right" }}>Tiền đền</th><th style={{ textAlign: "right" }}>Truy thu (tham khảo)</th></tr></thead>
+                <tbody>{cases.map((c) => <tr key={c.order_code}><td>{c.period === "base" ? "Trước" : "Sau"}</td><td style={{ fontWeight: 700 }}>{c.order_code}</td><td>{c.case_date}</td><td>{c.leg}</td><td>{shortWh(c.warehouse)}</td><td style={{ textAlign: "right" }}>{c.comp_amount ? `${c.comp_amount.toLocaleString("vi-VN")}đ` : c.compensated ? <span style={small}>đã chốt, chưa có số</span> : "—"}</td><td style={{ textAlign: "right", color: "var(--text-muted)" }}>{c.truy_thu_amount ? `${c.truy_thu_amount.toLocaleString("vi-VN")}đ` : "—"}</td></tr>)}</tbody></table>
             </div>
           )}
         </div>
@@ -486,14 +514,14 @@ function MonitorView({ x, baseline }) {
         <button style={seg(kind === "week")} onClick={() => setKind("week")}>Theo tuần</button>
       </div>
       <div style={{ overflowX: "auto" }}>
-        <table className="data-table" style={{ fontSize: 12, minWidth: 720 }}>
-          <thead><tr><th style={{ ...th, textAlign: "left" }}>Kỳ</th><th style={th}>Đơn</th><th style={th}>Tấn</th><th style={th}>% On-time</th><th style={th}>Ca bể</th><th style={th}>% Bể vỡ</th><th style={th}>On-time so kỳ trước</th><th style={th}>Bể vỡ so kỳ trước</th><th style={{ ...th, textAlign: "left" }}>Cảnh báo</th></tr></thead>
+        <table className="data-table" style={{ fontSize: 12, minWidth: 880 }}>
+          <thead><tr><th style={{ ...th, textAlign: "left" }}>Kỳ</th><th style={th}>Đơn</th><th style={th}>Tấn</th><th style={th}>% On-time</th><th style={th}>Ca bể</th><th style={th}>% Bể vỡ</th><th style={th} title={MONEY_NOTE}>Tiền đền</th><th style={th} title={MONEY_NOTE}>Tiền đền / 1.000 đơn</th><th style={th}>On-time so kỳ trước</th><th style={th}>Bể vỡ so kỳ trước</th><th style={{ ...th, textAlign: "left" }}>Cảnh báo</th></tr></thead>
           <tbody>
-            <tr style={{ color: "var(--text-muted)", fontStyle: "italic" }}><td style={{ ...td, textAlign: "left" }}>Baseline <span style={small}>{fmtS(baseline.from)}–{fmtS(baseline.to)}</span></td><td style={td}>{n0(m.baseline.orders)}</td><td style={td}>{n1(m.baseline.tons)}</td><td style={td}>{pctTxt(m.baseline.ontimePct)}</td><td style={td}>{n0(m.baseline.cases)}</td><td style={td}>{bv(m.baseline.per1k)}</td><td style={td} /><td style={td} /><td style={td} /></tr>
+            <tr style={{ color: "var(--text-muted)", fontStyle: "italic" }}><td style={{ ...td, textAlign: "left" }}>Baseline <span style={small}>{fmtS(baseline.from)}–{fmtS(baseline.to)}</span></td><td style={td}>{n0(m.baseline.orders)}</td><td style={td}>{n1(m.baseline.tons)}</td><td style={td}>{pctTxt(m.baseline.ontimePct)}</td><td style={td}>{n0(m.baseline.cases)}</td><td style={td}>{bv(m.baseline.per1k)}</td><td style={td}>{tr(m.baseline.comp)}</td><td style={td}>{tr(m.baseline.compPer1k)}</td><td style={td} /><td style={td} /><td style={td} /></tr>
             {m.rows.map((r) => (
               <tr key={r.key}>
                 <td style={{ ...td, textAlign: "left", fontWeight: 600 }} title={`${fmt(r.from)} – ${fmt(r.to)}${r.sameDays ? " · so cùng số ngày kỳ trước" : ""}`}>{r.label}{r.running ? "*" : ""} <span style={small}>{fmtS(r.from)}–{fmtS(r.to)}</span></td>
-                <td style={td}>{n0(r.stats.orders)}</td><td style={td}>{n1(r.stats.tons)}</td><td style={td}>{pctTxt(r.stats.ontimePct)}</td><td style={td}>{n0(r.stats.cases)}</td><td style={td}>{bv(r.stats.per1k)}</td>
+                <td style={td}>{n0(r.stats.orders)}</td><td style={td}>{n1(r.stats.tons)}</td><td style={td}>{pctTxt(r.stats.ontimePct)}</td><td style={td}>{n0(r.stats.cases)}</td><td style={td}>{bv(r.stats.per1k)}</td><td style={td}>{tr(r.stats.comp)}</td><td style={td}>{tr(r.stats.compPer1k)}</td>
                 <td style={{ ...td, color: toneOf(r.vs && r.vs.ontimePts, 1) }}>{r.vs && r.vs.ontimePts != null ? `${sgn(r.vs.ontimePts, n1)} điểm` : "—"}</td>
                 <td style={{ ...td, color: toneOf(r.vs && r.vs.damageOk ? r.vs.per1kPct : null, -1) }}>{r.vs && r.vs.damageOk && r.vs.per1kPct != null ? `${sgn(r.vs.per1kPct, n1)}%` : r.vs && !r.vs.damageOk ? <span style={small}>&lt; 5 ca</span> : "—"}</td>
                 <td style={{ ...td, textAlign: "left", color: "var(--red)", fontWeight: 700 }}>{r.alerts.length ? `⚠ ${r.alerts.join(", ")}` : ""}</td>
@@ -502,7 +530,7 @@ function MonitorView({ x, baseline }) {
           </tbody>
         </table>
       </div>
-      <div style={{ ...small, marginTop: 4 }}>* kỳ đang chạy — so với cùng số ngày của kỳ trước. Tháng = các tuần có thứ 2 thuộc tháng (như báo cáo công ty). Cảnh báo: % bể vỡ tăng ≥ 10% (tương đối) hoặc on-time giảm ≥ 1 điểm so kỳ trước (&lt; 5 ca ở 2 kỳ → bỏ trục bể vỡ; tuần &lt; 100 đơn không cảnh báo).</div>
+      <div style={{ ...small, marginTop: 4 }}>* kỳ đang chạy — so với cùng số ngày của kỳ trước. Tháng = các tuần có thứ 2 thuộc tháng (như báo cáo công ty). Cảnh báo: % bể vỡ tăng ≥ 10% (tương đối) hoặc on-time giảm ≥ 1 điểm so kỳ trước (&lt; 5 ca ở 2 kỳ → bỏ trục bể vỡ; tuần &lt; 100 đơn không cảnh báo). Tiền đền chỉ là thông tin thêm, không vào cảnh báo — {MONEY_NOTE}</div>
     </div>
   );
 }
@@ -523,7 +551,12 @@ function summaryText(sol, report) {
   const L = [`GIẢI PHÁP: ${sol.name}`, `Khách: ${sol.clients.join(", ")} · Trạng thái: ${sol.status} · Baseline chung ${fmt(sol.baseStart)} – ${fmt(sol.baseEnd)}`, ""];
   for (const c of report.comparison) {
     L.push(`${c.label} (${fmt(c.startDate)} → ${c.endDate ? fmt(c.endDate) : "nay"}, ${c.status}): ${c.verdict} — ${n0(c.post.orders)} đơn, on-time ${pctTxt(c.post.ontimePct)} (${c.delta.ontimePts == null ? "—" : sgn(c.delta.ontimePts, n1) + " điểm"} so baseline), bể vỡ ${bv(c.post.per1k)} (${c.delta.per1kPct == null ? "—" : sgn(c.delta.per1kPct, n1) + "%"})`);
+    if (c.base.comp != null) {
+      L.push(`   Tiền đền cho khách: ${tr(c.base.comp)} → ${tr(c.post.comp)} (/ 1.000 đơn ${tr(c.base.compPer1k)} → ${tr(c.post.compPer1k)}; ${coverageOf(c)}) · truy thu tham khảo ${tr(c.base.truyThu)} → ${tr(c.post.truyThu)}`);
+      if (c.savings) L.push(`   ${c.savings.text}`);
+    }
   }
+  L.push(`(${MONEY_NOTE})`);
   report.alerts.forEach((a) => L.push(`⚠ ${a.text}`));
   L.push(`(SD3 Dashboard Điện Máy, số liệu cập nhật ${vnStamp(report.dataAsOf)})`);
   return L.join(NL);
@@ -550,10 +583,10 @@ function SolutionPrintView({ sol, report, onClose }) {
         {sol.description && <div style={{ fontSize: 12, marginTop: 8, whiteSpace: "pre-wrap" }}>{sol.description}</div>}
         <div style={{ fontSize: 13, fontWeight: 700, marginTop: 14 }}>So sánh các giai đoạn</div>
         <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", marginTop: 6 }}>
-          <thead><tr>{["Giai đoạn", "Thời gian", "Đơn", "% On-time", "% Bể vỡ", "On-time so BL", "Bể vỡ so BL", "Nhận định"].map((h, i) => <th key={h} style={{ ...hc, textAlign: i < 2 ? "left" : "right" }}>{h}</th>)}</tr></thead>
+          <thead><tr>{["Giai đoạn", "Thời gian", "Đơn", "% On-time", "% Bể vỡ", "On-time so BL", "Bể vỡ so BL", "Tiền đền/1.000 đơn", "Tiết kiệm (ước tính)", "Nhận định"].map((h, i) => <th key={h} style={{ ...hc, textAlign: i < 2 ? "left" : "right", whiteSpace: "normal" }}>{h}</th>)}</tr></thead>
           <tbody>{report.comparison.map((c) => (
             <tr key={c.phaseId}><td style={{ ...cell, textAlign: "left", fontWeight: 700 }}>{c.label}</td><td style={{ ...cell, textAlign: "left" }}>{fmtS(c.postFrom)}–{fmtS(c.postTo)}</td><td style={cell}>{n0(c.post.orders)}</td><td style={cell}>{pctTxt(c.post.ontimePct)}</td><td style={cell}>{bv(c.post.per1k)}</td>
-              <td style={cell}>{c.delta.ontimePts == null ? "—" : `${sgn(c.delta.ontimePts, n1)} đ`}</td><td style={cell}>{c.delta.per1kPct == null ? "—" : `${sgn(c.delta.per1kPct, n1)}%`}</td><td style={{ ...cell, color: PV[c.verdictLevel][0], fontWeight: 700 }}>{c.verdict}</td></tr>))}</tbody>
+              <td style={cell}>{c.delta.ontimePts == null ? "—" : `${sgn(c.delta.ontimePts, n1)} đ`}</td><td style={cell}>{c.delta.per1kPct == null ? "—" : `${sgn(c.delta.per1kPct, n1)}%`}</td><td style={cell}>{tr(c.base.compPer1k)} → {tr(c.post.compPer1k)}</td><td style={cell}>{c.savings && c.savings.ok ? `${c.savings.value >= 0 ? "~" : "+"}${tr(Math.abs(c.savings.value))}` : "chưa có số"}</td><td style={{ ...cell, color: PV[c.verdictLevel][0], fontWeight: 700 }}>{c.verdict}</td></tr>))}</tbody>
         </table></div>
         {report.alerts.map((a, i) => <div key={i} style={{ fontSize: 11.5, color: C.red, marginTop: 4 }}>⚠ {a.text}</div>)}
         {report.phases.map((x) => {
@@ -562,21 +595,22 @@ function SolutionPrintView({ sol, report, onClose }) {
             <div key={x.phase.id} style={{ marginTop: 18, breakInside: "avoid" }}>
               <div style={{ fontSize: 14, fontWeight: 800 }}>{x.phase.label} <span style={{ fontSize: 11, color: C.muted, fontWeight: 400 }}>· {fmt(x.phase.startDate)} → {x.phase.endDate ? fmt(x.phase.endDate) : "nay"} · {x.phase.status} · {scopeLine(x.phase)}</span></div>
               <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 6, background: bc, color: fc }}><b>{v.label}</b>{v.reasons.map((s, i) => <div key={i} style={{ fontSize: 11.5, color: C.text }}>• {s}</div>)}</div>
+              {x.impact.savings && <div style={{ fontSize: 11.5, marginTop: 4 }}>💰 {x.impact.savings.text} <span style={{ color: C.muted }}>({coverageOf(T)})</span></div>}
               <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 6 }}><thead><tr>{["Chỉ số", "Trước", "Sau", "Chênh lệch"].map((h, i) => <th key={h} style={{ ...hc, textAlign: i ? "right" : "left" }}>{h}</th>)}</tr></thead>
-                <tbody>{[["Đơn", n0(T.base.orders), n0(T.post.orders), sgn(T.delta.orders, n0)], ["% On-time", pctTxt(T.base.ontimePct), pctTxt(T.post.ontimePct), T.delta.ontimePts == null ? "—" : `${sgn(T.delta.ontimePts, n1)} điểm`], ["Ca bể", n0(T.base.cases), n0(T.post.cases), sgn(T.delta.cases, n0)], ["% Bể vỡ", bv(T.base.per1k), bv(T.post.per1k), T.delta.per1kPct == null ? "—" : `${sgn(T.delta.per1kPct, n1)}%`]].map((r) => <tr key={r[0]}>{r.map((c2, i) => <td key={i} style={{ ...cell, textAlign: i ? "right" : "left" }}>{c2}</td>)}</tr>)}</tbody></table>
+                <tbody>{[["Đơn", n0(T.base.orders), n0(T.post.orders), sgn(T.delta.orders, n0)], ["% On-time", pctTxt(T.base.ontimePct), pctTxt(T.post.ontimePct), T.delta.ontimePts == null ? "—" : `${sgn(T.delta.ontimePts, n1)} điểm`], ["Ca bể", n0(T.base.cases), n0(T.post.cases), sgn(T.delta.cases, n0)], ["% Bể vỡ", bv(T.base.per1k), bv(T.post.per1k), T.delta.per1kPct == null ? "—" : `${sgn(T.delta.per1kPct, n1)}%`], ["Tiền đền cho khách", tr(T.base.comp), tr(T.post.comp), trd(T.delta.comp)], ["Tiền đền / 1.000 đơn", tr(T.base.compPer1k), tr(T.post.compPer1k), trd(T.delta.compPer1k)], ["Truy thu (tham khảo)", tr(T.base.truyThu), tr(T.post.truyThu), trd(T.delta.truyThu)]].map((r) => <tr key={r[0]}>{r.map((c2, i) => <td key={i} style={{ ...cell, textAlign: i ? "right" : "left" }}>{c2}</td>)}</tr>)}</tbody></table>
               {(x.phase.images || []).length > 0 && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
                   {x.phase.images.map((im) => <figure key={im.path} style={{ margin: 0 }}><img src={`/api/trials?image=${encodeURIComponent(im.path)}`} alt={im.caption || ""} style={{ width: "100%", borderRadius: 4 }} /><figcaption style={{ fontSize: 10.5, color: C.muted, textAlign: "center" }}>{im.caption}</figcaption></figure>)}
                 </div>
               )}
               {x.monitor && (
-                <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8 }}><thead><tr>{["Theo dõi (tháng)", "Đơn", "% On-time", "% Bể vỡ", "On-time so kỳ trước", "Bể vỡ so kỳ trước"].map((h, i) => <th key={h} style={{ ...hc, textAlign: i ? "right" : "left" }}>{h}</th>)}</tr></thead>
-                  <tbody>{x.monitor.month.rows.map((r) => <tr key={r.key}><td style={{ ...cell, textAlign: "left" }}>{r.label}{r.running ? "*" : ""}</td><td style={cell}>{n0(r.stats.orders)}</td><td style={cell}>{pctTxt(r.stats.ontimePct)}</td><td style={cell}>{bv(r.stats.per1k)}</td><td style={cell}>{r.vs && r.vs.ontimePts != null ? `${sgn(r.vs.ontimePts, n1)} đ` : "—"}</td><td style={cell}>{r.vs && r.vs.damageOk && r.vs.per1kPct != null ? `${sgn(r.vs.per1kPct, n1)}%` : "—"}</td></tr>)}</tbody></table>
+                <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8 }}><thead><tr>{["Theo dõi (tháng)", "Đơn", "% On-time", "% Bể vỡ", "Tiền đền", "On-time so kỳ trước", "Bể vỡ so kỳ trước"].map((h, i) => <th key={h} style={{ ...hc, textAlign: i ? "right" : "left" }}>{h}</th>)}</tr></thead>
+                  <tbody>{x.monitor.month.rows.map((r) => <tr key={r.key}><td style={{ ...cell, textAlign: "left" }}>{r.label}{r.running ? "*" : ""}</td><td style={cell}>{n0(r.stats.orders)}</td><td style={cell}>{pctTxt(r.stats.ontimePct)}</td><td style={cell}>{bv(r.stats.per1k)}</td><td style={cell}>{tr(r.stats.comp)}</td><td style={cell}>{r.vs && r.vs.ontimePts != null ? `${sgn(r.vs.ontimePts, n1)} đ` : "—"}</td><td style={cell}>{r.vs && r.vs.damageOk && r.vs.per1kPct != null ? `${sgn(r.vs.per1kPct, n1)}%` : "—"}</td></tr>)}</tbody></table>
               )}
             </div>
           );
         })}
-        <div style={{ fontSize: 10, color: C.muted, marginTop: 16, borderTop: `1px solid ${C.line}`, paddingTop: 6 }}>Mỗi giai đoạn so với cùng baseline chung trên phạm vi của chính nó. On-time = cờ GHN ontime / (ontime + late), loại đơn hoàn/huỷ. % Bể vỡ = ca bể (gắn theo đơn) ÷ đơn lấy × 100. In lúc {vnStamp(new Date().toISOString())}.</div>
+        <div style={{ fontSize: 10, color: C.muted, marginTop: 16, borderTop: `1px solid ${C.line}`, paddingTop: 6 }}>Mỗi giai đoạn so với cùng baseline chung trên phạm vi của chính nó. On-time = cờ GHN ontime / (ontime + late), loại đơn hoàn/huỷ. % Bể vỡ = ca bể (gắn theo đơn) ÷ đơn lấy × 100. Tiền đền cho khách gắn theo đơn; tiết kiệm = (tiền / 1.000 đơn trước − sau) × đơn giai đoạn sau, trừ xu hướng đối chứng — ước tính. {MONEY_NOTE} In lúc {vnStamp(new Date().toISOString())}.</div>
       </div>
     </div>
   );
@@ -629,17 +663,19 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
             {report.alerts.length > 0 && <div style={{ marginTop: 10 }}>{report.alerts.map((a, i) => <div key={i} style={{ fontSize: 12.5, color: "var(--red)", fontWeight: 700 }}>⚠ {a.text}</div>)}</div>}
             <div style={{ fontSize: 13.5, fontWeight: 700, marginTop: 14 }}>So sánh các giai đoạn <span style={{ ...small, fontWeight: 400 }}>(cùng baseline chung, mỗi giai đoạn trên phạm vi của nó)</span></div>
             <div style={{ overflowX: "auto", marginTop: 6 }}>
-              <table className="data-table" style={{ fontSize: 12, minWidth: 900 }}>
-                <thead><tr><th style={{ ...th, textAlign: "left" }}>Giai đoạn</th><th style={{ ...th, textAlign: "left" }}>Phạm vi</th><th style={th}>Giai đoạn sau</th><th style={th}>Đơn</th><th style={th}>Tấn</th><th style={th}>% On-time</th><th style={th}>% Bể vỡ</th><th style={th}>On-time so baseline</th><th style={th}>Bể vỡ so baseline</th><th style={th} title="Số của giai đoạn này trừ giai đoạn liền trước">So GĐ trước</th><th style={{ ...th, textAlign: "left" }}>Nhận định</th></tr></thead>
+              <table className="data-table" style={{ fontSize: 12, minWidth: 940 }}>
+                <thead><tr><th style={{ ...thw, textAlign: "left" }}>Giai đoạn</th><th style={{ ...thw, textAlign: "left" }}>Phạm vi</th><th style={thw}>Giai đoạn sau</th><th style={thw}>Đơn</th><th style={thw}>Tấn</th><th style={thw}>% On-time</th><th style={thw}>% Bể vỡ</th><th style={thw}>On-time so baseline</th><th style={thw}>Bể vỡ so baseline</th><th style={thw} title="Số của giai đoạn này trừ giai đoạn liền trước">So GĐ trước</th><th style={thw} title={MONEY_NOTE + " Tiết kiệm = (tiền / 1.000 đơn trước − sau) × đơn giai đoạn sau, trừ nhóm đối chứng — ước tính."}>Tiền đền / 1.000 đơn<div style={{ ...small, fontWeight: 400, fontSize: 10.5 }}>baseline → sau · tiết kiệm ước tính</div></th><th style={{ ...thw, textAlign: "left" }}>Nhận định</th></tr></thead>
                 <tbody>{report.comparison.map((c) => (
                   <tr key={c.phaseId}>
                     <td style={{ ...td, textAlign: "left", fontWeight: 700 }}>{c.label} <StatusBadge s={c.status} /></td>
-                    <td style={{ ...td, textAlign: "left", whiteSpace: "normal", minWidth: 200, maxWidth: 260, color: "var(--text-secondary)" }}>{scopeLine(c.scope)}</td>
+                    <td style={{ ...td, textAlign: "left", whiteSpace: "normal", minWidth: 150, maxWidth: 190, color: "var(--text-secondary)" }}>{scopeLine(c.scope)}</td>
                     <td style={td}>{fmtS(c.postFrom)}–{fmtS(c.postTo)} <span style={small}>{c.postDays}n</span></td>
                     <td style={td}>{n0(c.post.orders)}</td><td style={td}>{n1(c.post.tons)}</td><td style={{ ...td, fontWeight: 700 }}>{pctTxt(c.post.ontimePct)}</td><td style={{ ...td, fontWeight: 700 }}>{bv(c.post.per1k)}</td>
                     <td style={{ ...td, color: toneOf(c.delta.ontimePts, 1) }}>{c.delta.ontimePts == null ? "—" : `${sgn(c.delta.ontimePts, n1)} đ`}</td>
                     <td style={{ ...td, color: toneOf(c.delta.per1kPct, -1) }}>{c.delta.per1kPct == null ? "—" : `${sgn(c.delta.per1kPct, n1)}%`}</td>
                     <td style={td}>{c.vsPrev ? <span title="on-time (điểm) · bể vỡ (% thay đổi)"><span style={{ color: toneOf(c.vsPrev.ontimePts, 1) }}>{c.vsPrev.ontimePts == null ? "—" : `${sgn(c.vsPrev.ontimePts, n1)} đ`}</span> · <span style={{ color: toneOf(c.vsPrev.per1kPct, -1) }}>{c.vsPrev.per1kPct == null ? "—" : `${sgn(c.vsPrev.per1kPct, n1)}%`}</span></span> : "—"}</td>
+                    <td style={td} title={`${coverageOf(c)}${c.savings ? " · " + c.savings.text : ""}`}>{tr(c.base.compPer1k)} → <b>{tr(c.post.compPer1k)}</b>
+                      <div style={{ fontWeight: 700, fontSize: 11.5, color: c.savings && c.savings.ok ? (c.savings.value >= 0 ? "var(--green)" : "var(--red)") : "var(--text-muted)" }}>{c.savings && c.savings.ok ? `tiết kiệm ~${tr(Math.abs(c.savings.value))}${c.savings.value < 0 ? " (tăng thêm)" : ""}` : "chưa có số"}</div></td>
                     <td style={{ ...td, textAlign: "left" }}><VerdictChip level={c.verdictLevel} text={c.verdict} /></td>
                   </tr>))}</tbody>
               </table>
@@ -678,7 +714,7 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
                 </div>
               );
             })}
-            <div style={{ ...small, marginTop: 12 }}>Cách tính: đơn theo ngày lấy hàng · On-time = cờ GHN ontime / (ontime + late), loại đơn hoàn/huỷ · Ca bể vỡ gắn theo đơn · % Bể vỡ = ca ÷ đơn lấy × 100 (như báo cáo công ty) · Đối chứng = đơn cùng khách ngoài phạm vi giai đoạn · Nhận định theo luật cố định. Số liệu cập nhật {vnStamp(report.dataAsOf)}.</div>
+            <div style={{ ...small, marginTop: 12 }}>Cách tính: đơn theo ngày lấy hàng · On-time = cờ GHN ontime / (ontime + late), loại đơn hoàn/huỷ · Ca bể vỡ gắn theo đơn · % Bể vỡ = ca ÷ đơn lấy × 100 (như báo cáo công ty) · Đối chứng = đơn cùng khách ngoài phạm vi giai đoạn · Nhận định theo luật cố định (chỉ % bể vỡ + on-time). Tiền đền cho khách gắn theo đơn như ca bể; ước tính tiết kiệm = (tiền / 1.000 đơn trước − sau) × đơn giai đoạn sau, trừ xu hướng nhóm đối chứng (% thay đổi) — luôn là ước tính. {MONEY_NOTE} Số liệu cập nhật {vnStamp(report.dataAsOf)}.</div>
           </>
         )}
       </div>

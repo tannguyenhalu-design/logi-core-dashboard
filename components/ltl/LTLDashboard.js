@@ -12,6 +12,8 @@ import ProjectPerformanceTable from "./tables/ProjectPerformanceTable";
 import ProvinceMapPanel from "./cards/ProvinceMapPanel";
 import DetailedDamageTable from "./tables/DetailedDamageTable";
 import RouteRiskMatrix from "./damage/RouteRiskMatrix";
+import DamageMoneyPanel from "./damage/DamageMoneyPanel";
+import { OpenCasesPanel, RecurrencePanel, LegRoutesPanel } from "./damage/DamageAnalysis";
 import ExceptionsPanel from "./cards/ExceptionsPanel";
 
 // Trend chart above only shows the COMBINED weekly total — "tuần 2 → tuần 3
@@ -208,8 +210,9 @@ const STUCK_COLUMNS = [
 // view: "ltl" (Tổng quan) | "map" (Bản đồ tỉnh thành) | "damage" (Hư hỏng & Rủi ro)
 // — all 3 read the same already-fetched /api/data payload, so switching tabs
 // never refetches.
-export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders, pendingPickup, fetchPendingOrders, kpiDelta, stuck, fetchStuckOrders, anomalies, damageRisk, riskOnly: riskOnlyProp, onRiskOnlyChange, sparkline, dueToday, fetchDueTodayOrders, onQuickRiskRoutes, onQuickLowOntime, onOpenReport, onOpenCompanyReport, damageTrend, exceptions, mapState }) {
-  const [damageFilter, setDamageFilter] = useState(null); // { type: 'type' | 'province' | 'warehouse', value: string }
+export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders, pendingPickup, fetchPendingOrders, kpiDelta, stuck, fetchStuckOrders, anomalies, damageRisk, riskOnly: riskOnlyProp, onRiskOnlyChange, sparkline, dueToday, fetchDueTodayOrders, onQuickRiskRoutes, onQuickLowOntime, onOpenReport, onOpenCompanyReport, damageTrend, exceptions, mapState, damageMoney, damageAnalysis }) {
+  const [damageFilter, setDamageFilter] = useState(null);
+  const [drawerCase, setDrawerCase] = useState(null); // ca mở từ "Ca còn mở" (Kế hoạch E) // { type: 'type' | 'province' | 'warehouse', value: string }
   const [selectedProvinceOrders, setSelectedProvinceOrders] = useState(null);
   // Fetched on demand (see fetchProvinceOrders in pages/dashboard.js) instead
   // of filtering a client-side copy of all ~23k rows — that array is no
@@ -641,6 +644,11 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
         );
       })()}
 
+      {showDamage && !isClient && damageMoney && <DamageMoneyPanel money={damageMoney} />}
+      {showDamage && !isClient && damageAnalysis && <OpenCasesPanel open={damageAnalysis.open} onOpenCase={setDrawerCase} />}
+      {showDamage && !isClient && damageAnalysis && <RecurrencePanel recurrence={damageAnalysis.recurrence} />}
+      {showDamage && !isClient && damageAnalysis && <LegRoutesPanel legs={damageAnalysis.legs} />}
+
       {showDamage && !isClient && damageRisk && (
         <RouteRiskMatrix risk={damageRisk} riskOnly={riskOnly} onRiskOnlyChange={setRiskOnly} />
       )}
@@ -664,6 +672,8 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
           cases={data.detailedDamageCases || []}
           filter={damageFilter}
           showClaimsWorkflow={!isClient}
+          externalCase={drawerCase}
+          onExternalClose={() => setDrawerCase(null)}
         />
       </div>}
       {pendingModalOpen && (

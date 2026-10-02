@@ -152,7 +152,7 @@ function ClaimDrawer({ c, claim, canEdit, onClose, onSave }) {
   );
 }
 
-export default function DetailedDamageTable({ cases, filter, showClaimsWorkflow = true }) {
+export default function DetailedDamageTable({ cases, filter, showClaimsWorkflow = true, externalCase = null, onExternalClose = null }) {
   const [claims, setClaims] = useState({});
   const [canEdit, setCanEdit] = useState(false);
   const [openCode, setOpenCode] = useState(null);
@@ -212,7 +212,8 @@ export default function DetailedDamageTable({ cases, filter, showClaimsWorkflow 
     setSearchQuery(""); setProjectFilter("all"); setTypeFilter("all"); setWarehouseFilter("all"); setStatusFilter("all");
   };
   const showAmount = cases.some((c) => c.amount > 0);
-  const openCase = openCode ? cases.find((c) => c.order_code === openCode) : null;
+  // externalCase: a case opened from "Ca còn mở" (may be outside the month/date filter)
+  const openCase = externalCase || (openCode ? cases.find((c) => c.order_code === openCode) : null);
 
   const selectStyle = {
     background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)",
@@ -334,7 +335,7 @@ export default function DetailedDamageTable({ cases, filter, showClaimsWorkflow 
           c={openCase}
           claim={claimOf(openCase.order_code)}
           canEdit={canEdit}
-          onClose={() => setOpenCode(null)}
+          onClose={() => { setOpenCode(null); onExternalClose?.(); }}
           onSave={saveClaim}
         />
       )}

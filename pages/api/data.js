@@ -145,7 +145,9 @@ export default async function handler(req, res) {
       // A stored body from before the Kho layer (29/09) lacks warehouseLayer:
       // the map part is computed live instead until the next rebuild.
       const staleMap = (part === "map" || withMap) && defaultBody?.ltl && !("warehouseLayer" in defaultBody.ltl);
-      if (defaultBody && !staleMap) return res.status(200).json(shapeBody(applyRoleToBody(defaultBody, scope), part, withMap));
+      // Same for bodies stored before the damage money/analysis fields (Kế hoạch E).
+      const staleDamage = defaultBody && !("damageMoney" in defaultBody);
+      if (defaultBody && !staleMap && !staleDamage) return res.status(200).json(shapeBody(applyRoleToBody(defaultBody, scope), part, withMap));
     }
 
     const base = await loadLtlBase();
