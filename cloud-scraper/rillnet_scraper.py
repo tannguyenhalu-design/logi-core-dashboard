@@ -71,31 +71,62 @@ def click_button(ws, text, wait=2):
     return ok
 
 
+def _int(s):
+    return int(s.replace(".", "").replace(",", ""))
+
+
 def parse_compensation_summary(text):
+    """Cards of "Đền bù / Truy thu → 📊 Tổng hợp" (every client, all time, over
+    the orders CS ticked 💰). Labels are CSS-uppercased, so match loosely.
+    Since ~15/09 the single "TỔNG TIỀN ĐỀN BÙ" card is split into "TỔNG ĐỀN DỰ
+    KIẾN" (CS types it when ticking, CS / truy thu team can revise it after the
+    customer's QC) and "TỔNG ĐỀN ĐÃ CHỐT" (the real paid amount, loaded through
+    the "💵 Chốt tiền" file) — found 29/09."""
     def grab_number_after(label):
-        m = re.search(re.escape(label) + r"\s*\n\s*([\d.,]+)", text)
-        return int(m.group(1).replace(".", "").replace(",", "")) if m else None
+        m = re.search(re.escape(label) + r"\s*\n\s*([\d.,]+)", text, re.I)
+        return _int(m.group(1)) if m else None
 
-    def grab_money_after(label):
-        m = re.search(re.escape(label) + r"\s*\n\s*([\d.,]+)đ", text)
-        return int(m.group(1).replace(".", "").replace(",", "")) if m else None
+    def grab_money_after(*labels):
+        for label in labels:
+            m = re.search(re.escape(label) + r"\s*\n\s*([\d.,]+)\s*đ", text, re.I)
+            if m:
+                return _int(m.group(1))
+        return None
 
-    cs_tick_count = grab_number_after("CS TICK CÓ ĐỀN BÙ")
-    ops_unfinalized_count = grab_number_after("OPS CHƯA CHỐT ĐỀN BÙ")
-    ops_clawback_count = grab_number_after("ĐÃ CHỐT CÓ TRUY THU")
-    total_amount = grab_money_after("TỔNG TIỀN ĐỀN BÙ")
+    def grab(pattern):
+        m = re.search(pattern, text, re.I)
+        return _int(m.group(1)) if m else None
 
     m = re.search(r"đã chốt:\s*✅\s*(\d+)\s*·\s*❌\s*(\d+)", text)
-    ops_approved = int(m.group(1)) if m else None
-    ops_rejected = int(m.group(2)) if m else None
-
     return {
-        "csTickCount": cs_tick_count,
-        "opsUnfinalizedCount": ops_unfinalized_count,
-        "opsApprovedCount": ops_approved,
-        "opsRejectedCount": ops_rejected,
-        "opsClawbackCount": ops_clawback_count,
-        "totalAmount": total_amount,
+        "csTickCount": grab_number_after("CS TICK CÓ ĐỀN BÙ"),
+        "opsUnfinalizedCount": grab_number_after("OPS CHƯA CHỐT ĐỀN BÙ"),
+        "opsApprovedCount": int(m.group(1)) if m else None,
+        "opsRejectedCount": int(m.group(2)) if m else None,
+        "opsClawbackCount": grab_number_after("ĐÃ CHỐT CÓ TRUY THU"),
+        "totalAmount": grab_money_after("TỔNG ĐỀN DỰ KIẾN", "TỔNG TIỀN ĐỀN BÙ"),
+        "totalChotAmount": grab_money_after("TỔNG ĐỀN ĐÃ CHỐT"),
+        "chotCount": grab(r"(\d+)\s*đơn có số chốt"),
+        "dkFromChotCount": grab(r"(\d+)\s*đơn lấy theo số đã chốt") or 0,
+    }
+
+
+def parse_report_cards(text):
+    """KPI cards of "📦 Báo cáo bể vỡ" for the date range the scraper set
+    (every client): cases, đã chốt đền bù, damage rate, and the "Truy thu dự
+    tính theo OM" line ("74 đơn đã chốt · 481.933.814đ dự tính")."""
+    def before(label):
+        m = re.search(r"([\d.,]+%?)\s*\n\s*" + re.escape(label), text)
+        return m.group(1) if m else None
+
+    cases, comp, rate = before("Bể vỡ / Hư hỏng"), before("Đơn đã chốt đền bù cho khách"), before("Tỷ lệ bể vỡ")
+    m = re.search(r"(\d+)\s*đơn đã chốt\s*·\s*([\d.,]+)đ\s*dự tính", text)
+    return {
+        "caseCount": _int(cases) if cases and not cases.endswith("%") else None,
+        "compensatedCount": _int(comp) if comp and not comp.endswith("%") else None,
+        "damageRate": rate if rate and rate.endswith("%") else None,
+        "truyThuCount": int(m.group(1)) if m else None,
+        "truyThuAmount": _int(m.group(2)) if m else None,
     }
 
 
@@ -174,7 +205,8 @@ EXTRACT_TABLE_JS = """
         clientName: cell(iClient) || client,
         detectedAtWarehouse: cell(iWh), suspectedLeg: cell(iLeg), region: cell(iRegion), severity: cell(iSev),
         status: cell(iSt), orderStatus: cell(iOst), caseDate,
-        photoCount: (cell(iPhoto).match(/\\d+/) || ['0'])[0],
+        // No ẢNH column since ~16/09 — the real count comes from ENRICH_JS.
+        photoCount: iPhoto >= 0 ? (cell(iPhoto).match(/\\d+/) || ['0'])[0] : '',
       });
     });
   });
@@ -203,16 +235,73 @@ ENRICH_JS = """
     // _LB is a script-level let/const, not a window property.
     const TT = (typeof _LB !== 'undefined' && _LB && _LB.tt) || {};
     const key = (c) => String(c || '').toUpperCase().trim().replace(/_\\d+$/, '');
+    const SEV = { nang: 'Nặng', trung_binh: 'Vừa', nhe: 'Nhẹ', chua_gan: 'Chưa gán' };
     const out = {};
     _lbFilt(_lbAllRows()).forEach(r => {
       const k = key(r.code); if (!k) return;
       const t = TT[k] || TT[String(r.code || '').toUpperCase().trim()] || null;
+      const files = String(r.file_id || '').split(',').filter(x => x.trim()).length;
       out[k] = {
         compensated: !!(t && t.chap_nhan_denbu === true) || !!r.den_chot,
-        compAmount: r.den_chot ? (Number(r.den_chot_tien) || 0) : '',
+        // Money as the report row knows it; the truy thu page (MONEY_JS) adds
+        // the revised estimate — main() picks the latest.
+        csAmount: r.cs_denbu_sotien != null && r.cs_denbu_sotien !== '' ? (Number(r.cs_denbu_sotien) || 0) : '',
+        csAt: r.cs_denbu_at || '',
+        chotAmount: r.den_chot ? (Number(r.den_chot_tien) || 0) : '',
+        chotAt: r.den_chot ? (r.den_chot_at || '') : '',
         truyThu: t ? (t.quyet_dinh === 'co' ? 'co' : t.quyet_dinh === 'khong' ? 'khong' : 'cho') : 'cho',
         truyThuStatus: t ? String(t.trang_thai || '') : '',
         truyThuAmount: t && t.quyet_dinh === 'co' ? (Number(t.tong_tien) || 0) : '',
+        // Same photo count the truy thu page shows (max of counter, files).
+        photoCount: String(Math.max(Number(r.photo) || 0, files)),
+        severity: SEV[r.sev] || String(r.sev || ''),
+        region: r.zone && !/chưa rõ/i.test(r.zone) ? String(r.zone) : '',
+        suspectedRoute: String(r.chang_txt || '').slice(0, 200),
+      };
+    });
+    return out;
+  } catch (e) { return null; }
+})();
+"""
+
+# Per-order money + cause from "Đền bù / Truy thu" (truythu.html), read 29/09.
+# A truy thu record (TT, table truy_thu) keeps in its jsonb phieu_ref:
+#   den_dk   {tien, at}  đền DỰ KIẾN — CS types it when ticking 💰, CS / truy
+#                        thu team revise it later (after the customer's QC);
+#                        absent → the page falls back to the CS tick amount
+#                        (lost_bevo row cs_denbu_sotien, BEVO_RAW here)
+#   den_chot {tien, at}  đền ĐÃ CHỐT — the real paid amount, only through the
+#                        "💵 Chốt tiền" Excel file
+#   hu_hong  {muc_do, vi_tri}  damage level / position (bevo_taxonomy codes)
+#   cndb     {ly_do, txt}      reason for (not) compensating the customer
+# plus phan_bo_kho[].ly_do_tt = why each warehouse pays truy thu. _LB.tt on
+# the report page is a trimmed copy WITHOUT phieu_ref, hence this second page.
+# The free-text ticket content (noi_dung) is NOT read: ~23% of it carries phone
+# numbers. Data (TT, BEVO_RAW, TAX) loads several seconds after the page.
+MONEY_READY_JS = """
+(typeof TT !== 'undefined' && Array.isArray(TT) && TT.length > 0
+  && typeof BEVO_RAW !== 'undefined' && Array.isArray(BEVO_RAW) && BEVO_RAW.length > 0
+  && typeof TAX !== 'undefined' && Array.isArray(TAX) && TAX.length > 0)
+"""
+
+MONEY_JS = """
+(() => {
+  try {
+    const key = (c) => String(c || '').toUpperCase().trim().replace(/_\\d+$/, '');
+    const out = {};
+    TT.forEach(t => {
+      const k = key(t.van_don); if (!k) return;
+      const p = prefOf(t), dk = p.den_dk, ch = p.den_chot, h = hhOf(t);
+      const reasons = [...new Set((Array.isArray(t.phan_bo_kho) ? t.phan_bo_kho : []).map(x => lyttLabel(x)).filter(Boolean))];
+      out[k] = {
+        dkAmount: dk && dk.tien != null ? num(dk.tien) : '',
+        dkAt: dk && dk.at ? String(dk.at) : '',
+        chotAmount: ch && ch.tien != null ? num(ch.tien) : '',
+        chotAt: ch && ch.at ? String(ch.at) : '',
+        damageLevel: mdLabel(h.muc_do),
+        damagePosition: vtLabel(h.vi_tri),
+        compReason: String(cndbLyLabel(t) || '').slice(0, 150),
+        truyThuReason: reasons.join(' | ').slice(0, 200),
       };
     });
     return out;
@@ -237,6 +326,46 @@ SET_RANGE_JS = """
   return ok;
 })(%s, %s);
 """
+
+
+def _pos(v):
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0 else None
+
+
+def apply_money(rec, m):
+    """Merge MONEY_JS row `m` into a record already carrying ENRICH_JS's
+    csAmount/chotAmount, and pick the customer compensation amount.
+    Latest number (user 29/09: the amount CS enters per order, revised after
+    the customer's QC): đã chốt (paid, Chốt tiền file) > đền dự kiến on the
+    truy thu record (revised) > the amount CS typed when ticking 💰.
+    compAmountDuKien follows the page's own denDk() (the "TỔNG ĐỀN DỰ KIẾN"
+    card): revised estimate, else CS tick amount, else the paid amount.
+    compAmount (= sheet comp_amount, what the dashboard reads) is filled only
+    for compensated cases, as before."""
+    cs, cs_at = rec.pop("csAmount", ""), rec.pop("csAt", "")
+    chot, chot_at = m.get("chotAmount", ""), m.get("chotAt", "")
+    row_chot, row_chot_at = rec.pop("chotAmount", ""), rec.pop("chotAt", "")
+    if chot == "":
+        chot, chot_at = row_chot, row_chot_at
+    dk, dk_at = m.get("dkAmount", ""), m.get("dkAt", "")
+
+    base = dk if dk != "" else cs
+    du_kien = _pos(base) or _pos(chot) or ""
+    if _pos(chot):
+        latest, src, at = chot, "chot", chot_at
+    elif _pos(dk):
+        latest, src, at = dk, "du_kien", dk_at
+    elif _pos(cs):
+        latest, src, at = cs, "cs_tick", cs_at
+    else:
+        latest, src, at = "", "", ""
+    rec.update({
+        "compAmount": latest if rec.get("compensated") else "",
+        "compAmountCs": cs, "compAmountDuKien": du_kien, "compAmountChot": chot,
+        "compAmountSource": src, "compAmountAt": at,
+        "damageLevel": m.get("damageLevel", ""), "damagePosition": m.get("damagePosition", ""),
+        "compReason": m.get("compReason", ""), "truyThuReason": m.get("truyThuReason", ""),
+    })
 
 
 def date_range():
@@ -332,26 +461,58 @@ def main():
             rec["counted"] = True
         print("Khong doc duoc trang thai den bu/truy thu (giao dien co the da doi).")
     full_scan = d_from <= DATA_START
+    cards = parse_report_cards(run_js(ws, "document.body.innerText") or "")
+    print(f"The trang bao cao: {cards}")
 
     print("Dieu huong toi trang Den bu / Truy thu...")
     send_cdp_command(ws, "Page.navigate", {"url": "https://rillnet-app.vercel.app/truythu.html"})
     time.sleep(4)
-    click_button(ws, "📊 Tổng hợp", wait=3)
-    comp_text = run_js(ws, "document.body.innerText") or ""
-    compensation_summary = parse_compensation_summary(comp_text)
-    if compensation_summary["csTickCount"] is not None:
-        print(f"Den bu (CS tick): {compensation_summary['csTickCount']} don, tong {compensation_summary['totalAmount']}d")
+    ready = False
+    for _ in range(45):
+        if run_js(ws, MONEY_READY_JS):
+            ready = True
+            break
+        time.sleep(1)
+    money = run_js(ws, MONEY_JS) if ready else None
+    money_read = bool(flags) and bool(money)
+    if money_read:
+        for rec in records:
+            apply_money(rec, money.get(rec["orderCode"]) or {})
+        comp = [r for r in records if r.get("compensated")]
+        with_amt = [r for r in comp if r.get("compAmount") not in ("", None)]
+        print(f"Tien den: {len(with_amt)}/{len(comp)} don da chot den bu co so tien, tong {sum(r['compAmount'] for r in with_amt)}d")
     else:
+        print("Khong doc duoc tien den tren trang Den bu / Truy thu - giu so cu.")
+
+    # The Tổng hợp cards are rendered once when the tab opens; opened before
+    # the data has loaded they stay at 0 (the cause of the empty
+    # raw_compensation_summary since ~16/09) — so open it only once ready.
+    click_button(ws, "📊 Tổng hợp", wait=3)
+    tong = parse_compensation_summary(run_js(ws, "document.body.innerText") or "")
+    if not tong["csTickCount"]:
         print("Khong doc duoc trang Tong hop den bu.")
-        compensation_summary = None
+        tong = {k: None for k in tong}
+    else:
+        print(f"Tong hop: CS tick {tong['csTickCount']} don, den du kien {tong['totalAmount']}d, den da chot {tong['totalChotAmount']}d")
+    compensation_summary = None
+    if tong["csTickCount"] or cards["caseCount"] is not None:
+        compensation_summary = {**tong, **cards, "rangeFrom": d_from, "rangeTo": d_to, "scope": "all"}
 
     ws.close()
+
+    payload = {"records": records, "compensationSummary": compensation_summary, "fullScan": full_scan,
+               "flagsRead": bool(flags), "moneyRead": money_read}
+    if "--dry" in sys.argv:
+        with open("/tmp/rillnet_dry.json", "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, ensure_ascii=False)
+        print("--dry: khong gui len app, da ghi /tmp/rillnet_dry.json")
+        return
 
     try:
         res = requests.post(
             f"{APP_BASE_URL}/api/rillnet-sync",
             headers={"Content-Type": "application/json", "X-Sync-Secret": SYNC_SECRET},
-            json={"records": records, "compensationSummary": compensation_summary, "fullScan": full_scan, "flagsRead": bool(flags)},
+            json=payload,
             timeout=30,
         )
         print(f"Phan hoi: {res.status_code}")
