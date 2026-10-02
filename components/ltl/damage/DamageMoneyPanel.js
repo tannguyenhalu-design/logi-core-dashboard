@@ -116,6 +116,13 @@ function Reconcile({ rc }) {
             Lệch: {rc.mismatches.map((x) => `${x.label} (Rillnet ${x.money ? vnd(x.rillnet) : fmt(x.rillnet)} · dashboard ${x.money ? vnd(x.dashboard) : fmt(x.dashboard)})`).join("; ")}. Nguyên nhân hay gặp: ca có đơn lấy trước 01/07 (ngoài phạm vi dữ liệu), ca vừa đổi trạng thái sau lần quét, khoảng ngày khác nhau.
           </div>
         )}
+        {rc.mismatches.some((x) => x.key === "totalChot" || x.key === "totalAmount") && rc.chotCases?.length > 0 && (
+          <div style={{ fontSize: 12, marginTop: 6 }}>
+            <b>Ca có số "đã chốt" trong sheet ({rc.chotCases.length} ca, {vnd(rc.chotCases.reduce((a, c) => a + c.amount, 0))}):</b>{" "}
+            {rc.chotCases.map((c) => `${c.order_code} (${c.client_name.replace(/ Điện máy$/, "")}) ${vnd(c.amount)}`).join(" · ")}.{" "}
+            <span style={small}>Tổng "đã chốt" của Rillnet ({vnd(rc.rillnet?.totalChot)}) chỉ gồm số nạp qua file "Chốt tiền" — ca nào có số trong sheet mà không nằm trong tổng Rillnet thì lệch từ đó; chênh = tổng các ca đó.</span>
+          </div>
+        )}
       </div>
     </details>
   );
