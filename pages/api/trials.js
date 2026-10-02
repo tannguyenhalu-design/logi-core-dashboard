@@ -65,9 +65,10 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, options: scopeOptions(base) });
       }
       if (req.query.solution) {
-        const [base, sol] = await Promise.all([loadLtlBase(), findSolution(String(req.query.solution))]);
+        const [base, all] = await Promise.all([loadLtlBase(), readSolutions({ minVersion })]);
+        const sol = all.solutions.find((s) => s.id === String(req.query.solution));
         if (!sol) return res.status(404).json({ error: "Không tìm thấy giải pháp (có thể đã bị xoá)" });
-        const report = computeSolutionReport(base, sol, vnToday());
+        const report = computeSolutionReport(base, sol, vnToday(), { allSolutions: all.solutions });
         const fmtQ = req.query.format;
         if (fmtQ === "xlsx" || fmtQ === "docx") {
           let buf, type, ext;
@@ -114,7 +115,7 @@ export default async function handler(req, res) {
       const [base, { solutions, version }] = await Promise.all([loadLtlBase(), readSolutions({ minVersion })]);
       const today = vnToday();
       const rows = solutions.map((s) => {
-        const r = computeSolutionReport(base, s, today);
+        const r = computeSolutionReport(base, s, today, { lite: true });
         return { ...s, phases: s.phases.map((p, i) => ({ ...p, verdict: r.phases[i].impact.verdict.label, verdictLevel: r.phases[i].impact.verdict.level, monitored: !!r.phases[i].monitor })), alerts: r.alerts };
       });
       return res.status(200).json({ ok: true, solutions: rows, version, canEdit: true, canDelete: isManager, statuses: { solution: SOLUTION_STATUSES, phase: PHASE_STATUSES } });

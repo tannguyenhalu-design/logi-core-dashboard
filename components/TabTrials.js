@@ -12,6 +12,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ReconcileBox, CoverageBox, GapsBox, SourcesLine, ReconcilePrint, CoveragePrint, SourcesPrint, reconcileCopyLines } from "./TrialsReconcile";
 import { getJSON, prefetchJSON, dropPrefetched } from "../lib/prefetch";
 import DateField from "./DateField";
 import { useChart, useTheme } from "./ltl/charts/chartUtils";
@@ -558,6 +559,8 @@ function summaryText(sol, report) {
   }
   L.push(`(${MONEY_NOTE})`);
   report.alerts.forEach((a) => L.push(`⚠ ${a.text}`));
+  const f1 = reconcileCopyLines(report); // Kế hoạch F1: đối soát 2 góc nhìn, độ phủ, khoảng trống, nguồn dữ liệu
+  if (f1) L.push(f1);
   L.push(`(SD3 Dashboard Điện Máy, số liệu cập nhật ${vnStamp(report.dataAsOf)})`);
   return L.join(NL);
 }
@@ -598,6 +601,7 @@ function SolutionPrintView({ sol, report, onClose }) {
               {x.impact.savings && <div style={{ fontSize: 11.5, marginTop: 4 }}>💰 {x.impact.savings.text} <span style={{ color: C.muted }}>({coverageOf(T)})</span></div>}
               <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 6 }}><thead><tr>{["Chỉ số", "Trước", "Sau", "Chênh lệch"].map((h, i) => <th key={h} style={{ ...hc, textAlign: i ? "right" : "left" }}>{h}</th>)}</tr></thead>
                 <tbody>{[["Đơn", n0(T.base.orders), n0(T.post.orders), sgn(T.delta.orders, n0)], ["% On-time", pctTxt(T.base.ontimePct), pctTxt(T.post.ontimePct), T.delta.ontimePts == null ? "—" : `${sgn(T.delta.ontimePts, n1)} điểm`], ["Ca bể", n0(T.base.cases), n0(T.post.cases), sgn(T.delta.cases, n0)], ["% Bể vỡ", bv(T.base.per1k), bv(T.post.per1k), T.delta.per1kPct == null ? "—" : `${sgn(T.delta.per1kPct, n1)}%`], ["Tiền đền cho khách", tr(T.base.comp), tr(T.post.comp), trd(T.delta.comp)], ["Tiền đền / 1.000 đơn", tr(T.base.compPer1k), tr(T.post.compPer1k), trd(T.delta.compPer1k)], ["Truy thu (tham khảo)", tr(T.base.truyThu), tr(T.post.truyThu), trd(T.delta.truyThu)]].map((r) => <tr key={r[0]}>{r.map((c2, i) => <td key={i} style={{ ...cell, textAlign: i ? "right" : "left" }}>{c2}</td>)}</tr>)}</tbody></table>
+              <ReconcilePrint r={x.reconcile} C={C} cell={cell} hc={hc} />
               {(x.phase.images || []).length > 0 && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
                   {x.phase.images.map((im) => <figure key={im.path} style={{ margin: 0 }}><img src={`/api/trials?image=${encodeURIComponent(im.path)}`} alt={im.caption || ""} style={{ width: "100%", borderRadius: 4 }} /><figcaption style={{ fontSize: 10.5, color: C.muted, textAlign: "center" }}>{im.caption}</figcaption></figure>)}
@@ -610,6 +614,8 @@ function SolutionPrintView({ sol, report, onClose }) {
             </div>
           );
         })}
+        <CoveragePrint report={report} C={C} cell={cell} hc={hc} />
+        <SourcesPrint report={report} C={C} />
         <div style={{ fontSize: 10, color: C.muted, marginTop: 16, borderTop: `1px solid ${C.line}`, paddingTop: 6 }}>Mỗi giai đoạn so với cùng baseline chung trên phạm vi của chính nó. On-time = cờ GHN ontime / (ontime + late), loại đơn hoàn/huỷ. % Bể vỡ = ca bể (gắn theo đơn) ÷ đơn lấy × 100. Tiền đền cho khách gắn theo đơn; tiết kiệm = (tiền / 1.000 đơn trước − sau) × đơn giai đoạn sau, trừ xu hướng đối chứng — ước tính. {MONEY_NOTE} In lúc {vnStamp(new Date().toISOString())}.</div>
       </div>
     </div>
@@ -681,6 +687,8 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
               </table>
             </div>
             <div style={{ marginTop: 14 }}><WeeklyChart report={report} /></div>
+            <CoverageBox report={report} />
+            <GapsBox report={report} />
             {report.phases.map((x) => {
               const isOpen = open[x.phase.id];
               return (
@@ -707,6 +715,7 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
                         </details>
                       )}
                       <PhaseImpact impact={x.impact} />
+                      <ReconcileBox r={x.reconcile} />
                       {x.monitor && <MonitorView x={x} baseline={report.baseline} />}
                       {!s.legacy && <ImageGallery phase={x.phase} canEdit={canEdit} canDelete={canDelete} onChanged={onChanged} />}
                     </div>
@@ -715,6 +724,7 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
               );
             })}
             <div style={{ ...small, marginTop: 12 }}>Cách tính: đơn theo ngày lấy hàng · On-time = cờ GHN ontime / (ontime + late), loại đơn hoàn/huỷ · Ca bể vỡ gắn theo đơn · % Bể vỡ = ca ÷ đơn lấy × 100 (như báo cáo công ty) · Đối chứng = đơn cùng khách ngoài phạm vi giai đoạn · Nhận định theo luật cố định (chỉ % bể vỡ + on-time). Tiền đền cho khách gắn theo đơn như ca bể; ước tính tiết kiệm = (tiền / 1.000 đơn trước − sau) × đơn giai đoạn sau, trừ xu hướng nhóm đối chứng (% thay đổi) — luôn là ước tính. {MONEY_NOTE} Số liệu cập nhật {vnStamp(report.dataAsOf)}.</div>
+            <SourcesLine report={report} />
           </>
         )}
       </div>
