@@ -293,7 +293,6 @@ function metricRows(imp) {
     { key: "per1k", name: "% Bể vỡ", b: bv(t.base.per1k), p: bv(t.post.per1k), d: bvd(t.delta.per1k), dp: pct(t.delta.per1kPct), dRaw: t.delta.per1k, good: -1, cb: bv(c.base.per1k), cp: bv(c.post.per1k), net: imp.net.per1kPct == null ? "—" : pct(imp.net.per1kPct), netRaw: imp.net.per1kPct },
     ...(t.base.comp == null ? [] : [
       { key: "comp", name: "Tiền đền cho khách", money: true, b: tr(t.base.comp), p: tr(t.post.comp), d: trd(t.delta.comp), dp: pct(t.delta.compPct), dRaw: t.delta.comp, good: -1, cb: tr(c.base.comp), cp: tr(c.post.comp), net: "—" },
-      { key: "compPer1k", name: "Tiền đền / 1.000 đơn", money: true, b: tr(t.base.compPer1k), p: tr(t.post.compPer1k), d: trd(t.delta.compPer1k), dp: pct(t.delta.compPer1kPct), dRaw: t.delta.compPer1k, good: -1, cb: tr(c.base.compPer1k), cp: tr(c.post.compPer1k), net: imp.net.compPer1kPct == null ? "—" : pct(imp.net.compPer1kPct), netRaw: imp.net.compPer1kPct },
       ...(!SHOW_TRUY_THU ? [] : [{ key: "truyThu", name: "Truy thu (tham khảo)", money: true, ref: true, b: tr(t.base.truyThu), p: tr(t.post.truyThu), d: trd(t.delta.truyThu), dp: "", dRaw: null, good: 0, cb: tr(c.base.truyThu), cp: tr(c.post.truyThu), net: "—" }]),
     ]),
   ];
@@ -519,13 +518,13 @@ function MonitorView({ x, baseline }) {
       </div>
       <div style={{ overflowX: "auto" }}>
         <table className="data-table" style={{ fontSize: 12, minWidth: 880 }}>
-          <thead><tr><th style={{ ...th, textAlign: "left" }}>Kỳ</th><th style={th}>Đơn</th><th style={th}>Tấn</th><th style={th}>% On-time</th><th style={th}>Ca bể</th><th style={th}>% Bể vỡ</th><th style={th} title={MONEY_NOTE}>Tiền đền</th><th style={th} title={MONEY_NOTE}>Tiền đền / 1.000 đơn</th><th style={th}>On-time so kỳ trước</th><th style={th}>Bể vỡ so kỳ trước</th><th style={{ ...th, textAlign: "left" }}>Cảnh báo</th></tr></thead>
+          <thead><tr><th style={{ ...th, textAlign: "left" }}>Kỳ</th><th style={th}>Đơn</th><th style={th}>Tấn</th><th style={th}>% On-time</th><th style={th}>Ca bể</th><th style={th}>% Bể vỡ</th><th style={th} title={MONEY_NOTE}>Tiền đền</th><th style={th}>On-time so kỳ trước</th><th style={th}>Bể vỡ so kỳ trước</th><th style={{ ...th, textAlign: "left" }}>Cảnh báo</th></tr></thead>
           <tbody>
-            <tr style={{ color: "var(--text-muted)", fontStyle: "italic" }}><td style={{ ...td, textAlign: "left" }}>Baseline <span style={small}>{fmtS(baseline.from)}–{fmtS(baseline.to)}</span></td><td style={td}>{n0(m.baseline.orders)}</td><td style={td}>{n1(m.baseline.tons)}</td><td style={td}>{pctTxt(m.baseline.ontimePct)}</td><td style={td}>{n0(m.baseline.cases)}</td><td style={td}>{bv(m.baseline.per1k)}</td><td style={td}>{tr(m.baseline.comp)}</td><td style={td}>{tr(m.baseline.compPer1k)}</td><td style={td} /><td style={td} /><td style={td} /></tr>
+            <tr style={{ color: "var(--text-muted)", fontStyle: "italic" }}><td style={{ ...td, textAlign: "left" }}>Baseline <span style={small}>{fmtS(baseline.from)}–{fmtS(baseline.to)}</span></td><td style={td}>{n0(m.baseline.orders)}</td><td style={td}>{n1(m.baseline.tons)}</td><td style={td}>{pctTxt(m.baseline.ontimePct)}</td><td style={td}>{n0(m.baseline.cases)}</td><td style={td}>{bv(m.baseline.per1k)}</td><td style={td}>{tr(m.baseline.comp)}</td><td style={td} /><td style={td} /><td style={td} /></tr>
             {m.rows.map((r) => (
               <tr key={r.key}>
                 <td style={{ ...td, textAlign: "left", fontWeight: 600 }} title={`${fmt(r.from)} – ${fmt(r.to)}${r.sameDays ? " · so cùng số ngày kỳ trước" : ""}`}>{r.label}{r.running ? "*" : ""} <span style={small}>{fmtS(r.from)}–{fmtS(r.to)}</span></td>
-                <td style={td}>{n0(r.stats.orders)}</td><td style={td}>{n1(r.stats.tons)}</td><td style={td}>{pctTxt(r.stats.ontimePct)}</td><td style={td}>{n0(r.stats.cases)}</td><td style={td}>{bv(r.stats.per1k)}</td><td style={td}>{tr(r.stats.comp)}</td><td style={td}>{tr(r.stats.compPer1k)}</td>
+                <td style={td}>{n0(r.stats.orders)}</td><td style={td}>{n1(r.stats.tons)}</td><td style={td}>{pctTxt(r.stats.ontimePct)}</td><td style={td}>{n0(r.stats.cases)}</td><td style={td}>{bv(r.stats.per1k)}</td><td style={td}>{tr(r.stats.comp)}</td>
                 <td style={{ ...td, color: toneOf(r.vs && r.vs.ontimePts, 1) }}>{r.vs && r.vs.ontimePts != null ? `${sgn(r.vs.ontimePts, n1)} điểm` : "—"}</td>
                 <td style={{ ...td, color: toneOf(r.vs && r.vs.damageOk ? r.vs.per1kPct : null, -1) }}>{r.vs && r.vs.damageOk && r.vs.per1kPct != null ? `${sgn(r.vs.per1kPct, n1)}%` : r.vs && !r.vs.damageOk ? <span style={small}>&lt; 5 ca</span> : "—"}</td>
                 <td style={{ ...td, textAlign: "left", color: "var(--red)", fontWeight: 700 }}>{r.alerts.length ? `⚠ ${r.alerts.join(", ")}` : ""}</td>
@@ -556,7 +555,7 @@ function summaryText(sol, report) {
   for (const c of report.comparison) {
     L.push(`${c.label} (${fmt(c.startDate)} → ${c.endDate ? fmt(c.endDate) : "nay"}, ${c.status}): ${c.verdict} — ${n0(c.post.orders)} đơn, on-time ${pctTxt(c.post.ontimePct)} (${c.delta.ontimePts == null ? "—" : sgn(c.delta.ontimePts, n1) + " điểm"} so baseline), bể vỡ ${bv(c.post.per1k)} (${c.delta.per1kPct == null ? "—" : sgn(c.delta.per1kPct, n1) + "%"})`);
     if (c.base.comp != null) {
-      L.push(`   Tiền đền cho khách: ${tr(c.base.comp)} → ${tr(c.post.comp)} (/ 1.000 đơn ${tr(c.base.compPer1k)} → ${tr(c.post.compPer1k)}; ${coverageOf(c)})${SHOW_TRUY_THU ? ` · truy thu tham khảo ${tr(c.base.truyThu)} → ${tr(c.post.truyThu)}` : ""}`);
+      L.push(`   Tiền đền cho khách: ${tr(c.base.comp)} → ${tr(c.post.comp)} (${coverageOf(c)})${SHOW_TRUY_THU ? ` · truy thu tham khảo ${tr(c.base.truyThu)} → ${tr(c.post.truyThu)}` : ""}`);
       if (c.savings) L.push(`   ${c.savings.text}`);
     }
   }
@@ -589,10 +588,10 @@ function SolutionPrintView({ sol, report, onClose }) {
         {sol.description && <div style={{ fontSize: 12, marginTop: 8, whiteSpace: "pre-wrap" }}>{sol.description}</div>}
         <div style={{ fontSize: 13, fontWeight: 700, marginTop: 14 }}>So sánh các giai đoạn</div>
         <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", marginTop: 6 }}>
-          <thead><tr>{["Giai đoạn", "Thời gian", "Đơn", "% On-time", "% Bể vỡ", "On-time so BL", "Bể vỡ so BL", "Tiền đền/1.000 đơn", "Tiết kiệm (ước tính)", "Nhận định"].map((h, i) => <th key={h} style={{ ...hc, textAlign: i < 2 ? "left" : "right", whiteSpace: "normal" }}>{h}</th>)}</tr></thead>
+          <thead><tr>{["Giai đoạn", "Thời gian", "Đơn", "% On-time", "% Bể vỡ", "On-time so BL", "Bể vỡ so BL", "Tiền đền", "Tiết kiệm (ước tính)", "Nhận định"].map((h, i) => <th key={h} style={{ ...hc, textAlign: i < 2 ? "left" : "right", whiteSpace: "normal" }}>{h}</th>)}</tr></thead>
           <tbody>{report.comparison.map((c) => (
             <tr key={c.phaseId}><td style={{ ...cell, textAlign: "left", fontWeight: 700 }}>{c.label}</td><td style={{ ...cell, textAlign: "left" }}>{fmtS(c.postFrom)}–{fmtS(c.postTo)}</td><td style={cell}>{n0(c.post.orders)}</td><td style={cell}>{pctTxt(c.post.ontimePct)}</td><td style={cell}>{bv(c.post.per1k)}</td>
-              <td style={cell}>{c.delta.ontimePts == null ? "—" : `${sgn(c.delta.ontimePts, n1)} đ`}</td><td style={cell}>{c.delta.per1kPct == null ? "—" : `${sgn(c.delta.per1kPct, n1)}%`}</td><td style={cell}>{tr(c.base.compPer1k)} → {tr(c.post.compPer1k)}</td><td style={cell}>{c.savings && c.savings.ok ? `${c.savings.value >= 0 ? "~" : "+"}${tr(Math.abs(c.savings.value))}` : "chưa có số"}</td><td style={{ ...cell, color: PV[c.verdictLevel][0], fontWeight: 700 }}>{c.verdict}</td></tr>))}</tbody>
+              <td style={cell}>{c.delta.ontimePts == null ? "—" : `${sgn(c.delta.ontimePts, n1)} đ`}</td><td style={cell}>{c.delta.per1kPct == null ? "—" : `${sgn(c.delta.per1kPct, n1)}%`}</td><td style={cell}>{tr(c.post.comp) || "—"}</td><td style={cell}>{c.savings && c.savings.ok ? `${c.savings.value >= 0 ? "~" : "+"}${tr(Math.abs(c.savings.value))}` : "chưa có số"}</td><td style={{ ...cell, color: PV[c.verdictLevel][0], fontWeight: 700 }}>{c.verdict}</td></tr>))}</tbody>
         </table></div>
         {report.alerts.map((a, i) => <div key={i} style={{ fontSize: 11.5, color: C.red, marginTop: 4 }}>⚠ {a.text}</div>)}
         {report.phases.map((x) => {
@@ -603,7 +602,7 @@ function SolutionPrintView({ sol, report, onClose }) {
               <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 6, background: bc, color: fc }}><b>{v.label}</b>{v.reasons.map((s, i) => <div key={i} style={{ fontSize: 11.5, color: C.text }}>• {s}</div>)}</div>
               {x.impact.savings && <div style={{ fontSize: 11.5, marginTop: 4 }}>💰 {x.impact.savings.text} <span style={{ color: C.muted }}>({coverageOf(T)})</span></div>}
               <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 6 }}><thead><tr>{["Chỉ số", "Trước", "Sau", "Chênh lệch"].map((h, i) => <th key={h} style={{ ...hc, textAlign: i ? "right" : "left" }}>{h}</th>)}</tr></thead>
-                <tbody>{[["Đơn", n0(T.base.orders), n0(T.post.orders), sgn(T.delta.orders, n0)], ["% On-time", pctTxt(T.base.ontimePct), pctTxt(T.post.ontimePct), T.delta.ontimePts == null ? "—" : `${sgn(T.delta.ontimePts, n1)} điểm`], ["Ca bể", n0(T.base.cases), n0(T.post.cases), sgn(T.delta.cases, n0)], ["% Bể vỡ", bv(T.base.per1k), bv(T.post.per1k), T.delta.per1kPct == null ? "—" : `${sgn(T.delta.per1kPct, n1)}%`], ["Tiền đền cho khách", tr(T.base.comp), tr(T.post.comp), trd(T.delta.comp)], ["Tiền đền / 1.000 đơn", tr(T.base.compPer1k), tr(T.post.compPer1k), trd(T.delta.compPer1k)], ...(SHOW_TRUY_THU ? [["Truy thu (tham khảo)", tr(T.base.truyThu), tr(T.post.truyThu), trd(T.delta.truyThu)]] : [])].map((r) => <tr key={r[0]}>{r.map((c2, i) => <td key={i} style={{ ...cell, textAlign: i ? "right" : "left" }}>{c2}</td>)}</tr>)}</tbody></table>
+                <tbody>{[["Đơn", n0(T.base.orders), n0(T.post.orders), sgn(T.delta.orders, n0)], ["% On-time", pctTxt(T.base.ontimePct), pctTxt(T.post.ontimePct), T.delta.ontimePts == null ? "—" : `${sgn(T.delta.ontimePts, n1)} điểm`], ["Ca bể", n0(T.base.cases), n0(T.post.cases), sgn(T.delta.cases, n0)], ["% Bể vỡ", bv(T.base.per1k), bv(T.post.per1k), T.delta.per1kPct == null ? "—" : `${sgn(T.delta.per1kPct, n1)}%`], ["Tiền đền cho khách", tr(T.base.comp), tr(T.post.comp), trd(T.delta.comp)],...(SHOW_TRUY_THU ? [["Truy thu (tham khảo)", tr(T.base.truyThu), tr(T.post.truyThu), trd(T.delta.truyThu)]] : [])].map((r) => <tr key={r[0]}>{r.map((c2, i) => <td key={i} style={{ ...cell, textAlign: i ? "right" : "left" }}>{c2}</td>)}</tr>)}</tbody></table>
               <ReconcilePrint r={x.reconcile} C={C} cell={cell} hc={hc} />
               {(x.phase.images || []).length > 0 && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
@@ -673,7 +672,7 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
             <div style={{ fontSize: 13.5, fontWeight: 700, marginTop: 14 }}>So sánh các giai đoạn <span style={{ ...small, fontWeight: 400 }}>(cùng baseline chung, mỗi giai đoạn trên phạm vi của nó)</span></div>
             <div style={{ overflowX: "auto", marginTop: 6 }}>
               <table className="data-table" style={{ fontSize: 12, minWidth: 940 }}>
-                <thead><tr><th style={{ ...thw, textAlign: "left" }}>Giai đoạn</th><th style={{ ...thw, textAlign: "left" }}>Phạm vi</th><th style={thw}>Giai đoạn sau</th><th style={thw}>Đơn</th><th style={thw}>Tấn</th><th style={thw}>% On-time</th><th style={thw}>% Bể vỡ</th><th style={thw}>On-time so baseline</th><th style={thw}>Bể vỡ so baseline</th><th style={thw} title="Số của giai đoạn này trừ giai đoạn liền trước">So GĐ trước</th><th style={thw} title={MONEY_NOTE + " Tiết kiệm = (tiền / 1.000 đơn trước − sau) × đơn giai đoạn sau, trừ nhóm đối chứng — ước tính."}>Tiền đền / 1.000 đơn<div style={{ ...small, fontWeight: 400, fontSize: 10.5 }}>baseline → sau · tiết kiệm ước tính</div></th><th style={{ ...thw, textAlign: "left" }}>Nhận định</th></tr></thead>
+                <thead><tr><th style={{ ...thw, textAlign: "left" }}>Giai đoạn</th><th style={{ ...thw, textAlign: "left" }}>Phạm vi</th><th style={thw}>Giai đoạn sau</th><th style={thw}>Đơn</th><th style={thw}>Tấn</th><th style={thw}>% On-time</th><th style={thw}>% Bể vỡ</th><th style={thw}>On-time so baseline</th><th style={thw}>Bể vỡ so baseline</th><th style={thw} title="Số của giai đoạn này trừ giai đoạn liền trước">So GĐ trước</th><th style={thw} title={MONEY_NOTE + " Tiết kiệm ước tính = chênh lệch tỷ lệ (tiền/đơn) × đơn giai đoạn sau, trừ nhóm đối chứng."}>Tiền đền<div style={{ ...small, fontWeight: 400, fontSize: 10.5 }}>baseline → sau · tiết kiệm ước tính</div></th><th style={{ ...thw, textAlign: "left" }}>Nhận định</th></tr></thead>
                 <tbody>{report.comparison.map((c) => (
                   <tr key={c.phaseId}>
                     <td style={{ ...td, textAlign: "left", fontWeight: 700 }}>{c.label} <StatusBadge s={c.status} /></td>
@@ -683,7 +682,7 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
                     <td style={{ ...td, color: toneOf(c.delta.ontimePts, 1) }}>{c.delta.ontimePts == null ? "—" : `${sgn(c.delta.ontimePts, n1)} đ`}</td>
                     <td style={{ ...td, color: toneOf(c.delta.per1kPct, -1) }}>{c.delta.per1kPct == null ? "—" : `${sgn(c.delta.per1kPct, n1)}%`}</td>
                     <td style={td}>{c.vsPrev ? <span title="on-time (điểm) · bể vỡ (% thay đổi)"><span style={{ color: toneOf(c.vsPrev.ontimePts, 1) }}>{c.vsPrev.ontimePts == null ? "—" : `${sgn(c.vsPrev.ontimePts, n1)} đ`}</span> · <span style={{ color: toneOf(c.vsPrev.per1kPct, -1) }}>{c.vsPrev.per1kPct == null ? "—" : `${sgn(c.vsPrev.per1kPct, n1)}%`}</span></span> : "—"}</td>
-                    <td style={td} title={`${coverageOf(c)}${c.savings ? " · " + c.savings.text : ""}`}>{tr(c.base.compPer1k)} → <b>{tr(c.post.compPer1k)}</b>
+                    <td style={td} title={`${coverageOf(c)}${c.savings ? " · " + c.savings.text : ""}`}>{tr(c.base.comp)} → <b>{tr(c.post.comp)}</b>
                       <div style={{ fontWeight: 700, fontSize: 11.5, color: c.savings && c.savings.ok ? (c.savings.value >= 0 ? "var(--green)" : "var(--red)") : "var(--text-muted)" }}>{c.savings && c.savings.ok ? `tiết kiệm ~${tr(Math.abs(c.savings.value))}${c.savings.value < 0 ? " (tăng thêm)" : ""}` : "chưa có số"}</div></td>
                     <td style={{ ...td, textAlign: "left" }}><VerdictChip level={c.verdictLevel} text={c.verdict} /></td>
                   </tr>))}</tbody>
