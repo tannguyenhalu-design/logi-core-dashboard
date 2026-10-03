@@ -147,7 +147,13 @@ export default async function handler(req, res) {
       const staleMap = (part === "map" || withMap) && defaultBody?.ltl && !("warehouseLayer" in defaultBody.ltl);
       // Same for bodies stored before the damage money/analysis fields (Kế hoạch E).
       const staleDamage = defaultBody && !("damageMoney" in defaultBody);
-      if (defaultBody && !staleMap && !staleDamage) return res.status(200).json(shapeBody(applyRoleToBody(defaultBody, scope), part, withMap));
+      if (defaultBody && !staleMap && !staleDamage) {
+        // Safe to cache: default view data only changes when snapshot rebuilds
+        // (~3x/day). private = browser-only, CDN never involved.
+        // (Contrast: s-maxage incident 2026-09-26 was shared/CDN cache.)
+        res.setHeader("Cache-Control", "private, max-age=60, stale-while-revalidate=300");
+        return res.status(200).json(shapeBody(applyRoleToBody(defaultBody, scope), part, withMap));
+      }
     }
 
     const base = await loadLtlBase();
