@@ -6,6 +6,7 @@
  */
 import { useState } from "react";
 import { fmt } from "../utils";
+import { SHOW_TRUY_THU } from "../../../lib/display-flags";
 
 const fmtPct = (v) => (v == null ? "—" : `${v.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%`);
 
@@ -197,9 +198,9 @@ export default function RouteRiskMatrix({ risk, riskOnly = false, onRiskOnlyChan
             % bể vỡ = số ca bể vỡ ÷ đơn lấy (như bảng Hiệu suất dự án) · trung bình {Number(risk.projectAvgRate ?? avgRate ?? 0).toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%
           </span>
         </div>
-        {risk.totalAmount > 0 && (
+        {(SHOW_TRUY_THU ? risk.totalAmount > 0 : (risk.compensation?.compensated || 0) > 0) && (
           <div style={{ padding: "0 20px 10px", fontSize: 13 }}>
-            💰 Truy thu đã duyệt: <b>{fmt(risk.totalAmount)} đ</b> ({fmt(risk.compensation?.truyThu || 0)} ca) · bình quân <b>{fmt(Math.round(risk.totalAmount / risk.totalOrders))} đ/đơn</b> · đã chốt đền bù cho khách: <b>{fmt(risk.compensation?.compensated || 0)} đơn</b>
+            {SHOW_TRUY_THU && <>💰 Truy thu đã duyệt: <b>{fmt(risk.totalAmount)} đ</b> ({fmt(risk.compensation?.truyThu || 0)} ca) · bình quân <b>{fmt(Math.round(risk.totalAmount / risk.totalOrders))} đ/đơn</b> · </>}đã chốt đền bù cho khách: <b>{fmt(risk.compensation?.compensated || 0)} đơn</b>
           </div>
         )}
         <div style={{ overflowX: "auto", maxHeight: 320, overflowY: "auto" }}>
@@ -209,7 +210,7 @@ export default function RouteRiskMatrix({ risk, riskOnly = false, onRiskOnlyChan
                 <th>Dự án</th><th style={{ textAlign: "right" }}>Đơn</th><th style={{ textAlign: "right" }}>Ca bể vỡ</th>
                 <th style={{ textAlign: "right" }}>% Bể vỡ</th><th style={{ width: "30%" }}></th>
                 <th style={{ textAlign: "right" }}>Đã chốt đền bù</th>
-                <th style={{ textAlign: "right" }}>Truy thu (đã duyệt)</th>
+                {SHOW_TRUY_THU && <th style={{ textAlign: "right" }}>Truy thu (đã duyệt)</th>}
               </tr>
             </thead>
             <tbody>
@@ -232,7 +233,7 @@ export default function RouteRiskMatrix({ risk, riskOnly = false, onRiskOnlyChan
                         </div>
                       </td>
                       <td style={{ textAlign: "right", fontSize: 12 }}>{p.compensated ? fmt(p.compensated) : "—"}</td>
-                      <td style={{ textAlign: "right", fontSize: 12 }}>{p.amount > 0 ? `${fmt(p.amount)} đ (${fmt(p.truyThu)} ca)` : "—"}</td>
+                      {SHOW_TRUY_THU && <td style={{ textAlign: "right", fontSize: 12 }}>{p.amount > 0 ? `${fmt(p.amount)} đ (${fmt(p.truyThu)} ca)` : "—"}</td>}
                     </tr>
                   );
                 });

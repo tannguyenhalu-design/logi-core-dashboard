@@ -15,6 +15,7 @@ import { createPortal } from "react-dom";
 import { ReconcileBox, CoverageBox, GapsBox, SourcesLine, ReconcilePrint, CoveragePrint, SourcesPrint, reconcileCopyLines } from "./TrialsReconcile";
 import { getJSON, prefetchJSON, dropPrefetched } from "../lib/prefetch";
 import DateField from "./DateField";
+import { SHOW_TRUY_THU } from "../lib/display-flags";
 import { useChart, useTheme } from "./ltl/charts/chartUtils";
 
 const DAY = 86400000;
@@ -35,7 +36,9 @@ const pctTxt = (x) => (x == null ? "—" : `${n1(x)}%`);
 // Tiền (Kế hoạch E): triệu đồng, 1 số lẻ.
 const tr = (x) => (x == null ? "—" : !x ? "0" : `${n1(x / 1e6)} tr`);
 const trd = (x) => (x == null ? "—" : `${sgn(x / 1e6, n1)} tr`);
-const MONEY_NOTE = "Tiền đền = số CS nhập theo mã đơn, có thể còn cập nhật sau QC. Truy thu = thu lại từ nhân viên GHN làm sai, không giảm thiệt hại → chỉ tham khảo, không trừ.";
+const MONEY_NOTE = SHOW_TRUY_THU
+  ? "Tiền đền = số CS nhập theo mã đơn, có thể còn cập nhật sau QC. Truy thu = thu lại từ nhân viên GHN làm sai, không giảm thiệt hại → chỉ tham khảo, không trừ."
+  : "Tiền đền = số dự kiến CS nhập theo mã đơn, có thể còn cập nhật sau khi khách QC.";
 const coverageOf = (T) => `${n0(T.base.compWithAmount + T.post.compWithAmount)}/${n0(T.base.compensated + T.post.compensated)} ca đã chốt đền bù có số tiền`;
 const vnStamp = (iso) => { if (!iso || Number.isNaN(Date.parse(iso))) return ""; const v = new Date(Date.parse(iso) + 7 * 3600 * 1000).toISOString(); return `${v.slice(11, 16)} ${v.slice(8, 10)}/${v.slice(5, 7)}`; };
 const shortWh = (s) => String(s || "").replace(/^Kho Giao Hàng Nặng - /, "").replace(/^Key Account Warehouse /, "KA WH ").trim();
@@ -291,7 +294,7 @@ function metricRows(imp) {
     ...(t.base.comp == null ? [] : [
       { key: "comp", name: "Tiền đền cho khách", money: true, b: tr(t.base.comp), p: tr(t.post.comp), d: trd(t.delta.comp), dp: pct(t.delta.compPct), dRaw: t.delta.comp, good: -1, cb: tr(c.base.comp), cp: tr(c.post.comp), net: "—" },
       { key: "compPer1k", name: "Tiền đền / 1.000 đơn", money: true, b: tr(t.base.compPer1k), p: tr(t.post.compPer1k), d: trd(t.delta.compPer1k), dp: pct(t.delta.compPer1kPct), dRaw: t.delta.compPer1k, good: -1, cb: tr(c.base.compPer1k), cp: tr(c.post.compPer1k), net: imp.net.compPer1kPct == null ? "—" : pct(imp.net.compPer1kPct), netRaw: imp.net.compPer1kPct },
-      { key: "truyThu", name: "Truy thu (tham khảo)", money: true, ref: true, b: tr(t.base.truyThu), p: tr(t.post.truyThu), d: trd(t.delta.truyThu), dp: "", dRaw: null, good: 0, cb: tr(c.base.truyThu), cp: tr(c.post.truyThu), net: "—" },
+      ...(!SHOW_TRUY_THU ? [] : [{ key: "truyThu", name: "Truy thu (tham khảo)", money: true, ref: true, b: tr(t.base.truyThu), p: tr(t.post.truyThu), d: trd(t.delta.truyThu), dp: "", dRaw: null, good: 0, cb: tr(c.base.truyThu), cp: tr(c.post.truyThu), net: "—" }]),
     ]),
   ];
 }
@@ -356,8 +359,8 @@ function PhaseImpact({ impact }) {
           <button style={mini(ghost)} onClick={() => setShowCases((x) => !x)}>{showCases ? "Ẩn ca bể vỡ" : `Xem ${cases.length} ca bể vỡ`}</button>
           {showCases && (
             <div style={{ overflowX: "auto", maxHeight: 220, overflowY: "auto", marginTop: 4 }}>
-              <table className="data-table" style={{ fontSize: 11.5 }}><thead><tr><th>Giai đoạn</th><th>Mã đơn</th><th>Ngày phát hiện</th><th>Chặng</th><th>Kho phát hiện</th><th style={{ textAlign: "right" }}>Tiền đền</th><th style={{ textAlign: "right" }}>Truy thu (tham khảo)</th></tr></thead>
-                <tbody>{cases.map((c) => <tr key={c.order_code}><td>{c.period === "base" ? "Trước" : "Sau"}</td><td style={{ fontWeight: 700 }}>{c.order_code}</td><td>{c.case_date}</td><td>{c.leg}</td><td>{shortWh(c.warehouse)}</td><td style={{ textAlign: "right" }}>{c.comp_amount ? `${c.comp_amount.toLocaleString("vi-VN")}đ` : c.compensated ? <span style={small}>đã chốt, chưa có số</span> : "—"}</td><td style={{ textAlign: "right", color: "var(--text-muted)" }}>{c.truy_thu_amount ? `${c.truy_thu_amount.toLocaleString("vi-VN")}đ` : "—"}</td></tr>)}</tbody></table>
+              <table className="data-table" style={{ fontSize: 11.5 }}><thead><tr><th>Giai đoạn</th><th>Mã đơn</th><th>Ngày phát hiện</th><th>Chặng</th><th>Kho phát hiện</th><th style={{ textAlign: "right" }}>Tiền đền</th>{SHOW_TRUY_THU && <th style={{ textAlign: "right" }}>Truy thu (tham khảo)</th>}</tr></thead>
+                <tbody>{cases.map((c) => <tr key={c.order_code}><td>{c.period === "base" ? "Trước" : "Sau"}</td><td style={{ fontWeight: 700 }}>{c.order_code}</td><td>{c.case_date}</td><td>{c.leg}</td><td>{shortWh(c.warehouse)}</td><td style={{ textAlign: "right" }}>{c.comp_amount ? `${c.comp_amount.toLocaleString("vi-VN")}đ` : c.compensated ? <span style={small}>đã chốt, chưa có số</span> : "—"}</td>{SHOW_TRUY_THU && <td style={{ textAlign: "right", color: "var(--text-muted)" }}>{c.truy_thu_amount ? `${c.truy_thu_amount.toLocaleString("vi-VN")}đ` : "—"}</td>}</tr>)}</tbody></table>
             </div>
           )}
         </div>
@@ -553,7 +556,7 @@ function summaryText(sol, report) {
   for (const c of report.comparison) {
     L.push(`${c.label} (${fmt(c.startDate)} → ${c.endDate ? fmt(c.endDate) : "nay"}, ${c.status}): ${c.verdict} — ${n0(c.post.orders)} đơn, on-time ${pctTxt(c.post.ontimePct)} (${c.delta.ontimePts == null ? "—" : sgn(c.delta.ontimePts, n1) + " điểm"} so baseline), bể vỡ ${bv(c.post.per1k)} (${c.delta.per1kPct == null ? "—" : sgn(c.delta.per1kPct, n1) + "%"})`);
     if (c.base.comp != null) {
-      L.push(`   Tiền đền cho khách: ${tr(c.base.comp)} → ${tr(c.post.comp)} (/ 1.000 đơn ${tr(c.base.compPer1k)} → ${tr(c.post.compPer1k)}; ${coverageOf(c)}) · truy thu tham khảo ${tr(c.base.truyThu)} → ${tr(c.post.truyThu)}`);
+      L.push(`   Tiền đền cho khách: ${tr(c.base.comp)} → ${tr(c.post.comp)} (/ 1.000 đơn ${tr(c.base.compPer1k)} → ${tr(c.post.compPer1k)}; ${coverageOf(c)})${SHOW_TRUY_THU ? ` · truy thu tham khảo ${tr(c.base.truyThu)} → ${tr(c.post.truyThu)}` : ""}`);
       if (c.savings) L.push(`   ${c.savings.text}`);
     }
   }
@@ -600,7 +603,7 @@ function SolutionPrintView({ sol, report, onClose }) {
               <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 6, background: bc, color: fc }}><b>{v.label}</b>{v.reasons.map((s, i) => <div key={i} style={{ fontSize: 11.5, color: C.text }}>• {s}</div>)}</div>
               {x.impact.savings && <div style={{ fontSize: 11.5, marginTop: 4 }}>💰 {x.impact.savings.text} <span style={{ color: C.muted }}>({coverageOf(T)})</span></div>}
               <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 6 }}><thead><tr>{["Chỉ số", "Trước", "Sau", "Chênh lệch"].map((h, i) => <th key={h} style={{ ...hc, textAlign: i ? "right" : "left" }}>{h}</th>)}</tr></thead>
-                <tbody>{[["Đơn", n0(T.base.orders), n0(T.post.orders), sgn(T.delta.orders, n0)], ["% On-time", pctTxt(T.base.ontimePct), pctTxt(T.post.ontimePct), T.delta.ontimePts == null ? "—" : `${sgn(T.delta.ontimePts, n1)} điểm`], ["Ca bể", n0(T.base.cases), n0(T.post.cases), sgn(T.delta.cases, n0)], ["% Bể vỡ", bv(T.base.per1k), bv(T.post.per1k), T.delta.per1kPct == null ? "—" : `${sgn(T.delta.per1kPct, n1)}%`], ["Tiền đền cho khách", tr(T.base.comp), tr(T.post.comp), trd(T.delta.comp)], ["Tiền đền / 1.000 đơn", tr(T.base.compPer1k), tr(T.post.compPer1k), trd(T.delta.compPer1k)], ["Truy thu (tham khảo)", tr(T.base.truyThu), tr(T.post.truyThu), trd(T.delta.truyThu)]].map((r) => <tr key={r[0]}>{r.map((c2, i) => <td key={i} style={{ ...cell, textAlign: i ? "right" : "left" }}>{c2}</td>)}</tr>)}</tbody></table>
+                <tbody>{[["Đơn", n0(T.base.orders), n0(T.post.orders), sgn(T.delta.orders, n0)], ["% On-time", pctTxt(T.base.ontimePct), pctTxt(T.post.ontimePct), T.delta.ontimePts == null ? "—" : `${sgn(T.delta.ontimePts, n1)} điểm`], ["Ca bể", n0(T.base.cases), n0(T.post.cases), sgn(T.delta.cases, n0)], ["% Bể vỡ", bv(T.base.per1k), bv(T.post.per1k), T.delta.per1kPct == null ? "—" : `${sgn(T.delta.per1kPct, n1)}%`], ["Tiền đền cho khách", tr(T.base.comp), tr(T.post.comp), trd(T.delta.comp)], ["Tiền đền / 1.000 đơn", tr(T.base.compPer1k), tr(T.post.compPer1k), trd(T.delta.compPer1k)], ...(SHOW_TRUY_THU ? [["Truy thu (tham khảo)", tr(T.base.truyThu), tr(T.post.truyThu), trd(T.delta.truyThu)]] : [])].map((r) => <tr key={r[0]}>{r.map((c2, i) => <td key={i} style={{ ...cell, textAlign: i ? "right" : "left" }}>{c2}</td>)}</tr>)}</tbody></table>
               <ReconcilePrint r={x.reconcile} C={C} cell={cell} hc={hc} />
               {(x.phase.images || []).length > 0 && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>

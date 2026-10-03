@@ -6,6 +6,7 @@
  * only .exec-report); "Copy nội dung" copies a bullet text for slides.
  */
 import { useState } from "react";
+import { SHOW_TRUY_THU } from "../lib/display-flags";
 
 const n = (v) => (v == null ? "—" : Number(v).toLocaleString("vi-VN"));
 const p1 = (v) => (v == null ? "—" : `${Number(v).toLocaleString("vi-VN", { maximumFractionDigits: 1 })}%`);
@@ -47,7 +48,7 @@ export function buildReport(body) {
     const cases = l.detailedDamageCases || [];
     const comp = cases.filter((c) => c.compensated).length;
     const tt = cases.filter((c) => c.truy_thu === "co");
-    if (cases.length) issues.push(`Hư hỏng (Rillnet): ${n(cases.length)} ca · ${n(comp)} đơn đã chốt đền bù cho khách · truy thu đã duyệt ${n(tt.length)} ca (${n(tt.reduce((s, c) => s + (c.truy_thu_amount || 0), 0))}đ)`);
+    if (cases.length) issues.push(`Hư hỏng (Rillnet): ${n(cases.length)} ca · ${n(comp)} đơn đã chốt đền bù cho khách${SHOW_TRUY_THU ? ` · truy thu đã duyệt ${n(tt.length)} ca (${n(tt.reduce((s, c) => s + (c.truy_thu_amount || 0), 0))}đ)` : ""}`);
   }
   if (body.pendingPickup?.count) issues.push(`Đơn chờ lấy (chưa có ngày lấy): ${n(body.pendingPickup.count)} đơn`);
   const risk = body.damageRisk;

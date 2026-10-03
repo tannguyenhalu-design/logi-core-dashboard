@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { SHOW_TRUY_THU } from "../../../lib/display-flags";
 
 // Claim pipeline (approved 2026-09-26) — the server maps legacy labels
 // (Mới / Đang xử lý / Chờ đền bù / Hoàn tất) onto these on read.
@@ -28,7 +29,7 @@ function CompBadges({ c }) {
   return (
     <span style={{ display: "inline-flex", flexDirection: "column", gap: 2, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
       {c.compensated && <span style={{ color: "var(--amber)" }}>✅ Đã chốt đền bù{c.comp_amount ? ` · ${c.comp_amount.toLocaleString("vi-VN")}đ` : ""}</span>}
-      <span style={{ color: tt.col }}>{tt.t}</span>
+      {SHOW_TRUY_THU && <span style={{ color: tt.col }}>{tt.t}</span>}
     </span>
   );
 }
@@ -110,7 +111,7 @@ function ClaimDrawer({ c, claim, canEdit, onClose, onSave }) {
           <Field label="Nguồn báo">{c.source}</Field>
           <Field label="Trạng thái Rillnet">{c.rillnet_status}</Field>
           <Field label="Đền bù cho khách">{c.compensated ? `✅ Đã chốt${c.comp_amount ? ` · ${c.comp_amount.toLocaleString("vi-VN")}đ` : ""}` : "Chưa chốt"}</Field>
-          <Field label="Truy thu">{c.truy_thu === "co" ? `Có · ${(c.truy_thu_amount || 0).toLocaleString("vi-VN")}đ (đã duyệt)` : c.truy_thu === "khong" ? "Không truy thu (đã duyệt)" : "Chờ chốt"}</Field>
+          {SHOW_TRUY_THU && <Field label="Truy thu">{c.truy_thu === "co" ? `Có · ${(c.truy_thu_amount || 0).toLocaleString("vi-VN")}đ (đã duyệt)` : c.truy_thu === "khong" ? "Không truy thu (đã duyệt)" : "Chờ chốt"}</Field>}
           {c.amount > 0 && <Field label="Số tiền (nguồn)">{`${c.amount.toLocaleString("vi-VN")} đ`}</Field>}
         </div>
 
@@ -287,7 +288,7 @@ export default function DetailedDamageTable({ cases, filter, showClaimsWorkflow 
             <th>Tỉnh nhận</th>
             <th>Loại lỗi</th>
             <th>Chặng nghi vấn</th>
-            <th>Đền bù / Truy thu</th>
+            <th>{SHOW_TRUY_THU ? "Đền bù / Truy thu" : "Đền bù cho khách"}</th>
             {showAmount && <th style={{ textAlign: "right" }}>Số tiền</th>}
             {showClaimsWorkflow && <th>Trạng thái xử lý</th>}
             {showClaimsWorkflow && <th>Người phụ trách</th>}

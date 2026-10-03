@@ -8,6 +8,7 @@ import { fmt } from "./utils";
 
 import VolumeTrendChart from "./charts/VolumeTrendChart";
 import ProjectPerformanceTable from "./tables/ProjectPerformanceTable";
+import { SHOW_TRUY_THU } from "../../lib/display-flags";
 
 import ProvinceMapPanel from "./cards/ProvinceMapPanel";
 import DetailedDamageTable from "./tables/DetailedDamageTable";
@@ -457,7 +458,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
                 const cases = data.detailedDamageCases || [];
                 const nComp = cases.filter((c) => c.compensated).length;
                 const nTT = cases.filter((c) => c.truy_thu === "co").length;
-                return `${fmt(nComp)} đã chốt đền bù · ${fmt(nTT)} có truy thu`;
+                return SHOW_TRUY_THU ? `${fmt(nComp)} đã chốt đền bù · ${fmt(nTT)} có truy thu` : `${fmt(nComp)} đã chốt đền bù`;
               })()}
               spark={sparkFor("damaged", (v) => `${fmt(v)} ca`)}
             />
@@ -601,7 +602,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
             const chotSum = comp.reduce((s, c) => s + (c.comp_amount || 0), 0);
             return [
               { label: "Đã chốt đền bù cho khách", value: fmt(comp.length), sub: `Ops chấp nhận đền bù hoặc đã chốt tiền${chotSum ? ` · đã chốt ${fmt(chotSum)}đ` : ""}` },
-              { label: "Truy thu (đã duyệt)", value: `${fmt(tt.length)} ca`, sub: `${fmt(Math.round(ttSum / 1e5) / 10, 1)} triệu · ${fmt(cases.filter((c) => c.truy_thu === "khong").length)} không truy thu · ${fmt(cases.filter((c) => c.truy_thu === "cho").length)} chờ chốt` },
+              ...(SHOW_TRUY_THU ? [{ label: "Truy thu (đã duyệt)", value: `${fmt(tt.length)} ca`, sub: `${fmt(Math.round(ttSum / 1e5) / 10, 1)} triệu · ${fmt(cases.filter((c) => c.truy_thu === "khong").length)} không truy thu · ${fmt(cases.filter((c) => c.truy_thu === "cho").length)} chờ chốt` }] : []),
             ];
           })(),
         ];

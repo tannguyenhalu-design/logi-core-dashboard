@@ -8,6 +8,7 @@
  */
 import { useState } from "react";
 import { fmt } from "../utils";
+import { SHOW_TRUY_THU } from "../../../lib/display-flags";
 
 const vnd = (x) => `${Math.round(x || 0).toLocaleString("vi-VN")}đ`;
 const tr = (x) => (!x ? "0" : `${(x / 1e6).toLocaleString("vi-VN", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} tr`);
@@ -48,7 +49,7 @@ function MoneyTable({ rows, cmp, kind, limit }) {
             {window && <th style={th}>{cmp.currentLabel}</th>}
             {cmp && <th style={th}>{cmp.mode === "window" ? `cùng kỳ ${cmp.compareLabel}` : `kỳ trước ${cmp.compareLabel}`}</th>}
             {cmp && <th style={th}>So kỳ trước</th>}
-            <th style={{ ...th, color: "var(--text-muted)" }} title="Thu lại từ nhân viên GHN — không giảm thiệt hại, không trừ">Truy thu (tham khảo)</th>
+            {SHOW_TRUY_THU && <th style={{ ...th, color: "var(--text-muted)" }} title="Thu lại từ nhân viên GHN — không giảm thiệt hại, không trừ">Truy thu (tham khảo)</th>}
           </tr></thead>
           <tbody>
             {list.map((r) => (
@@ -60,7 +61,7 @@ function MoneyTable({ rows, cmp, kind, limit }) {
                 {window && <td style={td}>{r.cmp?.amount ? vnd(r.cmp.amount) : "—"}</td>}
                 {cmp && <td style={td}>{r.cmp?.prevAmount ? vnd(r.cmp.prevAmount) : "—"}</td>}
                 {cmp && <td style={td}><Arrow cur={window ? r.cmp?.amount : r.amount} prev={r.cmp?.prevAmount} /></td>}
-                <td style={{ ...td, color: "var(--text-muted)" }}>{r.truyThuAmount ? vnd(r.truyThuAmount) : "—"}</td>
+                {SHOW_TRUY_THU && <td style={{ ...td, color: "var(--text-muted)" }}>{r.truyThuAmount ? vnd(r.truyThuAmount) : "—"}</td>}
               </tr>
             ))}
             {!list.length && <tr><td colSpan={8} style={{ ...td, textAlign: "center", color: "var(--text-muted)" }}>Không có ca nào trong kỳ đang lọc.</td></tr>}
@@ -143,8 +144,8 @@ export default function DamageMoneyPanel({ money }) {
       value: <span>{vnd(curAmt)} <span style={{ fontSize: 14 }}><Arrow cur={curAmt} prev={c.prev.amount} /></span></span>,
       sub: `kỳ trước ${vnd(c.prev.amount)} · ${coverageText(c.mode === "window" ? c.cur : t)} / kỳ trước ${coverageText(c.prev)}`,
     } : { label: "So kỳ trước", value: "—", sub: c?.incomplete ? `Kỳ trước (${c.compareLabel}) nằm ngoài phạm vi dữ liệu` : "Không so được với bộ lọc này" },
-    { label: "Truy thu đã duyệt (tham khảo)", value: vnd(t.truyThuAmount), muted: true, sub: `${fmt(t.truyThuCases)} ca · thu từ nhân viên GHN — không giảm thiệt hại, không trừ` },
-  ];
+    SHOW_TRUY_THU ? { label: "Truy thu đã duyệt (tham khảo)", value: vnd(t.truyThuAmount), muted: true, sub: `${fmt(t.truyThuCases)} ca · thu từ nhân viên GHN — không giảm thiệt hại, không trừ` } : null,
+  ].filter(Boolean);
   return (
     <div className="chart-panel" style={{ width: "100%" }}>
       <div className="chart-panel-title">💰 Tiền đền cho khách</div>
