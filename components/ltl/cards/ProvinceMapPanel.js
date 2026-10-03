@@ -267,8 +267,41 @@ function WarehouseDetail({ site, period, dateBasis, pinned, onUnpin }) {
         ))}
       </div>
 
+      {site.names.some((n) => n.total) && (
+        <div style={{ background: "var(--panel-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 10px", marginBottom: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+            <b style={{ fontSize: 12.5, color: "var(--text-primary)" }}>📊 Tổng tải kho giao (mọi loại hàng)</b>
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>nguồn: danh sách kho giao (user)</span>
+          </div>
+          <table className="data-table" style={{ fontSize: 12 }}>
+            <thead>
+              <tr>
+                {multi && <th style={{ padding: "4px 8px" }}>Kho</th>}
+                <th style={{ padding: "4px 8px" }}>Vùng</th>
+                <th style={{ padding: "4px 8px", textAlign: "right" }}>TB đơn GTC</th>
+                <th style={{ padding: "4px 8px", textAlign: "right" }}>kg GTC</th>
+                <th style={{ padding: "4px 8px", textAlign: "right" }}>TB số xe</th>
+                <th style={{ padding: "4px 8px", textAlign: "right" }}>TB đơn GTC / xe</th>
+              </tr>
+            </thead>
+            <tbody>
+              {site.names.filter((n) => n.total).map((n) => (
+                <tr key={n.name}>
+                  {multi && <td style={{ padding: "4px 8px" }}>{shortWh(n.name)}</td>}
+                  <td style={{ padding: "4px 8px", color: "var(--text-secondary)" }}>{n.total.region || "—"}</td>
+                  <td style={{ padding: "4px 8px", textAlign: "right", fontWeight: 700 }}>{fmt(n.total.avgOrdersGtc)}</td>
+                  <td style={{ padding: "4px 8px", textAlign: "right" }}>{fmt(n.total.kgGtc)}</td>
+                  <td style={{ padding: "4px 8px", textAlign: "right" }}>{fmt(n.total.avgTrucks)}</td>
+                  <td style={{ padding: "4px 8px", textAlign: "right" }}>{fmt(n.total.avgOrdersPerTruck)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <div style={{ fontSize: 11.5, color: "var(--amber)", border: "1px solid var(--amber)", borderRadius: 6, padding: "4px 8px", marginBottom: 10 }}>
-        ⚠ Chỉ phần Điện máy — chưa phải tổng tải của kho (chưa so capacity)
+        ⚠ Số bên dưới chỉ là phần Điện máy — chưa phải tổng tải của kho (chưa so capacity)
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
