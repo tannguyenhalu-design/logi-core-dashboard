@@ -25,20 +25,6 @@ const MODES = [
 const ROUTE_COLOR = "#33D6C0";
 const WEIGHT_RGB = "13, 148, 136";
 
-const LAYERS = [
-  { id: "prov", label: "🗺️ Tỉnh" },
-  { id: "wh", label: "🏭 Kho" },
-  { id: "both", label: "Cả hai" },
-];
-const WH_ROLES = [
-  { id: "all", label: "Giao + lấy" },
-  { id: "giao", label: "Kho giao" },
-  { id: "lay", label: "Kho lấy" },
-];
-const WH_METRICS = [
-  { id: "orders", label: "Đơn/ngày" },
-  { id: "tons", label: "Tấn/ngày" },
-];
 const UNPLACED_LABEL = {
   buuCuc: "Bưu cục — chưa nối",
   noLocation: "Chưa có vị trí",
@@ -53,14 +39,6 @@ const shortWh = (name) => String(name || "")
   .replace(/^Kho B2B\s*-\s*/i, "B2B ");
 const siteLabel = (site) => shortWh(site.names[0]?.name) + (site.names.length > 1 ? ` +${site.names.length - 1}` : "");
 const dm = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : "—");
-// Average per day of the chosen role/metric — sets the dot size.
-function whValue(site, role, metric) {
-  const k = metric === "tons" ? "tonsPerDay" : "ordersPerDay";
-  const g = site.giao ? site.giao[k].avg : 0;
-  const l = site.lay ? site.lay[k].avg : 0;
-  return role === "giao" ? g : role === "lay" ? l : g + l;
-}
-const whUnit = (metric) => (metric === "tons" ? "tấn/ngày" : "đơn/ngày");
 
 const EMPTY = [];
 const shortWeight = (kg) => (kg >= 1000 ? (kg / 1000).toFixed(1).replace(".0", "") + " tấn" : (kg || 0) + " kg");
@@ -89,15 +67,13 @@ function Seg({ items, value, onChange, disabled = false, activeBg = "var(--cyan)
 // Legend in the map corner — mirrors the fills built in `colorMap` below and
 // `ProvinceLayer` in VietnamMap (thresholds must stay in sync with them), and
 // the warehouse dots (WH_R_MIN/MAX, grey, dashed = estimated).
-function MapLegend({ viewMode, maxOrders, maxWeight, singleProjectMode, layer = "prov", whMax = 0, whMetric = "orders" }) {
+function MapLegend({ viewMode, maxOrders, maxWeight, singleProjectMode, showWh = false, whMaxTotal = 0 }) {
   const [open, setOpen] = useState(true);
   useEffect(() => {
     if (window.matchMedia?.("(max-width: 767px)").matches) setOpen(false);
   }, []);
-  const showProv = layer !== "wh";
-  const showWh = layer !== "prov";
   const provTitle = { orders: "Số đơn giao", weight: "Tải trọng giao", ontime: "Tỷ lệ on-time", damage: "Ca hư hỏng (Rillnet)" }[viewMode];
-  const title = layer === "wh" ? "Kho (tải Điện máy)" : layer === "both" ? `${provTitle} + kho` : provTitle;
+  const title = showWh ? `${provTitle} + kho` : provTitle;
   const dot = (d, extra = {}) => (
     <span style={{ width: d, height: d, borderRadius: "50%", background: "var(--text-secondary)", opacity: 0.75, border: "1px solid var(--text-primary)", flexShrink: 0, boxSizing: "border-box", ...extra }} />
   );
@@ -141,12 +117,17 @@ function MapLegend({ viewMode, maxOrders, maxWeight, singleProjectMode, layer = 
       )}
       {open && showWh && (
         <>
-          {showProv && <div style={{ borderTop: "1px solid var(--border)", margin: "2px 0" }} />}
-          {row(<span style={{ display: "flex", alignItems: "center", gap: 3 }}>{dot(7)}{dot(13)}{dot(20)}</span>, `Chấm to = nhiều ${whUnit(whMetric)} (TB) · lớn nhất ${fmt(whMax, whMetric === "tons" ? 1 : 0)}`)}
-          {row(dot(12), "Xám: chưa có capacity")}
-          {row(dot(12, { border: "1.5px dashed var(--text-primary)" }), "Viền đứt: vị trí ước lượng")}
-          {row(dot(12, { background: "rgba(var(--brand-rgb),0.45)", border: "2px solid var(--cyan)", opacity: 1 }), "Kho đang chọn")}
-          <div style={{ color: "var(--amber)", whiteSpace: "normal", maxWidth: 230 }}>Chỉ phần Điện máy — chưa phải tổng tải kho. Nhiều tên kho cùng vị trí = 1 chấm.</div>
+          <div style={{ borderTop: "1px solid var(--border)", margin: "2px 0" }} />
+          {row(
+            <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+              <span style={{ width: 18, height: 18, borderRadius: "50%", border: "1.5px solid var(--text-secondary)", display: "inline-grid", placeItems: "center", flexShrink: 0 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "rgba(var(--brand-rgb),0.82)" }} />
+              </span>
+            </span>,
+            `Vòng xám = tổng tải kho giao (GTC/ngày) · chấm cam = phần Điện máy${whMaxTotal > 0 ? ` · lớn nhất ${fmt(whMaxTotal)} GTC` : ""}`
+          )}
+          {row(dot(12, { border: "1.5px dashed var(--text-primary)", background: "transparent" }), "Viền đứt: vị trí ước lượng · Chỉ chấm cam = chưa có số tổng tải")}
+          {row(dot(12, { background: "rgba(var(--brand-rgb),0.9)", border: "2px solid var(--cyan)", opacity: 1 }), "Kho đang chọn · Nhiều tên cùng vị trí = 1 chấm")}
         </>
       )}
     </div>
@@ -385,16 +366,14 @@ export default function ProvinceMapPanel({
   const [activeProv, setActiveProv] = useState(null);
   const [pinnedProv, setPinnedProv] = useState(null); // selected: map click, hotspot or Top 8
   const [focus, setFocus] = useState(null); // { name, n } → map flies there
-  const [viewMode, setViewMode] = useState("orders"); // 'orders' | 'weight' | 'ontime' | 'damage'
-  // Kho layer (Kế hoạch D · 2a)
-  const [layer, setLayer] = useState("prov"); // 'prov' | 'wh' | 'both'
-  const [whRole, setWhRole] = useState("all"); // 'all' | 'giao' | 'lay'
-  const [whMetric, setWhMetric] = useState("orders"); // 'orders' | 'tons'
+  const [viewMode, setViewMode] = useState("ontime"); // 'ontime' | 'orders' | 'weight' | 'damage'
+  // Kho layer — checkbox "Hiện kho" (Kế hoạch D · 2a, refactored)
+  const [showWhState, setShowWh] = useState(true);
   const [activeWh, setActiveWh] = useState(null);
   const [pinnedWh, setPinnedWh] = useState(null);
   const hasWh = !!warehouseLayer?.sites?.length;
-  const showWh = hasWh && layer !== "prov";
-  const showProv = layer !== "wh" || !hasWh;
+  const showWh = hasWh && showWhState;
+  const showProv = true;
 
   useEffect(() => {
     setActiveProv(null);
@@ -402,9 +381,6 @@ export default function ProvinceMapPanel({
     setActiveWh(null);
     setPinnedWh(null);
   }, [projectName, singleProjectMode, selectedOrigin]);
-  // "Kho" alone greys the provinces — a selected province would be invisible.
-  useEffect(() => { if (layer === "wh") { setPinnedProv(null); setActiveProv(null); } }, [layer]);
-
   // ── Fullscreen (whole panel, so the detail column stays visible) ──
   const panelRef = useRef(null);
   const [isFs, setIsFs] = useState(false);
@@ -504,36 +480,46 @@ export default function ProvinceMapPanel({
       : []
   ), [singleProjectMode, routeStats]);
 
-  // Warehouse dots for the chosen role/metric — radius in screen px (sqrt so
-  // the area follows the load), biggest drawn first so small ones stay on top.
+  // Warehouse dots — outer ring (grey) = total GTC delivery load (KhoGiaoTongTai),
+  // inner dot (orange) = Điện máy giao share. Both scale on the same √ axis so
+  // the ratio is visually meaningful. Biggest drawn first (small ones on top).
   const whSites = warehouseLayer?.sites || null;
   const whById = useMemo(() => new Map((whSites || []).map((w) => [w.id, w])), [whSites]);
   const whDots = useMemo(() => {
-    if (!whSites) return { dots: [], max: 0 };
-    const vals = whSites
-      .filter((w) => (whRole === "all" ? true : !!w[whRole]))
-      .map((w) => [w, whValue(w, whRole, whMetric)]);
-    const max = Math.max(0, ...vals.map(([, v]) => v));
-    const dots = vals
-      .sort((a, b) => b[1] - a[1])
-      .map(([w, v]) => ({
-        id: w.id, x: w.x, y: w.y, dashed: w.estimated, label: siteLabel(w),
-        r: WH_R_MIN + (WH_R_MAX - WH_R_MIN) * Math.sqrt(max > 0 ? v / max : 0),
-        value: v,
-        chip: `${fmt(v, whMetric === "tons" ? 2 : 1)} ${whUnit(whMetric)} (TB${whRole === "giao" ? ", kho giao" : whRole === "lay" ? ", kho lấy" : ", giao + lấy"})`,
-      }));
-    return { dots, max };
-  }, [whSites, whRole, whMetric]);
+    if (!whSites) return { dots: [], maxTotal: 0 };
+    const totalGtcOf = (w) => w.names.reduce((s, n) => s + (n.total?.avgOrdersGtc ?? 0), 0);
+    const dmGiaoOf = (w) => w.giao?.ordersPerDay?.avg ?? 0;
+    const maxVal = Math.max(1, ...whSites.map(totalGtcOf), ...whSites.map(dmGiaoOf));
+    const rOf = (v) => v > 0 ? WH_R_MIN + (WH_R_MAX - WH_R_MIN) * Math.sqrt(v / maxVal) : 0;
+    const dots = [...whSites]
+      .sort((a, b) => Math.max(totalGtcOf(b), dmGiaoOf(b)) - Math.max(totalGtcOf(a), dmGiaoOf(a)))
+      .map((w) => {
+        const totGtc = totalGtcOf(w);
+        const dmG = dmGiaoOf(w);
+        return {
+          id: w.id, x: w.x, y: w.y, dashed: w.estimated,
+          label: siteLabel(w),
+          rOuter: rOf(totGtc),
+          rInner: Math.max(1.5, rOf(dmG)),
+          totGtc, dmG,
+          chip: totGtc > 0
+            ? `${fmt(totGtc)} GTC/ng (tổng tải) · ${fmt(dmG, 1)} ĐM/ng`
+            : `${fmt(dmG, 1)} đơn/ng (Điện máy)`,
+        };
+      });
+    const maxTotal = Math.max(0, ...whSites.map(totalGtcOf));
+    return { dots, maxTotal };
+  }, [whSites]);
   const topWarehouses = useMemo(() => whDots.dots.slice(0, 8), [whDots]);
 
   const legend = useMemo(
     () => (
       <MapLegend
         viewMode={viewMode} maxOrders={scale.maxOrders} maxWeight={scale.maxWeight} singleProjectMode={singleProjectMode}
-        layer={hasWh ? layer : "prov"} whMax={whDots.max} whMetric={whMetric}
+        showWh={showWh} whMaxTotal={whDots.maxTotal}
       />
     ),
-    [viewMode, scale, singleProjectMode, hasWh, layer, whDots.max, whMetric]
+    [viewMode, scale, singleProjectMode, showWh, whDots.maxTotal]
   );
 
   const handleProvinceHover = useCallback((prov) => setActiveProv(prov), []);
@@ -591,28 +577,33 @@ export default function ProvinceMapPanel({
           Bản đồ phân bố giao hàng theo tỉnh{singleProjectMode ? ` — Dự án ${projectName}` : ""}
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span title={hasWh ? "Lớp hiển thị trên bản đồ" : "Chưa có dữ liệu kho trong snapshot — bấm “Đồng bộ Google Sheet” để dựng lại"}>
-          <Seg items={LAYERS} value={hasWh ? layer : "prov"} onChange={setLayer} disabled={!hasWh} activeBg="var(--amber)" />
-        </span>
-        {showWh && <Seg items={WH_ROLES} value={whRole} onChange={setWhRole} />}
-        {showWh && <Seg items={WH_METRICS} value={whMetric} onChange={setWhMetric} />}
-        {showProv && <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--input-bg)", padding: 3, borderRadius: 8, border: "1px solid var(--border)", flexWrap: "wrap" }}>
-          {MODES.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => setViewMode(m.id)}
+        <div style={{ display: “flex”, alignItems: “center”, gap: 10, flexWrap: “wrap” }}>
+          <label style={{ display: “flex”, alignItems: “center”, gap: 6, fontSize: 12.5, fontWeight: 600, color: “var(--text-secondary)”, cursor: “default” }}>
+            Tô tỉnh theo
+            <select
+              value={viewMode}
+              onChange={(e) => setViewMode(e.target.value)}
               style={{
-                padding: "4px 10px", borderRadius: 6, fontSize: 11.5, fontWeight: 600, border: "none", cursor: "pointer",
-                background: viewMode === m.id ? m.on : "transparent",
-                color: viewMode === m.id ? "#0f172a" : "var(--text-muted)",
-                transition: "all 0.2s",
+                fontSize: 12.5, fontWeight: 600, border: “1px solid var(--border)”, borderRadius: 6,
+                padding: “4px 8px”, background: “var(--input-bg)”, color: “var(--text-primary)”,
+                fontFamily: “inherit”, cursor: “pointer”,
               }}
             >
-              {m.label}
-            </button>
-          ))}
-        </div>}
+              <option value=”ontime”>⏱️ On-time</option>
+              <option value=”orders”>📦 Số đơn</option>
+              <option value=”weight”>⚖️ Tải trọng</option>
+              <option value=”damage”>💥 Ca hư hỏng</option>
+            </select>
+          </label>
+          {hasWh && (
+            <label style={{ display: “flex”, alignItems: “center”, gap: 6, fontSize: 12.5, fontWeight: 600, color: showWh ? “var(--text-primary)” : “var(--text-muted)”, cursor: “pointer” }}>
+              <input
+                type=”checkbox” checked={showWhState} onChange={(e) => setShowWh(e.target.checked)}
+                style={{ width: 15, height: 15, cursor: “pointer”, accentColor: “var(--cyan)” }}
+              />
+              🏭 Hiện kho
+            </label>
+          )}
         </div>
       </div>
 
@@ -653,10 +644,10 @@ export default function ProvinceMapPanel({
         const nNames = warehouseLayer.sites.reduce((a, w) => a + w.names.length, 0);
         return (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 14px", alignItems: "center", fontSize: 12, color: "var(--text-secondary)", margin: "-2px 0 12px" }}>
-            <span>🏭 <b style={{ color: "var(--text-primary)" }}>{fmt(warehouseLayer.sites.length)}</b> điểm kho ({fmt(nNames)} tên kho)</span>
-            <span>Đơn có vị trí kho: giao <b style={{ color: "var(--text-primary)" }}>{pct(t.giao)}%</b> · lấy <b style={{ color: "var(--text-primary)" }}>{pct(t.lay)}%</b></span>
+            <span>🏭 <b style={{ color: "var(--text-primary)" }}>{fmt(warehouseLayer.sites.length)}</b> điểm kho ({fmt(nNames)} tên)</span>
+            <span>Đơn có vị trí: giao <b style={{ color: "var(--text-primary)" }}>{pct(t.giao)}%</b> · lấy <b style={{ color: "var(--text-primary)" }}>{pct(t.lay)}%</b></span>
             <span>Theo {warehouseLayer.dateField === "delivered_time" ? "ngày giao" : "ngày lấy hàng"} {dm(pd.from)}–{dm(pd.to)} ({fmt(pd.days)} ngày)</span>
-            <span style={{ color: "var(--amber)", fontWeight: 600 }}>⚠ Chỉ phần Điện máy — chưa phải tổng tải kho</span>
+            <span style={{ color: "var(--text-muted)" }}>Vòng xám = tổng tải kho giao · chấm cam = phần Điện máy</span>
           </div>
         );
       })()}
@@ -666,16 +657,16 @@ export default function ProvinceMapPanel({
           <VietnamMap
             className="province-map-canvas"
             colorMap={colorMap}
-            highlightProvinces={showProv ? highlightProvinces : EMPTY}
-            routeLines={showProv ? routeLines : EMPTY}
+            highlightProvinces={highlightProvinces}
+            routeLines={routeLines}
             provinceDetailsMap={provinceDetailsMap}
             viewMode={viewMode}
-            provinceMuted={!showProv}
+            provinceMuted={false}
             warehouses={showWh ? whDots.dots : null}
             selectedWarehouse={showWh ? pinnedWh : null}
             onWarehouseHover={handleWhHover}
             onWarehouseClick={handleWhClick}
-            selectedProvince={showProv ? pinnedProv : null}
+            selectedProvince={pinnedProv}
             focusProvince={focus}
             legend={legend}
             onToggleFullscreen={fsSupported ? toggleFullscreen : null}
@@ -687,7 +678,7 @@ export default function ProvinceMapPanel({
         </div>
 
         <div className="province-map-side">
-          {!singleProjectMode && hotspotRule && showProv && (
+          {!singleProjectMode && hotspotRule && (
             <div style={{ background: "var(--panel-bg-strong)", border: "1px solid var(--border)", borderLeft: "3px solid var(--red)", borderRadius: 12, padding: "12px 14px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
                 <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>🔥 Top 5 điểm nóng cần chú ý</span>
@@ -836,15 +827,15 @@ export default function ProvinceMapPanel({
               </>
             ) : (
               <>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", marginBottom: 8 }}>{showWh ? (showProv ? "📍 Chi tiết tỉnh / kho" : "🏭 Chi tiết kho") : "📍 Chi tiết tỉnh"}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", marginBottom: 8 }}>{showWh ? "📍 Chi tiết tỉnh / kho" : "📍 Chi tiết tỉnh"}</div>
                 {showWh && (
                   <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginBottom: 8 }}>
-                    🏭 Rê hoặc bấm 1 chấm kho để xem tải đơn/ngày và tấn/ngày (TB · P90 · ngày cao nhất) khi làm kho giao và kho lấy. Phóng to để tách các kho gần nhau và hiện tên kho.
+                    🏭 Rê hoặc bấm chấm kho để xem tổng tải kho giao (vòng xám) + phần Điện máy (chấm cam): đơn/ngày TB · P90 · max, giao lẫn lấy. Phóng to để tách kho gần nhau và hiện tên.
                   </div>
                 )}
-                {showProv && <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginBottom: singleProjectMode ? 12 : 0 }}>
-                  💡 Rê chuột vào 1 tỉnh trên bản đồ để xem nhanh; bấm tỉnh (hoặc 1 điểm nóng / 1 ô Top 8) để giữ khung này — có đơn, on-time, late, ca bể vỡ, tuyến lấy chính, khách hàng và nút xem danh sách đơn.
-                </div>}
+                <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginBottom: singleProjectMode ? 12 : 0 }}>
+                  💡 Rê vào tỉnh để xem nhanh; bấm tỉnh (hoặc điểm nóng / ô Top 8) để giữ — có đơn, on-time, late, ca bể vỡ, tuyến lấy, khách hàng và nút xem danh sách đơn.
+                </div>
 
                 {singleProjectMode && projectOverview && (
                   <div className="grid-2" style={{ gap: 12 }}>
@@ -905,7 +896,7 @@ export default function ProvinceMapPanel({
           {showWh && (
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                🏭 Top 8 kho ({whRole === "giao" ? "kho giao" : whRole === "lay" ? "kho lấy" : "giao + lấy"}, {whUnit(whMetric)} TB) · bấm để phóng tới
+                🏭 Top 8 kho (tổng tải GTC/ng khi có · ĐM/ng) · bấm để phóng tới
               </div>
               <div className="grid-2" style={{ gap: 8 }}>
                 {topWarehouses.map((d) => {
@@ -925,7 +916,10 @@ export default function ProvinceMapPanel({
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
                         <span style={{ fontWeight: 600, fontSize: 12.5, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{d.label}</span>
-                        <span style={{ fontSize: 12, color: "var(--cyan)", fontWeight: 700, whiteSpace: "nowrap" }}>{fmt(d.value, whMetric === "tons" ? 2 : 1)}</span>
+                        <span style={{ fontSize: 12, color: "var(--cyan)", fontWeight: 700, whiteSpace: "nowrap" }}>
+                          {d.totGtc > 0 ? fmt(d.totGtc) : fmt(d.dmG, 1)}
+                          <span style={{ fontSize: 10, color: "var(--text-muted)", marginLeft: 2 }}>{d.totGtc > 0 ? "GTC" : "ĐM"}/ng</span>
+                        </span>
                       </div>
                     </div>
                   );
@@ -936,7 +930,7 @@ export default function ProvinceMapPanel({
 
           {showWh && <UnplacedPanel layer={warehouseLayer} />}
 
-          {showProv && <div>
+          <div>
             <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
               💡 Top 8 Tỉnh ({viewMode === "weight" ? "Xếp theo Tải trọng Tấn" : viewMode === "ontime" ? "Cảnh báo Ontime thấp trước" : viewMode === "damage" ? "Xếp theo Ca Bể Vỡ" : "Xếp theo Số đơn"})
             </div>
@@ -984,7 +978,7 @@ export default function ProvinceMapPanel({
                 );
               })}
             </div>
-          </div>}
+          </div>
         </div>
       </div>
     </div>

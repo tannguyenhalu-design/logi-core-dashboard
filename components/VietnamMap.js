@@ -39,10 +39,10 @@ const K_STEP = 1.6;
 const LABEL_K = 2.2; // province names show from this zoom level up
 const LABEL_NAMES = Object.keys(CENTROIDS).filter((n) => PATHS[n]);
 const WH_LABEL_K = 4; // warehouse names show from this zoom level up
-// Grey = no capacity yet (bước 2b colours by % used). --text-secondary is a
-// light grey in the dark theme and a dark slate in the light one, so the dots
-// stand out from the provinces in both.
-const WH_FILL = "var(--text-secondary)";
+// Outer ring = total GTC delivery load (from KhoGiaoTongTai); inner dot =
+// Điện máy share. --text-secondary shows on both dark and light maps.
+const WH_RING_STROKE = "var(--text-secondary)";
+const WH_DOT_FILL = "rgba(var(--brand-rgb), 0.82)"; // brand orange
 
 const boxCache = {};
 function provinceBox(name) {
@@ -182,7 +182,7 @@ function VietnamMap({
   onToggleFullscreen = null, // shows the ⤢ button when given
   isFullscreen = false,
   provinceMuted = false, // layer "Kho": grey, click-through provinces
-  warehouses = null, // [{ id, x, y, r (px), dashed, label, chip }] — biggest first
+  warehouses = null, // [{ id, x, y, rOuter, rInner (px), dashed, label, chip }] — biggest first
   selectedWarehouse = null,
   onWarehouseHover,
   onWarehouseClick,
@@ -501,21 +501,35 @@ function VietnamMap({
                 a small dot's hit area never steals a click on a bigger dot. */}
             <g>
               {warehouses.map((w) => (
-                <circle key={w.id} data-wid={w.id} cx={w.x} cy={w.y} r={px(Math.max(w.r, 3) + 6)} fill="transparent" />
+                <circle key={w.id} data-wid={w.id} cx={w.x} cy={w.y} r={px(Math.max(w.rOuter || 0, w.rInner, 3) + 6)} fill="transparent" />
               ))}
             </g>
             {warehouses.map((w) => {
               const on = w.id === selectedWarehouse, hov = w.id === hoveredWh;
+              const rO = w.rOuter || 0, rI = w.rInner;
+              const accentStroke = on || hov ? "var(--cyan)" : WH_RING_STROKE;
               return (
                 <g key={w.id}>
+                  {/* Outer ring = total GTC load (only when KhoGiaoTongTai data present) */}
+                  {rO > 0 && (
+                    <circle
+                      data-wid={w.id} cx={w.x} cy={w.y} r={px(rO)}
+                      fill="none"
+                      stroke={accentStroke}
+                      strokeOpacity={on || hov ? 1 : 0.68}
+                      strokeWidth={px(on ? 2.2 : hov ? 1.8 : 1.2)}
+                      strokeDasharray={w.dashed ? `${px(3)} ${px(2.2)}` : undefined}
+                    />
+                  )}
+                  {/* Inner dot = Điện máy share */}
                   <circle
-                    data-wid={w.id} cx={w.x} cy={w.y} r={px(w.r)}
-                    fill={on ? "rgba(var(--brand-rgb),0.45)" : WH_FILL}
-                    fillOpacity={on ? 1 : 0.6}
-                    stroke={on || hov ? "var(--cyan)" : "var(--text-primary)"}
-                    strokeOpacity={on || hov ? 1 : 0.75}
-                    strokeWidth={px(on ? 2.6 : hov ? 2 : w.dashed ? 1.4 : 1)}
-                    strokeDasharray={w.dashed ? `${px(3)} ${px(2.2)}` : undefined}
+                    data-wid={w.id} cx={w.x} cy={w.y} r={px(rI)}
+                    fill={on ? "rgba(var(--brand-rgb),0.95)" : WH_DOT_FILL}
+                    fillOpacity={on || hov ? 1 : 0.78}
+                    stroke={rO > 0 ? "none" : accentStroke}
+                    strokeOpacity={rO > 0 ? 0 : (on || hov ? 1 : 0.68)}
+                    strokeWidth={rO > 0 ? 0 : px(on ? 2.2 : hov ? 1.8 : w.dashed ? 1.4 : 1.1)}
+                    strokeDasharray={rO === 0 && w.dashed ? `${px(3)} ${px(2.2)}` : undefined}
                   />
                 </g>
               );
@@ -528,7 +542,7 @@ function VietnamMap({
           const placed = [];
           const shown = warehouses.filter((w) => {
             if (w.x < vb[0] || w.x > vb[0] + vb[2] || w.y < vb[1] || w.y > vb[1] + vb[3]) return false;
-            const sx = (w.x - vb[0]) * ppu + w.r + 4, sy = (w.y - vb[1]) * ppu;
+            const sx = (w.x - vb[0]) * ppu + Math.max(w.rOuter || 0, w.rInner) + 4, sy = (w.y - vb[1]) * ppu;
             const box = { x0: sx, x1: sx + w.label.length * 6.2, y0: sy - 8, y1: sy + 8 };
             if (placed.some((b) => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0)) return false;
             placed.push(box);
@@ -538,7 +552,7 @@ function VietnamMap({
             <g pointerEvents="none">
               {shown.map((w) => (
                 <text
-                  key={w.id} x={w.x + px(w.r + 4)} y={w.y} dominantBaseline="middle"
+                  key={w.id} x={w.x + px(Math.max(w.rOuter || 0, w.rInner) + 4)} y={w.y} dominantBaseline="middle"
                   fontSize={px(10.5)} fontWeight={600} fill="var(--text-primary)"
                   stroke="var(--map-ocean)" strokeWidth={px(3)} strokeLinejoin="round" paintOrder="stroke"
                 >
