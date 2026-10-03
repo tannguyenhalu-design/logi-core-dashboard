@@ -1,4 +1,4 @@
-/**
+﻿/**
  * "Bản đồ tỉnh thành" view — layout A (Kế hoạch D · Phần 1, 29/09):
  * the 4 overview numbers as a thin strip on top; the map on the left (~60%,
  * screen-high, sticky) with zoom/pan, legend and fullscreen; on the right the
@@ -577,29 +577,29 @@ export default function ProvinceMapPanel({
           Bản đồ phân bố giao hàng theo tỉnh{singleProjectMode ? ` — Dự án ${projectName}` : ""}
         </div>
 
-        <div style={{ display: “flex”, alignItems: “center”, gap: 10, flexWrap: “wrap” }}>
-          <label style={{ display: “flex”, alignItems: “center”, gap: 6, fontSize: 12.5, fontWeight: 600, color: “var(--text-secondary)”, cursor: “default” }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: "var(--text-secondary)", cursor: "default" }}>
             Tô tỉnh theo
             <select
               value={viewMode}
               onChange={(e) => setViewMode(e.target.value)}
               style={{
-                fontSize: 12.5, fontWeight: 600, border: “1px solid var(--border)”, borderRadius: 6,
-                padding: “4px 8px”, background: “var(--input-bg)”, color: “var(--text-primary)”,
-                fontFamily: “inherit”, cursor: “pointer”,
+                fontSize: 12.5, fontWeight: 600, border: "1px solid var(--border)", borderRadius: 6,
+                padding: "4px 8px", background: "var(--input-bg)", color: "var(--text-primary)",
+                fontFamily: "inherit", cursor: "pointer",
               }}
             >
-              <option value=”ontime”>⏱️ On-time</option>
-              <option value=”orders”>📦 Số đơn</option>
-              <option value=”weight”>⚖️ Tải trọng</option>
-              <option value=”damage”>💥 Ca hư hỏng</option>
+              <option value="ontime">⏱️ On-time</option>
+              <option value="orders">📦 Số đơn</option>
+              <option value="weight">⚖️ Tải trọng</option>
+              <option value="damage">💥 Ca hư hỏng</option>
             </select>
           </label>
           {hasWh && (
-            <label style={{ display: “flex”, alignItems: “center”, gap: 6, fontSize: 12.5, fontWeight: 600, color: showWh ? “var(--text-primary)” : “var(--text-muted)”, cursor: “pointer” }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: showWh ? "var(--text-primary)" : "var(--text-muted)", cursor: "pointer" }}>
               <input
-                type=”checkbox” checked={showWhState} onChange={(e) => setShowWh(e.target.checked)}
-                style={{ width: 15, height: 15, cursor: “pointer”, accentColor: “var(--cyan)” }}
+                type="checkbox" checked={showWhState} onChange={(e) => setShowWh(e.target.checked)}
+                style={{ width: 15, height: 15, cursor: "pointer", accentColor: "var(--cyan)" }}
               />
               🏭 Hiện kho
             </label>
