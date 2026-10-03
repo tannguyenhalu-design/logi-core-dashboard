@@ -366,6 +366,7 @@ export default function ProvinceMapPanel({
   const [viewMode, setViewMode] = useState("ontime"); // 'ontime' | 'orders' | 'weight' | 'damage'
   // Kho layer — checkbox "Hiện kho" (Kế hoạch D · 2a, refactored)
   const [showWhState, setShowWh] = useState(true);
+  const [whSearch, setWhSearch] = useState("");
   const [activeWh, setActiveWh] = useState(null);
   const [pinnedWh, setPinnedWh] = useState(null);
   const hasWh = !!warehouseLayer?.sites?.length;
@@ -384,6 +385,13 @@ export default function ProvinceMapPanel({
   const [fsSupported, setFsSupported] = useState(false);
   const [fsNote, setFsNote] = useState("");
   const noteTimer = useRef(null);
+  const whSearchRef = useRef(null);
+  useEffect(() => {
+    if (!whSearch) return;
+    const onDown = (e) => { if (whSearchRef.current && !whSearchRef.current.contains(e.target)) setWhSearch(""); };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [whSearch]);
   useEffect(() => {
     const d = document;
     setFsSupported(!!(d.fullscreenEnabled || d.webkitFullscreenEnabled));
@@ -508,6 +516,11 @@ export default function ProvinceMapPanel({
     return { dots, maxTotal };
   }, [whSites]);
   const topWarehouses = useMemo(() => whDots.dots.slice(0, 8), [whDots]);
+  const whSearchResults = useMemo(() => {
+    const q = whSearch.trim().toLowerCase();
+    if (!q || !showWh) return [];
+    return whDots.dots.filter((d) => d.label.toLowerCase().includes(q)).slice(0, 6);
+  }, [whSearch, whDots.dots, showWh]);
 
   const legend = useMemo(
     () => (
@@ -600,6 +613,57 @@ export default function ProvinceMapPanel({
               />
               🏭 Hiện kho
             </label>
+          )}
+          {showWh && (
+            <div style={{ position: "relative" }} ref={whSearchRef}>
+              <input
+                type="text"
+                placeholder="🔍 Tìm kho..."
+                value={whSearch}
+                onChange={(e) => setWhSearch(e.target.value)}
+                style={{
+                  fontSize: 12.5, border: "1px solid var(--border)", borderRadius: 6,
+                  padding: "4px 8px", background: "var(--input-bg)", color: "var(--text-primary)",
+                  fontFamily: "inherit", width: 140, outline: "none",
+                }}
+              />
+              {whSearch.trim() && whSearchResults.length > 0 && (
+                <div style={{
+                  position: "absolute", top: "100%", left: 0, marginTop: 4,
+                  background: "var(--panel-bg)", border: "1px solid var(--border)",
+                  borderRadius: 8, boxShadow: "0 4px 12px var(--shadow-soft)",
+                  zIndex: 10, minWidth: 200, maxWidth: 280,
+                }}>
+                  {whSearchResults.map((d) => (
+                    <button
+                      key={d.id}
+                      onClick={() => { selectWhAndFly(d); setWhSearch(""); }}
+                      style={{
+                        display: "block", width: "100%", textAlign: "left",
+                        padding: "7px 12px", fontSize: 12.5, background: "transparent",
+                        border: "none", borderBottom: "1px solid var(--border)",
+                        color: "var(--text-primary)", cursor: "pointer", fontFamily: "inherit",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--panel-bg-strong)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                    >
+                      🏭 {d.label}
+                      {d.totGtc > 0 && <span style={{ color: "var(--cyan)", marginLeft: 6, fontSize: 11 }}>{fmt(d.totGtc)} GTC/ng</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {whSearch.trim() && whSearchResults.length === 0 && (
+                <div style={{
+                  position: "absolute", top: "100%", left: 0, marginTop: 4,
+                  background: "var(--panel-bg)", border: "1px solid var(--border)",
+                  borderRadius: 8, padding: "8px 12px", fontSize: 12.5,
+                  color: "var(--text-muted)", zIndex: 10, whiteSpace: "nowrap",
+                }}>
+                  Không tìm thấy kho
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
