@@ -16,7 +16,7 @@ const { google } = require('googleapis');
 const env = fs.readFileSync('.env.local', 'utf8');
 env.split('\n').forEach(l => {
     const m = l.match(/^(.*?)=(.*)$/);
-    if (m) process.env[m[1].trim()] = m[2].trim();
+    if (m) process.env[m[1].trim()] = m[2].trim().replace(/^["']|["']$/g, '');
 });
 
 const SHEET_NAME = 'raw_ontime';
