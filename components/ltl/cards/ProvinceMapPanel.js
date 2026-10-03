@@ -97,7 +97,7 @@ function MapLegend({ viewMode, maxOrders, maxWeight, singleProjectMode, showWh =
       }}>
         Chú giải: {title} <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>{open ? "▾" : "▸"}</span>
       </button>
-      {open && showProv && (
+      {open && (
         <>
           {viewMode === "orders" && ramp("rgba(var(--brand-rgb),0.2)", "rgba(var(--brand-rgb),0.95)", "ít", `${fmt(maxOrders)} đơn`)}
           {viewMode === "weight" && ramp(`rgba(${WEIGHT_RGB},0.25)`, `rgba(${WEIGHT_RGB},0.95)`, "ít", `${fmt(maxWeight / 1000, 1)} tấn`)}
