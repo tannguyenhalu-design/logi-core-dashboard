@@ -8,6 +8,7 @@
 import { getSession } from "../../lib/auth";
 import { fetchSheet } from "../../lib/sheets";
 import { isDMRow, isLTLRow, isFromJuly2026 } from "../../lib/dm-clients";
+import { buildScope, readClientIndustry } from "../../lib/client-industry";
 import { transformLTL } from "../../lib/transform-ltl";
 
 export default async function handler(req, res) {
@@ -28,8 +29,9 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, ontimeByProject: {} });
     }
 
+    const clientScope = buildScope(await readClientIndustry());
     const filteredLTL = rawLTL.filter(
-      (r) => isDMRow(r) && isFromJuly2026(r["pickup_time"]) && isLTLRow(r)
+      (r) => isDMRow(r, clientScope) && isFromJuly2026(r["pickup_time"]) && isLTLRow(r)
     );
     const { ontimeByProject } = transformLTL(filteredLTL, {}, []);
     return res.status(200).json({ ok: true, ontimeByProject });

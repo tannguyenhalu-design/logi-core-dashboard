@@ -6,6 +6,7 @@
  * via a shared secret header since the scraper runs standalone.
  */
 import { syncDamageCauses, syncCompensationSummary } from "../../lib/rillnet-sync";
+import { syncRillnetIndustry } from "../../lib/client-industry";
 import { logAction } from "../../lib/audit-log";
 
 export default async function handler(req, res) {
@@ -25,6 +26,12 @@ export default async function handler(req, res) {
     const result = await syncDamageCauses(records, { fullScan: !!req.body?.fullScan, flagsRead: !!req.body?.flagsRead, moneyRead: !!req.body?.moneyRead });
     if (compensationSummary) {
       await syncCompensationSummary(compensationSummary);
+    }
+    // Rillnet's industry tag per client (DM / NHC / STTP / Ecom) → client_industry.
+    // A failure here must not fail the damage sync that already succeeded.
+    const ci = req.body?.clientIndustry;
+    if (ci && typeof ci === "object" && !Array.isArray(ci)) {
+      result.clientIndustry = await syncRillnetIndustry(ci).catch((e) => ({ error: e.message }));
     }
     await logAction({
       actor: "rillnet-scraper",

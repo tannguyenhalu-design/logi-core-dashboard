@@ -309,6 +309,26 @@ MONEY_JS = """
 })();
 """
 
+# Industry Rillnet tags on every ticket row (DM / NHC / STTP / Ecom), one value
+# per client (checked 03/10: 53 clients, none mixed) — the app keeps it in the
+# client_industry tab so a new Điện máy client (Komex, Pico, Smartlink…) enters
+# the dashboard scope without a code change (incident #37).
+INDUSTRY_JS = """
+(() => {
+  try {
+    const by = {};
+    _lbAllRows().forEach(r => {
+      const k = String(r.khach || '').trim(), g = String(r.nganh_hang || '').trim();
+      if (!k || !g) return;
+      (by[k] = by[k] || {})[g] = ((by[k] || {})[g] || 0) + 1;
+    });
+    const out = {};
+    Object.entries(by).forEach(([k, c]) => { out[k] = Object.entries(c).sort((a, b) => b[1] - a[1])[0][0]; });
+    return out;
+  } catch (e) { return null; }
+})();
+"""
+
 SET_RANGE_JS = """
 ((from, to) => {
   const setVal = (id, v) => {
@@ -461,6 +481,8 @@ def main():
             rec["counted"] = True
         print("Khong doc duoc trang thai den bu/truy thu (giao dien co the da doi).")
     full_scan = d_from <= DATA_START
+    client_industry = run_js(ws, INDUSTRY_JS) if tt_size > 0 else None
+    print(f"Nganh theo khach (Rillnet): {len(client_industry or {})} khach, DM: {sum(1 for v in (client_industry or {}).values() if v == 'DM')}")
     cards = parse_report_cards(run_js(ws, "document.body.innerText") or "")
     print(f"The trang bao cao: {cards}")
 
@@ -501,7 +523,7 @@ def main():
     ws.close()
 
     payload = {"records": records, "compensationSummary": compensation_summary, "fullScan": full_scan,
-               "flagsRead": bool(flags), "moneyRead": money_read}
+               "flagsRead": bool(flags), "moneyRead": money_read, "clientIndustry": client_industry or None}
     if "--dry" in sys.argv:
         with open("/tmp/rillnet_dry.json", "w", encoding="utf-8") as fh:
             json.dump(payload, fh, ensure_ascii=False)

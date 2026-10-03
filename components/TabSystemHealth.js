@@ -86,6 +86,11 @@ function ActionHint({ source, onResync, resyncing }) {
   if (source.key === "scraper") {
     return box(<>Vào Railway (project <code>sd3-cloud-scraper</code>) kiểm tra container còn chạy không; xem log <code>/data/scraper_log.txt</code>. Nếu container dừng thì Redeploy.</>);
   }
+  if (source.key === "scope") {
+    return source.level === "yellow"
+      ? box(<>Bấm "Là Điện máy" nếu khách thuộc ngành Điện máy (đơn của khách vào mọi số Điện máy), hoặc "Ngoài Điện máy" để không hỏi lại. Số liệu tự dựng lại sau mỗi lần bấm.</>)
+      : null;
+  }
   if (source.key === "raw_ontime" && source.level === "yellow") {
     return box(<>Scraper vẫn chạy tốt nhưng sheet nguồn GHN không có dòng mới. Hỏi người quản lý sheet raw_ontime xem họ có đang cập nhật không.</>);
   }
@@ -99,7 +104,41 @@ function ActionHint({ source, onResync, resyncing }) {
   return box(<>Xem log <code>/data/scraper_log.txt</code> trên Railway để biết lỗi cụ thể{source.detail ? <> — <i>{source.detail}</i></> : null}.</>);
 }
 
-function SourceFacts({ s }) {
+// Incident #37: clients with real LTL volume that nothing classifies yet. One
+// click decides; the choice is saved and the snapshot rebuilt right after.
+function ScopeFix({ clients, onDecide }) {
+  const [busy, setBusy] = useState(null);
+  const [err, setErr] = useState(null);
+  if (!clients.length) return null;
+  const decide = async (client, industry) => {
+    setBusy(client); setErr(null);
+    try {
+      const res = await fetch("/api/client-industry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ client, industry }) });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error || "Lưu không được");
+      await onDecide();
+    } catch (e) { setErr(e.message); } finally { setBusy(null); }
+  };
+  const small = { ...btnStyle, padding: "4px 10px", fontSize: 12 };
+  return (
+    <div style={{ marginTop: 8 }}>
+      {clients.map((c) => (
+        <div key={c.client} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px dashed var(--border)", fontSize: 13, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 160px", minWidth: 0 }}>
+            <b style={{ color: "var(--text-primary)" }}>{c.client}</b>
+            <div style={{ color: "var(--text-muted)", fontSize: 11 }}>{fmtNum(c.orders)} đơn LTL / 14 ngày · lấy gần nhất {fmtDate(c.lastPickup)} · nhãn nguồn {c.label}</div>
+          </div>
+          <button disabled={busy === c.client} onClick={() => decide(c.client, "DM")} style={small}>Là Điện máy</button>
+          <button disabled={busy === c.client} onClick={() => decide(c.client, "OTHER")} style={{ ...small, color: "var(--text-muted)", background: "transparent", border: "1px solid var(--border)" }}>Ngoài Điện máy</button>
+        </div>
+      ))}
+      {busy && <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>Đang lưu và dựng lại số liệu (~20 giây)…</div>}
+      {err && <div style={{ fontSize: 12, color: "var(--red)", marginTop: 6 }}>{err}</div>}
+    </div>
+  );
+}
+
+function SourceFacts({ s, onDecide }) {
   const f = s.facts || {};
   switch (s.key) {
     case "scraper":
@@ -122,6 +161,8 @@ function SourceFacts({ s }) {
         <Fact label="Ngày ca mới nhất" value={fmtDate(f.newestCaseDate)} />
         {f.failingSince && <Fact label="Hết phiên / lỗi từ" value={fmtTime(f.failingSince)} hint={fmtAgo(f.failingSince)} />}
       </>;
+    case "scope":
+      return <ScopeFix clients={f.unclassified || []} onDecide={onDecide} />;
     case "kpi":
       return <Fact label="Đồng bộ thành công gần nhất" value={fmtTime(f.lastSyncedAt)} />;
     case "snapshot":
@@ -206,7 +247,7 @@ export default function TabSystemHealth() {
                   <Badge level={s.level} />
                 </div>
                 <div style={{ fontSize: 13, color: (LEVELS[s.level] || LEVELS.unknown).color, marginBottom: 10 }}>{s.reason}</div>
-                <SourceFacts s={s} />
+                <SourceFacts s={s} onDecide={resync} />
                 <ActionHint source={s} onResync={resync} resyncing={resyncing} />
               </div>
             ))}
