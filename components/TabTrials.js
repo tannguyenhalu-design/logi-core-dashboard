@@ -618,7 +618,7 @@ function SolutionPrintView({ sol, report, onClose }) {
         })}
         <CoveragePrint report={report} C={C} cell={cell} hc={hc} />
         <SourcesPrint report={report} C={C} />
-        <div style={{ fontSize: 10, color: C.muted, marginTop: 16, borderTop: `1px solid ${C.line}`, paddingTop: 6 }}>Mỗi giai đoạn so với cùng baseline chung trên phạm vi của chính nó. On-time = cờ GHN ontime / (ontime + late), loại đơn hoàn/huỷ. % Bể vỡ = ca bể (gắn theo đơn) ÷ đơn lấy × 100. Tiền đền cho khách gắn theo đơn; tiết kiệm = (tiền / 1.000 đơn trước − sau) × đơn giai đoạn sau, trừ xu hướng đối chứng — ước tính. {MONEY_NOTE} In lúc {vnStamp(new Date().toISOString())}.</div>
+        <div style={{ fontSize: 10, color: C.muted, marginTop: 16, borderTop: `1px solid ${C.line}`, paddingTop: 6 }}>Mỗi giai đoạn so với cùng baseline chung trên phạm vi của chính nó. On-time = cờ GHN ontime / (ontime + late), loại đơn hoàn/huỷ. % Bể vỡ = ca bể (gắn theo đơn) ÷ đơn lấy × 100. Tiền đền cho khách gắn theo đơn; tiết kiệm = (tỷ lệ tiền đền/đơn trước − sau) × đơn giai đoạn sau, trừ xu hướng đối chứng — ước tính. {MONEY_NOTE} In lúc {vnStamp(new Date().toISOString())}.</div>
       </div>
     </div>
   );
@@ -725,7 +725,7 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
                 </div>
               );
             })}
-            <div style={{ ...small, marginTop: 12 }}>Cách tính: đơn theo ngày lấy hàng · On-time = cờ GHN ontime / (ontime + late), loại đơn hoàn/huỷ · Ca bể vỡ gắn theo đơn · % Bể vỡ = ca ÷ đơn lấy × 100 (như báo cáo công ty) · Đối chứng = đơn cùng khách ngoài phạm vi giai đoạn · Nhận định theo luật cố định (chỉ % bể vỡ + on-time). Tiền đền cho khách gắn theo đơn như ca bể; ước tính tiết kiệm = (tiền / 1.000 đơn trước − sau) × đơn giai đoạn sau, trừ xu hướng nhóm đối chứng (% thay đổi) — luôn là ước tính. {MONEY_NOTE} Số liệu cập nhật {vnStamp(report.dataAsOf)}.</div>
+            <div style={{ ...small, marginTop: 12 }}>Cách tính: đơn theo ngày lấy hàng · On-time = cờ GHN ontime / (ontime + late), loại đơn hoàn/huỷ · Ca bể vỡ gắn theo đơn · % Bể vỡ = ca ÷ đơn lấy × 100 (như báo cáo công ty) · Đối chứng = đơn cùng khách ngoài phạm vi giai đoạn · Nhận định theo luật cố định (chỉ % bể vỡ + on-time). Tiền đền cho khách gắn theo đơn như ca bể; ước tính tiết kiệm = (tỷ lệ tiền đền/đơn trước − sau) × đơn giai đoạn sau, trừ xu hướng nhóm đối chứng (% thay đổi) — luôn là ước tính. {MONEY_NOTE} Số liệu cập nhật {vnStamp(report.dataAsOf)}.</div>
             <SourcesLine report={report} />
           </>
         )}
