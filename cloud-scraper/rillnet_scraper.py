@@ -243,6 +243,8 @@ ENRICH_JS = """
       const files = String(r.file_id || '').split(',').filter(x => x.trim()).length;
       out[k] = {
         compensated: !!(t && t.chap_nhan_denbu === true) || !!r.den_chot,
+        // CS ticked 💰 — exactly the orders the "📊 Tổng hợp" cards total (reconciliation).
+        csTick: !!r.cs_denbu,
         // Money as the report row knows it; the truy thu page (MONEY_JS) adds
         // the revised estimate — main() picks the latest.
         csAmount: r.cs_denbu_sotien != null && r.cs_denbu_sotien !== '' ? (Number(r.cs_denbu_sotien) || 0) : '',

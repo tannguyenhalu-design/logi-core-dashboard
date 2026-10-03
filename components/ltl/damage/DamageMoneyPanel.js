@@ -134,15 +134,22 @@ export default function DamageMoneyPanel({ money }) {
   if (!money) return null;
   const t = money.total, c = money.compare;
   const curAmt = c && !c.incomplete ? (c.mode === "window" ? c.cur.amount : t.amount) : null;
+  // Ô đầu = toàn bộ ca đang xem; khi chưa chọn tháng/ngày (mode "window") đó là
+  // TOÀN BỘ từ 01/07 — nói rõ để khỏi đọc nhầm với ô so kỳ bên cạnh (03/10).
+  const scopeLabel = c?.mode === "window" ? "toàn bộ từ 01/07" : "kỳ đang lọc";
   const tiles = [
     {
-      label: "Tiền đền cho khách (kỳ đang lọc)", value: vnd(t.amount), strong: true,
-      sub: `${coverageText(t)}${t.amountOutside ? ` · +${fmt(t.amountOutside)} ca có tiền chưa đánh dấu đã chốt` : ""}`,
+      label: `Tiền đền cho khách (${scopeLabel})`, value: vnd(t.amount), strong: true,
+      sub: `${coverageText(t)}${t.edited ? ` · ${fmt(t.edited)} ca đã chỉnh sửa số` : ""}${t.amountOutside ? ` · +${fmt(t.amountOutside)} ca có tiền chưa đánh dấu đã chốt` : ""}`,
+    },
+    {
+      label: "Dự kiến, chưa chốt đền bù", value: vnd(t.pendingAmount), muted: true,
+      sub: `${fmt(t.pendingCases)} ca CS đã điền số nhưng Ops chưa chấp nhận đền — chưa tính vào tiền đền, có thể không đền`,
     },
     c && !c.incomplete ? {
       label: c.mode === "window" ? `${c.currentLabel} so cùng kỳ ${c.compareLabel}` : `So kỳ trước (${c.compareLabel})`,
       value: <span>{vnd(curAmt)} <span style={{ fontSize: 14 }}><Arrow cur={curAmt} prev={c.prev.amount} /></span></span>,
-      sub: `kỳ trước ${vnd(c.prev.amount)} · ${coverageText(c.mode === "window" ? c.cur : t)} / kỳ trước ${coverageText(c.prev)}`,
+      sub: `${c.mode === "window" ? "chỉ khoảng ngày này, không phải tổng ô bên trái · " : ""}kỳ trước ${vnd(c.prev.amount)} · ${coverageText(c.mode === "window" ? c.cur : t)} / kỳ trước ${coverageText(c.prev)}`,
     } : { label: "So kỳ trước", value: "—", sub: c?.incomplete ? `Kỳ trước (${c.compareLabel}) nằm ngoài phạm vi dữ liệu` : "Không so được với bộ lọc này" },
     SHOW_TRUY_THU ? { label: "Truy thu đã duyệt (tham khảo)", value: vnd(t.truyThuAmount), muted: true, sub: `${fmt(t.truyThuCases)} ca · thu từ nhân viên GHN — không giảm thiệt hại, không trừ` } : null,
   ].filter(Boolean);
@@ -160,7 +167,7 @@ export default function DamageMoneyPanel({ money }) {
           ))}
         </div>
         <div style={{ fontSize: 12, color: "var(--amber)" }}>
-          ⚠ {money.note}. Luôn lấy số mới nhất (đã chốt &gt; dự kiến sửa sau QC &gt; số CS nhập khi tick). Hiện <b>{coverageText(t)}</b> — tổng tiền còn thiếu cho tới khi đủ số.
+          ⚠ {money.note}. Luôn lấy số mới nhất (đã chốt &gt; dự kiến sửa sau QC &gt; số CS nhập khi tick){t.edited ? <>; <b>{fmt(t.edited)} ca đã chỉnh sửa</b> so với số CS điền lúc đầu (Rillnet không lưu lịch sử, hệ thống ghi nhận từ 03/10)</> : null}. Hiện <b>{coverageText(t)}</b> — tổng tiền còn thiếu cho tới khi đủ số.
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
           <button style={seg(tab === "project")} onClick={() => setTab("project")}>Theo dự án / khách</button>

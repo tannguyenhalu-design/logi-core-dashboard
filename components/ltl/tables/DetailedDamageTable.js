@@ -28,7 +28,9 @@ function CompBadges({ c }) {
     : c.truy_thu === "khong" ? { t: "Không truy thu", col: "var(--green)" } : { t: "Chờ chốt truy thu", col: "var(--text-muted)" };
   return (
     <span style={{ display: "inline-flex", flexDirection: "column", gap: 2, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
-      {c.compensated && <span style={{ color: "var(--amber)" }}>✅ Đã chốt đền bù{c.comp_amount ? ` · ${c.comp_amount.toLocaleString("vi-VN")}đ` : ""}</span>}
+      {c.compensated && <span style={{ color: "var(--amber)" }}>✅ Đã chốt đền bù{c.comp_amount ? ` · ${c.comp_amount.toLocaleString("vi-VN")}đ` : ""}{c.comp_edited ? " ✎" : ""}</span>}
+      {c.compensated && c.comp_edited && <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>đã chỉnh sửa{c.comp_from ? ` (trước ${c.comp_from.toLocaleString("vi-VN")}đ)` : ""}</span>}
+      {!c.compensated && c.comp_pending > 0 && <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>Dự kiến {c.comp_pending.toLocaleString("vi-VN")}đ · chưa chốt</span>}
       {SHOW_TRUY_THU && <span style={{ color: tt.col }}>{tt.t}</span>}
     </span>
   );
@@ -110,7 +112,7 @@ function ClaimDrawer({ c, claim, canEdit, onClose, onSave }) {
           <Field label="Ngày ghi nhận">{fmtYmd(c.case_date)}</Field>
           <Field label="Nguồn báo">{c.source}</Field>
           <Field label="Trạng thái Rillnet">{c.rillnet_status}</Field>
-          <Field label="Đền bù cho khách">{c.compensated ? `✅ Đã chốt${c.comp_amount ? ` · ${c.comp_amount.toLocaleString("vi-VN")}đ` : ""}` : "Chưa chốt"}</Field>
+          <Field label="Đền bù cho khách">{c.compensated ? `✅ Đã chốt${c.comp_amount ? ` · ${c.comp_amount.toLocaleString("vi-VN")}đ` : ""}${c.comp_edited ? ` · đã chỉnh sửa${c.comp_from ? ` (trước ${c.comp_from.toLocaleString("vi-VN")}đ)` : ""}` : ""}` : c.comp_pending > 0 ? `Chưa chốt · dự kiến ${c.comp_pending.toLocaleString("vi-VN")}đ (CS điền, Ops chưa chấp nhận)` : "Chưa chốt"}</Field>
           {SHOW_TRUY_THU && <Field label="Truy thu">{c.truy_thu === "co" ? `Có · ${(c.truy_thu_amount || 0).toLocaleString("vi-VN")}đ (đã duyệt)` : c.truy_thu === "khong" ? "Không truy thu (đã duyệt)" : "Chờ chốt"}</Field>}
           {c.amount > 0 && <Field label="Số tiền (nguồn)">{`${c.amount.toLocaleString("vi-VN")} đ`}</Field>}
         </div>
