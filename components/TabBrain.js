@@ -12,6 +12,24 @@ const TYPE_LABELS = {
   pattern: { label: "Pattern vận hành", emoji: "🔄", color: "#6366f1" },
 };
 
+const STATUS_CFG = {
+  "Đề xuất": { color: "#f59e0b", bg: "rgba(245,158,11,0.12)", label: "Đề xuất" },
+  "Đã duyệt": { color: "#10b981", bg: "rgba(16,185,129,0.12)", label: "✓ Đã duyệt" },
+  "Bỏ":       { color: "#ef4444", bg: "rgba(239,68,68,0.10)", label: "✕ Bỏ" },
+};
+
+function StatusBadge({ status }) {
+  const s = STATUS_CFG[status] || STATUS_CFG["Đề xuất"];
+  return (
+    <span style={{
+      background: s.bg, color: s.color, border: `1px solid ${s.color}44`,
+      borderRadius: 5, padding: "2px 7px", fontSize: 10.5, fontWeight: 600, whiteSpace: "nowrap",
+    }}>
+      {s.label}
+    </span>
+  );
+}
+
 function TypeBadge({ type }) {
   const t = TYPE_LABELS[type] || { label: type, emoji: "🧠", color: "#64748b" };
   return (
@@ -44,20 +62,22 @@ function ConfidenceDot({ val }) {
   );
 }
 
-export default function TabBrain() {
+export default function TabBrain({ role }) {
+  const isManager = role === "manager";
   const [entries, setEntries] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [error, setError] = useState(null);
   const [filterType, setFilterType] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all"); // "all"|"Đề xuất"|"Đã duyệt"|"Bỏ"
+  const [reviewing, setReviewing] = useState(null); // { row, action }
   const [adding, setAdding] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newInsight, setNewInsight] = useState({
     type: "user_preference", topic: "", insight: "", confidence: 0.8
   });
   const [resetting, setResetting] = useState(false);
-  const [totalEntries, setTotalEntries] = useState(0);
 
   const fetchBrain = async () => {
     setLoading(true);
@@ -67,11 +87,32 @@ export default function TabBrain() {
       const json = await res.json();
       if (!res.ok || !json.ok) throw new Error(json.error || "Lỗi tải dữ liệu");
       setEntries(json.entries || []);
-      setTotalEntries(json.total || 0);
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleReview = async (entry, newStatus) => {
+    const key = `${entry.row}-${newStatus}`;
+    setReviewing(key);
+    try {
+      const res = await fetch("/api/ai-memory", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ row: entry.row, ts: entry.timestamp, status: newStatus }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setEntries((prev) => prev.map((e) => e.row === entry.row ? { ...e, status: newStatus } : e));
+      } else {
+        alert("Lỗi: " + (json.error || "Không rõ"));
+      }
+    } catch (e) {
+      alert("Lỗi: " + e.message);
+    } finally {
+      setReviewing(null);
     }
   };
 
@@ -125,14 +166,28 @@ export default function TabBrain() {
     finally { setResetting(false); }
   };
 
-  const filtered = filterType === "all" ? entries : entries.filter((e) => e.type === filterType);
-  const sorted = [...filtered].sort((a, b) => b.usedCount - a.usedCount || b.confidence - a.confidence);
+  const filtered = entries
+    .filter((e) => filterType === "all" || e.type === filterType)
+    .filter((e) => filterStatus === "all" || (e.status || "Đề xuất") === filterStatus);
+  const sorted = [...filtered].sort((a, b) => {
+    // Đã duyệt lên đầu, Bỏ xuống cuối
+    const sA = a.status === "Đã duyệt" ? 0 : a.status === "Bỏ" ? 2 : 1;
+    const sB = b.status === "Đã duyệt" ? 0 : b.status === "Bỏ" ? 2 : 1;
+    if (sA !== sB) return sA - sB;
+    return b.usedCount - a.usedCount || b.confidence - a.confidence;
+  });
 
-  // Stats
   const stats = Object.keys(TYPE_LABELS).map((type) => ({
     type,
     count: entries.filter((e) => e.type === type).length,
   }));
+
+  const statusCounts = {
+    all: entries.length,
+    "Đề xuất": entries.filter((e) => !e.status || e.status === "Đề xuất").length,
+    "Đã duyệt": entries.filter((e) => e.status === "Đã duyệt").length,
+    "Bỏ": entries.filter((e) => e.status === "Bỏ").length,
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -149,8 +204,10 @@ export default function TabBrain() {
               🧠 Bộ Não Tiểu Đệ SD3
             </h3>
             <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
-              Kiến thức tích lũy từ các cuộc hội thoại — được inject vào AI mỗi lần chat.
-              Hiện có <strong style={{ color: "var(--brand-glow)" }}>{totalEntries}</strong> insights.
+              Kiến thức tích lũy từ các cuộc hội thoại — inject ưu tiên mục Đã duyệt mỗi lần chat.
+              Hiện có <strong style={{ color: "var(--brand-glow)" }}>{entries.length}</strong> insights
+              {" · "}<span style={{ color: "#10b981" }}>{statusCounts["Đã duyệt"]} đã duyệt</span>
+              {statusCounts["Đề xuất"] > 0 && <span style={{ color: "#f59e0b" }}> · {statusCounts["Đề xuất"]} chờ duyệt</span>}
             </p>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -232,6 +289,25 @@ export default function TabBrain() {
               </div>
             );
           })}
+        </div>
+
+        {/* Status filter bar */}
+        <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11, color: "var(--text-muted)", alignSelf: "center", marginRight: 4 }}>Trạng thái:</span>
+          {[["all", "Tất cả", "#64748b"], ["Đề xuất", "Đề xuất", "#f59e0b"], ["Đã duyệt", "✓ Đã duyệt", "#10b981"], ["Bỏ", "✕ Bỏ", "#ef4444"]].map(([val, label, color]) => (
+            <button
+              key={val}
+              onClick={() => setFilterStatus(val)}
+              style={{
+                background: filterStatus === val ? `${color}22` : "rgba(255,255,255,0.03)",
+                color: filterStatus === val ? color : "var(--text-muted)",
+                border: `1px solid ${filterStatus === val ? color + "66" : "var(--border)"}`,
+                borderRadius: 7, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              {label} ({statusCounts[val] ?? 0})
+            </button>
+          ))}
         </div>
       </div>
 
@@ -418,34 +494,94 @@ export default function TabBrain() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
             <thead>
               <tr style={{ background: "var(--panel-glow)", borderBottom: "1px solid var(--border)", color: "var(--text-secondary)" }}>
-                <th style={{ padding: "10px 14px", textAlign: "left", width: "14%" }}>Loại</th>
-                <th style={{ padding: "10px 14px", textAlign: "left", width: "15%" }}>Chủ đề</th>
+                <th style={{ padding: "10px 14px", textAlign: "left", width: "12%" }}>Loại</th>
+                <th style={{ padding: "10px 14px", textAlign: "left", width: "11%" }}>Chủ đề</th>
                 <th style={{ padding: "10px 14px", textAlign: "left" }}>Nội dung Insight</th>
-                <th style={{ padding: "10px 14px", textAlign: "center", width: "7%" }}>Tin cậy</th>
-                <th style={{ padding: "10px 14px", textAlign: "center", width: "7%" }}>Dùng</th>
-                <th style={{ padding: "10px 14px", textAlign: "left", width: "13%" }}>Nguồn</th>
+                <th style={{ padding: "10px 14px", textAlign: "center", width: "9%" }}>Trạng thái</th>
+                <th style={{ padding: "10px 14px", textAlign: "center", width: "6%" }}>Tin cậy</th>
+                <th style={{ padding: "10px 14px", textAlign: "center", width: "5%" }}>Dùng</th>
+                <th style={{ padding: "10px 14px", textAlign: "left", width: "11%" }}>Nguồn</th>
+                {isManager && <th style={{ padding: "10px 14px", textAlign: "center", width: "10%" }}>Hành động</th>}
               </tr>
             </thead>
             <tbody>
-              {sorted.map((e, i) => (
-                <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
-                  <td style={{ padding: "10px 14px" }}><TypeBadge type={e.type} /></td>
-                  <td style={{ padding: "10px 14px", color: "var(--text-secondary)", fontSize: 12 }}>{e.topic || "—"}</td>
-                  <td style={{ padding: "10px 14px", color: "var(--text-primary)", lineHeight: 1.6 }}>{e.insight}</td>
-                  <td style={{ padding: "10px 14px", textAlign: "center" }}><ConfidenceDot val={e.confidence} /></td>
-                  <td style={{ padding: "10px 14px", textAlign: "center", color: "var(--text-muted)" }}>
-                    {e.usedCount > 0
-                      ? <span style={{ color: "var(--brand-glow)", fontWeight: 700 }}>{e.usedCount}×</span>
-                      : "—"}
-                  </td>
-                  <td style={{ padding: "10px 14px", color: "var(--text-muted)", fontSize: 11 }}>
-                    <div>{e.source || "auto"}</div>
-                    <div style={{ fontSize: 10, opacity: 0.6 }}>
-                      {e.timestamp ? new Date(e.timestamp).toLocaleDateString("vi-VN") : ""}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {sorted.map((e, i) => {
+                const rKey = `${e.row}-Đã duyệt`;
+                const bKey = `${e.row}-Bỏ`;
+                const isApproved = e.status === "Đã duyệt";
+                const isRejected = e.status === "Bỏ";
+                return (
+                  <tr key={i} style={{
+                    borderBottom: "1px solid var(--border)",
+                    opacity: isRejected ? 0.5 : 1,
+                    background: isApproved ? "rgba(16,185,129,0.04)" : "transparent",
+                  }}>
+                    <td style={{ padding: "10px 14px" }}><TypeBadge type={e.type} /></td>
+                    <td style={{ padding: "10px 14px", color: "var(--text-secondary)", fontSize: 12 }}>{e.topic || "—"}</td>
+                    <td style={{ padding: "10px 14px", color: "var(--text-primary)", lineHeight: 1.6 }}>{e.insight}</td>
+                    <td style={{ padding: "10px 14px", textAlign: "center" }}>
+                      <StatusBadge status={e.status || "Đề xuất"} />
+                      {e.verifiedBy && <div style={{ fontSize: 9, color: "var(--text-muted)", marginTop: 2 }}>{e.verifiedBy}</div>}
+                    </td>
+                    <td style={{ padding: "10px 14px", textAlign: "center" }}><ConfidenceDot val={e.confidence} /></td>
+                    <td style={{ padding: "10px 14px", textAlign: "center", color: "var(--text-muted)" }}>
+                      {e.usedCount > 0 ? <span style={{ color: "var(--brand-glow)", fontWeight: 700 }}>{e.usedCount}×</span> : "—"}
+                    </td>
+                    <td style={{ padding: "10px 14px", color: "var(--text-muted)", fontSize: 11 }}>
+                      <div>{e.source || "auto"}</div>
+                      <div style={{ fontSize: 10, opacity: 0.6 }}>
+                        {e.timestamp ? new Date(e.timestamp).toLocaleDateString("vi-VN") : ""}
+                      </div>
+                    </td>
+                    {isManager && (
+                      <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                        {!isApproved && (
+                          <button
+                            disabled={reviewing === rKey}
+                            onClick={() => handleReview(e, "Đã duyệt")}
+                            style={{
+                              display: "block", width: "100%", marginBottom: 4,
+                              background: "rgba(16,185,129,0.15)", color: "#10b981",
+                              border: "1px solid rgba(16,185,129,0.3)", borderRadius: 6,
+                              padding: "4px 6px", fontSize: 10.5, fontWeight: 600, cursor: "pointer",
+                            }}
+                          >
+                            {reviewing === rKey ? "..." : "✓ Duyệt"}
+                          </button>
+                        )}
+                        {!isRejected && (
+                          <button
+                            disabled={reviewing === bKey}
+                            onClick={() => handleReview(e, "Bỏ")}
+                            style={{
+                              display: "block", width: "100%",
+                              background: "rgba(239,68,68,0.1)", color: "#ef4444",
+                              border: "1px solid rgba(239,68,68,0.25)", borderRadius: 6,
+                              padding: "4px 6px", fontSize: 10.5, fontWeight: 600, cursor: "pointer",
+                            }}
+                          >
+                            {reviewing === bKey ? "..." : "✕ Bỏ"}
+                          </button>
+                        )}
+                        {isApproved && (
+                          <button
+                            disabled={reviewing === `${e.row}-Đề xuất`}
+                            onClick={() => handleReview(e, "Đề xuất")}
+                            style={{
+                              display: "block", width: "100%",
+                              background: "rgba(100,116,139,0.1)", color: "var(--text-muted)",
+                              border: "1px solid var(--border)", borderRadius: 6,
+                              padding: "4px 6px", fontSize: 10.5, cursor: "pointer",
+                            }}
+                          >
+                            Hoàn tác
+                          </button>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
