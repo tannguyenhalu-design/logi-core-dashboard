@@ -757,7 +757,7 @@ export default function DashboardPage({ user: initialUser }) {
               </div>
             ) : KEEP_ALIVE_TABS.includes(activeTab) ? null
             : activeTab === "brain" ? (
-              <TabBrain />
+              <TabBrain role={user.role} />
             ) : reportOpen && dashData ? (
               <ExecutiveReport
                 body={dashData}
@@ -805,7 +805,7 @@ export default function DashboardPage({ user: initialUser }) {
           </main>
         </div>
       </div>
-      {user.role !== "cs" && <AIChatDrawer />}
+      {user.role !== "cs" && <AIChatDrawer role={user.role} />}
     </>
   );
 }

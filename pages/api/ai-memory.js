@@ -2,38 +2,27 @@
  * pages/api/ai-memory.js
  * Memory API — đọc và ghi vào Bộ Não của Tiểu Đệ SD3
  *
- * GET  /api/ai-memory           → trả về brain context hiện tại
- * POST /api/ai-memory           → lưu insight mới (manual hoặc từ chat)
- * GET  /api/ai-memory?action=summary → tạo Weekly Summary
- * DELETE /api/ai-memory         → xóa toàn bộ brain (reset)
+ * GET  /api/ai-memory                  → brain context hiện tại
+ * GET  /api/ai-memory?action=raw       → toàn bộ entries (A–K, có Status)
+ * GET  /api/ai-memory?action=summary   → tạo Weekly Summary
+ * POST /api/ai-memory                  → lưu insight mới (manual hoặc từ chat)
+ * PATCH /api/ai-memory                 → duyệt / bỏ 1 entry { row, ts, status, insight?, topic? }
+ *                                        hoặc duyệt câu trả lời chat { approveReply, reply, message }
+ * DELETE /api/ai-memory                → xóa toàn bộ brain (manager only)
  */
 import { getSession } from "../../lib/auth";
 import {
   loadBrainContext,
   saveBrainInsights,
   generateWeeklySummary,
+  readBrainEntries,
+  reviewBrainEntry,
+  extractInsightsFromChat,
   BRAIN_TYPES,
+  BRAIN_STATUS,
 } from "../../lib/ai-brain";
 import { getAuth } from "../../lib/sheets";
 import { google } from "googleapis";
-
-const BRAIN_SHEET_NAME = "AI_Brain";
-
-async function getRawBrainEntries() {
-  const auth = getAuth();
-  const authClient = await auth.getClient();
-  const sheets = google.sheets({ version: "v4", auth: authClient });
-  const spreadsheetId =
-    process.env.GOOGLE_SHEET_ID_PROJECTS ||
-    process.env.SHEET_ID_PROJECTS ||
-    process.env.GOOGLE_SHEET_ID;
-
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: `'${BRAIN_SHEET_NAME}'!A1:H500`,
-  });
-  return res.data.values || [];
-}
 
 export default async function handler(req, res) {
   const session = await getSession(req, res);
@@ -44,33 +33,43 @@ export default async function handler(req, res) {
     const { action } = req.query;
 
     if (action === "summary") {
-      // Generate weekly knowledge summary
       const summary = await generateWeeklySummary();
       return res.status(200).json({ ok: true, summary });
     }
 
     if (action === "raw") {
-      // Return raw entries for admin view
-      const rows = await getRawBrainEntries();
-      const headers = rows[0] || [];
-      const entries = rows.slice(1).map((r) => ({
-        timestamp:  r[0] || "",
-        type:       r[1] || "",
-        topic:      r[2] || "",
-        insight:    r[3] || "",
-        source:     r[4] || "",
-        confidence: parseFloat(r[5]) || 0,
-        usedCount:  parseInt(r[6]) || 0,
-        lastUsed:   r[7] || "",
-      }));
+      // Return full entries with Status/VerifiedBy/VerifiedAt and row numbers.
+      const entries = await readBrainEntries({ fresh: true });
       return res.status(200).json({ ok: true, entries, total: entries.length });
     }
 
-    // Default: return formatted brain context
-    const context = await loadBrainContext();
-    const rows = await getRawBrainEntries();
-    const total = Math.max(rows.length - 1, 0);
-    return res.status(200).json({ ok: true, context, totalEntries: total });
+    // Default: formatted brain context
+    const [context, entries] = await Promise.all([loadBrainContext(), readBrainEntries()]);
+    return res.status(200).json({ ok: true, context, totalEntries: entries.length });
+  }
+
+  // ── PATCH: duyệt / bỏ entry hoặc câu trả lời chat ──────────────────────────
+  if (req.method === "PATCH") {
+    if (session.user.role !== "manager") {
+      return res.status(403).json({ error: "Chỉ Manager mới có thể duyệt" });
+    }
+    const actor = session.user.name || session.user.email;
+    const body = req.body || {};
+
+    // Duyệt câu trả lời chat: lưu insights từ reply với status = Đã duyệt
+    if (body.approveReply) {
+      const { reply, message } = body;
+      if (!reply) return res.status(400).json({ error: "Thiếu reply" });
+      const insights = await extractInsightsFromChat({ message: message || "", reply, userName: actor, projectsList: [] });
+      if (!insights.length) return res.status(200).json({ ok: true, saved: 0, note: "Không rút được insight từ câu trả lời này" });
+      await saveBrainInsights(insights.map((i) => ({ ...i, source: session.user.email || "manager-approve", status: BRAIN_STATUS.APPROVED, verifiedBy: actor })));
+      return res.status(200).json({ ok: true, saved: insights.length });
+    }
+
+    // Duyệt / Bỏ / sửa 1 entry cụ thể
+    const { row, ts, status, insight, topic } = body;
+    const r = await reviewBrainEntry({ row, ts, status, insight, topic, actor });
+    return res.status(r.ok ? 200 : 400).json(r);
   }
 
   // ── POST: save insight(s) ────────────────────────────────────────────────────
@@ -111,7 +110,7 @@ export default async function handler(req, res) {
 
     await sheets.spreadsheets.values.clear({
       spreadsheetId,
-      range: `'${BRAIN_SHEET_NAME}'!A2:H500`,
+      range: `'AI_Brain'!A2:K2000`,
     });
     return res.status(200).json({ ok: true, message: "Brain đã được reset thành công" });
   }
