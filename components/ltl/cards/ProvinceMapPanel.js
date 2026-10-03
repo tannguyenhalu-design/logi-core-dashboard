@@ -68,10 +68,7 @@ function Seg({ items, value, onChange, disabled = false, activeBg = "var(--cyan)
 // `ProvinceLayer` in VietnamMap (thresholds must stay in sync with them), and
 // the warehouse dots (WH_R_MIN/MAX, grey, dashed = estimated).
 function MapLegend({ viewMode, maxOrders, maxWeight, singleProjectMode, showWh = false, whMaxTotal = 0 }) {
-  const [open, setOpen] = useState(true);
-  useEffect(() => {
-    if (window.matchMedia?.("(max-width: 767px)").matches) setOpen(false);
-  }, []);
+  const [open, setOpen] = useState(false);
   const provTitle = { orders: "Số đơn giao", weight: "Tải trọng giao", ontime: "Tỷ lệ on-time", damage: "Ca hư hỏng (Rillnet)" }[viewMode];
   const title = showWh ? `${provTitle} + kho` : provTitle;
   const dot = (d, extra = {}) => (
