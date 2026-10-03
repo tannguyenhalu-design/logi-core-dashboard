@@ -22,6 +22,7 @@ env.split('\n').forEach(l => {
 const SHEET_NAME = 'raw_ontime';
 const STAGING_SHEET_NAME = 'raw_ontime_staging';
 const ORDER_CODE_COL = 1; // column B
+const CUT_DATE = '2026-07-01'; // chỉ giữ đơn từ 01/07/2026 trở đi
 
 async function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
@@ -76,8 +77,12 @@ async function main() {
         }
 
         const header = freshRows[0];
-        const freshDataRows = freshRows.slice(1);
-        console.log(`Found ${freshDataRows.length} data rows in fresh export.`);
+        const createdTimeIdx = header.indexOf('created_time');
+        const allFreshDataRows = freshRows.slice(1);
+        const freshDataRows = createdTimeIdx >= 0
+            ? allFreshDataRows.filter(r => (r[createdTimeIdx] || '') >= CUT_DATE)
+            : allFreshDataRows;
+        console.log(`Found ${freshDataRows.length} data rows in fresh export (cut at ${CUT_DATE}, dropped ${allFreshDataRows.length - freshDataRows.length} older rows).`);
 
         console.log("Reading existing raw_ontime data (if any)...");
         let existingDataRows = [];
@@ -88,7 +93,13 @@ async function main() {
                 range: "'raw_ontime'!A:AV",
             });
             const existingRows = existingRes.data.values || [];
-            existingDataRows = existingRows.length > 0 ? existingRows.slice(1) : [];
+            const allExisting = existingRows.length > 0 ? existingRows.slice(1) : [];
+            // Cũng lọc existing để xoá dữ liệu cũ trước CUT_DATE khỏi DB sheet
+            existingDataRows = createdTimeIdx >= 0
+                ? allExisting.filter(r => (r[createdTimeIdx] || '') >= CUT_DATE)
+                : allExisting;
+            const droppedExisting = allExisting.length - existingDataRows.length;
+            if (droppedExisting > 0) console.log(`Dropped ${droppedExisting} existing rows older than ${CUT_DATE}.`);
         }
         console.log(`Found ${existingDataRows.length} existing data rows.`);
 
