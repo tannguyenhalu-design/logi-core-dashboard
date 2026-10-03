@@ -12,6 +12,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ClientChannelSettings from "./ClientChannelSettings";
+import { SHOW_TRUY_THU, scrubTruyThu } from "../lib/display-flags";
 import { getJSON, prefetchJSON, dropPrefetched } from "../lib/prefetch";
 
 const DAY = 86400000;
@@ -334,7 +335,7 @@ function CasePanel({ title, cases, expected, onClose }) {
         <table className="data-table" style={{ fontSize: 12 }}>
           <thead><tr>
             <th>Mã đơn</th><th>Khách</th><th>Phát hiện</th><th>Tạo</th><th>Giao</th><th>Trạng thái</th>
-            <th>Tuyến (kho lấy → kho giao)</th><th>Chặng nghi vấn</th><th>Kho phát hiện</th><th>Kg</th><th>Đền bù / truy thu</th>
+            <th>Tuyến (kho lấy → kho giao)</th><th>Chặng nghi vấn</th><th>Kho phát hiện</th><th>Kg</th><th>{SHOW_TRUY_THU ? "Đền bù / truy thu" : "Đền bù"}</th>
           </tr></thead>
           <tbody>
             {cases.map((c) => (
@@ -349,7 +350,7 @@ function CasePanel({ title, cases, expected, onClose }) {
                 <td>{c.leg}</td>
                 <td>{shortWh(c.warehouse)}</td>
                 <td>{c.weight_kg ?? "—"}</td>
-                <td>{c.compensated ? "Đã chốt đền" : "—"} · {c.truy_thu === "co" ? `Truy thu ${fmtNum(c.truy_thu_amount)}đ` : c.truy_thu === "khong" ? "Không truy thu" : "Chờ chốt"}</td>
+                <td>{c.compensated ? "Đã chốt đền" : "—"}{SHOW_TRUY_THU ? <> · {c.truy_thu === "co" ? `Truy thu ${fmtNum(c.truy_thu_amount)}đ` : c.truy_thu === "khong" ? "Không truy thu" : "Chờ chốt"}</> : null}</td>
               </tr>
             ))}
           </tbody>
@@ -371,7 +372,7 @@ function InsightBox({ ins, title, noneLabel = "Không phát sinh" }) {
   const [copied, setCopied] = useState(false);
   if (!ins || !(ins.clients.length || ins.total)) return null;
   const none = ins.none || [];
-  const text = [ins.total, ins.pending, ...ins.clients.flatMap((c) => ["• " + c.lines[0], ...c.lines.slice(1).map((l) => "   " + l)]),
+  const text = [ins.total, ins.pending, ...ins.clients.flatMap((c) => ["• " + c.lines[0], ...c.lines.slice(1).map((l) => "   " + scrubTruyThu(l))]),
     ...(none.length ? [`${noneLabel}: ${none.join(", ")}.`] : [])].filter(Boolean).join(NL);
   const copy = () => { try { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* no clipboard */ } };
   const tone = (l) => (l.startsWith("⚠") || l.startsWith("⏳") ? "var(--amber)" : "var(--text-secondary)");
@@ -391,7 +392,7 @@ function InsightBox({ ins, title, noneLabel = "Không phát sinh" }) {
         {ins.clients.map((c) => (
           <div key={c.client} style={{ marginBottom: 10 }}>
             <div style={{ fontWeight: 600 }}>• {c.lines[0]}</div>
-            {c.lines.slice(1).map((l, i) => <div key={i} style={{ paddingLeft: 16, color: tone(l) }}>{l}</div>)}
+            {c.lines.slice(1).map((l, i) => <div key={i} style={{ paddingLeft: 16, color: tone(l) }}>{scrubTruyThu(l)}</div>)}
           </div>
         ))}
         {none.length > 0 && <div style={{ color: "var(--text-muted)" }}>{noneLabel}: {none.join(", ")}.</div>}
