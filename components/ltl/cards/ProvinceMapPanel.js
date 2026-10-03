@@ -278,10 +278,10 @@ function WarehouseDetail({ site, period, dateBasis, pinned, onUnpin }) {
               <tr>
                 {multi && <th style={{ padding: "4px 8px" }}>Kho</th>}
                 <th style={{ padding: "4px 8px" }}>Vùng</th>
-                <th style={{ padding: "4px 8px", textAlign: "right" }}>TB đơn GTC</th>
-                <th style={{ padding: "4px 8px", textAlign: "right" }}>kg GTC</th>
-                <th style={{ padding: "4px 8px", textAlign: "right" }}>TB số xe</th>
-                <th style={{ padding: "4px 8px", textAlign: "right" }}>TB đơn GTC / xe</th>
+                <th style={{ padding: "4px 8px", textAlign: "right" }}>Đơn GTC/ngày (TB)</th>
+                <th style={{ padding: "4px 8px", textAlign: "right" }}>kg GTC/ngày (TB)</th>
+                <th style={{ padding: "4px 8px", textAlign: "right" }}>Số xe/ngày (TB)</th>
+                <th style={{ padding: "4px 8px", textAlign: "right" }}>Đơn GTC/xe</th>
               </tr>
             </thead>
             <tbody>
