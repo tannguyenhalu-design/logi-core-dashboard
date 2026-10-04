@@ -1,11 +1,13 @@
 @echo off
 cd /d "%~dp0\.."
 
-REM 1. Doc secret tu .env.local
+REM 1. Doc secret tu .env.local (strip dau ngoac kep neu co)
 for /f "tokens=1,* delims==" %%A in (.env.local) do (
     if "%%A"=="KPI_SYNC_SECRET" set KPI_SYNC_SECRET=%%B
     if "%%A"=="RILLNET_SYNC_SECRET" set RILLNET_SYNC_SECRET=%%B
 )
+set RILLNET_SYNC_SECRET=%RILLNET_SYNC_SECRET:"=%
+set KPI_SYNC_SECRET=%KPI_SYNC_SECRET:"=%
 
 REM 2. Khoi dong Chrome (dung profile rieng, day ra ngoai man hinh de khong lam phien)
 start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --remote-allow-origins=* --user-data-dir="C:\chrome-bot-profile" --window-position=-3000,-3000
