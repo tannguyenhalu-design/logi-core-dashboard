@@ -230,7 +230,7 @@ function SolutionForm({ initial, isNew, legacyPhase, options, statuses, onCancel
   };
   const setPhase = (patch) => set({ phase: { ...f.phase, ...patch } });
   return (
-    <div className="glass fade-in" style={{ padding: 16, marginBottom: 16 }}>
+    <div className="glass fade-in" style={{ padding: 16 }}>
       <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{isNew ? "Thêm giải pháp mới" : legacyPhase ? "Lưu thành giải pháp có giai đoạn" : "Sửa giải pháp"}</div>
       {legacyPhase && <div style={{ ...small, marginBottom: 8, color: "var(--amber)" }}>Giải pháp cũ (chưa có giai đoạn): lưu xong nó thành giải pháp gồm <b>Trial 1</b> = phạm vi và thời gian hiện tại. Sau đó dùng "➕ Giai đoạn tiếp".</div>}
       <div style={grid}>
@@ -278,7 +278,7 @@ function PhaseForm({ solution, initial, options, statuses, onCancel, onSaved }) 
   };
   const allOrders = () => set({ khoLay: [], khoGiao: [], provinces: [] });
   return (
-    <div className="glass fade-in" style={{ padding: 16, marginBottom: 16 }}>
+    <div className="glass fade-in" style={{ padding: 16 }}>
       <div style={{ fontSize: 14, fontWeight: 700 }}>{f.id ? `Sửa ${f.label}` : "➕ Giai đoạn tiếp theo"} <span style={{ ...small, fontWeight: 400 }}>· {solution.name}</span></div>
       <div style={{ ...small, marginBottom: 10 }}>Baseline chung {fmt(solution.baseStart)} – {fmt(solution.baseEnd)} · khách <ClientsCompact clients={solution.clients} max={3} />. {f.id ? "" : "Phạm vi đã chép từ giai đoạn trước — sửa lại cho giai đoạn này. Giai đoạn cũ vẫn chạy song song."}</div>
       <div style={grid}>
@@ -770,6 +770,20 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
   );
 }
 
+function FormModal({ title, onCancel, children }) {
+  useEffect(() => {
+    const esc = (e) => { if (e.key === "Escape") onCancel(); };
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [onCancel]);
+  return (
+    <div role="dialog" aria-modal="true" aria-label={title} onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+      style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,0.55)", display: "flex", justifyContent: "center", alignItems: "flex-start", padding: "24px 12px", overflowY: "auto" }}>
+      <div style={{ width: "100%", maxWidth: 900, boxSizing: "border-box" }}>{children}</div>
+    </div>
+  );
+}
+
 const goalInit = (s = {}) => ({ problem: s.problem || "", action: s.action || "", primaryMetric: s.primaryMetric || "", primaryTarget: s.primaryTarget ?? "", secondaryMetrics: s.secondaryMetrics || [], guardrails: s.guardrails || [], owner: s.owner || "", reviewDate: s.reviewDate || "", metricNote: s.metricNote || "" });
 const EMPTY_PHASE = { id: "", label: "Trial 1", khoLay: [], khoGiao: [], provinces: [], startDate: "", endDate: "", ongoing: true, status: "Đang trial", description: "", liveDate: "", controlMode: "" };
 
@@ -809,17 +823,15 @@ export default function TabTrials() {
   const shown = sols.filter((s) => (filter === "all" || s.status === filter)
     && (!q || `${s.name} ${s.clients.join(" ")} ${s.phases.map((p) => `${p.label} ${p.khoLay.join(" ")} ${p.khoGiao.join(" ")} ${p.provinces.join(" ")}`).join(" ")}`.toLowerCase().includes(q.toLowerCase())));
   const closeDetail = useCallback(() => setSelected(null), []);
-  const top = () => { if (typeof window !== "undefined") window.scrollTo?.({ top: 0, behavior: "smooth" }); };
 
-  const newSolution = () => { setMsg(null); setForm({ kind: "solution", isNew: true, initial: { id: "", name: "", clients: [], baseStart: "", baseEnd: "", status: "Đang trial", description: "", ...goalInit(), phase: { ...EMPTY_PHASE, startDate: vnToday() } } }); top(); };
+  const newSolution = () => { setMsg(null); setForm({ kind: "solution", isNew: true, initial: { id: "", name: "", clients: [], baseStart: "", baseEnd: "", status: "Đang trial", description: "", ...goalInit(), phase: { ...EMPTY_PHASE, startDate: vnToday() } } }); };
   const editSolution = (s) => {
     setMsg(null); setSelected(null);
     const legacyPhase = s.legacy ? s.phases[0] : null;
     setForm({ kind: "solution", isNew: false, legacyPhase, initial: { id: s.legacy ? "" : s.id, name: s.name, clients: s.clients, baseStart: s.baseStart, baseEnd: s.baseEnd, status: s.status, description: s.description, ...goalInit(s), firstPhaseStart: s.phases[0]?.startDate || "" } });
-    top();
   };
-  const nextPhase = (s) => { setMsg(null); setSelected(null); if (s.legacy) { editSolution(s); return; } setForm({ kind: "phase", solution: s, initial: nextPhasePreset(s) }); top(); };
-  const editPhase = (s, p) => { setMsg(null); setSelected(null); setForm({ kind: "phase", solution: s, initial: { ...p, ongoing: !p.endDate } }); top(); };
+  const nextPhase = (s) => { setMsg(null); setSelected(null); if (s.legacy) { editSolution(s); return; } setForm({ kind: "phase", solution: s, initial: nextPhasePreset(s) }); };
+  const editPhase = (s, p) => { setMsg(null); setSelected(null); setForm({ kind: "phase", solution: s, initial: { ...p, ongoing: !p.endDate } }); };
   const afterSave = async (j, text, openId) => { setVersion(j.version); setForm(null); setMsg(`✓ ${text}`); await load(j.version); if (openId) setSelected(openId); };
   const removeSolution = async (s) => {
     if (!confirm(`Xoá giải pháp "${s.name}" (${s.phases.length} giai đoạn)?\nDòng vẫn giữ trong Google Sheet (đánh dấu đã xoá).`)) return;
@@ -840,19 +852,23 @@ export default function TabTrials() {
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button style={ghost} onClick={reload} disabled={reloading} title="Tải lại danh sách giải pháp và số đo mới nhất">{reloading ? "Đang tải…" : "↻ Làm mới"}</button>
-            {!form && <button style={primary} onClick={newSolution}>＋ Thêm giải pháp</button>}
+            <button style={primary} onClick={newSolution}>＋ Thêm giải pháp</button>
           </div>
         </div>
         {msg && <div style={{ fontSize: 12.5, marginTop: 8, color: msg.startsWith("✓") ? "var(--green)" : "var(--red)" }}>{msg}</div>}
       </div>
 
       {form?.kind === "solution" && (
-        <SolutionForm key={form.initial.id || form.legacyPhase?.id || "new"} initial={form.initial} isNew={form.isNew} legacyPhase={form.legacyPhase} options={options} statuses={statuses}
-          onCancel={() => setForm(null)} onSaved={(j) => afterSave(j, j.created ? `Đã thêm giải pháp "${j.solution.name}"` : `Đã lưu "${j.solution.name}"`, j.solution.id)} />
+        <FormModal title={form.isNew ? "Thêm giải pháp" : "Sửa giải pháp"} onCancel={() => setForm(null)}>
+          <SolutionForm key={form.initial.id || form.legacyPhase?.id || "new"} initial={form.initial} isNew={form.isNew} legacyPhase={form.legacyPhase} options={options} statuses={statuses}
+            onCancel={() => setForm(null)} onSaved={(j) => afterSave(j, j.created ? `Đã thêm giải pháp "${j.solution.name}"` : `Đã lưu "${j.solution.name}"`, j.solution.id)} />
+        </FormModal>
       )}
       {form?.kind === "phase" && (
-        <PhaseForm key={form.initial.id || "next"} solution={form.solution} initial={form.initial} options={options} statuses={statuses}
-          onCancel={() => setForm(null)} onSaved={(j) => afterSave(j, j.created ? `Đã thêm ${j.phase.label}` : `Đã lưu ${j.phase.label}`, form.solution.id)} />
+        <FormModal title={form.initial.id ? `Sửa ${form.initial.label || "giai đoạn"}` : "Giai đoạn tiếp"} onCancel={() => setForm(null)}>
+          <PhaseForm key={form.initial.id || "next"} solution={form.solution} initial={form.initial} options={options} statuses={statuses}
+            onCancel={() => setForm(null)} onSaved={(j) => afterSave(j, j.created ? `Đã thêm ${j.phase.label}` : `Đã lưu ${j.phase.label}`, form.solution.id)} />
+        </FormModal>
       )}
 
       <div className="glass" style={{ padding: 16 }}>
