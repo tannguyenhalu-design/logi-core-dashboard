@@ -148,10 +148,11 @@ export default async function handler(req, res) {
       // Same for bodies stored before the damage money/analysis fields (Kế hoạch E).
       const staleDamage = defaultBody && !("damageMoney" in defaultBody);
       // Bodies before the dailyOrders field (📅 Sự kiện tab, 2026-10-04) lack it.
-      // Also check for byProvinceAndDay added 2026-10-05 (tỉnh thành + Excel export).
+      // byProvinceAndDay added 2026-10-05, byKhoLayAndDay added 2026-10-05.
       const staleDaily = defaultBody && (
         !("dailyOrders" in defaultBody) ||
-        !("byProvinceAndDay" in (defaultBody.dailyOrders || {}))
+        !("byProvinceAndDay" in (defaultBody.dailyOrders || {})) ||
+        !("byKhoLayAndDay" in (defaultBody.dailyOrders || {}))
       );
       if (defaultBody && !staleMap && !staleDamage && !staleDaily) {
         // Safe to cache: default view data only changes when snapshot rebuilds

@@ -117,6 +117,48 @@ function ProvinceBreakdown({ date, byProvinceAndDay, weightByProvinceAndDay, top
   );
 }
 
+// ─── KhoLayBreakdown (bảng kho lấy trong từng card) ─────────────────────────
+function KhoLayBreakdown({ date, byKhoLayAndDay, topN = 15 }) {
+  const dm1 = addDays(date, -1), dp1 = addDays(date, 1);
+  const rows = useMemo(() => {
+    const map = {};
+    for (const d of [dm1, date, dp1]) {
+      for (const [kho, cnt] of Object.entries((byKhoLayAndDay || {})[d] || {})) {
+        map[kho] = (map[kho] || 0) + cnt;
+      }
+    }
+    return Object.entries(map)
+      .map(([kho, orders]) => ({ kho, orders }))
+      .sort((a, b) => b.orders - a.orders)
+      .slice(0, topN);
+  }, [dm1, date, dp1, byKhoLayAndDay]);
+  const tdS = { padding: "5px 8px", fontSize: 11.5, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" };
+  if (!rows.length) return <div style={{ fontSize: 12, color: "var(--text-muted)", padding: "8px 0" }}>Không có dữ liệu kho lấy.</div>;
+  const total = rows.reduce((s, r) => s + r.orders, 0);
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 200 }}>
+        <thead>
+          <tr>
+            {["Kho lấy", "Đơn", "%"].map((h, i) => (
+              <th key={i} style={{ ...tdS, fontWeight: 700, fontSize: 10.5, color: "var(--text-secondary)", textAlign: i > 0 ? "right" : "left" }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.kho}>
+              <td style={tdS}>{r.kho}</td>
+              <td style={{ ...tdS, textAlign: "right", fontWeight: 600 }}>{n(r.orders)}</td>
+              <td style={{ ...tdS, textAlign: "right", color: "var(--text-muted)" }}>{total > 0 ? `${((r.orders / total) * 100).toFixed(0)}%` : "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ─── ProjectBreakdown (bảng dự án trong từng card) ──────────────────────────
 function ProjectBreakdown({ date, byClientAndDay, isFuture, forecastByClient }) {
   const dm1 = addDays(date, -1);
@@ -197,9 +239,10 @@ function DayCol({ label, date, orders, weightKg, maxOrders, isPeak, isFuture }) 
 }
 
 // ─── EventCard ───────────────────────────────────────────────────────────────
-function EventCard({ event, byDay, weightByDay, byClientAndDay, byProvinceAndDay, weightByProvinceAndDay, forecastBaseline, normalStats, today, growthRateO, fcSnapshot, onChot, provinceForecast }) {
+function EventCard({ event, byDay, weightByDay, byClientAndDay, byProvinceAndDay, weightByProvinceAndDay, byKhoLayAndDay, forecastBaseline, normalStats, today, growthRateO, fcSnapshot, onChot, provinceForecast }) {
   const [showProjects, setShowProjects] = useState(false);
   const [showProvince, setShowProvince] = useState(false);
+  const [showKhoLay, setShowKhoLay] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const { date, name, isCustom } = event;
@@ -332,6 +375,21 @@ function EventCard({ event, byDay, weightByDay, byClientAndDay, byProvinceAndDay
           {showProvince && (
             <div style={{ padding: "0 8px 8px" }}>
               <ProvinceBreakdown date={date} byProvinceAndDay={byProvinceAndDay} weightByProvinceAndDay={weightByProvinceAndDay} />
+            </div>
+          )}
+        </div>
+      )}
+      {hasData && (
+        <div style={{ borderTop: "1px solid var(--border)" }}>
+          <button onClick={() => setShowKhoLay((v) => !v)} style={{
+            width: "100%", padding: "5px 12px", background: "none", border: "none", cursor: "pointer",
+            fontSize: 11, color: "var(--text-muted)", textAlign: "left", fontFamily: "inherit",
+          }}>
+            {showKhoLay ? "▲ Ẩn theo kho lấy" : "▼ Xem theo kho lấy"}
+          </button>
+          {showKhoLay && (
+            <div style={{ padding: "0 8px 8px" }}>
+              <KhoLayBreakdown date={date} byKhoLayAndDay={byKhoLayAndDay} />
             </div>
           )}
         </div>
@@ -632,7 +690,7 @@ async function exportToExcel({ selectedYM, eventsForMonth, byDay, weightByDay, b
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 export default function CampaignForecast({ dailyOrders = {} }) {
-  const { byDay = {}, weightByDay = {}, byClientAndDay = {}, byProvinceAndDay = {}, weightByProvinceAndDay = {} } = dailyOrders;
+  const { byDay = {}, weightByDay = {}, byClientAndDay = {}, byProvinceAndDay = {}, weightByProvinceAndDay = {}, byKhoLayAndDay = {} } = dailyOrders;
 
   const [customEvents, setCustomEvents] = useState([]);
   const [newDate, setNewDate]           = useState("");
@@ -643,6 +701,7 @@ export default function CampaignForecast({ dailyOrders = {} }) {
   const curYM  = today.slice(0, 7);
 
   const [selectedYM, setSelectedYM] = useState(() => curYM);
+  const [selectedEventDate, setSelectedEventDate] = useState(null); // null = auto-detect từ today
   const [fcSnapshots, setFcSnapshots] = useState({});
 
   useEffect(() => {
@@ -696,6 +755,23 @@ export default function CampaignForecast({ dailyOrders = {} }) {
       .map((c) => ({ date: c.date, name: c.name || c.label || c.date, isCustom: true }));
     return [...preset, ...custom].sort((a, b) => a.date.localeCompare(b.date));
   }, [selectedYM, customEvents]);
+
+  // Event đang active: event nào có today trong cửa sổ D-1/D0/D+1, hoặc event gần nhất sắp tới, hoặc event cuối cùng trong tháng
+  const activeEventDate = useMemo(() => {
+    if (selectedEventDate) return selectedEventDate;
+    // Ưu tiên event đang trong cửa sổ 3 ngày
+    for (const ev of eventsForMonth) {
+      if (today >= addDays(ev.date, -1) && today <= addDays(ev.date, 1)) return ev.date;
+    }
+    // Tiếp theo: event sắp tới gần nhất
+    for (const ev of eventsForMonth) {
+      if (ev.date > today) return ev.date;
+    }
+    // Fallback: event gần nhất đã qua
+    return eventsForMonth[eventsForMonth.length - 1]?.date ?? null;
+  }, [selectedEventDate, eventsForMonth, today]);
+
+  const activeEvent = useMemo(() => eventsForMonth.find((e) => e.date === activeEventDate) ?? null, [eventsForMonth, activeEventDate]);
 
   // All past event windows with data (sorted by date asc) — including client breakdown
   const pastWindows = useMemo(() => {
@@ -971,26 +1047,45 @@ export default function CampaignForecast({ dailyOrders = {} }) {
         </div>
       </div>
 
-      {/* Event cards grid */}
+      {/* Event selector + single card */}
       {eventsForMonth.length === 0 ? (
         <div style={{ color: "var(--text-muted)", textAlign: "center", padding: 32, fontSize: 13 }}>
           Không có sự kiện nào trong tháng này.
         </div>
       ) : (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-          {eventsForMonth.map((ev) => (
-            <div key={ev.date} style={{ flex: "0 0 auto", width: "clamp(220px, 30%, 300px)" }}>
-              <EventCard event={ev}
-                byDay={byDay} weightByDay={weightByDay} byClientAndDay={byClientAndDay}
-                byProvinceAndDay={byProvinceAndDay} weightByProvinceAndDay={weightByProvinceAndDay}
-                forecastBaseline={ev.date > today ? (forecastBySlot[ev.slot ?? 0] ?? forecastBaseline) : null}
-                normalStats={normalStats} today={today}
-                growthRateO={ev.date > today ? forecastBySlot[ev.slot ?? 0]?.growthRateO : null}
-                fcSnapshot={fcSnapshots[ev.date] || null}
-                onChot={handleChotFc}
-                provinceForecast={ev.date > today ? (provincesForecastBySlot[ev.slot ?? 0] || null) : null} />
-            </div>
-          ))}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* Event picker chips */}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {eventsForMonth.map((ev) => {
+              const inWindow = today >= addDays(ev.date, -1) && today <= addDays(ev.date, 1);
+              const isActive = ev.date === activeEventDate;
+              const isFut = ev.date > today;
+              return (
+                <button key={ev.date} onClick={() => setSelectedEventDate(ev.date)} style={{
+                  padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: isActive ? 700 : 500, cursor: "pointer",
+                  border: isActive ? "1.5px solid var(--brand)" : "1px solid var(--border)",
+                  background: isActive ? "rgba(var(--brand-rgb),0.15)" : inWindow ? "rgba(var(--amber-rgb,245,158,11),0.08)" : "var(--bg-panel)",
+                  color: isActive ? "var(--brand)" : isFut ? "var(--amber)" : "var(--text-primary)",
+                }}>
+                  {inWindow ? "⚡ " : isFut ? "⏳ " : ""}{ev.name}
+                  {ev.isCustom ? " ✏️" : ""}
+                </button>
+              );
+            })}
+          </div>
+          {/* Chi tiết event đang chọn */}
+          {activeEvent && (
+            <EventCard event={activeEvent}
+              byDay={byDay} weightByDay={weightByDay} byClientAndDay={byClientAndDay}
+              byProvinceAndDay={byProvinceAndDay} weightByProvinceAndDay={weightByProvinceAndDay}
+              byKhoLayAndDay={byKhoLayAndDay}
+              forecastBaseline={activeEvent.date > today ? (forecastBySlot[activeEvent.slot ?? 0] ?? forecastBaseline) : null}
+              normalStats={normalStats} today={today}
+              growthRateO={activeEvent.date > today ? forecastBySlot[activeEvent.slot ?? 0]?.growthRateO : null}
+              fcSnapshot={fcSnapshots[activeEvent.date] || null}
+              onChot={handleChotFc}
+              provinceForecast={activeEvent.date > today ? (provincesForecastBySlot[activeEvent.slot ?? 0] || null) : null} />
+          )}
         </div>
       )}
 
