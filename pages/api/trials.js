@@ -38,6 +38,7 @@ const cleanPhase = (p = {}) => ({
   id: p.id ? String(p.id).trim() : "", label: String(p.label || "").trim().slice(0, 80),
   khoLay: strs(p.khoLay), khoGiao: strs(p.khoGiao), provinces: strs(p.provinces),
   startDate: p.startDate, endDate: p.endDate || "", status: p.status, description: String(p.description || "").slice(0, 5000),
+  liveDate: p.liveDate || "", controlMode: p.controlMode === "same_pickup" ? "same_pickup" : "",
 });
 const fileName = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
 
@@ -195,6 +196,8 @@ export default async function handler(req, res) {
         if (scopeText(x) !== scopeText(phase)) changes.push(`phạm vi: ${scopeText(phase)}`);
         if (x.startDate !== phase.startDate || x.endDate !== phase.endDate) changes.push(`thời gian: ${fmt(phase.startDate)} → ${phase.endDate ? fmt(phase.endDate) : "Ongoing"}`);
         if (x.description !== phase.description) changes.push("sửa mô tả");
+        if ((x.liveDate || "") !== (phase.liveDate || "")) changes.push(`ngày vận hành đủ tuyến: ${phase.liveDate ? fmt(phase.liveDate) : "(bỏ)"}`);
+        if ((x.controlMode || "") !== phase.controlMode) changes.push(`nhóm đối chứng: ${phase.controlMode === "same_pickup" ? "cùng kho lấy, khác kho giao" : "mọi đơn còn lại của khách"}`);
       }
       await logAction({ actor, action: out.created ? "phase.create" : "phase.update", target: `${sol.name} — ${phase.label}`, details: { id: out.phase.id, solutionId: sol.id, scope: out.created ? scopeText(phase) : undefined, changes } }).catch(() => {});
       return res.status(200).json({ ok: true, phase: out.phase, version: out.version, created: out.created });

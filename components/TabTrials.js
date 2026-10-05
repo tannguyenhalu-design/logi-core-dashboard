@@ -12,8 +12,8 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ReconcileBox, CoverageBox, GapsBox, SourcesLine, ClientScopeBox, ReconcilePrint, CoveragePrint, ClientScopePrint, SourcesPrint, reconcileCopyLines } from "./TrialsReconcile";
-import { GoalFields, GoalBox, GoalPrint, GoalChip, goalCopyLines } from "./TrialsGoal";
+import { ReconcileBox, SourcesLine, ClientScopeBox, ReconcilePrint, SourcesPrint, reconcileCopyLines } from "./TrialsReconcile";
+import { GoalFields, GoalBox, GoalPrint, GoalChip, ConclusionBox, ConclusionPrint, goalCopyLines, conclusionCopyLines } from "./TrialsGoal";
 import { METRICS, targetText } from "../lib/solution-metrics";
 import { getJSON, prefetchJSON, dropPrefetched } from "../lib/prefetch";
 import DateField from "./DateField";
@@ -176,6 +176,17 @@ function PhaseDates({ f, set, statuses }) {
       <div><span style={label}>Trạng thái giai đoạn</span>
         <select style={input} value={f.status} onChange={(e) => set({ status: e.target.value })}>{statuses.map((s) => <option key={s} value={s}>{s}</option>)}</select>
       </div>
+      <div><span style={label}>Ngày vận hành đủ tuyến <span style={{ ...small, fontWeight: 400 }}>(không bắt buộc)</span></span>
+        <DateField label="Ngày vận hành đủ tuyến" placeholder="dd/mm/yyyy" value={f.liveDate || ""} onChange={(v) => set({ liveDate: v })} inputStyle={dateInput} wrapStyle={{ width: "100%" }} />
+        <div style={small}>Giai đoạn triển khai dần từng tuyến: báo cáo chỉ đo kỳ Sau từ ngày này (trước đó là kỳ "giữa"). Để trống = chạy đủ từ ngày bắt đầu.</div>
+      </div>
+      <div><span style={label}>Nhóm đối chứng</span>
+        <select style={input} value={f.controlMode || ""} onChange={(e) => set({ controlMode: e.target.value })}>
+          <option value="">Mọi đơn còn lại của khách (mặc định)</option>
+          <option value="same_pickup">Cùng kho lấy, khác kho giao (nên dùng cho tách tuyến)</option>
+        </select>
+        <div style={small}>"Cùng kho lấy" chỉ có tác dụng khi giai đoạn đã chọn kho lấy.</div>
+      </div>
     </>
   );
 }
@@ -292,7 +303,7 @@ const nextLabel = (sol) => {
 };
 const nextPhasePreset = (sol) => {
   const last = sol.phases[sol.phases.length - 1] || {};
-  return { id: "", label: nextLabel(sol), khoLay: last.khoLay || [], khoGiao: last.khoGiao || [], provinces: last.provinces || [], startDate: vnToday(), endDate: "", ongoing: true, status: "Đang trial", description: "" };
+  return { id: "", label: nextLabel(sol), khoLay: last.khoLay || [], khoGiao: last.khoGiao || [], provinces: last.provinces || [], startDate: vnToday(), endDate: "", ongoing: true, status: "Đang trial", description: "", liveDate: "", controlMode: last.controlMode || "" };
 };
 
 // ── Report pieces ──────────────────────────────────────────────────────
@@ -576,6 +587,8 @@ function summaryText(sol, report) {
   }
   L.push(`(${MONEY_NOTE})`);
   report.alerts.forEach((a) => L.push(`⚠ ${a.text}`));
+  const cl = conclusionCopyLines(report); // Kế hoạch H: kết luận · tin được không · làm gì tiếp
+  if (cl) L.push(cl);
   const gl = goalCopyLines(report); // Kế hoạch G: mục tiêu + kết quả theo chỉ số chính
   if (gl) L.push(gl);
   const f1 = reconcileCopyLines(report); // Kế hoạch F1: đối soát 2 góc nhìn, độ phủ, khoảng trống, nguồn dữ liệu
@@ -611,8 +624,8 @@ function SolutionPrintView({ sol, report, onClose }) {
               <td style={cell}>{c.delta.ontimePts == null ? "—" : `${sgn(c.delta.ontimePts, n1)} đ`}</td><td style={cell}>{c.delta.per1kPct == null ? "—" : `${sgn(c.delta.per1kPct, n1)}%`}</td><td style={cell}>{tr(c.post.comp) || "—"}</td><td style={cell}>{c.savings && c.savings.ok ? `${c.savings.value >= 0 ? "~" : "+"}${tr(Math.abs(c.savings.value))}` : "chưa có số"}</td><td style={{ ...cell, color: PV[c.verdictLevel][0], fontWeight: 700 }}>{c.verdict}</td></tr>))}</tbody>
         </table></div>
         {report.alerts.map((a, i) => <div key={i} style={{ fontSize: 11.5, color: C.red, marginTop: 4 }}>⚠ {a.text}</div>)}
+        <ConclusionPrint report={report} C={C} />
         <GoalPrint report={report} C={C} cell={cell} hc={hc} />
-        <ClientScopePrint report={report} C={C} cell={cell} hc={hc} />
         {report.phases.map((x) => {
           const v = x.impact.verdict, T = x.impact.trial, [fc, bc] = PV[v.level];
           return (
@@ -635,7 +648,6 @@ function SolutionPrintView({ sol, report, onClose }) {
             </div>
           );
         })}
-        <CoveragePrint report={report} C={C} cell={cell} hc={hc} />
         <SourcesPrint report={report} C={C} />
         <div style={{ fontSize: 10, color: C.muted, marginTop: 16, borderTop: `1px solid ${C.line}`, paddingTop: 6 }}>Mỗi giai đoạn so với cùng baseline chung trên phạm vi của chính nó. On-time = cờ GHN ontime / (ontime + late), loại đơn hoàn/huỷ. % Bể vỡ = ca bể (gắn theo đơn) ÷ đơn lấy × 100. Tiền đền cho khách gắn theo đơn; tiết kiệm = (tỷ lệ tiền đền/đơn trước − sau) × đơn giai đoạn sau, trừ xu hướng đối chứng — ước tính. {MONEY_NOTE} In lúc {vnStamp(new Date().toISOString())}.</div>
       </div>
@@ -688,8 +700,12 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
         {err ? <div style={{ color: "var(--red)", marginTop: 12 }}>⚠ {err}</div> : !report ? <div style={{ ...small, marginTop: 12 }}>Đang tính…</div> : (
           <>
             {report.alerts.length > 0 && <div style={{ marginTop: 10 }}>{report.alerts.map((a, i) => <div key={i} style={{ fontSize: 12.5, color: "var(--red)", fontWeight: 700 }}>⚠ {a.text}</div>)}</div>}
-            <GoalBox report={report} />
-            <ClientScopeBox report={report} />
+            <ConclusionBox report={report} />
+            <details style={{ marginTop: 10 }}>
+              <summary style={{ cursor: "pointer", fontSize: 12.5, fontWeight: 700 }}>Chi tiết mục tiêu & phạm vi khách</summary>
+              <GoalBox report={report} />
+              <ClientScopeBox report={report} />
+            </details>
             <div style={{ fontSize: 13.5, fontWeight: 700, marginTop: 14 }}>So sánh các giai đoạn <span style={{ ...small, fontWeight: 400 }}>(cùng baseline chung, mỗi giai đoạn trên phạm vi của nó)</span></div>
             <div style={{ overflowX: "auto", marginTop: 6 }}>
               <table className="data-table" style={{ fontSize: 12, minWidth: 940 }}>
@@ -710,8 +726,6 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
               </table>
             </div>
             <div style={{ marginTop: 14 }}><WeeklyChart report={report} /></div>
-            <CoverageBox report={report} />
-            <GapsBox report={report} />
             {report.phases.map((x) => {
               const isOpen = open[x.phase.id];
               return (
@@ -738,7 +752,7 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
                         </details>
                       )}
                       <PhaseImpact impact={x.impact} legacy={!!x.goal} />
-                      {report.display?.reconcile !== false && <ReconcileBox r={x.reconcile} />}
+                      {report.display?.reconcile !== false && <details style={{ marginTop: 8 }}><summary style={{ cursor: "pointer", fontSize: 12.5, fontWeight: 700 }}>⚖ Đối soát 2 góc nhìn bể vỡ — chi tiết kiểm chứng</summary><ReconcileBox r={x.reconcile} /></details>}
                       {x.monitor && <MonitorView x={x} baseline={report.baseline} />}
                       {!s.legacy && <ImageGallery phase={x.phase} canEdit={canEdit} canDelete={canDelete} onChanged={onChanged} />}
                     </div>
@@ -757,7 +771,7 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
 }
 
 const goalInit = (s = {}) => ({ problem: s.problem || "", action: s.action || "", primaryMetric: s.primaryMetric || "", primaryTarget: s.primaryTarget ?? "", secondaryMetrics: s.secondaryMetrics || [], guardrails: s.guardrails || [], owner: s.owner || "", reviewDate: s.reviewDate || "", metricNote: s.metricNote || "" });
-const EMPTY_PHASE = { id: "", label: "Trial 1", khoLay: [], khoGiao: [], provinces: [], startDate: "", endDate: "", ongoing: true, status: "Đang trial", description: "" };
+const EMPTY_PHASE = { id: "", label: "Trial 1", khoLay: [], khoGiao: [], provinces: [], startDate: "", endDate: "", ongoing: true, status: "Đang trial", description: "", liveDate: "", controlMode: "" };
 
 // Idle prefetch from the dashboard (Kế hoạch A · P4): the solution list.
 export function prefetch() {

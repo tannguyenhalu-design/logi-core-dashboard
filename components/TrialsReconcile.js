@@ -307,7 +307,6 @@ export function SourcesPrint({ report, C }) {
 // ── Copy tóm tắt ──────────────────────────────────────────────────────────
 export function reconcileCopyLines(report) {
   const L = [];
-  if (report.clientScope) L.push("", "PHẠM VI KHÁCH:", ...report.clientScope.text.map((t) => `  - ${t}`));
   for (const x of report.phases) {
     const r = x.reconcile;
     if (!r || report.display?.reconcile === false) continue;
@@ -318,20 +317,6 @@ export function reconcileCopyLines(report) {
     for (const t of [...r.notes, ...r.concentration, r.delayText]) L.push(`  - ${t}`);
     if (r.immature) L.push(`  ⚠ ${r.immature.text}`);
     if (r.warn) L.push(`  ${r.warn}`);
-  }
-  const cov = report.coverage;
-  if (cov) {
-    L.push("", "ĐỘ PHỦ TÁCH TUYẾN (đơn/tấn thuộc phạm vi giải pháp ÷ điện máy xuất từ kho nguồn):");
-    for (const x of cov.phases) L.push(`  ${x.label}: ${n0(x.orders)} đơn / ${n1(x.tons)} t trên ${n0(x.allOrders)} đơn / ${n1(x.allTons)} t = ${pc1(x.pctOrders)} đơn · ${pc1(x.pctTons)} tấn; ${x.fullClient ? "phủ toàn bộ khách áp dụng" : `trong khách áp dụng ${pc1(x.pctClientOrders)} đơn · ${pc1(x.pctClientTons)} tấn`}`);
-    if (cov.phases.length > 1) { const S = cov.solution; L.push(`  Cả giải pháp (gộp, không đếm trùng): ${n0(S.orders)} đơn / ${n1(S.tons)} t trên ${n0(S.allOrders)} đơn / ${n1(S.allTons)} t = ${pc1(S.pctOrders)} đơn · ${pc1(S.pctTons)} tấn; trong khách áp dụng ${pc1(S.pctClientOrders)} đơn · ${pc1(S.pctClientTons)} tấn`); }
-    L.push(`  ⚠ ${cov.note}`);
-  }
-  const g = report.gaps;
-  if (g) {
-    L.push("", "KHOẢNG TRỐNG MỞ RỘNG:", `  ${g.summary[0]}`, `  ${g.summary[1]}`);
-    const top = (label, dim) => { const a = dim.list.slice(0, 5); if (a.length) L.push(`  ${label}: ${a.map((x) => `${x.name} ${n0(x.orders)} đơn/${n1(x.tons)} t${x.enough ? " ★" : ""}${x.pastCases ? ` (${x.pastCases} ca bể)` : ""}`).join("; ")}`); };
-    top("Khách chưa được chạm", g.all.byClient); top("Tỉnh giao (khách áp dụng)", g.applied.byProvince); top("Kho giao (khách áp dụng)", g.applied.byWarehouse); top("Tỉnh giao (mọi khách)", g.all.byProvince);
-    L.push(`  ${g.ruleText}`, `  Đã đối chiếu với ${g.checkedSolutions.length} giải pháp: ${g.checkedSolutions.map((s) => s.id).join(", ")}.`);
   }
   if (report.sources) L.push("", report.sources.text);
   return L.join(NL);

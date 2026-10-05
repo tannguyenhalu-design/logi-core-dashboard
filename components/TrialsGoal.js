@@ -5,6 +5,7 @@
  *  - GoalBox / GoalPrint / goalCopyLines: kết quả theo chỉ số chính ở màn hình / In / Copy.
  * Số liệu do lib/solution-metrics.js (evaluateGoal) tính; ở đây chỉ hiển thị.
  */
+import { useState } from "react";
 import DateField from "./DateField";
 import { METRICS, METRIC_KEYS, MAX_SECONDARY, MAX_GUARDRAILS, formatMetric, targetText } from "../lib/solution-metrics";
 
@@ -17,6 +18,7 @@ const input = { padding: "7px 8px", borderRadius: 6, border: "1px solid var(--bo
 const th = { padding: "7px 9px", textAlign: "right", whiteSpace: "nowrap", fontSize: 11.5 };
 const td = { padding: "7px 9px", textAlign: "right", fontSize: 12.5, borderBottom: "1px solid var(--panel-border-soft, var(--border))" };
 const LEVEL = {
+  worse_vs_control: ["⚖", "var(--amber)", "rgba(245,158,11,0.14)"],
   reached: ["🎯", "var(--green)", "rgba(34,197,94,0.14)"], reached_warn: ["🎯", "var(--amber)", "rgba(245,158,11,0.14)"], improved: ["📈", "var(--cyan)", "rgba(56,189,248,0.14)"],
   flat: ["➖", "var(--amber)", "rgba(245,158,11,0.12)"], worse: ["📉", "var(--red)", "rgba(239,68,68,0.14)"], insufficient: ["⏳", "var(--text-muted)", "rgba(148,163,184,0.14)"], external: ["📝", "var(--text-muted)", "rgba(148,163,184,0.14)"],
 };
@@ -166,5 +168,62 @@ export function goalCopyLines(report) {
     for (const t of x.goal.reasons) L.push(`    - ${t}`);
     for (const s of x.goal.guardrails) L.push(`    - ${s.worse ? "⚠ " : ""}Không được xấu đi — ${s.text}`);
   }
+  return L.join(NL);
+}
+
+// ── 3 câu hỏi của báo cáo (Kế hoạch H): Kết luận · Tin được không? · Làm gì tiếp? ─────────────
+const TRUST_SHOWN = 4;
+export function ConclusionBox({ report }) {
+  const [more, setMore] = useState(false);
+  const h = report.headline, trust = report.trust || [], sg = report.suggestions;
+  if (!h && !trust.length && !sg) return null;
+  const shown = more ? trust : trust.slice(0, TRUST_SHOWN);
+  const head = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.3 };
+  return (
+    <div style={{ marginTop: 10, padding: "12px 14px", borderRadius: 10, border: "1px solid var(--border)", background: "rgba(var(--brand-rgb),0.05)" }}>
+      {h && (
+        <div>
+          <div style={head}>Kết luận</div>
+          <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap", marginTop: 3 }}>
+            <GoalChip level={h.level} text={h.label} />
+            <span style={{ fontSize: 14.5, fontWeight: 600, lineHeight: 1.5 }}>{h.text}</span>
+          </div>
+        </div>
+      )}
+      {trust.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <div style={head}>Tin được không?</div>
+          {shown.map((t, i) => <div key={i} style={{ fontSize: 12.5, lineHeight: 1.55, marginTop: 2, color: t.level === "warn" ? "var(--amber)" : "var(--text-secondary)" }}>{t.level === "warn" ? "⚠" : "•"} {t.text}</div>)}
+          {trust.length > TRUST_SHOWN && <button type="button" onClick={() => setMore((x) => !x)} style={{ marginTop: 4, fontSize: 12, background: "none", border: "none", color: "var(--cyan)", cursor: "pointer", padding: 0, fontFamily: "inherit" }}>{more ? "Thu gọn" : `Xem thêm ${trust.length - TRUST_SHOWN} lưu ý`}</button>}
+        </div>
+      )}
+      {sg && (
+        <div style={{ marginTop: 10 }}>
+          <div style={head}>Làm gì tiếp?</div>
+          <div style={{ fontSize: 12.5, marginTop: 2 }}>{sg.title}:</div>
+          {sg.items.map((x, i) => <div key={i} style={{ fontSize: 12.5, lineHeight: 1.55 }}>★ {x.text}</div>)}
+          <div style={small}>{sg.note}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+export function ConclusionPrint({ report, C }) {
+  const h = report.headline, trust = report.trust || [], sg = report.suggestions;
+  if (!h && !trust.length && !sg) return null;
+  return (
+    <div style={{ marginTop: 12, padding: "9px 12px", border: `1px solid ${C.line}`, borderRadius: 6, breakInside: "avoid" }}>
+      {h && <div><div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase" }}>Kết luận</div><div style={{ fontSize: 13, fontWeight: 700 }}>{h.label}</div><div style={{ fontSize: 11.5 }}>{h.text}</div></div>}
+      {trust.length > 0 && <div style={{ marginTop: 7 }}><div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase" }}>Tin được không?</div>{trust.map((t, i) => <div key={i} style={{ fontSize: 11, color: t.level === "warn" ? "#b45309" : C.text }}>{t.level === "warn" ? "⚠" : "•"} {t.text}</div>)}</div>}
+      {sg && <div style={{ marginTop: 7 }}><div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase" }}>Làm gì tiếp?</div><div style={{ fontSize: 11 }}>{sg.title}:</div>{sg.items.map((x, i) => <div key={i} style={{ fontSize: 11 }}>★ {x.text}</div>)}<div style={{ fontSize: 10, color: C.muted }}>{sg.note}</div></div>}
+    </div>
+  );
+}
+export function conclusionCopyLines(report) {
+  const L = [];
+  const h = report.headline, trust = report.trust || [], sg = report.suggestions;
+  if (h) L.push("", "KẾT LUẬN:", `  ${h.label} — ${h.text}`);
+  if (trust.length) L.push("", "TIN ĐƯỢC KHÔNG?", ...trust.map((t) => `  ${t.level === "warn" ? "⚠" : "-"} ${t.text}`));
+  if (sg) L.push("", "LÀM GÌ TIẾP?", `  ${sg.title}:`, ...sg.items.map((x) => `  ★ ${x.text}`), `  (${sg.note})`);
   return L.join(NL);
 }
