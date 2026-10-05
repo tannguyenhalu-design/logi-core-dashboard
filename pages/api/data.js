@@ -147,7 +147,13 @@ export default async function handler(req, res) {
       const staleMap = (part === "map" || withMap) && defaultBody?.ltl && !("warehouseLayer" in defaultBody.ltl);
       // Same for bodies stored before the damage money/analysis fields (Kế hoạch E).
       const staleDamage = defaultBody && !("damageMoney" in defaultBody);
-      if (defaultBody && !staleMap && !staleDamage) {
+      // Bodies before the dailyOrders field (📅 Sự kiện tab, 2026-10-04) lack it.
+      // Also check for byProvinceAndDay added 2026-10-05 (tỉnh thành + Excel export).
+      const staleDaily = defaultBody && (
+        !("dailyOrders" in defaultBody) ||
+        !("byProvinceAndDay" in (defaultBody.dailyOrders || {}))
+      );
+      if (defaultBody && !staleMap && !staleDamage && !staleDaily) {
         // Safe to cache: default view data only changes when snapshot rebuilds
         // (~3x/day). private = browser-only, CDN never involved.
         // (Contrast: s-maxage incident 2026-09-26 was shared/CDN cache.)

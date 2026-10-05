@@ -43,6 +43,7 @@ const LTL_VIEWS = [
   { id: "ltl", label: "Tổng quan LTL", icon: "M3 3h18v18H3zM21 9H3M9 21V9" },
   { id: "map", label: "Bản đồ tỉnh thành", icon: "M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-.553-.894L15 4m0 13V4m0 0L9 7" },
   { id: "damage", label: "Hư hỏng & Rủi ro", icon: "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" },
+  { id: "events", label: "📅 Sự kiện", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z" },
 ];
 
 function DashboardSkeleton({ view }) {
@@ -73,7 +74,11 @@ export default function DashboardPage({ user: initialUser }) {
   const canSeeLTL = isManager || (user.tabs || []).some((t) => LEGACY_TABS.includes(t));
   const [activeTab, setActiveTab] = useState(canSeeLTL ? "ltl" : "none"); // LTL_VIEWS id | 'report' | 'trials' | 'users' | 'auditlog' | 'health' | 'brain' | 'none'
   const isLTLView = LTL_VIEWS.some((v) => v.id === activeTab);
-  const [selectedMonths, setSelectedMonths] = useState([]);
+  const [selectedMonths, setSelectedMonths] = useState(() => {
+    // Mặc định: 3 tháng gần nhất (VN time). User mở rộng qua FilterBar.
+    const m = new Date(Date.now() + 7 * 3600 * 1000).getUTCMonth() + 1;
+    return Array.from({ length: 3 }, (_, i) => m - 2 + i).filter((v) => v >= 1);
+  });
   const [selectedProjects, setSelectedProjects] = useState([]);
   const [riskOnly, setRiskOnly] = useState(false); // "Tuyến rủi ro cao" quick filter
   const [reportOpen, setReportOpen] = useState(false); // "Tạo báo cáo tóm tắt"
@@ -789,7 +794,7 @@ export default function DashboardPage({ user: initialUser }) {
 
                 {!dashData && loading && <DashboardSkeleton view={activeTab} />}
 
-                {dashData && !(error && !loading) && <div className={loading ? "refreshing" : "fade-in"}><LTLDashboard view={activeTab} data={ltlData} mapState={activeTab === "map" ? mapState : undefined} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} fetchProvinceOrders={fetchProvinceOrders} pendingPickup={dashData.pendingPickup} fetchPendingOrders={fetchPendingOrders} kpiDelta={dashData.kpiDelta} stuck={dashData.stuck} fetchStuckOrders={fetchStuckOrders} anomalies={dashData.anomalies} damageRisk={dashData.damageRisk} riskOnly={riskOnly} onRiskOnlyChange={setRiskOnly} sparkline={dashData.sparkline} dueToday={dashData.dueToday} fetchDueTodayOrders={fetchDueTodayOrders} onQuickRiskRoutes={() => { setRiskOnly(true); setActiveTab("damage"); }} onQuickLowOntime={setSelectedProjects} onOpenReport={() => setReportOpen(true)} onOpenCompanyReport={() => setActiveTab("report")} damageTrend={dashData.damageTrend} exceptions={dashData.exceptions} damageMoney={dashData.damageMoney} damageAnalysis={dashData.damageAnalysis} /></div>}
+                {dashData && !(error && !loading) && <div className={loading ? "refreshing" : "fade-in"}><LTLDashboard view={activeTab} data={ltlData} mapState={activeTab === "map" ? mapState : undefined} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} fetchProvinceOrders={fetchProvinceOrders} pendingPickup={dashData.pendingPickup} fetchPendingOrders={fetchPendingOrders} kpiDelta={dashData.kpiDelta} stuck={dashData.stuck} fetchStuckOrders={fetchStuckOrders} anomalies={dashData.anomalies} damageRisk={dashData.damageRisk} riskOnly={riskOnly} onRiskOnlyChange={setRiskOnly} sparkline={dashData.sparkline} dueToday={dashData.dueToday} fetchDueTodayOrders={fetchDueTodayOrders} onQuickRiskRoutes={() => { setRiskOnly(true); setActiveTab("damage"); }} onQuickLowOntime={setSelectedProjects} onOpenReport={() => setReportOpen(true)} onOpenCompanyReport={() => setActiveTab("report")} damageTrend={dashData.damageTrend} exceptions={dashData.exceptions} damageMoney={dashData.damageMoney} damageAnalysis={dashData.damageAnalysis} dailyOrders={dashData.dailyOrders} /></div>}
               </>
             )}
             {/* Opened tabs stay mounted, hidden while another tab is shown. */}

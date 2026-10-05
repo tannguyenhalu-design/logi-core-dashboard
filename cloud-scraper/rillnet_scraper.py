@@ -11,7 +11,7 @@ import requests
 import websocket
 
 DEBUG_PORT = 9222
-TARGET_URL = "https://rillnet-app.vercel.app/"
+TARGET_URL = "https://rillnet.ghn.vn/"
 APP_BASE_URL = "https://logicore-app.vercel.app"
 SYNC_SECRET = os.environ.get("RILLNET_SYNC_SECRET")
 
@@ -489,7 +489,7 @@ def main():
     print(f"The trang bao cao: {cards}")
 
     print("Dieu huong toi trang Den bu / Truy thu...")
-    send_cdp_command(ws, "Page.navigate", {"url": "https://rillnet-app.vercel.app/truythu.html"})
+    send_cdp_command(ws, "Page.navigate", {"url": "https://rillnet.ghn.vn/truythu.html"})
     time.sleep(4)
     ready = False
     for _ in range(45):

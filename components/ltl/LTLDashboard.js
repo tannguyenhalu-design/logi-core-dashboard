@@ -16,6 +16,7 @@ import RouteRiskMatrix from "./damage/RouteRiskMatrix";
 import DamageMoneyPanel from "./damage/DamageMoneyPanel";
 import { OpenCasesPanel, RecurrencePanel, LegRoutesPanel } from "./damage/DamageAnalysis";
 import ExceptionsPanel from "./cards/ExceptionsPanel";
+import CampaignForecast from "./CampaignForecast";
 
 // Trend chart above only shows the COMBINED weekly total — "tuần 2 → tuần 3
 // giảm" was visible but which client drove it wasn't, and the AI chat had
@@ -211,7 +212,7 @@ const STUCK_COLUMNS = [
 // view: "ltl" (Tổng quan) | "map" (Bản đồ tỉnh thành) | "damage" (Hư hỏng & Rủi ro)
 // — all 3 read the same already-fetched /api/data payload, so switching tabs
 // never refetches.
-export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders, pendingPickup, fetchPendingOrders, kpiDelta, stuck, fetchStuckOrders, anomalies, damageRisk, riskOnly: riskOnlyProp, onRiskOnlyChange, sparkline, dueToday, fetchDueTodayOrders, onQuickRiskRoutes, onQuickLowOntime, onOpenReport, onOpenCompanyReport, damageTrend, exceptions, mapState, damageMoney, damageAnalysis }) {
+export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders, pendingPickup, fetchPendingOrders, kpiDelta, stuck, fetchStuckOrders, anomalies, damageRisk, riskOnly: riskOnlyProp, onRiskOnlyChange, sparkline, dueToday, fetchDueTodayOrders, onQuickRiskRoutes, onQuickLowOntime, onOpenReport, onOpenCompanyReport, damageTrend, exceptions, mapState, damageMoney, damageAnalysis, dailyOrders }) {
   const [damageFilter, setDamageFilter] = useState(null);
   const [drawerCase, setDrawerCase] = useState(null); // ca mở từ "Ca còn mở" (Kế hoạch E) // { type: 'type' | 'province' | 'warehouse', value: string }
   const [selectedProvinceOrders, setSelectedProvinceOrders] = useState(null);
@@ -235,6 +236,14 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
   const [dueOrders, setDueOrders] = useState([]);
   const [dueLoading, setDueLoading] = useState(false);
   const theme = useTheme();
+  const [viewMode, setViewMode] = useState(() => {
+    try { return localStorage.getItem("ltl_view_mode") || "today"; } catch { return "today"; }
+  });
+  const setAndSaveViewMode = (m) => {
+    setViewMode(m);
+    try { localStorage.setItem("ltl_view_mode", m); } catch {}
+  };
+  const [damageSubTab, setDamageSubTab] = useState("cases");
 
   if (!data) return <TruckLoader />;
 
@@ -244,6 +253,8 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
   const showOverview = view === "ltl";
   const showMap = view === "map";
   const showDamage = view === "damage";
+  const showEvents = view === "events";
+  const todayMode = showOverview && viewMode === "today";
 
   const exportSummaryCSV = () => {
     const projects = Object.values(data.projectSummaries || {}).sort((a, b) => b.totalOrders - a.totalOrders);
@@ -360,7 +371,19 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
         >
           📉 Dự án On-time &lt; {LOW_ONTIME_PCT}% <b style={{ color: "var(--cyan)" }}>{fmt(lowOntimeProjects.length)}</b>{lowOntimeActive && " ✕"}
         </button>
-        <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+        <span style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+          {showOverview && (
+            <div style={{ display: "flex", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden", fontSize: 12, fontWeight: 600 }}>
+              {[["today", "⚡ Hôm nay"], ["analysis", "📊 Phân tích"]].map(([m, label]) => (
+                <button key={m} onClick={() => setAndSaveViewMode(m)} style={{
+                  padding: "5px 12px", fontFamily: "inherit", cursor: "pointer", border: "none",
+                  background: viewMode === m ? "var(--cyan)" : "transparent",
+                  color: viewMode === m ? "#000" : "var(--text-muted)",
+                  fontWeight: viewMode === m ? 700 : 400,
+                }}>{label}</button>
+              ))}
+            </div>
+          )}
           {(userRole === "manager" || userRole === "sd3") && onOpenCompanyReport && (
             <button onClick={onOpenCompanyReport} title="Mở tab Báo cáo công ty" style={{
               display: "flex", alignItems: "center", gap: 6, background: "rgba(var(--brand-rgb),0.1)", border: "1px solid rgba(var(--brand-rgb),0.3)",
@@ -466,7 +489,9 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
         );
       })()}
 
-      {showOverview && !isClient && <ExceptionsPanel exceptions={exceptions} onFilterProject={onQuickLowOntime} />}
+      {showOverview && !isClient && !todayMode && (
+        <ExceptionsPanel exceptions={exceptions} onFilterProject={onQuickLowOntime} />
+      )}
 
       {showOverview && (() => {
         // "Cần chú ý" — one row of 4 clickable tiles (2026-09-26), replacing
@@ -481,6 +506,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
             sub: anomalies?.items?.length ? anomalies.items.slice(0, 2).map((a) => a.name).join(", ") + (anomalies.items.length > 2 ? "…" : "") : `Không có (≥ 10 điểm so ${anomalies?.compareLabel || "kỳ trước"})`,
             onClick: anomalies?.items?.length ? () => setAnomModalOpen(true) : undefined },
         ];
+        if (todayMode) return null;
         return (
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Cần chú ý</div>
@@ -582,101 +608,116 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
         const pc = data.periodComparison;
         const src = pc ? (singleProjectMode ? pc.clients?.find((c) => c.client === selectedProjects[0]) : pc.overall) : null;
         const damageTrend = pc && src ? {
-          scope: singleProjectMode ? selectedProjects[0] : "toàn hệ thống",
           currentRangeLabel: pc.currentRangeLabel, previousRangeLabel: pc.previousRangeLabel,
           curDamageCount: src.cur?.damageCount ?? 0, prevDamageCount: src.prev?.damageCount ?? 0,
           damageDeltaPct: src.damageDeltaPct ?? null, damageIsNew: src.damageIsNew ?? false,
         } : null;
-        const riskyProjects = (damageRisk?.byProject || []).filter((p) => p.orders >= damageRisk.rule.minOrders && p.per1000 >= (damageRisk.projectAvgRate ?? damageRisk.avgRate) * 10 * damageRisk.rule.multiplier).length;
-        const tiles = [
-          { label: "Ca hư hỏng (kỳ đang lọc)", value: fmt(data.totalBroken), sub: damageTrend ? `${damageTrend.currentRangeLabel}: ${fmt(damageTrend.curDamageCount)} ca · cùng kỳ: ${fmt(damageTrend.prevDamageCount)} ca` : "" },
-          { label: "Tỷ lệ bể vỡ trung bình", value: damageRisk ? `${damageRisk.avgRate.toLocaleString("vi-VN")}%` : "—", sub: damageRisk ? `${fmt(damageRisk.totalDamaged)} đơn có ca / ${fmt(damageRisk.totalOrders)} đơn` : "" },
-          { label: "Tuyến rủi ro cao", value: fmt(damageRisk?.riskyRouteCount || 0), sub: damageRisk ? `≥ ${damageRisk.rule.multiplier}× TB, ≥ ${damageRisk.rule.minOrders} đơn` : "" },
-          { label: "Dự án rủi ro cao", value: fmt(riskyProjects), sub: "% bể vỡ ≥ 2× trung bình" },
-          ...(() => {
-            // Same cases as "Ca hư hỏng (kỳ đang lọc)" — Rillnet definitions.
-            const cases = data.detailedDamageCases || [];
-            const comp = cases.filter((c) => c.compensated);
-            const tt = cases.filter((c) => c.truy_thu === "co");
-            const ttSum = tt.reduce((s, c) => s + (c.truy_thu_amount || 0), 0);
-            const chotSum = comp.reduce((s, c) => s + (c.comp_amount || 0), 0);
-            return [
-              { label: "Đã chốt đền bù cho khách", value: fmt(comp.length), sub: `Ops chấp nhận đền bù hoặc đã chốt tiền${chotSum ? ` · đã chốt ${fmt(chotSum)}đ` : ""}` },
-              ...(SHOW_TRUY_THU ? [{ label: "Truy thu (đã duyệt)", value: `${fmt(tt.length)} ca`, sub: `${fmt(Math.round(ttSum / 1e5) / 10, 1)} triệu · ${fmt(cases.filter((c) => c.truy_thu === "khong").length)} không truy thu · ${fmt(cases.filter((c) => c.truy_thu === "cho").length)} chờ chốt` }] : []),
-            ];
-          })(),
+        const moneyAmt = damageMoney?.total?.amount || 0;
+        const moneyFmt = moneyAmt >= 1e6
+          ? `${(moneyAmt / 1e6).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} tr`
+          : moneyAmt ? `${Math.round(moneyAmt).toLocaleString("vi-VN")}đ` : "—";
+        const kpis = [
+          { label: "Ca hư hỏng", value: fmt(data.totalBroken), sub: damageTrend ? damageTrend.currentRangeLabel : "kỳ đang lọc", color: "var(--text-primary)" },
+          { label: "Tỷ lệ bể vỡ TB", value: damageRisk ? `${damageRisk.avgRate.toLocaleString("vi-VN")}%` : "—", sub: damageRisk ? `${fmt(damageRisk.totalDamaged)}/${fmt(damageRisk.totalOrders)} đơn` : "", color: "var(--text-primary)" },
+          { label: "Tiền đền cho khách", value: moneyFmt, sub: damageMoney ? `${fmt(damageMoney.total.compensated)} ca đã chốt đền bù` : "", color: "var(--amber)" },
+          { label: "Ca còn mở", value: fmt(damageAnalysis?.open?.total || 0), sub: damageAnalysis?.open ? `${fmt(damageAnalysis.open.over30)} ca > 30 ngày` : "", color: damageAnalysis?.open?.total ? "var(--red)" : "var(--text-muted)" },
         ];
+        const TABS = [["cases", "📂 Ca & xử lý"], ["finance", "💰 Tài chính"], ["risk", "📊 Phân tích rủi ro"]];
         return (
-          <div className="chart-panel" style={{ width: "100%" }}>
-            <div className="chart-panel-title">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
-              Tổng quan bể vỡ
+          <>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+              {kpis.map((k) => (
+                <div key={k.label} style={{ flex: "1 1 140px", minWidth: 120, background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: 10, padding: "8px 12px" }}>
+                  <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{k.label}</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: k.color }}>{k.value}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{k.sub}</div>
+                </div>
+              ))}
             </div>
-            <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
-              <div className="grid-3">
-                {tiles.map((t) => (
-                  <div key={t.label} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px" }}>
-                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{t.label}</div>
-                    <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)" }}>{t.value}</div>
-                    <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{t.sub}</div>
+            <div style={{ display: "flex", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", marginBottom: 16, width: "fit-content" }}>
+              {TABS.map(([id, label], idx) => (
+                <button key={id} onClick={() => setDamageSubTab(id)} style={{
+                  padding: "7px 16px", fontFamily: "inherit", cursor: "pointer", border: "none",
+                  borderRight: idx < TABS.length - 1 ? "1px solid var(--border)" : "none",
+                  background: damageSubTab === id ? "var(--cyan)" : "transparent",
+                  color: damageSubTab === id ? "#000" : "var(--text-muted)",
+                  fontWeight: damageSubTab === id ? 700 : 400, fontSize: 13,
+                }}>{label}</button>
+              ))}
+            </div>
+
+            {damageSubTab === "cases" && (
+              <>
+                {damageAnalysis && <OpenCasesPanel open={damageAnalysis.open} onOpenCase={setDrawerCase} />}
+                <div className="chart-panel">
+                  <div className="chart-panel-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      Chi Tiết Ca Hư Hỏng{damageFilter ? ` — Lọc theo ${damageFilter.type === "type" ? "Loại: " : damageFilter.type === "province" ? "Tỉnh: " : "Kho: "}${damageFilter.value}` : ""}
+                    </span>
+                    {damageFilter && (
+                      <button onClick={() => setDamageFilter(null)} style={{ background: "rgba(244,63,94,0.15)", border: "1px solid var(--red)", color: "var(--red)", fontSize: 11, padding: "2px 8px", borderRadius: 4, cursor: "pointer" }}>Hủy lọc ✕</button>
+                    )}
                   </div>
-                ))}
-              </div>
-              {aiInsights && (
-                <BreakageAlertSection
-                  hideRouteList
-                  routes={aiInsights.breakageRoutes}
-                  avgDmgRate={aiInsights.avgDmgRate}
-                  totalOrders={aiInsights.totalOrders}
-                  damageCauses={aiInsights.damageCauses}
-                  damageTrend={damageTrend}
-                  recentCases={
-                    aiInsights.damageCauses?.totalCases > 0 && aiInsights.damageCauses.totalCases <= 8
-                      ? (data.detailedDamageCases || []).slice(0, 8).map((c) => ({
-                          orderCode: c.order_code, client: c.client_name,
-                          warehouse: c.warehouse_giao, leg: c.damage_details, province: c.to_province,
-                        }))
-                      : []
-                  }
-                />
-              )}
-            </div>
-          </div>
+                  <DetailedDamageTable cases={data.detailedDamageCases || []} filter={damageFilter} showClaimsWorkflow={true} externalCase={drawerCase} onExternalClose={() => setDrawerCase(null)} />
+                </div>
+              </>
+            )}
+
+            {damageSubTab === "finance" && damageMoney && <DamageMoneyPanel money={damageMoney} />}
+
+            {damageSubTab === "risk" && (
+              <>
+                {aiInsights && (
+                  <div className="chart-panel" style={{ width: "100%" }}>
+                    <div className="chart-panel-title">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+                      Xu hướng bể vỡ
+                    </div>
+                    <div style={{ padding: "0 16px 16px" }}>
+                      <BreakageAlertSection
+                        hideRouteList
+                        routes={aiInsights.breakageRoutes}
+                        avgDmgRate={aiInsights.avgDmgRate}
+                        totalOrders={aiInsights.totalOrders}
+                        damageCauses={aiInsights.damageCauses}
+                        damageTrend={damageTrend}
+                        recentCases={
+                          aiInsights.damageCauses?.totalCases > 0 && aiInsights.damageCauses.totalCases <= 8
+                            ? (data.detailedDamageCases || []).slice(0, 8).map((c) => ({ orderCode: c.order_code, client: c.client_name, warehouse: c.warehouse_giao, leg: c.damage_details, province: c.to_province }))
+                            : []
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+                {damageAnalysis && <RecurrencePanel recurrence={damageAnalysis.recurrence} />}
+                {damageAnalysis && <LegRoutesPanel legs={damageAnalysis.legs} />}
+                {damageRisk && <RouteRiskMatrix risk={damageRisk} riskOnly={riskOnly} onRiskOnlyChange={setRiskOnly} />}
+              </>
+            )}
+          </>
         );
       })()}
 
-      {showDamage && !isClient && damageMoney && <DamageMoneyPanel money={damageMoney} />}
-      {showDamage && !isClient && damageAnalysis && <OpenCasesPanel open={damageAnalysis.open} onOpenCase={setDrawerCase} />}
-      {showDamage && !isClient && damageAnalysis && <RecurrencePanel recurrence={damageAnalysis.recurrence} />}
-      {showDamage && !isClient && damageAnalysis && <LegRoutesPanel legs={damageAnalysis.legs} />}
-
-      {showDamage && !isClient && damageRisk && (
-        <RouteRiskMatrix risk={damageRisk} riskOnly={riskOnly} onRiskOnlyChange={setRiskOnly} />
+      {showDamage && isClient && (
+        <div className="chart-panel">
+          <div className="chart-panel-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              Chi Tiết Ca Hư Hỏng{damageFilter ? ` — Lọc theo ${damageFilter.type === "type" ? "Loại: " : damageFilter.type === "province" ? "Tỉnh: " : "Kho: "}${damageFilter.value}` : ""}
+            </span>
+            {damageFilter && (
+              <button onClick={() => setDamageFilter(null)} style={{ background: "rgba(244,63,94,0.15)", border: "1px solid var(--red)", color: "var(--red)", fontSize: 11, padding: "2px 8px", borderRadius: 4, cursor: "pointer" }}>Hủy lọc ✕</button>
+            )}
+          </div>
+          <DetailedDamageTable cases={data.detailedDamageCases || []} filter={damageFilter} showClaimsWorkflow={false} externalCase={drawerCase} onExternalClose={() => setDrawerCase(null)} />
+        </div>
+      )}
+      {showEvents && (
+        <CampaignForecast dailyOrders={dailyOrders || {}} />
       )}
 
-      {showDamage && <div className="chart-panel">
-        <div className="chart-panel-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            Chi Tiết Ca Hư Hỏng {damageFilter ? `— Lọc theo ${damageFilter.type === "type" ? "Loại: " : damageFilter.type === "province" ? "Tỉnh: " : "Kho: "}${damageFilter.value}` : ""}
-          </span>
-          {damageFilter && (
-            <button 
-              onClick={() => setDamageFilter(null)}
-              style={{ background: "rgba(244,63,94,0.15)", border: "1px solid var(--red)", color: "var(--red)", fontSize: 11, padding: "2px 8px", borderRadius: 4, cursor: "pointer" }}
-            >
-              Hủy lọc x
-            </button>
-          )}
-        </div>
-        <DetailedDamageTable
-          cases={data.detailedDamageCases || []}
-          filter={damageFilter}
-          showClaimsWorkflow={!isClient}
-          externalCase={drawerCase}
-          onExternalClose={() => setDrawerCase(null)}
-        />
-      </div>}
       {pendingModalOpen && (
         <OrderListModal
           title="Đơn chờ lấy (chưa chốt kỳ)"

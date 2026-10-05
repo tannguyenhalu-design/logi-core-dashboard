@@ -117,6 +117,8 @@ export default function FilterBar({
 }) {
   const projectOptions = availableProjects.map((p) => ({ value: p, label: p }));
   const isClientLocked = userRole === "client";
+  // Hiển thị chip "Xem tất cả tháng" khi đang lọc một tập con tháng
+  const hasMonthFilter = selectedMonths.length > 0 && selectedMonths.length < 12;
 
   return (
     <div className="filter-bar">
@@ -158,6 +160,22 @@ export default function FilterBar({
         locked={false}
         placeholder="Tất cả tháng"
       />
+      {hasMonthFilter && (
+        <button
+          onClick={() => onMonthsChange([])}
+          title="Bỏ lọc tháng — xem tất cả dữ liệu"
+          style={{
+            background: "none", border: "1px solid var(--border)", borderRadius: 6,
+            color: "var(--text-muted)", fontSize: 11, cursor: "pointer",
+            padding: "4px 8px", whiteSpace: "nowrap", flexShrink: 0,
+            transition: "color 0.15s, border-color 0.15s",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = "var(--cyan)"; e.currentTarget.style.borderColor = "var(--cyan)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.borderColor = "var(--border)"; }}
+        >
+          Tháng cũ hơn ↗
+        </button>
+      )}
       <MultiSelect
         label="Dự án"
         options={projectOptions}

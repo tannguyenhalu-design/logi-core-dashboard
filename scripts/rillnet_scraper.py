@@ -1,14 +1,16 @@
 """
-rillnet_scraper.py — Tải báo cáo bể vỡ/hư hỏng Điện Máy từ Rillnet daily Excel files
-(Supabase storage) qua CDP, đẩy lên SD3-Điện Máy Dashboard.
+rillnet_scraper.py — Tải dữ liệu bể vỡ/hư hỏng Điện Máy từ Rillnet qua CDP.
 
-Thay thế cách cũ (đọc DOM table bị lệch sau layout change ~16/09/2026) bằng cách
-dùng Rillnet's built-in file export API: bevodaylist + presigned URL per file.
-Ưu điểm:
-  - Dữ liệu đúng từng đơn (không phải bảng tổng hợp theo OM)
-  - File đã filter sẵn Điện Máy (sheet "Hư hỏng bể vỡ ĐTĐM")
-  - Có AI description, link ảnh
-  - Có thể backfill toàn lịch sử từ 01/07/2026
+Hai luồng sync chạy song song trong cùng 1 phiên Chrome:
+  1. CS tick cases (Cách A, 04/10/2026):
+     Đọc _LB.bevo.rows từ window JS → filter DM + cs_denbu → push raw_damage_cs_tick.
+     Đây là 153-156 ca mà CS đã bấm 💰 Có đền bù — số chắc chắn đền bù.
+  2. Daily Excel (AI-detected incidents):
+     Gọi bevodaylist + presigned URL → parse Excel → push raw_damage_causes.
+     Đây là 5199+ ca AI phát hiện nguy cơ (bao gồm cả CS tick ở trên).
+
+Luồng 1 là nguồn sự thật duy nhất cho "đền bù CS tick"; luồng 2 giữ lại
+để có thể tra cứu toàn bộ lịch sử cảnh báo.
 
 ── CÀI ĐẶT ──
     pip install requests websocket-client openpyxl
@@ -17,7 +19,7 @@ dùng Rillnet's built-in file export API: bevodaylist + presigned URL per file.
     "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
         --remote-debugging-port=9222 --remote-allow-origins=*
         --user-data-dir="C:\\chrome-bot-profile" --window-position=-3000,-3000
-    Đăng nhập vào rillnet-app.vercel.app trong cửa sổ đó.
+    Đăng nhập vào rillnet.ghn.vn trong cửa sổ đó.
 
 ── BƯỚC 2: Set env var ──
     set RILLNET_SYNC_SECRET=<giá trị trong .env.local>
@@ -37,7 +39,7 @@ import websocket
 import openpyxl
 
 DEBUG_PORT = 9222
-TARGET_URL = "https://rillnet-app.vercel.app/"
+TARGET_URL = "https://rillnet.ghn.vn/"
 APP_BASE_URL = "https://logicore-app.vercel.app"
 SYNC_SECRET = os.environ.get("RILLNET_SYNC_SECRET")
 
@@ -69,10 +71,15 @@ def get_websocket_url():
 
 
 def send_cdp(ws, method, params=None, timeout=30):
+    ws.settimeout(timeout)  # từng recv() đợi tối đa timeout giây (quan trọng với Promise dài)
     msg_id = int(time.time() * 1000) % 1000000
     ws.send(json.dumps({"id": msg_id, "method": method, "params": params or {}}))
     deadline = time.time() + timeout
     while time.time() < deadline:
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            break
+        ws.settimeout(remaining)
         resp = json.loads(ws.recv())
         if resp.get("id") == msg_id:
             return resp
@@ -105,6 +112,89 @@ def read_last_sync():
 def write_last_sync(date):
     with open(TRACKING_FILE, "w") as f:
         f.write(date.isoformat())
+
+
+# ── CS tick cases (Cách A) ────────────────────────────────────────────────────
+
+def fetch_cs_tick_cases(ws):
+    """
+    Đọc _LB.bevo.rows từ Rillnet page JS, lọc DM + cs_denbu.
+    Trả về (list_of_records, rillnet_reported_count).
+    Gọi SAU khi trang đã load (đợi _LB.bevo sẵn sàng).
+    """
+    print("💰 Đọc CS tick cases từ _LB.bevo.rows...")
+    # Trigger load bevo data rồi dùng Python polling (tránh async Promise dài gây WS timeout).
+    # _lbLoad() là async fn gọi /api/gtalk-send?op=lostbevo → set _LB.bevo.rows (~6k rows).
+    run_js(ws, "(function(){ _lbLoad(); })()", timeout=10)
+
+    CHECK_JS = "JSON.stringify({n: (_LB && _LB.bevo && Array.isArray(_LB.bevo.rows)) ? _LB.bevo.rows.length : -1})"
+    EXTRACT_JS = """JSON.stringify((function() {
+  if (!_LB || !_LB.bevo || !Array.isArray(_LB.bevo.rows)) return null;
+  const rows = _LB.bevo.rows;
+  const dm = rows.filter(r => r.nganh_hang === 'DM');
+  const dmCs = dm.filter(r => r.cs_denbu);
+  return {
+    totalRows: rows.length, dmTotal: dm.length, csTickCount: dmCs.length,
+    cases: dmCs.map(r => ({
+      orderCode: String(r.code || '').trim(),
+      clientName: r.khach || '',
+      incidentDate: r.sc_d || '',
+      warehouse: r.kho || '',
+      route: r.chang_txt || '',
+      om: r.om || '',
+      zone: r.zone || '',
+      severity: r.sev || '',
+      csBy: r.cs_denbu_ten || '',
+      csAt: r.cs_denbu_at || '',
+      csAmount: (r.cs_denbu_sotien != null && r.cs_denbu_sotien !== '') ? r.cs_denbu_sotien : '',
+      isSettled: r.denbu ? '1' : '0',
+      source: r.nguon || '',
+    }))
+  };
+})())"""
+
+    # Polling bằng CDP (không dùng time.sleep - Chrome đóng WS nếu client idle).
+    # Mỗi vòng: check đồng bộ, nếu chưa có thì dùng JS setTimeout 2s để chờ (WS vẫn active).
+    raw = None
+    for attempt in range(30):
+        chk = run_js(ws, CHECK_JS, timeout=10)
+        try:
+            n = json.loads(chk or "{}").get("n", -1)
+        except Exception:
+            n = -1
+        if n > 0:
+            print(f"   _LB.bevo.rows đã load ({n} rows) sau ~{attempt * 2}s.")
+            raw = run_js(ws, EXTRACT_JS, timeout=20)
+            break
+        if attempt == 0:
+            print(f"   Chờ _LB.bevo.rows load (n={n})...")
+        # Dùng CDP để đợi 2s — giữ WS active (không sleep Python)
+        run_js(ws, "new Promise(r => setTimeout(r, 2000))", timeout=5)
+    else:
+        print("⚠️ _LB.bevo.rows chưa load sau 60s — trang chưa đăng nhập hoặc Rillnet lỗi.")
+        return [], 0
+
+    if not raw:
+        print("⚠️ Không đọc được _LB.bevo.rows — trang chưa load hoặc chưa đăng nhập.")
+        return [], 0
+
+    try:
+        data = json.loads(raw)
+    except Exception as e:
+        print(f"⚠️ JSON parse lỗi từ _LB.bevo: {e}")
+        return [], 0
+
+    total = data.get("totalRows", 0)
+    dm_total = data.get("dmTotal", 0)
+    cs_count = data.get("csTickCount", 0)
+    cases = data.get("cases", [])
+
+    print(f"   _LB.bevo: {total} tổng | {dm_total} DM | {cs_count} CS tick 💰")
+    # Lọc bỏ record thiếu orderCode
+    valid = [c for c in cases if c.get("orderCode")]
+    if len(valid) < len(cases):
+        print(f"   ⚠️ Bỏ {len(cases) - len(valid)} record thiếu orderCode.")
+    return valid, cs_count
 
 
 # ── Excel parsing ─────────────────────────────────────────────────────────────
@@ -198,7 +288,7 @@ def parse_excel(content_bytes, date_str):
 def fetch_compensation(ws):
     """Navigate to Đền bù tổng hợp page, parse summary cards. Returns dict or None."""
     try:
-        send_cdp(ws, "Page.navigate", {"url": "https://rillnet-app.vercel.app/truythu.html"})
+        send_cdp(ws, "Page.navigate", {"url": "https://rillnet.ghn.vn/truythu.html"})
         time.sleep(4)
         # Click Tổng hợp tab
         run_js(ws, """
@@ -254,8 +344,8 @@ def main():
     # Điều hướng tới Rillnet để lấy auth session
     print(f"🚀 Điều hướng tới {TARGET_URL} ...")
     send_cdp(ws, "Page.navigate", {"url": TARGET_URL})
-    print("⏳ Đợi trang load (8 giây)...")
-    time.sleep(8)
+    print("⏳ Đợi trang load (15 giây)...")
+    time.sleep(15)
 
     # Kiểm tra đã đăng nhập chưa
     page_text = run_js(ws, "document.body?.innerText?.slice(0, 300)") or ""
@@ -266,6 +356,31 @@ def main():
         return
     print(f"✅ Đã vào Rillnet (title: {run_js(ws, 'document.title') or 'N/A'})")
 
+    # ── Luồng 1: CS tick cases từ _LB.bevo.rows ──────────────────────────────
+    # Đọc và push ngay trước khi navigate sang trang khác.
+    cs_tick_records, rillnet_cs_count = fetch_cs_tick_cases(ws)
+    if cs_tick_records:
+        print(f"☁️  Đẩy {len(cs_tick_records)} CS tick cases lên {APP_BASE_URL}/api/rillnet-cs-sync...")
+        try:
+            res_cs = requests.post(
+                f"{APP_BASE_URL}/api/rillnet-cs-sync",
+                headers={"Content-Type": "application/json", "X-Sync-Secret": SYNC_SECRET},
+                json={"records": cs_tick_records, "rillnetCount": rillnet_cs_count},
+                timeout=60,
+            )
+            if res_cs.status_code == 200:
+                body = res_cs.json()
+                synced_cs = body.get("synced", 0)
+                mismatch = body.get("mismatch", False)
+                print(f"✅ CS tick: {synced_cs} ca OK (Rillnet báo {rillnet_cs_count}){' ⚠️ LỆCH SỐ!' if mismatch else ''}")
+            else:
+                print(f"❌ CS tick sync lỗi: HTTP {res_cs.status_code} — {res_cs.text[:200]}")
+        except Exception as e:
+            print(f"❌ CS tick sync lỗi: {e}")
+    else:
+        print("⚠️ Không có CS tick record (Rillnet chưa load xong hoặc chưa đăng nhập).")
+
+    # ── Luồng 2: Daily Excel (AI-detected incidents) ──────────────────────────
     # Lấy danh sách file ngày từ API
     print("📋 Đang gọi bevodaylist API...")
     raw = run_js(ws, """

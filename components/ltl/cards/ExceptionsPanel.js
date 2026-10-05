@@ -12,7 +12,14 @@ const KIND = {
   ontime: { icon: "📉", label: "On-time giảm mạnh", color: "var(--red)" },
 };
 const NL = String.fromCharCode(10);
-const shortWh = (s) => String(s || "").replace(/^Kho Giao Hàng Nặng - /, "").replace(/^Key Account Warehouse /, "KA WH ").trim();
+const shortWh = (s) => String(s || "")
+  .replace(/^Kho Giao Hàng Nặng - /, "")
+  .replace(/^Key Account Warehouse /, "KA WH ")
+  .replace(/^Kho B2B - /, "B2B ")
+  .trim()
+  .replace(/^KA WH Ho Chi Minh$/i, "KA-HCM")
+  .replace(/^KA WH H[aà] N[oộ]i?$/i, "KA-HN")
+  .replace(/^KA WH [ĐD][aà] N[aẵ]ng?$/i, "KA-ĐN");
 
 export default function ExceptionsPanel({ exceptions, onFilterProject }) {
   const [open, setOpen] = useState(null);

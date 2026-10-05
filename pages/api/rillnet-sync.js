@@ -1,7 +1,7 @@
 /**
  * pages/api/rillnet-sync.js
  * POST /api/rillnet-sync — receives per-order damage/breakage records
- * scraped locally from Rillnet (rillnet-app.vercel.app) via CDP, same
+ * scraped locally from Rillnet (rillnet.ghn.vn) via CDP, same
  * pattern as /api/kpi-sync. Not a user-session endpoint — authenticated
  * via a shared secret header since the scraper runs standalone.
  */

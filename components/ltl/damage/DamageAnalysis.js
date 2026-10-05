@@ -13,8 +13,29 @@ import { useState } from "react";
 import { fmt } from "../utils";
 
 const vnd = (x) => `${Math.round(x || 0).toLocaleString("vi-VN")}đ`;
-const shortWh = (s) => String(s || "").replace(/^Kho Giao Hàng Nặng - /, "").replace(/^Key Account Warehouse /, "KA WH ").replace(/^Kho B2B - /, "B2B ").trim();
+const shortWh = (s) => String(s || "")
+  .replace(/^Kho Giao Hàng Nặng - /, "")
+  .replace(/^Key Account Warehouse /, "KA WH ")
+  .replace(/^Kho B2B - /, "B2B ")
+  .trim()
+  .replace(/^KA WH Ho Chi Minh$/i, "KA-HCM")
+  .replace(/^KA WH H[aà] N[oộ]i?$/i, "KA-HN")
+  .replace(/^KA WH [ĐD][aà] N[aẵ]ng?$/i, "KA-ĐN");
 const shortRoute = (r) => `${shortWh(r.kho_lay) || "?"} → ${shortWh(r.kho_giao) || "?"}`;
+const STATUS_SHORT = [
+  [/đã chốt truy thu.*đợi cs.*đền bù/i,   "CS: chờ đền bù"],
+  [/đã chốt tt.*chờ om chia/i,             "OM: chờ chia"],
+  [/chờ ktc.*giải trình/i,                 "KTC: giải trình"],
+  [/đã chốt.*không truy thu/i,             "Chốt — k.truy thu"],
+  [/hoàn tất kết luận/i,                   "Hoàn tất QLRR"],
+  [/chưa tiếp nhận/i,                      "Chưa TN"],
+  [/đang xác minh/i,                       "Xác minh lỗi"],
+];
+const shortStatus = (s) => {
+  if (!s) return "—";
+  for (const [re, label] of STATUS_SHORT) if (re.test(s)) return label;
+  return s.length > 22 ? s.slice(0, 20) + "…" : s;
+};
 const dm = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : "—");
 const dmy = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : "—");
 const pct = (x) => `${Math.round((x || 0) * 100)}%`;
@@ -37,7 +58,7 @@ function Panel({ title, sub, children }) {
 }
 
 export function OpenCasesPanel({ open, onOpenCase }) {
-  const [stage, setStage] = useState(null);
+  const [stage, setStage] = useState("CS");
   const [copied, setCopied] = useState(false);
   if (!open) return null;
   const list = stage ? open.cases.filter((c) => c.stage === stage) : open.cases;
@@ -70,26 +91,28 @@ export function OpenCasesPanel({ open, onOpenCase }) {
         {stage && <button style={seg(false)} onClick={() => setStage(null)}>Bỏ lọc ✕</button>}
       </div>
       <div style={{ overflowX: "auto", maxHeight: 420, overflowY: "auto" }}>
-        <table className="data-table" style={{ fontSize: 12, minWidth: 980 }}>
+        <table className="data-table" style={{ fontSize: 12, minWidth: 820 }}>
           <thead><tr>
-            <th style={th}>Mã đơn</th><th style={th}>Khách</th><th style={th}>Kho lấy → kho giao</th>
-            <th style={th}>Ngày ca</th><th style={{ ...th, textAlign: "right" }}>Tồn</th><th style={th}>Khâu</th><th style={th}>Trạng thái Rillnet</th>
+            <th style={th}>Đơn / Khách</th><th style={th}>Tuyến</th>
+            <th style={th}>Ngày ca</th><th style={{ ...th, textAlign: "right" }}>Tồn</th><th style={th}>Khâu</th><th style={th}>Trạng thái</th>
             <th style={{ ...th, textAlign: "right" }}>Tiền đền</th>
           </tr></thead>
           <tbody>
             {list.map((c) => (
               <tr key={c.order_code + c.case_date} onClick={() => onOpenCase?.(c)} style={{ cursor: onOpenCase ? "pointer" : "default" }}>
-                <td style={{ ...td, fontFamily: "monospace", fontWeight: 700, color: "var(--cyan)" }}>{c.order_code}</td>
-                <td style={td}>{c.client_name}</td>
-                <td style={{ ...td, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis" }} title={`${c.kho_lay} → ${c.kho_giao}`}>{shortRoute(c)}</td>
+                <td style={{ ...td, whiteSpace: "nowrap" }}>
+                  <div style={{ fontFamily: "monospace", fontWeight: 700, color: "var(--cyan)" }}>{c.order_code}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>{c.client_name}</div>
+                </td>
+                <td style={{ ...td, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`${c.kho_lay} → ${c.kho_giao}`}>{shortRoute(c)}</td>
                 <td style={td}>{dm(c.case_iso)}</td>
-                <td style={{ ...num, fontWeight: 700, color: daysColor(c.days) }}>{c.days == null ? "—" : `${fmt(c.days)} ngày`}</td>
+                <td style={{ ...num, fontWeight: 700, color: daysColor(c.days) }}>{c.days == null ? "—" : `${fmt(c.days)}n`}</td>
                 <td style={{ ...td, color: STAGE_COLOR[c.stage], fontWeight: 600 }}>{c.stage}</td>
-                <td style={{ ...td, whiteSpace: "normal", minWidth: 200, color: "var(--text-secondary)" }}>{c.rillnet_status || "—"}</td>
-                <td style={{ ...num, color: c.comp_amount ? "var(--amber)" : "var(--text-muted)" }}>{c.comp_amount ? vnd(c.comp_amount) : c.compensated ? "đã chốt, chưa có số" : "—"}</td>
+                <td style={{ ...td, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-secondary)" }} title={c.rillnet_status || ""}>{shortStatus(c.rillnet_status)}</td>
+                <td style={{ ...num, color: c.comp_amount ? "var(--amber)" : "var(--text-muted)" }}>{c.comp_amount ? vnd(c.comp_amount) : c.compensated ? "đã chốt" : "—"}</td>
               </tr>
             ))}
-            {!list.length && <tr><td colSpan={8} style={{ ...td, textAlign: "center", color: "var(--text-muted)" }}>Không có ca còn mở.</td></tr>}
+            {!list.length && <tr><td colSpan={7} style={{ ...td, textAlign: "center", color: "var(--text-muted)" }}>Không có ca còn mở.</td></tr>}
           </tbody>
         </table>
       </div>

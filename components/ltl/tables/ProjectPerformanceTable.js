@@ -20,9 +20,16 @@ function Bar({ pct, color, marker }) {
   );
 }
 
+const FILTERS = [
+  { key: "all",    label: "Tất cả" },
+  { key: "low",    label: "⚠ On-time < 90%" },
+  { key: "damage", label: "📦 Có ca bể vỡ" },
+];
+
 export default function ProjectPerformanceTable({ projectSummaries = {} }) {
   const [sort, setSort] = useState({ key: "orders", dir: -1 });
   const [showAll, setShowAll] = useState(false);
+  const [filter, setFilter] = useState("all");
 
   const list = Object.values(projectSummaries);
   const totalOrders = list.reduce((s, p) => s + (p.totalOrders || 0), 0) || 1;
@@ -39,20 +46,39 @@ export default function ProjectPerformanceTable({ projectSummaries = {} }) {
     damage: p.damageCount || 0,
     per1000: p.totalOrders > 0 ? ((p.damageCount || 0) / p.totalOrders) * 1000 : null,
   }));
-  rows.sort((a, b) => {
+
+  const filtered = rows.filter((r) => {
+    if (filter === "low") return r.ontime != null && r.ontime < ONTIME_TARGET;
+    if (filter === "damage") return r.damage > 0;
+    return true;
+  });
+  filtered.sort((a, b) => {
     const va = a[sort.key] ?? -1, vb = b[sort.key] ?? -1;
     return typeof va === "string" ? va.localeCompare(vb) * sort.dir : (va - vb) * sort.dir;
   });
-  const shown = showAll ? rows : rows.slice(0, PAGE);
+  const shown = showAll ? filtered : filtered.slice(0, PAGE);
 
-  const head = (key, label, align = "right") => (
-    <th onClick={() => setSort((s) => ({ key, dir: s.key === key ? -s.dir : key === "name" ? 1 : -1 }))} style={{
-      padding: "8px 10px", fontSize: 11.5, fontWeight: 700, color: sort.key === key ? "var(--cyan)" : "var(--text-secondary)",
-      textAlign: align, whiteSpace: "nowrap", cursor: "pointer", userSelect: "none", borderBottom: "1px solid var(--border)",
-    }}>
-      {label}{sort.key === key ? (sort.dir < 0 ? " ▼" : " ▲") : ""}
-    </th>
-  );
+  const chip = (f) => ({
+    fontSize: 12, padding: "4px 10px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+    border: `1px solid ${filter === f.key ? "var(--cyan)" : "var(--border)"}`,
+    background: filter === f.key ? "rgba(var(--brand-rgb),0.14)" : "transparent",
+    color: filter === f.key ? "var(--cyan)" : "var(--text-muted)",
+    fontWeight: filter === f.key ? 700 : 400,
+  });
+
+  const head = (key, label, align = "right") => {
+    const active = sort.key === key;
+    return (
+      <th onClick={() => setSort((s) => ({ key, dir: s.key === key ? -s.dir : key === "name" ? 1 : -1 }))} style={{
+        padding: "8px 10px", fontSize: 11.5, fontWeight: 700,
+        color: active ? "var(--cyan)" : "var(--text-secondary)",
+        textAlign: align, whiteSpace: "nowrap", cursor: "pointer", userSelect: "none",
+        borderBottom: "1px solid var(--border)",
+      }}>
+        {label} {active ? (sort.dir < 0 ? "▼" : "▲") : <span style={{ opacity: 0.35 }}>↕</span>}
+      </th>
+    );
+  };
   const td = { padding: "7px 10px", fontSize: 12.5, textAlign: "right", whiteSpace: "nowrap", borderBottom: "1px solid var(--border)" };
 
   return (
@@ -62,6 +88,16 @@ export default function ProjectPerformanceTable({ projectSummaries = {} }) {
         <span style={{ fontSize: 12, fontWeight: 400, color: "var(--text-muted)" }}>
           Bấm tiêu đề cột để sắp xếp · vạch đứng = mục tiêu on-time {ONTIME_TARGET}% · ≥ 90% xanh, 80–90% vàng, &lt; 80% đỏ
         </span>
+      </div>
+      <div style={{ display: "flex", gap: 6, padding: "0 8px 10px", flexWrap: "wrap" }}>
+        {FILTERS.map((f) => (
+          <button key={f.key} style={chip(f)} onClick={() => { setFilter(f.key); setShowAll(false); }}>{f.label}</button>
+        ))}
+        {filter !== "all" && (
+          <span style={{ fontSize: 12, color: "var(--text-muted)", alignSelf: "center", marginLeft: 4 }}>
+            {filtered.length} / {rows.length} dự án
+          </span>
+        )}
       </div>
       <div style={{ overflowX: "auto", padding: "0 8px 8px" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -101,13 +137,16 @@ export default function ProjectPerformanceTable({ projectSummaries = {} }) {
                 <td style={td} title="% bể vỡ = ca bể vỡ ÷ đơn lấy (như báo cáo công ty)">{r.damage ? `${(r.per1000 / 10).toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : <span style={{ color: "var(--text-muted)" }}>—</span>}</td>
               </tr>
             ))}
+            {!shown.length && (
+              <tr><td colSpan={9} style={{ ...td, textAlign: "center", color: "var(--text-muted)", padding: "16px 10px" }}>Không có dự án nào phù hợp bộ lọc.</td></tr>
+            )}
           </tbody>
         </table>
-        {rows.length > PAGE && (
+        {filtered.length > PAGE && (
           <button onClick={() => setShowAll((v) => !v)} style={{
             marginTop: 8, fontSize: 12.5, fontWeight: 600, background: "none", border: "none", color: "var(--cyan)", cursor: "pointer", fontFamily: "inherit",
           }}>
-            {showAll ? "Thu gọn ▲" : `Xem tất cả ${rows.length} dự án ▼`}
+            {showAll ? "Thu gọn ▲" : `Xem tất cả ${filtered.length} dự án ▼`}
           </button>
         )}
       </div>
