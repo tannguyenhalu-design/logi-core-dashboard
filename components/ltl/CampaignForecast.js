@@ -118,9 +118,10 @@ function ProvinceBreakdown({ date, byProvinceAndDay, weightByProvinceAndDay, top
 }
 
 // ─── KhoLayBreakdown (bảng kho lấy trong từng card) ─────────────────────────
-function KhoLayBreakdown({ date, byKhoLayAndDay, topN = 15 }) {
+function KhoLayBreakdown({ date, byKhoLayAndDay, overrideRows, topN = 15 }) {
   const dm1 = addDays(date, -1), dp1 = addDays(date, 1);
   const rows = useMemo(() => {
+    if (overrideRows) return overrideRows.slice(0, topN);
     const map = {};
     for (const d of [dm1, date, dp1]) {
       for (const [kho, cnt] of Object.entries((byKhoLayAndDay || {})[d] || {})) {
@@ -131,7 +132,7 @@ function KhoLayBreakdown({ date, byKhoLayAndDay, topN = 15 }) {
       .map(([kho, orders]) => ({ kho, orders }))
       .sort((a, b) => b.orders - a.orders)
       .slice(0, topN);
-  }, [dm1, date, dp1, byKhoLayAndDay]);
+  }, [dm1, date, dp1, byKhoLayAndDay, overrideRows]);
   const tdS = { padding: "5px 8px", fontSize: 11.5, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" };
   if (!rows.length) return <div style={{ fontSize: 12, color: "var(--text-muted)", padding: "8px 0" }}>Không có dữ liệu kho lấy.</div>;
   const total = rows.reduce((s, r) => s + r.orders, 0);
@@ -239,7 +240,7 @@ function DayCol({ label, date, orders, weightKg, maxOrders, isPeak, isFuture }) 
 }
 
 // ─── EventCard ───────────────────────────────────────────────────────────────
-function EventCard({ event, byDay, weightByDay, byClientAndDay, byProvinceAndDay, weightByProvinceAndDay, byKhoLayAndDay, forecastBaseline, normalStats, today, growthRateO, fcSnapshot, onChot, provinceForecast }) {
+function EventCard({ event, byDay, weightByDay, byClientAndDay, byProvinceAndDay, weightByProvinceAndDay, byKhoLayAndDay, forecastBaseline, normalStats, today, growthRateO, fcSnapshot, onChot, provinceForecast, khoLayForecast }) {
   const [showProjects, setShowProjects] = useState(false);
   const [showProvince, setShowProvince] = useState(false);
   const [showKhoLay, setShowKhoLay] = useState(false);
@@ -379,17 +380,20 @@ function EventCard({ event, byDay, weightByDay, byClientAndDay, byProvinceAndDay
           )}
         </div>
       )}
-      {hasData && (
+      {(hasData || (isFuture && khoLayForecast && Object.keys(khoLayForecast).length > 0)) && (
         <div style={{ borderTop: "1px solid var(--border)" }}>
           <button onClick={() => setShowKhoLay((v) => !v)} style={{
             width: "100%", padding: "5px 12px", background: "none", border: "none", cursor: "pointer",
             fontSize: 11, color: "var(--text-muted)", textAlign: "left", fontFamily: "inherit",
           }}>
-            {showKhoLay ? "▲ Ẩn theo kho lấy" : "▼ Xem theo kho lấy"}
+            {showKhoLay ? "▲ Ẩn theo kho lấy" : `▼ Xem theo kho lấy${isFuture ? " (lịch sử)" : ""}`}
           </button>
           {showKhoLay && (
             <div style={{ padding: "0 8px 8px" }}>
-              <KhoLayBreakdown date={date} byKhoLayAndDay={byKhoLayAndDay} />
+              {isFuture && khoLayForecast
+                ? <KhoLayBreakdown date={date} overrideRows={Object.entries(khoLayForecast).map(([kho, orders]) => ({ kho, orders })).sort((a, b) => b.orders - a.orders)} />
+                : <KhoLayBreakdown date={date} byKhoLayAndDay={byKhoLayAndDay} />
+              }
             </div>
           )}
         </div>
@@ -965,6 +969,21 @@ export default function CampaignForecast({ dailyOrders = {} }) {
     return result;
   }, [pastWindows, byProvinceAndDay, weightByProvinceAndDay]);
 
+  // Kho lấy lịch sử theo slot — dùng cho future event (không có actual data)
+  const khoLayForecastBySlot = useMemo(() => {
+    const result = {};
+    for (const pw of pastWindows) {
+      const s = pw.slot ?? 0;
+      if (!result[s]) result[s] = {};
+      for (const d of [pw.dm1, pw.date, pw.dp1]) {
+        for (const [kho, cnt] of Object.entries((byKhoLayAndDay || {})[d] || {})) {
+          result[s][kho] = (result[s][kho] || 0) + cnt;
+        }
+      }
+    }
+    return result;
+  }, [pastWindows, byKhoLayAndDay]);
+
   // Normal day stats (non-event ± 1 day, last 90 days)
   const normalStats = useMemo(() => {
     const allEDate = new Set();
@@ -1085,192 +1104,11 @@ export default function CampaignForecast({ dailyOrders = {} }) {
               growthRateO={activeEvent.date > today ? forecastBySlot[activeEvent.slot ?? 0]?.growthRateO : null}
               fcSnapshot={fcSnapshots[activeEvent.date] || null}
               onChot={handleChotFc}
-              provinceForecast={activeEvent.date > today ? (provincesForecastBySlot[activeEvent.slot ?? 0] || null) : null} />
+              provinceForecast={activeEvent.date > today ? (provincesForecastBySlot[activeEvent.slot ?? 0] || null) : null}
+            khoLayForecast={activeEvent.date > today ? (khoLayForecastBySlot[activeEvent.slot ?? 0] || null) : null} />
           )}
         </div>
       )}
-
-      {/* Summary table */}
-      {eventsForMonth.length > 0 && (
-        <div className="chart-panel">
-          <div className="chart-panel-title">Bảng tổng hợp — T{parseInt(selectedYM.slice(5, 7), 10)}/{selectedYM.slice(0, 4)}</div>
-          <div style={{ overflowX: "auto", padding: "0 8px 8px" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  {["Sự kiện", "D-1", "D0 ⭐", "D+1", "Tổng đơn", "Tổng tấn", "Spike"].map((h, i) => (
-                    <th key={i} style={{ padding: "8px 10px", fontSize: 11.5, fontWeight: 700, color: "var(--text-secondary)", textAlign: i > 0 ? "right" : "left", borderBottom: "1px solid var(--border)" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {eventsForMonth.map((ev) => {
-                  const dm1 = addDays(ev.date, -1), dp1 = addDays(ev.date, 1);
-                  const isFut = ev.date > today;
-                  const fc = isFut ? (forecastBySlot[ev.slot ?? 0] ?? forecastBaseline) : null;
-                  const dm1O = isFut ? (fc?.dm1O ?? 0) : (byDay[dm1] || 0);
-                  const d0O  = isFut ? (fc?.d0O  ?? 0) : (byDay[ev.date] || 0);
-                  const dp1O = isFut ? (fc?.dp1O ?? 0) : (byDay[dp1] || 0);
-                  const dm1W = isFut ? (fc?.dm1W ?? 0) : (weightByDay[dm1] || 0);
-                  const d0W  = isFut ? (fc?.d0W  ?? 0) : (weightByDay[ev.date] || 0);
-                  const dp1W = isFut ? (fc?.dp1W ?? 0) : (weightByDay[dp1] || 0);
-                  const totO = dm1O + d0O + dp1O;
-                  const totW = (dm1W + d0W + dp1W) / 1000;
-                  const spike = normalStats.orders > 0 && totO > 0 ? totO / (normalStats.orders * 3) : null;
-                  const tdS = { padding: "7px 10px", fontSize: 12.5, textAlign: "right", borderBottom: "1px solid var(--border)", color: isFut ? "var(--text-muted)" : "var(--text-primary)", whiteSpace: "nowrap" };
-                  return (
-                    <tr key={ev.date}>
-                      <td style={{ ...tdS, textAlign: "left", fontWeight: 700, color: isFut ? "var(--amber)" : "var(--text-primary)" }}>
-                        {isFut ? "⏳" : "✓"} {ev.name}
-                      </td>
-                      <td style={tdS}>{isFut ? "~" : ""}{n(dm1O)}</td>
-                      <td style={{ ...tdS, fontWeight: 700, color: "var(--amber)" }}>{isFut ? "~" : ""}{n(d0O)}</td>
-                      <td style={tdS}>{isFut ? "~" : ""}{n(dp1O)}</td>
-                      <td style={{ ...tdS, fontWeight: 700 }}>{isFut ? "~" : ""}{n(totO)}</td>
-                      <td style={tdS}>{isFut ? "~" : ""}{totW.toLocaleString("vi-VN", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
-                      <td style={{ ...tdS, fontWeight: 700, color: spike != null && spike >= 1.5 ? "var(--red)" : spike != null && spike >= 1.1 ? "var(--amber)" : "var(--text-muted)" }}>
-                        {spike != null ? `${spike.toFixed(1).replace(".", ",")}×` : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Tỉnh thành — tổng hợp từ tất cả event đã qua trong tháng được chọn */}
-      {(() => {
-        const pastEventsInMonth = eventsForMonth.filter((e) => e.date <= today);
-        if (!pastEventsInMonth.length) return null;
-        const provMap = {};
-        for (const ev of pastEventsInMonth) {
-          const dm1 = addDays(ev.date, -1), dp1 = addDays(ev.date, 1);
-          for (const d of [dm1, ev.date, dp1]) {
-            for (const [prov, cnt] of Object.entries((byProvinceAndDay || {})[d] || {})) {
-              if (!provMap[prov]) provMap[prov] = { orders: 0, weight: 0 };
-              provMap[prov].orders += cnt;
-              provMap[prov].weight += ((weightByProvinceAndDay || {})[d]?.[prov] || 0);
-            }
-          }
-        }
-        const rows = Object.entries(provMap)
-          .map(([prov, v]) => ({ prov, orders: v.orders, weight: v.weight }))
-          .sort((a, b) => b.orders - a.orders);
-        if (!rows.length) return (
-          <div className="chart-panel">
-            <div className="chart-panel-title">📍 Tỉnh thành nhận hàng</div>
-            <div style={{ padding: "12px 16px", fontSize: 12, color: "var(--text-muted)" }}>
-              Chưa có dữ liệu tỉnh thành. Hệ thống cần rebuild snapshot để cập nhật (tự động trong vài giờ, hoặc gọi thủ công qua API).
-            </div>
-          </div>
-        );
-        const tdS = { padding: "6px 10px", fontSize: 12.5, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" };
-        const totalO = rows.reduce((s, r) => s + r.orders, 0);
-        return (
-          <div className="chart-panel">
-            <div className="chart-panel-title">📍 Tỉnh thành nhận hàng — T{parseInt(selectedYM.slice(5, 7), 10)}/{selectedYM.slice(0, 4)}</div>
-            <div style={{ fontSize: 12, color: "var(--text-muted)", padding: "0 14px 8px" }}>
-              Tổng hợp từ {pastEventsInMonth.length} event đã qua · cửa sổ 3 ngày (D-1+D0+D+1) · giúp kho dự trù hàng theo tỉnh
-            </div>
-            <div style={{ overflowX: "auto", padding: "0 8px 12px" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr>
-                    {["#", "Tỉnh thành", "Đơn", "% tổng", "Tấn"].map((h, i) => (
-                      <th key={i} style={{ ...tdS, fontWeight: 700, fontSize: 11, color: "var(--text-secondary)", textAlign: i >= 2 ? "right" : "left" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r, i) => (
-                    <tr key={r.prov}>
-                      <td style={{ ...tdS, color: "var(--text-muted)", fontSize: 11 }}>{i + 1}</td>
-                      <td style={{ ...tdS, fontWeight: i < 5 ? 700 : 400 }}>{r.prov}</td>
-                      <td style={{ ...tdS, textAlign: "right", fontWeight: 700 }}>{n(r.orders)}</td>
-                      <td style={{ ...tdS, textAlign: "right", color: "var(--text-muted)" }}>
-                        {totalO > 0 ? `${((r.orders / totalO) * 100).toFixed(1)}%` : "—"}
-                      </td>
-                      <td style={{ ...tdS, textAlign: "right", color: "var(--text-muted)" }}>{ton(r.weight)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Growth trend table — 3 bảng riêng theo slot */}
-      {pastWindows.length >= 2 && (
-        <GrowthTrendTable
-          pastWindows={pastWindows}
-          forecastBySlot={forecastBySlot}
-          byClientAndDay={byClientAndDay}
-        />
-      )}
-
-      {/* Bảng dự báo tỉnh thành cuối trang — top 15 tỉnh per slot */}
-      {Object.keys(provincesForecastBySlot).length > 0 && (() => {
-        const slots = Object.keys(provincesForecastBySlot).sort();
-        return (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", paddingLeft: 2 }}>
-              📍 Dự báo tỉnh thành theo sự kiện
-            </div>
-            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: -8 }}>
-              Top 15 tỉnh nhận nhiều hàng nhất · dự báo dựa trên % tăng trưởng kỳ cuối
-            </div>
-            {slots.map((s) => {
-              const forecasts = provincesForecastBySlot[s];
-              const top15 = Object.entries(forecasts)
-                .filter(([, v]) => v.fcOrders > 0)
-                .sort(([, a], [, b]) => b.fcOrders - a.fcOrders)
-                .slice(0, 15);
-              if (!top15.length) return null;
-              const meta = SLOT_META[s] || { label: `Nhóm ${s}`, icon: "📆" };
-              const totalFc = top15.reduce((s, [, v]) => s + v.fcOrders, 0);
-              return (
-                <div key={s} className="chart-panel" style={{ marginBottom: 0 }}>
-                  <div className="chart-panel-title">{meta.icon} {meta.label}</div>
-                  <div style={{ overflowX: "auto", padding: "0 8px 12px" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 380, fontSize: 12 }}>
-                      <thead>
-                        <tr>
-                          {["#", "Tỉnh thành", "T9 (thực · đơn)", "T9 (tấn)", "T10 (DB · đơn)", "T10 (DB · tấn)", "+/−"].map((h, i) => (
-                            <th key={i} style={{ padding: "6px 8px", fontSize: 10.5, fontWeight: 700, color: "var(--text-secondary)", borderBottom: "1px solid var(--border)", textAlign: i <= 1 ? "left" : "right", whiteSpace: "nowrap" }}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {top15.map(([prov, v], idx) => (
-                          <tr key={prov} style={{ background: idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.02)" }}>
-                            <td style={{ padding: "5px 8px", color: "var(--text-muted)", fontSize: 11 }}>{idx + 1}</td>
-                            <td style={{ padding: "5px 8px", fontWeight: 600, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={prov}>{prov}</td>
-                            <td style={{ padding: "5px 8px", textAlign: "right", color: "var(--text-muted)" }}>{n(v.lastOrders)}</td>
-                            <td style={{ padding: "5px 8px", textAlign: "right", color: "var(--text-muted)" }}>{v.lastWeight > 0 ? (v.lastWeight / 1000).toFixed(1) + " t" : "—"}</td>
-                            <td style={{ padding: "5px 8px", textAlign: "right", fontWeight: 700, color: "var(--amber)" }}>~{n(v.fcOrders)}</td>
-                            <td style={{ padding: "5px 8px", textAlign: "right", color: "var(--amber)" }}>{v.fcWeight > 0 ? "~" + (v.fcWeight / 1000).toFixed(1) + " t" : "—"}</td>
-                            <td style={{ padding: "5px 8px", textAlign: "right", fontSize: 11, fontWeight: 600, color: v.growthRate >= 0 ? "var(--green)" : "var(--red)" }}>
-                              {v.growthRate >= 0 ? "+" : ""}{(v.growthRate * 100).toFixed(0)}%
-                            </td>
-                          </tr>
-                        ))}
-                        <tr style={{ background: "rgba(255,255,255,0.04)", borderTop: "1px solid var(--border)" }}>
-                          <td colSpan={4} style={{ padding: "5px 8px", fontWeight: 800, fontSize: 11, color: "var(--text-secondary)" }}>Tổng top 15</td>
-                          <td style={{ padding: "5px 8px", textAlign: "right", fontWeight: 800, color: "var(--amber)" }}>~{n(totalFc)}</td>
-                          <td colSpan={2} />
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        );
-      })()}
 
       {/* Normal day baseline */}
       {normalStats.orders > 0 && (
