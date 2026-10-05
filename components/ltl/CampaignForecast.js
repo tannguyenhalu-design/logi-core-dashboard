@@ -758,7 +758,8 @@ export default function CampaignForecast({ dailyOrders = {} }) {
 
   // Event đang active: event nào có today trong cửa sổ D-1/D0/D+1, hoặc event gần nhất sắp tới, hoặc event cuối cùng trong tháng
   const activeEventDate = useMemo(() => {
-    if (selectedEventDate) return selectedEventDate;
+    // Chỉ dùng selectedEventDate nếu nó thuộc tháng đang xem
+    if (selectedEventDate && eventsForMonth.some((e) => e.date === selectedEventDate)) return selectedEventDate;
     // Ưu tiên event đang trong cửa sổ 3 ngày
     for (const ev of eventsForMonth) {
       if (today >= addDays(ev.date, -1) && today <= addDays(ev.date, 1)) return ev.date;
@@ -1032,7 +1033,7 @@ export default function CampaignForecast({ dailyOrders = {} }) {
         {monthOptions.map((ym) => {
           const [y, m] = ym.split("-");
           return (
-            <button key={ym} style={chipS(selectedYM === ym)} onClick={() => setSelectedYM(ym)}>
+            <button key={ym} style={chipS(selectedYM === ym)} onClick={() => { setSelectedYM(ym); setSelectedEventDate(null); }}>
               T{parseInt(m, 10)}/{y.slice(2)}
             </button>
           );
