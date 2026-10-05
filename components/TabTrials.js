@@ -13,6 +13,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ReconcileBox, CoverageBox, GapsBox, SourcesLine, ClientScopeBox, ReconcilePrint, CoveragePrint, ClientScopePrint, SourcesPrint, reconcileCopyLines } from "./TrialsReconcile";
+import { GoalFields, GoalBox, GoalPrint, GoalChip, goalCopyLines } from "./TrialsGoal";
+import { METRICS, targetText } from "../lib/solution-metrics";
 import { getJSON, prefetchJSON, dropPrefetched } from "../lib/prefetch";
 import DateField from "./DateField";
 import { SHOW_TRUY_THU } from "../lib/display-flags";
@@ -190,13 +192,25 @@ function SolutionForm({ initial, isNew, legacyPhase, options, statuses, onCancel
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const set = (patch) => { setF((x) => ({ ...x, ...patch })); setErr(null); };
+  // Kế hoạch G: kiểm Baseline từng khách ngay khi chọn khách + khoảng Baseline (chỉ cảnh báo, server không chặn).
+  const [check, setCheck] = useState(null);
+  const clientKey = f.clients.join("|");
+  useEffect(() => {
+    if (!f.clients.length || !f.baseStart || !f.baseEnd) { setCheck(null); return undefined; }
+    const t = setTimeout(() => {
+      fetch(`/api/trials?clientCheck=1&clients=${encodeURIComponent(clientKey)}&baseStart=${f.baseStart}&baseEnd=${f.baseEnd}`).then((r) => r.json()).then((j) => { if (j.ok) setCheck(j); }).catch(() => {});
+    }, 500);
+    return () => clearTimeout(t);
+  }, [clientKey, f.baseStart, f.baseEnd]); // eslint-disable-line react-hooks/exhaustive-deps
+  const addedClients = isNew ? [] : f.clients.filter((c) => !(initial.clients || []).includes(c));
   const clientOpts = useMemo(() => Object.entries(options || {}).map(([value, o]) => ({ value, count: o.orders })).sort((a, b) => b.count - a.count), [options]);
   const firstStart = isNew ? f.phase.startDate : (f.firstPhaseStart || "");
   const sug = firstStart ? (() => { const today = vnToday(); const len = Math.max(7, daysBetween(firstStart, today > firstStart ? today : addDays(firstStart, 13))); const be = addDays(firstStart, -1); return { baseStart: addDays(be, -(len - 1)), baseEnd: be }; })() : null;
   const submit = async () => {
     setBusy(true); setErr(null);
     try {
-      const body = { action: "saveSolution", solution: { id: f.id, name: f.name, clients: f.clients, baseStart: f.baseStart, baseEnd: f.baseEnd, status: f.status, description: f.description } };
+      const body = { action: "saveSolution", solution: { id: f.id, name: f.name, clients: f.clients, baseStart: f.baseStart, baseEnd: f.baseEnd, status: f.status, description: f.description,
+        problem: f.problem, action: f.action, primaryMetric: f.primaryMetric, primaryTarget: f.primaryTarget, secondaryMetrics: f.secondaryMetrics, guardrails: f.guardrails, owner: f.owner, reviewDate: f.reviewDate, metricNote: f.metricNote } };
       if (isNew) body.firstPhase = { ...f.phase, endDate: f.phase.ongoing ? "" : f.phase.endDate };
       if (legacyPhase) { body.adoptPhaseIds = [legacyPhase.id]; body.adoptLabels = ["Trial 1"]; }
       const j = await post(body);
@@ -219,6 +233,7 @@ function SolutionForm({ initial, isNew, legacyPhase, options, statuses, onCancel
           <div><button type="button" style={{ ...ghost, width: "100%" }} disabled={!sug} onClick={() => sug && set(sug)}>↺ Gợi ý: cùng số ngày, ngay trước</button></div>
           <div style={{ gridColumn: "1 / -1", ...small }}>{sug ? `Gợi ý ${fmt(sug.baseStart)} – ${fmt(sug.baseEnd)} (ngay trước ngày bắt đầu giai đoạn đầu). ` : ""}Nên tránh khoảng có sự kiện bất thường. Dữ liệu có từ 01/07/2026.</div>
         </div>
+        <GoalFields f={f} set={set} check={check} addedClients={addedClients} />
         <div style={{ gridColumn: "1 / -1" }}><span style={label}>Mô tả chung</span><textarea style={{ ...input, minHeight: 70, resize: "vertical" }} value={f.description} onChange={(e) => set({ description: e.target.value })} placeholder="Giải pháp là gì, sản phẩm áp dụng, CCDC, người phụ trách…" /></div>
         {isNew && (
           <div style={{ gridColumn: "1 / -1", ...grid, padding: 12, borderRadius: 8, background: "rgba(var(--brand-rgb),0.05)", border: "1px solid var(--border)" }}>
@@ -317,7 +332,7 @@ function SavingsBox({ imp }) {
   );
 }
 
-function PhaseImpact({ impact }) {
+function PhaseImpact({ impact, legacy = false }) {
   const [showCases, setShowCases] = useState(false);
   const imp = impact, pr = imp.periods, v = imp.verdict, st = VERDICT_STYLE[v.level];
   const rows = metricRows(imp);
@@ -326,7 +341,7 @@ function PhaseImpact({ impact }) {
     <div>
       <div style={{ padding: "10px 12px", borderRadius: 8, background: st.bg, border: `1px solid ${st.color}`, borderLeftWidth: 4, marginBottom: 8 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Nhận định</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>{legacy ? "Nhận định cũ (% bể vỡ + on-time)" : "Nhận định"}</span>
           <span style={{ fontSize: 15, fontWeight: 800, color: st.color }}>{st.icon} {v.label}</span>
           <span style={small}>{v.basis === "net" ? "theo hiệu quả ròng (đã trừ nhóm đối chứng)" : "theo thay đổi của phạm vi"}</span>
         </div>
@@ -561,6 +576,8 @@ function summaryText(sol, report) {
   }
   L.push(`(${MONEY_NOTE})`);
   report.alerts.forEach((a) => L.push(`⚠ ${a.text}`));
+  const gl = goalCopyLines(report); // Kế hoạch G: mục tiêu + kết quả theo chỉ số chính
+  if (gl) L.push(gl);
   const f1 = reconcileCopyLines(report); // Kế hoạch F1: đối soát 2 góc nhìn, độ phủ, khoảng trống, nguồn dữ liệu
   if (f1) L.push(f1);
   L.push(`(SD3 Dashboard Điện Máy, số liệu cập nhật ${vnStamp(report.dataAsOf)})`);
@@ -594,6 +611,7 @@ function SolutionPrintView({ sol, report, onClose }) {
               <td style={cell}>{c.delta.ontimePts == null ? "—" : `${sgn(c.delta.ontimePts, n1)} đ`}</td><td style={cell}>{c.delta.per1kPct == null ? "—" : `${sgn(c.delta.per1kPct, n1)}%`}</td><td style={cell}>{tr(c.post.comp) || "—"}</td><td style={cell}>{c.savings && c.savings.ok ? `${c.savings.value >= 0 ? "~" : "+"}${tr(Math.abs(c.savings.value))}` : "chưa có số"}</td><td style={{ ...cell, color: PV[c.verdictLevel][0], fontWeight: 700 }}>{c.verdict}</td></tr>))}</tbody>
         </table></div>
         {report.alerts.map((a, i) => <div key={i} style={{ fontSize: 11.5, color: C.red, marginTop: 4 }}>⚠ {a.text}</div>)}
+        <GoalPrint report={report} C={C} cell={cell} hc={hc} />
         <ClientScopePrint report={report} C={C} cell={cell} hc={hc} />
         {report.phases.map((x) => {
           const v = x.impact.verdict, T = x.impact.trial, [fc, bc] = PV[v.level];
@@ -604,7 +622,7 @@ function SolutionPrintView({ sol, report, onClose }) {
               {x.impact.savings && <div style={{ fontSize: 11.5, marginTop: 4 }}>💰 {x.impact.savings.text} <span style={{ color: C.muted }}>({coverageOf(T)})</span></div>}
               <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 6 }}><thead><tr>{["Chỉ số", "Trước", "Sau", "Chênh lệch"].map((h, i) => <th key={h} style={{ ...hc, textAlign: i ? "right" : "left" }}>{h}</th>)}</tr></thead>
                 <tbody>{[["Đơn", n0(T.base.orders), n0(T.post.orders), sgn(T.delta.orders, n0)], ["% On-time", pctTxt(T.base.ontimePct), pctTxt(T.post.ontimePct), T.delta.ontimePts == null ? "—" : `${sgn(T.delta.ontimePts, n1)} điểm`], ["Ca bể", n0(T.base.cases), n0(T.post.cases), sgn(T.delta.cases, n0)], ["% Bể vỡ", bv(T.base.per1k), bv(T.post.per1k), T.delta.per1kPct == null ? "—" : `${sgn(T.delta.per1kPct, n1)}%`], ["Tiền đền cho khách", tr(T.base.comp), tr(T.post.comp), trd(T.delta.comp)],...(SHOW_TRUY_THU ? [["Truy thu (tham khảo)", tr(T.base.truyThu), tr(T.post.truyThu), trd(T.delta.truyThu)]] : [])].map((r) => <tr key={r[0]}>{r.map((c2, i) => <td key={i} style={{ ...cell, textAlign: i ? "right" : "left" }}>{c2}</td>)}</tr>)}</tbody></table>
-              <ReconcilePrint r={x.reconcile} C={C} cell={cell} hc={hc} />
+              {report.display?.reconcile !== false && <ReconcilePrint r={x.reconcile} C={C} cell={cell} hc={hc} />}
               {(x.phase.images || []).length > 0 && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
                   {x.phase.images.map((im) => <figure key={im.path} style={{ margin: 0 }}><img src={`/api/trials?image=${encodeURIComponent(im.path)}`} alt={im.caption || ""} style={{ width: "100%", borderRadius: 4 }} /><figcaption style={{ fontSize: 10.5, color: C.muted, textAlign: "center" }}>{im.caption}</figcaption></figure>)}
@@ -670,6 +688,7 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
         {err ? <div style={{ color: "var(--red)", marginTop: 12 }}>⚠ {err}</div> : !report ? <div style={{ ...small, marginTop: 12 }}>Đang tính…</div> : (
           <>
             {report.alerts.length > 0 && <div style={{ marginTop: 10 }}>{report.alerts.map((a, i) => <div key={i} style={{ fontSize: 12.5, color: "var(--red)", fontWeight: 700 }}>⚠ {a.text}</div>)}</div>}
+            <GoalBox report={report} />
             <ClientScopeBox report={report} />
             <div style={{ fontSize: 13.5, fontWeight: 700, marginTop: 14 }}>So sánh các giai đoạn <span style={{ ...small, fontWeight: 400 }}>(cùng baseline chung, mỗi giai đoạn trên phạm vi của nó)</span></div>
             <div style={{ overflowX: "auto", marginTop: 6 }}>
@@ -686,7 +705,7 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
                     <td style={td}>{c.vsPrev ? <span title="on-time (điểm) · bể vỡ (% thay đổi)"><span style={{ color: toneOf(c.vsPrev.ontimePts, 1) }}>{c.vsPrev.ontimePts == null ? "—" : `${sgn(c.vsPrev.ontimePts, n1)} đ`}</span> · <span style={{ color: toneOf(c.vsPrev.per1kPct, -1) }}>{c.vsPrev.per1kPct == null ? "—" : `${sgn(c.vsPrev.per1kPct, n1)}%`}</span></span> : "—"}</td>
                     <td style={td} title={`${coverageOf(c)}${c.savings ? " · " + c.savings.text : ""}`}>{tr(c.base.comp)} → <b>{tr(c.post.comp)}</b>
                       <div style={{ fontWeight: 700, fontSize: 11.5, color: c.savings && c.savings.ok ? (c.savings.value >= 0 ? "var(--green)" : "var(--red)") : "var(--text-muted)" }}>{c.savings && c.savings.ok ? `tiết kiệm ~${tr(Math.abs(c.savings.value))}${c.savings.value < 0 ? " (tăng thêm)" : ""}` : "chưa có số"}</div></td>
-                    <td style={{ ...td, textAlign: "left" }}><VerdictChip level={c.verdictLevel} text={c.verdict} /></td>
+                    <td style={{ ...td, textAlign: "left" }}>{c.goal ? <><GoalChip level={c.goal.level} text={c.goal.label} /><div style={small}>cũ: {c.verdict}</div></> : <VerdictChip level={c.verdictLevel} text={c.verdict} />}</td>
                   </tr>))}</tbody>
               </table>
             </div>
@@ -701,7 +720,7 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
                     <span style={{ fontWeight: 800 }}>{isOpen ? "▾" : "▸"} {x.phase.label}</span>
                     <StatusBadge s={x.phase.status} />
                     <span style={small}>{fmt(x.phase.startDate)} → {x.phase.endDate ? fmt(x.phase.endDate) : "Ongoing"} · {scopeLine(x.phase)}</span>
-                    <VerdictChip level={x.impact.verdict.level} text={x.impact.verdict.label} />
+                    {x.goal ? <GoalChip level={x.goal.level} text={x.goal.label} /> : <VerdictChip level={x.impact.verdict.level} text={x.impact.verdict.label} />}
                     <span style={{ marginLeft: "auto", display: "flex", gap: 6 }} onClick={(e) => e.stopPropagation()}>
                       {canEdit && !s.legacy && <button style={mini(ghost)} onClick={() => onEditPhase(x.phase)}>Sửa GĐ</button>}
                       {canDelete && !s.legacy && s.phases.length > 1 && <button style={mini(danger)} onClick={() => onDeletePhase(x.phase)}>Xoá GĐ</button>}
@@ -718,8 +737,8 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
                           {x.phase.provinces.length > 0 && <div><b>Tỉnh giao ({x.phase.provinces.length}):</b> {x.phase.provinces.join(", ")}</div>}
                         </details>
                       )}
-                      <PhaseImpact impact={x.impact} />
-                      <ReconcileBox r={x.reconcile} />
+                      <PhaseImpact impact={x.impact} legacy={!!x.goal} />
+                      {report.display?.reconcile !== false && <ReconcileBox r={x.reconcile} />}
                       {x.monitor && <MonitorView x={x} baseline={report.baseline} />}
                       {!s.legacy && <ImageGallery phase={x.phase} canEdit={canEdit} canDelete={canDelete} onChanged={onChanged} />}
                     </div>
@@ -737,6 +756,7 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
   );
 }
 
+const goalInit = (s = {}) => ({ problem: s.problem || "", action: s.action || "", primaryMetric: s.primaryMetric || "", primaryTarget: s.primaryTarget ?? "", secondaryMetrics: s.secondaryMetrics || [], guardrails: s.guardrails || [], owner: s.owner || "", reviewDate: s.reviewDate || "", metricNote: s.metricNote || "" });
 const EMPTY_PHASE = { id: "", label: "Trial 1", khoLay: [], khoGiao: [], provinces: [], startDate: "", endDate: "", ongoing: true, status: "Đang trial", description: "" };
 
 // Idle prefetch from the dashboard (Kế hoạch A · P4): the solution list.
@@ -777,11 +797,11 @@ export default function TabTrials() {
   const closeDetail = useCallback(() => setSelected(null), []);
   const top = () => { if (typeof window !== "undefined") window.scrollTo?.({ top: 0, behavior: "smooth" }); };
 
-  const newSolution = () => { setMsg(null); setForm({ kind: "solution", isNew: true, initial: { id: "", name: "", clients: [], baseStart: "", baseEnd: "", status: "Đang trial", description: "", phase: { ...EMPTY_PHASE, startDate: vnToday() } } }); top(); };
+  const newSolution = () => { setMsg(null); setForm({ kind: "solution", isNew: true, initial: { id: "", name: "", clients: [], baseStart: "", baseEnd: "", status: "Đang trial", description: "", ...goalInit(), phase: { ...EMPTY_PHASE, startDate: vnToday() } } }); top(); };
   const editSolution = (s) => {
     setMsg(null); setSelected(null);
     const legacyPhase = s.legacy ? s.phases[0] : null;
-    setForm({ kind: "solution", isNew: false, legacyPhase, initial: { id: s.legacy ? "" : s.id, name: s.name, clients: s.clients, baseStart: s.baseStart, baseEnd: s.baseEnd, status: s.status, description: s.description, firstPhaseStart: s.phases[0]?.startDate || "" } });
+    setForm({ kind: "solution", isNew: false, legacyPhase, initial: { id: s.legacy ? "" : s.id, name: s.name, clients: s.clients, baseStart: s.baseStart, baseEnd: s.baseEnd, status: s.status, description: s.description, ...goalInit(s), firstPhaseStart: s.phases[0]?.startDate || "" } });
     top();
   };
   const nextPhase = (s) => { setMsg(null); setSelected(null); if (s.legacy) { editSolution(s); return; } setForm({ kind: "phase", solution: s, initial: nextPhasePreset(s) }); top(); };
@@ -840,6 +860,7 @@ export default function TabTrials() {
                       <td style={{ fontWeight: 600, maxWidth: 300, whiteSpace: "normal" }}>▸ {s.name}
                         {s.alerts?.length > 0 && <div style={{ fontSize: 11.5, color: "var(--red)", fontWeight: 700, marginTop: 2 }} title={s.alerts.map((a) => a.text).join(NL)}>⚠ {s.alerts[0].text}{s.alerts.length > 1 ? ` (+${s.alerts.length - 1})` : ""}</div>}
                         {s.legacy && <div style={{ ...small, color: "var(--amber)" }}>giải pháp cũ — bấm Sửa để chuyển sang giai đoạn</div>}
+                        {s.primaryMetric ? (() => { const lg = [...s.phases].reverse().find((p) => p.goal); return <div style={{ ...small, marginTop: 2 }}>🎯 {METRICS[s.primaryMetric].label}{s.primaryMetric === "external" ? "" : ` · ${targetText(s.primaryMetric, s.primaryTarget)}`} {lg && <GoalChip level={lg.goal.level} text={lg.goal.label} />}</div>; })() : !s.legacy && <div style={{ ...small, color: "var(--amber)" }}>🎯 chưa khai chỉ số chính — bấm Sửa để bổ sung</div>}
                       </td>
                       <td style={{ whiteSpace: "normal", maxWidth: 170 }} onClick={(e) => { if (e.target.tagName === "BUTTON") e.stopPropagation(); }}><ClientsCompact clients={s.clients} /></td>
                       <td style={{ whiteSpace: "normal", maxWidth: 300 }}>

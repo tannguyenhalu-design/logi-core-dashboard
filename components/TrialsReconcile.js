@@ -310,7 +310,7 @@ export function reconcileCopyLines(report) {
   if (report.clientScope) L.push("", "PHẠM VI KHÁCH:", ...report.clientScope.text.map((t) => `  - ${t}`));
   for (const x of report.phases) {
     const r = x.reconcile;
-    if (!r) continue;
+    if (!r || report.display?.reconcile === false) continue;
     L.push("", `ĐỐI SOÁT 2 GÓC NHÌN BỂ VỠ — ${x.phase.label}:`);
     L.push(`  Cohort (ca của đơn lấy trong kỳ): ${pc2(r.cohort.base.pct)} (${r.cohort.base.cases}/${n0(r.cohort.base.orders)} đơn) → ${pc2(r.cohort.post.pct)} (${r.cohort.post.cases}/${n0(r.cohort.post.orders)} đơn), ${changeText(r.cohort)}`);
     L.push(`  Real-time (ca ghi nhận trong kỳ, tham khảo): ${pc2(r.realtime.base.pct)} (${r.realtime.base.cases} ca) → ${pc2(r.realtime.post.pct)} (${r.realtime.post.cases} ca), ${changeText(r.realtime)}`);

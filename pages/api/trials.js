@@ -3,6 +3,7 @@
  * (KẾ HOẠCH B, 28/09). Manager + SD3 only; deletes = Manager.
  *   GET                         → { solutions (with phases, verdict per phase, alerts), version, … }
  *   GET ?options=1              → form pickers: client → kho lấy / kho giao / tỉnh giao
+ *   GET ?clientCheck=1&clients=a|b&baseStart=&baseEnd= → cảnh báo Baseline từng khách (đủ / thiếu ngày / chưa có đơn) + khách cùng nhóm chưa có
  *   GET ?solution=<id>          → full solution report (comparison, weekly series, monitoring, per-phase impact)
  *       &format=xlsx | docx     → Excel / Word of the same report
  *   GET ?impact=<phaseId>       → one phase (against the solution baseline); &format=xlsx → its file
@@ -25,6 +26,8 @@ import {
   computeSolutionReport, phaseTrial, SOLUTION_STATUSES, PHASE_STATUSES, MAX_IMAGES,
 } from "../../lib/solutions";
 import { uploadPhaseImage, readPhaseImage, deletePhaseImage, isImagePath } from "../../lib/trial-images";
+import { METRICS, METRIC_KEYS, isMetric, targetText } from "../../lib/solution-metrics";
+import { computeClientScope } from "../../lib/solution-reconcile";
 import { isWarmPing, answerWarm } from "../../lib/warm";
 
 export const config = { api: { bodyParser: { sizeLimit: "4mb" } } };
@@ -60,9 +63,17 @@ export default async function handler(req, res) {
         res.setHeader("Content-Type", img.contentType);
         return res.status(200).send(img.buf);
       }
+      if (req.query.clientCheck) {
+        const clients = strs(String(req.query.clients || "").split("|"));
+        const baseStart = String(req.query.baseStart || ""), baseEnd = String(req.query.baseEnd || "");
+        if (!clients.length || !/^\d{4}-\d{2}-\d{2}$/.test(baseStart) || !/^\d{4}-\d{2}-\d{2}$/.test(baseEnd)) return res.status(200).json({ ok: true, clients: [], warnings: [], siblings: [] });
+        const base = await loadLtlBase();
+        const cs = computeClientScope(base, { clients, baseStart, baseEnd, phases: [] }, [], vnToday());
+        return res.status(200).json({ ok: true, clients: cs.clients, warnings: cs.warnings, siblings: cs.siblings });
+      }
       if (req.query.options) {
         const base = await loadLtlBase();
-        return res.status(200).json({ ok: true, options: scopeOptions(base) });
+        return res.status(200).json({ ok: true, options: scopeOptions(base), metrics: METRICS, metricKeys: METRIC_KEYS });
       }
       if (req.query.solution) {
         const [base, all] = await Promise.all([loadLtlBase(), readSolutions({ minVersion })]);
@@ -116,7 +127,7 @@ export default async function handler(req, res) {
       const today = vnToday();
       const rows = solutions.map((s) => {
         const r = computeSolutionReport(base, s, today, { lite: true });
-        return { ...s, phases: s.phases.map((p, i) => ({ ...p, verdict: r.phases[i].impact.verdict.label, verdictLevel: r.phases[i].impact.verdict.level, monitored: !!r.phases[i].monitor })), alerts: r.alerts };
+        return { ...s, phases: s.phases.map((p, i) => ({ ...p, verdict: r.phases[i].impact.verdict.label, verdictLevel: r.phases[i].impact.verdict.level, monitored: !!r.phases[i].monitor, goal: r.phases[i].goal ? { label: r.phases[i].goal.label, level: r.phases[i].goal.level } : null })), alerts: r.alerts };
       });
       return res.status(200).json({ ok: true, solutions: rows, version, canEdit: true, canDelete: isManager, statuses: { solution: SOLUTION_STATUSES, phase: PHASE_STATUSES } });
     }
@@ -127,7 +138,10 @@ export default async function handler(req, res) {
 
     if (action === "saveSolution") {
       const s = b.solution || {};
-      const input = { id: s.id && !String(s.id).startsWith("legacy:") ? String(s.id).trim() : "", name: String(s.name || "").slice(0, 300), clients: strs(s.clients), baseStart: s.baseStart, baseEnd: s.baseEnd, status: s.status, description: String(s.description || "").slice(0, 5000) };
+      const input = { id: s.id && !String(s.id).startsWith("legacy:") ? String(s.id).trim() : "", name: String(s.name || "").slice(0, 300), clients: strs(s.clients), baseStart: s.baseStart, baseEnd: s.baseEnd, status: s.status, description: String(s.description || "").slice(0, 5000),
+        problem: String(s.problem || "").slice(0, 3000), action: String(s.action || "").slice(0, 3000), primaryMetric: isMetric(s.primaryMetric) ? s.primaryMetric : "",
+        primaryTarget: s.primaryTarget === "" || s.primaryTarget == null ? null : Number(s.primaryTarget), secondaryMetrics: strs(s.secondaryMetrics), guardrails: strs(s.guardrails),
+        owner: String(s.owner || "").trim().slice(0, 120), reviewDate: s.reviewDate || "", metricNote: String(s.metricNote || "").slice(0, 1000) };
       const err = validateSolution(input);
       if (err) return res.status(400).json({ error: err });
       let firstPhase = null;
@@ -155,7 +169,11 @@ export default async function handler(req, res) {
         if (x.baseStart !== input.baseStart || x.baseEnd !== input.baseEnd) changes.push(`baseline: ${fmt(input.baseStart)} – ${fmt(input.baseEnd)}`);
         if (x.clients.join("|") !== input.clients.join("|")) changes.push(`khách: ${input.clients.join(", ")}`);
         if (x.description !== input.description) changes.push("sửa mô tả");
-      }
+        if (x.problem !== input.problem || x.action !== input.action) changes.push("sửa vấn đề / hành động");
+        if (x.primaryMetric !== input.primaryMetric || x.primaryTarget !== (input.primaryTarget ?? null)) changes.push(`chỉ số chính: ${METRICS[input.primaryMetric].label}${input.primaryMetric === "external" ? "" : ` (${targetText(input.primaryMetric, input.primaryTarget)})`}`);
+        if (x.secondaryMetrics.join("|") !== input.secondaryMetrics.join("|") || x.guardrails.join("|") !== input.guardrails.join("|")) changes.push("sửa chỉ số phụ / không được xấu đi");
+        if (x.owner !== input.owner) changes.push(`người phụ trách: ${input.owner}`);
+      } else changes.push(`chỉ số chính: ${METRICS[input.primaryMetric].label}${input.primaryMetric === "external" ? "" : ` (${targetText(input.primaryMetric, input.primaryTarget)})`}`);
       if (adopt.length) changes.push(`gộp ${adopt.length} giai đoạn: ${adopt.join(", ")}`);
       await logAction({ actor, action: out.created ? "solution.create" : "solution.update", target: input.name, details: { id: out.solution.id, changes, firstPhase: out.phaseId || undefined } }).catch(() => {});
       return res.status(200).json({ ok: true, solution: out.solution, version: out.version, created: out.created, phaseId: out.phaseId });
