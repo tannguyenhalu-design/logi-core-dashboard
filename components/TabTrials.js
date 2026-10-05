@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ReconcileBox, CoverageBox, GapsBox, SourcesLine, ReconcilePrint, CoveragePrint, SourcesPrint, reconcileCopyLines } from "./TrialsReconcile";
+import { ReconcileBox, CoverageBox, GapsBox, SourcesLine, ClientScopeBox, ReconcilePrint, CoveragePrint, ClientScopePrint, SourcesPrint, reconcileCopyLines } from "./TrialsReconcile";
 import { getJSON, prefetchJSON, dropPrefetched } from "../lib/prefetch";
 import DateField from "./DateField";
 import { SHOW_TRUY_THU } from "../lib/display-flags";
@@ -594,6 +594,7 @@ function SolutionPrintView({ sol, report, onClose }) {
               <td style={cell}>{c.delta.ontimePts == null ? "—" : `${sgn(c.delta.ontimePts, n1)} đ`}</td><td style={cell}>{c.delta.per1kPct == null ? "—" : `${sgn(c.delta.per1kPct, n1)}%`}</td><td style={cell}>{tr(c.post.comp) || "—"}</td><td style={cell}>{c.savings && c.savings.ok ? `${c.savings.value >= 0 ? "~" : "+"}${tr(Math.abs(c.savings.value))}` : "chưa có số"}</td><td style={{ ...cell, color: PV[c.verdictLevel][0], fontWeight: 700 }}>{c.verdict}</td></tr>))}</tbody>
         </table></div>
         {report.alerts.map((a, i) => <div key={i} style={{ fontSize: 11.5, color: C.red, marginTop: 4 }}>⚠ {a.text}</div>)}
+        <ClientScopePrint report={report} C={C} cell={cell} hc={hc} />
         {report.phases.map((x) => {
           const v = x.impact.verdict, T = x.impact.trial, [fc, bc] = PV[v.level];
           return (
@@ -669,6 +670,7 @@ function SolutionDetail({ sol, version, canEdit, canDelete, onClose, onEditSolut
         {err ? <div style={{ color: "var(--red)", marginTop: 12 }}>⚠ {err}</div> : !report ? <div style={{ ...small, marginTop: 12 }}>Đang tính…</div> : (
           <>
             {report.alerts.length > 0 && <div style={{ marginTop: 10 }}>{report.alerts.map((a, i) => <div key={i} style={{ fontSize: 12.5, color: "var(--red)", fontWeight: 700 }}>⚠ {a.text}</div>)}</div>}
+            <ClientScopeBox report={report} />
             <div style={{ fontSize: 13.5, fontWeight: 700, marginTop: 14 }}>So sánh các giai đoạn <span style={{ ...small, fontWeight: 400 }}>(cùng baseline chung, mỗi giai đoạn trên phạm vi của nó)</span></div>
             <div style={{ overflowX: "auto", marginTop: 6 }}>
               <table className="data-table" style={{ fontSize: 12, minWidth: 940 }}>
