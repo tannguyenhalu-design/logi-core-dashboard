@@ -65,9 +65,9 @@ def main():
     if not ws_url:
         sys.exit(1)
 
-    # timeout=20 — xem ghi chu trong ftl_scraper.py: khong co timeout thi 1
-    # lenh CDP treo se giu chung flock voi FTL mai mai.
-    ws = websocket.create_connection(ws_url, timeout=20)
+    # timeout=120 — sheet raw_ontime da vuot 183k dong, fetch CSV qua CDP
+    # mat hon 20s → tang len 2 phut. Van co bound de khong block mai mai.
+    ws = websocket.create_connection(ws_url, timeout=120)
 
     base_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit"
     print(f"Dieu huong toi {base_url} de muon phien dang nhap...")
