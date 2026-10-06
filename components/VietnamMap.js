@@ -521,10 +521,10 @@ function VietnamMap({
                       strokeDasharray={w.dashed ? `${px(3)} ${px(2.2)}` : undefined}
                     />
                   )}
-                  {/* Inner dot = Điện máy share */}
+                  {/* Inner dot = Điện máy share (or all-industry share when dotFill is set) */}
                   <circle
                     data-wid={w.id} cx={w.x} cy={w.y} r={px(rI)}
-                    fill={on ? "rgba(var(--brand-rgb),0.95)" : WH_DOT_FILL}
+                    fill={on ? (w.dotFill || "rgba(var(--brand-rgb),0.95)") : (w.dotFill || WH_DOT_FILL)}
                     fillOpacity={on || hov ? 1 : 0.78}
                     stroke={rO > 0 ? "none" : accentStroke}
                     strokeOpacity={rO > 0 ? 0 : (on || hov ? 1 : 0.68)}

@@ -562,6 +562,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
         hotspots={damageRisk?.hotspots || []}
         hotspotRule={isClient ? null : damageRisk?.hotspotRule}
         warehouseLayer={data.warehouseLayer ?? null}
+        warehouseLayerAll={data.warehouseLayerAll ?? null}
         periodComparison={data.periodComparison ?? null}
       />}
 

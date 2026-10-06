@@ -34,7 +34,7 @@ export const config = { maxDuration: 60 };
 // Read only by the "Bản đồ tỉnh thành" view (ProvinceMapPanel).
 // originDetailsMap is computed but no component reads it — never sent.
 // warehouseLayer = the "Kho" layer (Kế hoạch D · 2a, lib/warehouse-layer.js).
-const MAP_KEYS = ["provinceStats", "provinceDetailsMap", "originStats", "routeStats", "warehouseLayer"];
+const MAP_KEYS = ["provinceStats", "provinceDetailsMap", "originStats", "routeStats", "warehouseLayer", "warehouseLayerAll"];
 const OMIT_LTL_KEYS = new Set([...MAP_KEYS, "originDetailsMap"]);
 
 // What goes over the wire for one computed body (after applyRoleToBody).
@@ -159,6 +159,10 @@ export default async function handler(req, res) {
         // (~3x/day). private = browser-only, CDN never involved.
         // (Contrast: s-maxage incident 2026-09-26 was shared/CDN cache.)
         res.setHeader("Cache-Control", "private, max-age=60, stale-while-revalidate=300");
+        if (part === "map" || withMap) {
+          const baseForWh = await loadLtlBase();
+          await addWarehouseLayer(baseForWh, defaultBody, filterMode);
+        }
         return res.status(200).json(shapeBody(applyRoleToBody(defaultBody, scope), part, withMap));
       }
     }
@@ -177,7 +181,7 @@ export default async function handler(req, res) {
       setCached(fullKey, body);
     }
     // Kho layer only when the map asks for it (computed once per cached body).
-    if (part === "map" || withMap) addWarehouseLayer(base, body, filterMode);
+    if (part === "map" || withMap) await addWarehouseLayer(base, body, filterMode);
     return res.status(200).json(shapeBody(applyRoleToBody(body, scope), part, withMap));
   } catch (err) {
     console.error("[/api/data] Error:", err);
