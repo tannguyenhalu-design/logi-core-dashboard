@@ -122,8 +122,16 @@ function savePicked(list) {
 }
 
 const sameList = (a, b) => JSON.stringify(a || null) === JSON.stringify(b || null);
-const apiUrl = (type, period, clients, extra = "") =>
-  `/api/report/biweekly?type=${type}&period=${encodeURIComponent(period)}${clients && clients.length ? `&clients=${encodeURIComponent(clients.join("|"))}` : ""}${extra}`;
+const apiUrl = (type, period, clients, extra = "", industry = "") =>
+  `/api/report/biweekly?type=${type}&period=${encodeURIComponent(period)}${clients && clients.length ? `&clients=${encodeURIComponent(clients.join("|"))}` : ""}${industry && industry !== "DM" ? `&industry=${encodeURIComponent(industry)}` : ""}${extra}`;
+
+const INDUSTRY_TABS = [
+  { id: "DM",       label: "⚡ Điện Máy" },
+  { id: "STTP",     label: "🏪 STTP" },
+  { id: "NHC",      label: "📦 NHC" },
+  { id: "STTP+NHC", label: "🌐 Ngành chung" },
+  { id: "ECOM",     label: "🛒 Ecom" },
+];
 const LOCKS_URL = "/api/report/biweekly?list=1";
 // Tables load without the drill-down lists (`details`, ~90% of the JSON);
 // those come with &part=details when a cell is first clicked (Kế hoạch A · P7).
@@ -561,6 +569,7 @@ function diffReports(locked, live) {
 }
 
 export default function TabCompanyReport() {
+  const [industry, setIndustry] = useState("DM"); // "DM"|"STTP"|"NHC"|"STTP+NHC"|"ECOM"
   const [type, setType] = useState("biweekly");
   const [period, setPeriod] = useState(() => defaultPeriodFor("biweekly"));
   const [mode, setMode] = useState("full"); // "full" = original layout | "pick" = chosen key accounts
@@ -607,18 +616,18 @@ export default function TabCompanyReport() {
     const id = ++reqId.current;
     setLoading(true); setErr(null);
     const t = setTimeout(() => {
-      getJSON(apiUrl(type, period, clients, `${LITE}${cvParam}`))
+      getJSON(apiUrl(type, period, clients, `${LITE}${cvParam}`, industry))
         .then(({ ok, j }) => {
           if (id !== reqId.current) return;
           if (!ok || !j.ok) throw new Error(j.error || "Không tải được báo cáo");
-          setLive(remember(j.report, apiUrl(type, period, clients, `&format=json&part=details${cvParam}`)));
+          setLive(remember(j.report, apiUrl(type, period, clients, `&format=json&part=details${cvParam}`, industry)));
         })
         .catch((e) => { if (id === reqId.current) setErr(e.message); })
         .finally(() => { if (id === reqId.current) setLoading(false); });
     }, mode === "pick" ? 450 : 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type, period, mode, JSON.stringify(picked), cv, refreshKey]);
+  }, [type, period, mode, JSON.stringify(picked), cv, refreshKey, industry]);
 
   // The locked version of this period (if any) + latest numbers with ITS selection.
   const isLocked = locks.some((l) => l.type === type && l.period === period);
@@ -728,8 +737,34 @@ export default function TabCompanyReport() {
   const select = { padding: "7px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--input-bg)", color: "var(--text-primary)", fontFamily: "inherit", fontSize: 13 };
   const small = { fontSize: 11.5, color: "var(--text-muted)", lineHeight: 1.5 };
 
+  const changeIndustry = (id) => { setIndustry(id); setLive(null); setMsg(null); setPick(null); };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* ── Industry sub-tabs ── */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {INDUSTRY_TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => changeIndustry(t.id)}
+            style={{
+              padding: "7px 14px", borderRadius: 6, fontSize: 12.5, fontWeight: 600,
+              border: industry === t.id ? "1px solid var(--cyan)" : "1px solid var(--border)",
+              background: industry === t.id ? "rgba(var(--brand-rgb),0.15)" : "var(--panel-bg)",
+              color: industry === t.id ? "var(--cyan)" : "var(--text-secondary)",
+              cursor: "pointer", fontFamily: "inherit",
+            }}
+          >{t.label}</button>
+        ))}
+        {industry !== "DM" && (
+          <span style={{ fontSize: 11.5, color: "var(--text-muted)", alignSelf: "center", marginLeft: 4 }}>
+            {industry === "STTP" && "Siêu thị thực phẩm"}
+            {industry === "NHC" && "Ngành hàng chung"}
+            {industry === "STTP+NHC" && "STTP + NHC tổng hợp"}
+            {industry === "ECOM" && "Hàng nặng Ecom (không có bể vỡ Rillnet)"}
+          </span>
+        )}
+      </div>
       {/* ── Controls ── */}
       <div className="glass" style={{ padding: 16, display: "flex", flexWrap: "wrap", gap: 20 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: "1 1 260px", maxWidth: 340, minWidth: "min(100%, 340px)" }}>
@@ -804,8 +839,8 @@ export default function TabCompanyReport() {
               : <span style={{ color: "var(--text-muted)" }}>· chưa chốt số</span>}
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button style={btn} disabled={mode === "pick" && !picked.length} onClick={() => { window.location.href = apiUrl(type, period, clients); }}>⬇ Tải Excel (số mới nhất)</button>
-            {saved && <button style={btn} onClick={() => { window.location.href = apiUrl(type, period, null, "&version=locked"); }}>⬇ Tải bản đã chốt</button>}
+            <button style={btn} disabled={mode === "pick" && !picked.length} onClick={() => { window.location.href = apiUrl(type, period, clients, "", industry); }}>⬇ Tải Excel (số mới nhất)</button>
+            {saved && <button style={btn} onClick={() => { window.location.href = apiUrl(type, period, null, "&version=locked", industry); }}>⬇ Tải bản đã chốt</button>}
             <button style={ghost} disabled={busy || (mode === "pick" && !picked.length)} onClick={doLock}>{busy ? "Đang chốt…" : saved ? "🔒 Chốt lại" : "🔒 Chốt số kỳ này"}</button>
             <button style={ghost} disabled={busy} onClick={refresh} title="Tải lại số mới nhất và danh sách kỳ đã chốt">↻ Làm mới</button>
           </div>
@@ -870,19 +905,21 @@ export default function TabCompanyReport() {
             )}
           </ReportTable>
           <InsightBox ins={shown.insights && shown.insights.ontime} title="Ontime" />
-          <ReportTable title="Bể vỡ và đền bù" countTitle="# case bể và đền (theo ngày phát hiện)" rateTitle={shown.damage.rows.some((r) => Array.isArray(r.ltc)) ? "% bể đền / LTC" : "% bể đền / GTC"} sec={shown.damage} higherIsBetter={false}
-            picked={pickOf("damage")} onPick={togglePick("damage")}>
-            {pickOf("damage") && shown.damage.rows[pick.row] && !full && <DetailsLoading title={shown.damage.rows[pick.row].name} error={detailsErr} onClose={() => setPick(null)} />}
-            {pickOf("damage") && shown.damage.rows[pick.row] && full && (
-              <CasePanel
-                title={`${shown.damage.rows[pick.row].name} · ${pick.col == null ? "tất cả các cột" : shown.damage.cols[pick.col].label}`}
-                cases={casesFor(full, pick.row, pick.col)}
-                expected={pick.col == null ? null : Number(shown.damage.rows[pick.row].counts[pick.col]) || 0}
-                onClose={() => setPick(null)}
-              />
-            )}
-          </ReportTable>
-          <InsightBox ins={shown.insights && shown.insights.damage} title="Bể vỡ" noneLabel="Không phát sinh ca" />
+          {shown.hasDamage !== false && (
+            <ReportTable title="Bể vỡ và đền bù" countTitle="# case bể và đền (theo ngày phát hiện)" rateTitle={shown.damage.rows.some((r) => Array.isArray(r.ltc)) ? "% bể đền / LTC" : "% bể đền / GTC"} sec={shown.damage} higherIsBetter={false}
+              picked={pickOf("damage")} onPick={togglePick("damage")}>
+              {pickOf("damage") && shown.damage.rows[pick.row] && !full && <DetailsLoading title={shown.damage.rows[pick.row].name} error={detailsErr} onClose={() => setPick(null)} />}
+              {pickOf("damage") && shown.damage.rows[pick.row] && full && (
+                <CasePanel
+                  title={`${shown.damage.rows[pick.row].name} · ${pick.col == null ? "tất cả các cột" : shown.damage.cols[pick.col].label}`}
+                  cases={casesFor(full, pick.row, pick.col)}
+                  expected={pick.col == null ? null : Number(shown.damage.rows[pick.row].counts[pick.col]) || 0}
+                  onClose={() => setPick(null)}
+                />
+              )}
+            </ReportTable>
+          )}
+          {shown.hasDamage !== false && <InsightBox ins={shown.insights && shown.insights.damage} title="Bể vỡ" noneLabel="Không phát sinh ca" />}
           <ReportTable title="Hàng hoàn" countTitle="# đơn FD" rateTitle="% FD" sec={shown.fd} higherIsBetter={false}
             picked={pickOf("fd")} onPick={togglePick("fd")} pickHint="Bấm số đơn hoàn để xem mã đơn">
             {pickOf("fd") && !full && <DetailsLoading title={`Hàng hoàn · ${shown.fd.rows[pick.row].name}`} error={detailsErr} onClose={() => setPick(null)} />}

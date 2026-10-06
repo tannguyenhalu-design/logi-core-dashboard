@@ -19,8 +19,9 @@
  * (`week=` is still accepted for the biweekly type, the original param.)
  */
 import { getSession } from "../../../lib/auth";
-import { loadLtlBase } from "../../../lib/ltl-snapshot";
+import { loadLtlBase, loadAllBase } from "../../../lib/ltl-snapshot";
 import { computeReport, defaultPeriod, normalizePeriod, normalizeClients, REPORT_TYPES } from "../../../lib/biweekly-report";
+import { clientKey, KNOWN_INDUSTRIES } from "../../../lib/client-industry";
 import { saveLock, readLock, listLocks } from "../../../lib/report-locks";
 import { logAction } from "../../../lib/audit-log";
 import { readClientChannels } from "../../../lib/client-channels";
@@ -31,14 +32,43 @@ export const config = { maxDuration: 60 };
 
 const FILE_PREFIX = { week: "Tuan", biweekly: "2-tuan", month: "Thang" };
 
+const INDUSTRY_LABELS = { STTP: "STTP", NHC: "NHC", ECOM: "Ecom" };
+const INDUSTRY_TOTAL = { STTP: "Tổng STTP", NHC: "Tổng NHC", ECOM: "Tổng Ecom", "STTP+NHC": "Tổng STTP + NHC" };
+
+// Resolve industry for one row: nganh_hang field first, then clientIndustryMap.
+function rowIndustry(row, cim) {
+  const ng = String(row.nganh_hang || "").trim().toUpperCase();
+  if (KNOWN_INDUSTRIES.includes(ng)) return ng;
+  return cim.get(clientKey(row.client_name)) || "OTHER";
+}
+
 // Latest numbers, grouped by the current channel config (cached per instance).
-async function liveReport(type, period, clients, minVersion) {
-  const [base, { config, version }] = await Promise.all([loadLtlBase(), readClientChannels({ minVersion })]);
+async function liveReport(type, period, clients, minVersion, industry) {
+  let base, channelsVersion, channelCfg;
+  if (!industry || industry === "DM") {
+    const [b, { config, version }] = await Promise.all([loadLtlBase(), readClientChannels({ minVersion })]);
+    base = b; channelCfg = config; channelsVersion = version;
+  } else {
+    const [allBase, { config, version }] = await Promise.all([loadAllBase(), readClientChannels({ minVersion })]);
+    if (!allBase) throw new Error("Snapshot ngành hàng chưa được build — vui lòng đồng bộ Google Sheet.");
+    const targets = new Set(industry === "STTP+NHC" ? ["STTP", "NHC"] : [industry.toUpperCase()]);
+    const cim = allBase.clientIndustryMap;
+    base = {
+      ...allBase,
+      ltlRows: allBase.ltlRows.filter((r) => targets.has(rowIndustry(r, cim))),
+    };
+    channelCfg = config; channelsVersion = version;
+  }
+  const industryConfig = !industry || industry === "DM" ? null : {
+    totalLabel: INDUSTRY_TOTAL[industry.toUpperCase()] || `Tổng ${industry}`,
+    baseDamageClients: [],
+    hasDamage: industry.toUpperCase() !== "ECOM",
+  };
   const now = Date.now();
-  const key = reportCacheKey({ builtAt: base.builtAt, version, type, period, clients, now });
+  const key = reportCacheKey({ builtAt: base.builtAt, version: channelsVersion, type, period, clients, industry: industry || "DM", now });
   const hit = getCachedReport(key);
   if (hit) return hit;
-  const report = { ...computeReport(base, { type, period, clients, channelConfig: config }, now), channelsVersion: version || null };
+  const report = { ...computeReport(base, { type, period, clients, channelConfig: channelCfg, industryConfig }, now), channelsVersion: channelsVersion || null };
   setCachedReport(key, report);
   return report;
 }
@@ -74,9 +104,12 @@ export default async function handler(req, res) {
     }
     const clients = normalizeClients(req.query.clients);
     const cv = String(req.query.cv || "");
+    // ?industry=STTP|NHC|ECOM|STTP+NHC (omit or "DM" = Điện Máy, existing behavior)
+    const rawInd = String(req.query.industry || "").trim().toUpperCase();
+    const industry = rawInd && rawInd !== "DM" ? rawInd : null;
 
     if (req.method === "POST") {
-      const report = await liveReport(type, period, clients, cv);
+      const report = await liveReport(type, period, clients, cv, industry);
       const meta = await saveLock(type, period, report, actor);
       await logAction({ actor, action: "report.lock", target: `${type} ${period}`, details: { dataAsOf: report.dataAsOf, clients: clients || "mẫu đầy đủ" } }).catch(() => {});
       return res.status(200).json({ ok: true, lock: meta });
@@ -90,7 +123,7 @@ export default async function handler(req, res) {
       report = saved.report;
       lock = { lockedAt: saved.lockedAt, lockedBy: saved.lockedBy };
     } else {
-      report = await liveReport(type, period, clients, cv);
+      report = await liveReport(type, period, clients, cv, industry);
     }
     if (req.query.format === "json") {
       if (req.query.part === "details") return res.status(200).json({ ok: true, dataAsOf: report.dataAsOf || null, details: report.details || null });
