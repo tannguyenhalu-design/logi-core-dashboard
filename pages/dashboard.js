@@ -3,13 +3,13 @@
  * Protected via getServerSideProps (session check).
  * Filter state managed here and passed down to all tabs for sync.
  */
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, startTransition } from "react";
 import Head from "next/head";
 import FilterBar from "../components/FilterBar";
 import { KpiCardSkeleton } from "../components/KpiCard";
 import ThemeToggle from "../components/ThemeToggle";
 import dynamic from "next/dynamic";
-import { getJSON, prefetchJSON, whenIdle } from "../lib/prefetch";
+import { getJSON, prefetchJSON, whenIdle, getStaleDash, setStaleDash } from "../lib/prefetch";
 
 const LTLDashboard  = dynamic(() => import("../components/ltl/LTLDashboard"), { ssr: false });
 const TabUsers      = dynamic(() => import("../components/TabUsers"),      { ssr: false });
@@ -112,7 +112,7 @@ export default function DashboardPage({ user: initialUser }) {
   const [navOpen, setNavOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const activeFilterCount = (selectedMonths.length ? 1 : 0) + (selectedProjects.length ? 1 : 0) + (dateFrom || dateTo ? 1 : 0);
-  const goTab = (id) => { setActiveTab(id); setNavOpen(false); };
+  const goTab = (id) => { startTransition(() => { setActiveTab(id); setNavOpen(false); }); };
   useEffect(() => {
     if (!navOpen) return;
     const onKey = (e) => { if (e.key === "Escape") setNavOpen(false); };
@@ -138,6 +138,9 @@ export default function DashboardPage({ user: initialUser }) {
   const lastQsRef = useRef(null);
   const [mapData, setMapData] = useState(null);
   const mapReqRef = useRef(null);
+  // Damage fields lazy-loaded via part=damage when the damage tab opens.
+  const [damageData, setDamageData] = useState(null);
+  const damageReqRef = useRef(null);
 
   useEffect(() => {
     if (!isManager) return;
@@ -158,7 +161,6 @@ export default function DashboardPage({ user: initialUser }) {
   // ── Fetch aggregated data from Backend API ──
   const fetchDashboardData = useCallback(async (months, projects, fMode, viewAsOverride, pWeeks, dFrom, dTo) => {
     const reqId = ++reqIdRef.current;
-    setLoading(true);
     setError(null);
     try {
       const effectiveViewAs = viewAsOverride !== undefined ? viewAsOverride : viewAs;
@@ -172,9 +174,24 @@ export default function DashboardPage({ user: initialUser }) {
       if (selectedOrigin) params.append("origin", selectedOrigin);
       if (dFrom) params.append("dateFrom", dFrom);
       if (dTo)   params.append("dateTo", dTo);
+      const qs = params.toString();
+
+      // SWR: if a cached body exists, serve it immediately (no loading spinner)
+      // and revalidate in the background. Only show the full skeleton on the
+      // very first load (no cache) or when the user explicitly forces a refresh.
+      const hit = getStaleDash(qs);
+      if (hit) {
+        if (reqId !== reqIdRef.current) return;
+        lastQsRef.current = hit.qsWithAsOf;
+        setDashData(hit.data);
+        if (!hit.stale) return; // Cache fresh (< 5 min) — no background refetch
+        // Stale: show existing data + thin progress bar while revalidating
+        setLoading(true);
+      } else {
+        setLoading(true); // First load: show full skeleton
+      }
 
       // On the map view, one request brings the map fields too.
-      const qs = params.toString();
       const withMap = activeTabRef.current === "map";
       const res = await fetch(`/api/data?${qs}${withMap ? "&withMap=1" : ""}`);
       if (!res.ok) throw new Error(`API error ${res.status}`);
@@ -182,9 +199,11 @@ export default function DashboardPage({ user: initialUser }) {
       if (reqId !== reqIdRef.current) return;
       // Map key = filters + data version, so a resync never shows the old map
       // (the extra asOf param is ignored by the API).
-      lastQsRef.current = `${qs}&asOf=${encodeURIComponent(data.dataAsOf || "")}`;
+      const qsWithAsOf = `${qs}&asOf=${encodeURIComponent(data.dataAsOf || "")}`;
+      lastQsRef.current = qsWithAsOf;
+      setStaleDash(qs, data, qsWithAsOf); // Store for next stale-serve
       if (withMap && data.ltl?.provinceStats) {
-        setMapData({ qs: lastQsRef.current, fields: { provinceStats: data.ltl.provinceStats, provinceDetailsMap: data.ltl.provinceDetailsMap, originStats: data.ltl.originStats, routeStats: data.ltl.routeStats, warehouseLayer: data.ltl.warehouseLayer ?? null, warehouseLayerAll: data.ltl.warehouseLayerAll ?? null, warehouseLayerNhc: data.ltl.warehouseLayerNhc ?? null, warehouseLayerSttp: data.ltl.warehouseLayerSttp ?? null, provinceStatsNhc: data.ltl.provinceStatsNhc ?? null, provinceStatsSttp: data.ltl.provinceStatsSttp ?? null } });
+        setMapData({ qs: qsWithAsOf, fields: { provinceStats: data.ltl.provinceStats, provinceDetailsMap: data.ltl.provinceDetailsMap, originStats: data.ltl.originStats, routeStats: data.ltl.routeStats, warehouseLayer: data.ltl.warehouseLayer ?? null, warehouseLayerAll: data.ltl.warehouseLayerAll ?? null, warehouseLayerNhc: data.ltl.warehouseLayerNhc ?? null, warehouseLayerSttp: data.ltl.warehouseLayerSttp ?? null, provinceStatsNhc: data.ltl.provinceStatsNhc ?? null, provinceStatsSttp: data.ltl.provinceStatsSttp ?? null } });
       }
       setDashData(data);
     } catch (e) {
@@ -299,13 +318,33 @@ export default function DashboardPage({ user: initialUser }) {
   const mapState = mapFields ? undefined : mapData && mapData.qs === lastQsRef.current && mapData.error ? "error" : "loading";
   const ltlData = useMemo(() => (dashData?.ltl && mapFields ? { ...dashData.ltl, ...mapFields } : dashData?.ltl), [dashData, mapFields]);
 
-  // P4 idle prefetch: map fields for the body on screen, then (once) the
-  // code + first requests of the other tabs this role can open.
+  // Damage fields lazy-loaded via part=damage when the damage tab opens.
+  // Same qs-keyed pattern as the map tab (P6).
+  useEffect(() => {
+    const qs = lastQsRef.current;
+    if (activeTab !== "damage" || !dashData || loading || qs == null) return;
+    if (damageData?.qs === qs || damageReqRef.current === qs) return;
+    damageReqRef.current = qs;
+    getJSON(`/api/data?${qs}&part=damage`)
+      .then(({ ok, j }) => {
+        if (!ok || !j.ok) return;
+        if (lastQsRef.current === qs) setDamageData({ qs, damageRisk: j.damageRisk ?? null, damageMoney: j.damageMoney ?? null, damageAnalysis: j.damageAnalysis ?? null });
+      })
+      .finally(() => { if (damageReqRef.current === qs) damageReqRef.current = null; });
+  }, [activeTab, dashData, loading, damageData]);
+  const damageFields = damageData?.qs === lastQsRef.current ? damageData : null;
+
+  // P4 idle prefetch: map fields + damage fields for the body on screen,
+  // then (once) the code + first requests of the other tabs this role can open.
   const prefetchedTabs = useRef(false);
   useEffect(() => {
     if (!dashData || loading) return;
     const qs = lastQsRef.current;
     const cancelMap = canSeeLTL && qs != null && !(mapData?.qs === qs) ? whenIdle(() => { prefetchJSON(mapUrl(qs)).catch(() => {}); }) : () => {};
+    // Prefetch damage fields while idle so opening the damage tab is instant.
+    const cancelDmg = canSeeDamage && qs != null && activeTab !== "damage" && !(damageData?.qs === qs)
+      ? whenIdle(() => { prefetchJSON(`/api/data?${qs}&part=damage`).catch(() => {}); }, 3000)
+      : () => {};
     let cancelTabs = () => {};
     if (!prefetchedTabs.current) {
       prefetchedTabs.current = true;
@@ -315,7 +354,7 @@ export default function DashboardPage({ user: initialUser }) {
         }
       }, 4000);
     }
-    return () => { cancelMap(); cancelTabs(); };
+    return () => { cancelMap(); cancelDmg(); cancelTabs(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dashData, loading]);
   // Accounts without the LTL views have no dashboard data to wait for.
@@ -806,7 +845,7 @@ export default function DashboardPage({ user: initialUser }) {
 
                 {!dashData && loading && <DashboardSkeleton view={activeTab} />}
 
-                {dashData && !(error && !loading) && <div className={loading ? "refreshing" : "fade-in"}><LTLDashboard view={activeTab} data={ltlData} mapState={activeTab === "map" ? mapState : undefined} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} fetchProvinceOrders={fetchProvinceOrders} pendingPickup={dashData.pendingPickup} fetchPendingOrders={fetchPendingOrders} kpiDelta={dashData.kpiDelta} stuck={dashData.stuck} fetchStuckOrders={fetchStuckOrders} anomalies={dashData.anomalies} damageRisk={dashData.damageRisk} riskOnly={riskOnly} onRiskOnlyChange={setRiskOnly} sparkline={dashData.sparkline} dueToday={dashData.dueToday} fetchDueTodayOrders={fetchDueTodayOrders} onQuickRiskRoutes={() => { setRiskOnly(true); setActiveTab("damage"); }} onQuickLowOntime={setSelectedProjects} onOpenReport={() => setReportOpen(true)} onOpenCompanyReport={() => setActiveTab("report")} damageTrend={dashData.damageTrend} exceptions={dashData.exceptions} damageMoney={dashData.damageMoney} damageAnalysis={dashData.damageAnalysis} dailyOrders={dashData.dailyOrders} /></div>}
+                {dashData && !(error && !loading) && <div className={loading ? "refreshing" : "fade-in"}><LTLDashboard view={activeTab} data={ltlData} mapState={activeTab === "map" ? mapState : undefined} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} fetchProvinceOrders={fetchProvinceOrders} pendingPickup={dashData.pendingPickup} fetchPendingOrders={fetchPendingOrders} kpiDelta={dashData.kpiDelta} stuck={dashData.stuck} fetchStuckOrders={fetchStuckOrders} anomalies={dashData.anomalies} damageRisk={damageFields?.damageRisk ?? null} riskOnly={riskOnly} onRiskOnlyChange={setRiskOnly} sparkline={dashData.sparkline} dueToday={dashData.dueToday} fetchDueTodayOrders={fetchDueTodayOrders} onQuickRiskRoutes={() => { setRiskOnly(true); startTransition(() => setActiveTab("damage")); }} onQuickLowOntime={setSelectedProjects} onOpenReport={() => setReportOpen(true)} onOpenCompanyReport={() => startTransition(() => setActiveTab("report"))} damageTrend={dashData.damageTrend} exceptions={dashData.exceptions} damageMoney={damageFields?.damageMoney ?? null} damageAnalysis={damageFields?.damageAnalysis ?? null} dailyOrders={dashData.dailyOrders} /></div>}
               </>
             )}
             {/* Opened tabs stay mounted, hidden while another tab is shown. */}

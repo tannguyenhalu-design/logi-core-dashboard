@@ -37,6 +37,10 @@ export const config = { maxDuration: 60 };
 const MAP_KEYS = ["provinceStats", "provinceDetailsMap", "originStats", "routeStats", "warehouseLayer", "warehouseLayerAll", "warehouseLayerNhc", "warehouseLayerSttp", "provinceStatsNhc", "provinceStatsSttp"];
 const OMIT_LTL_KEYS = new Set([...MAP_KEYS, "originDetailsMap"]);
 
+// Read only by the "Hư hỏng & Rủi ro" tab — lazy-loaded via part=damage.
+// Removing from the main payload saves ~50-150 KB per request.
+const DAMAGE_KEYS = ["damageRisk", "damageMoney", "damageAnalysis"];
+
 // What goes over the wire for one computed body (after applyRoleToBody).
 function shapeBody(body, part, withMap) {
   const ltl = body.ltl || {};
@@ -45,9 +49,16 @@ function shapeBody(body, part, withMap) {
     for (const k of MAP_KEYS) out[k] = ltl[k];
     return out;
   }
+  if (part === "damage") {
+    const out = { ok: true, dataAsOf: body.dataAsOf || null };
+    for (const k of DAMAGE_KEYS) out[k] = body[k] ?? null;
+    return out;
+  }
   const slim = {};
   for (const k of Object.keys(ltl)) if (!OMIT_LTL_KEYS.has(k) || (withMap && MAP_KEYS.includes(k))) slim[k] = ltl[k];
   const out = { ...body, ltl: slim };
+  // Damage fields are fetched lazily via part=damage — omit from main payload.
+  for (const k of DAMAGE_KEYS) delete out[k];
   if (body.aiInsights) {
     const { periodComparison: _dup, ...ai } = body.aiInsights;
     out.aiInsights = ai;
@@ -134,7 +145,7 @@ export default async function handler(req, res) {
   };
   const scope = { role, userProject, userPic };
   const force = req.query.force === "true";
-  const part = req.query.part === "map" ? "map" : null;
+  const part = req.query.part === "map" ? "map" : req.query.part === "damage" ? "damage" : null;
   const withMap = req.query.withMap === "1";
 
   try {
