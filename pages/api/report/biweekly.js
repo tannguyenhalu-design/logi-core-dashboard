@@ -70,6 +70,7 @@ async function liveReport(type, period, clients, minVersion, industry) {
     channelCfg = Object.fromEntries(
       Object.keys(clientVol)
         .sort((a, b) => clientVol[b] - clientVol[a])
+        .slice(0, 10)
         .map((name, i) => [name, { ownOntime: true, ownFd: true, order: i + 1 }])
     );
   }

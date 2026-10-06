@@ -646,12 +646,16 @@ export default function TabCompanyReport() {
     return () => { cancel = true; };
   }, [type, period, isLocked, cv, refreshKey]);
 
-  // Any Điện máy client in the window; the full list comes with every report.
+  // Clients available to pick. For non-DM industries the locked/lockLive reports
+  // are always DM data — only the live report knows which clients belong to that
+  // industry, so we never fall back to the DM lists when industry !== "DM".
   const clientOptions = useMemo(() => {
-    const src = live?.clientOptions || lockLive?.clientOptions || saved?.report?.clientOptions || [];
+    const src = industry === "DM"
+      ? (live?.clientOptions || lockLive?.clientOptions || saved?.report?.clientOptions || [])
+      : (live?.clientOptions || []);
     const known = new Set(src.map((o) => o.name));
     return [...src, ...picked.filter((c) => !known.has(c)).map((c) => ({ name: c, label: label(c), orders: 0 }))];
-  }, [live, lockLive, saved, picked]);
+  }, [live, lockLive, saved, picked, industry]);
   const shownOptions = clientOptions.filter((o) => !search || o.label.toLowerCase().includes(search.toLowerCase()));
 
   const toggle = (name) => {
@@ -737,7 +741,7 @@ export default function TabCompanyReport() {
   const select = { padding: "7px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--input-bg)", color: "var(--text-primary)", fontFamily: "inherit", fontSize: 13 };
   const small = { fontSize: 11.5, color: "var(--text-muted)", lineHeight: 1.5 };
 
-  const changeIndustry = (id) => { setIndustry(id); setLive(null); setMsg(null); setPick(null); };
+  const changeIndustry = (id) => { setIndustry(id); setLive(null); setMsg(null); setPick(null); setPicked([]); setMode("full"); };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -826,7 +830,7 @@ export default function TabCompanyReport() {
         </div>
       </div>
 
-      <ClientChannelSettings onSaved={(v) => { setCv(v); setMsg(null); }} />
+      {industry === "DM" && <ClientChannelSettings onSaved={(v) => { setCv(v); setMsg(null); }} />}
 
       {/* ── Lock status + actions ── */}
       <div className="glass" style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
