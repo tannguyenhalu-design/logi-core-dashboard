@@ -405,9 +405,9 @@ export default function ProvinceMapPanel({
   const [activeWh, setActiveWh] = useState(null);
   const [pinnedWh, setPinnedWh] = useState(null);
   const activeLayer =
-    mapIndustry === "nhc" && warehouseLayerNhc ? warehouseLayerNhc :
-    mapIndustry === "sttp" && warehouseLayerSttp ? warehouseLayerSttp :
-    mapIndustry === "all" && warehouseLayerAll ? warehouseLayerAll :
+    mapIndustry === "nhc"  && warehouseLayerNhc?.sites?.length  ? warehouseLayerNhc  :
+    mapIndustry === "sttp" && warehouseLayerSttp?.sites?.length ? warehouseLayerSttp :
+    mapIndustry === "all"  && warehouseLayerAll?.sites?.length  ? warehouseLayerAll  :
     warehouseLayer;
   const hasWh = !!(warehouseLayer?.sites?.length || warehouseLayerAll?.sites?.length || warehouseLayerNhc?.sites?.length || warehouseLayerSttp?.sites?.length);
   const showWh = !!activeLayer?.sites?.length && showWhState; // guards activeLayer.totals / .period accesses
@@ -716,13 +716,13 @@ export default function ProvinceMapPanel({
               🏭 Hiện kho
             </label>
           )}
-          {showWh && (warehouseLayerAll || warehouseLayerNhc || warehouseLayerSttp) && (
+          {showWhState && (warehouseLayerAll?.sites?.length || warehouseLayerNhc?.sites?.length || warehouseLayerSttp?.sites?.length) && (
             <Seg
               items={[
                 { id: "dm",  label: "🟠 ĐM" },
-                ...(warehouseLayerNhc  ? [{ id: "nhc",  label: "🟣 NHC" }]  : []),
-                ...(warehouseLayerSttp ? [{ id: "sttp", label: "🔵 STTP" }] : []),
-                ...(warehouseLayerAll  ? [{ id: "all",  label: "🟢 Tổng 4" }] : []),
+                ...(warehouseLayerNhc?.sites?.length  ? [{ id: "nhc",  label: "🟣 NHC" }]  : []),
+                ...(warehouseLayerSttp?.sites?.length ? [{ id: "sttp", label: "🔵 STTP" }] : []),
+                ...(warehouseLayerAll?.sites?.length  ? [{ id: "all",  label: "🟢 Tổng 4" }] : []),
               ]}
               value={mapIndustry}
               onChange={setMapIndustry}
