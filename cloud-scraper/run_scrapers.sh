@@ -39,15 +39,51 @@ echo "[$(date)] Bat dau chay run_scrapers.sh" >> "$LOG"
 # see run_ftl_scraper.sh) starved this script for 2 days straight.
 FAILED=0
 RUN_STARTED=$(date -Iseconds)
+
+# Restart Chrome (called when CDP connection fails).
+# Chrome chay nen (background process) nen khi treo se khong tu restart.
+restart_chrome() {
+  echo "[$(date)] [heal] Dang tat Chrome..." >> "$LOG"
+  pkill -f "google-chrome" 2>/dev/null || true
+  sleep 8
+  echo "[$(date)] [heal] Khoi dong lai Chrome..." >> "$LOG"
+  google-chrome \
+    --remote-debugging-port=9222 \
+    --remote-allow-origins=* \
+    --user-data-dir="${CHROME_PROFILE_DIR:-/data/chrome-profile}" \
+    --no-sandbox \
+    --disable-dev-shm-usage \
+    --disable-gpu \
+    --window-position=0,0 \
+    --window-size=1280,800 \
+    about:blank &
+  sleep 10
+  echo "[$(date)] [heal] Chrome da khoi dong lai." >> "$LOG"
+}
+
 # Each step's output is kept separately (and still appended to the main log)
 # so report_health.py can classify it (ok / session expired / error) for the
 # dashboard's "Trạng thái hệ thống" page.
+# For CDP-based scripts (sheet_scraper, kpi_scraper): if it fails with a
+# Chrome/WebSocket error, restart Chrome and retry once automatically.
+is_chrome_error() {
+  grep -qE "WebSocketTimeoutException|WebSocketConnectionClosedException|Khong ket noi duoc Chrome|Connection timed out|ConnectionRefusedError.*9222" "$1"
+}
 run_step() {
   local name="$1" script="$2"
   timeout 600 python3 "$script" > "/tmp/step_${name}.log" 2>&1
   local code=$?
   cat "/tmp/step_${name}.log" >> "$LOG"
   echo "$code" > "/tmp/step_${name}.code"
+  if [ "$code" -ne 0 ] && is_chrome_error "/tmp/step_${name}.log"; then
+    echo "[$(date)] [heal] $script gap loi Chrome - restart Chrome va thu lai lan 2..." >> "$LOG"
+    restart_chrome
+    timeout 600 python3 "$script" > "/tmp/step_${name}.log" 2>&1
+    code=$?
+    cat "/tmp/step_${name}.log" >> "$LOG"
+    echo "$code" > "/tmp/step_${name}.code"
+    echo "[$(date)] [heal] Lan 2 ket qua: exit $code" >> "$LOG"
+  fi
   [ "$code" -eq 0 ] || FAILED=1
 }
 run_step kpi kpi_scraper.py

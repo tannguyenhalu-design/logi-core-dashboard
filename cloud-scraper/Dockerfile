@@ -45,9 +45,9 @@ COPY kpi_scraper.py sheet_scraper.py rillnet_scraper.py sync_to_db.js report_hea
 COPY ftl_scraper.py sync_ftl_to_db.js ftl_enrich_vehicle.py /app/
 COPY list_ftl_orders_needing_vehicle.js update_ftl_vehicle_info.js /app/
 COPY check_sync_trigger.js mark_sync_complete.js /app/
-COPY entrypoint.sh run_scrapers.sh run_ftl_scraper.sh check_and_run_sync.sh keep_warm.sh /app/
+COPY entrypoint.sh run_scrapers.sh run_ftl_scraper.sh check_and_run_sync.sh keep_warm.sh check_chrome.sh /app/
 COPY crontab /app/crontab
-RUN chmod +x /app/entrypoint.sh /app/run_scrapers.sh /app/run_ftl_scraper.sh /app/check_and_run_sync.sh /app/keep_warm.sh
+RUN chmod +x /app/entrypoint.sh /app/run_scrapers.sh /app/run_ftl_scraper.sh /app/check_and_run_sync.sh /app/keep_warm.sh /app/check_chrome.sh
 
 # Chrome profile lives on the mounted Volume (Railway: mount at /data) so the
 # one-time login survives restarts/redeploys — same principle as

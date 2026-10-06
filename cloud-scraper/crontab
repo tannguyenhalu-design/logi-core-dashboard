@@ -4,6 +4,10 @@
 50 12 * * * /bin/bash /app/run_scrapers.sh
 50 17 * * * /bin/bash /app/run_scrapers.sh
 
+# Chrome health watchdog — restart Chrome neu no bi treo giua cac lan scraper.
+# Chay moi gio luc :20 (tranh trung voi scraper o :50 va warm-up o :00/:30).
+20 * * * * /bin/bash /app/check_chrome.sh >/dev/null 2>&1
+
 # Keep the dashboard's Vercel functions warm during working hours
 # (07:00-20:00 ICT, every 5 minutes) — see keep_warm.sh.
 */5 7-19 * * * /bin/bash /app/keep_warm.sh >/dev/null 2>&1
