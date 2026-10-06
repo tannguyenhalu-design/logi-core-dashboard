@@ -34,7 +34,7 @@ export const config = { maxDuration: 60 };
 // Read only by the "Bản đồ tỉnh thành" view (ProvinceMapPanel).
 // originDetailsMap is computed but no component reads it — never sent.
 // warehouseLayer = the "Kho" layer (Kế hoạch D · 2a, lib/warehouse-layer.js).
-const MAP_KEYS = ["provinceStats", "provinceDetailsMap", "originStats", "routeStats", "warehouseLayer", "warehouseLayerAll", "warehouseLayerNhc", "warehouseLayerSttp"];
+const MAP_KEYS = ["provinceStats", "provinceDetailsMap", "originStats", "routeStats", "warehouseLayer", "warehouseLayerAll", "warehouseLayerNhc", "warehouseLayerSttp", "provinceStatsNhc", "provinceStatsSttp"];
 const OMIT_LTL_KEYS = new Set([...MAP_KEYS, "originDetailsMap"]);
 
 // What goes over the wire for one computed body (after applyRoleToBody).

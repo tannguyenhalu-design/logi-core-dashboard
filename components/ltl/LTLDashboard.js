@@ -565,6 +565,8 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
         warehouseLayerAll={data.warehouseLayerAll ?? null}
         warehouseLayerNhc={data.warehouseLayerNhc ?? null}
         warehouseLayerSttp={data.warehouseLayerSttp ?? null}
+        provinceStatsNhc={data.provinceStatsNhc ?? null}
+        provinceStatsSttp={data.provinceStatsSttp ?? null}
         periodComparison={data.periodComparison ?? null}
       />}
 

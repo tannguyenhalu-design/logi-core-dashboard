@@ -392,6 +392,8 @@ export default function ProvinceMapPanel({
   warehouseLayerAll = null,
   warehouseLayerNhc = null,
   warehouseLayerSttp = null,
+  provinceStatsNhc = null,
+  provinceStatsSttp = null,
   periodComparison = null,
 }) {
   const [activeProv, setActiveProv] = useState(null);
@@ -471,6 +473,11 @@ export default function ProvinceMapPanel({
   }, []);
 
   const sortedProvinces = useMemo(() => {
+    // NHC/STTP: use industry-specific stats (simpler shape — no weight/damage)
+    if ((mapIndustry === "nhc" || mapIndustry === "sttp") && activeProvinceStats.length > 0) {
+      if (viewMode === "ontime") return [...activeProvinceStats].sort((a, b) => (a.details?.ontimePct ?? 100) - (b.details?.ontimePct ?? 100));
+      return [...activeProvinceStats]; // already sorted by orders desc from backend
+    }
     return [...(provinceStats || [])].sort((a, b) => {
       const aDet = provinceDetailsMap[a.name] || a.details;
       const bDet = provinceDetailsMap[b.name] || b.details;
@@ -479,7 +486,7 @@ export default function ProvinceMapPanel({
       if (viewMode === "damage") return (bDet?.damageCount || 0) - (aDet?.damageCount || 0);
       return b.orders - a.orders;
     });
-  }, [provinceStats, provinceDetailsMap, viewMode]);
+  }, [provinceStats, provinceDetailsMap, viewMode, mapIndustry, activeProvinceStats]);
 
   // Scale ends — shared by the fills and the legend.
   const scale = useMemo(() => {
@@ -591,7 +598,64 @@ export default function ProvinceMapPanel({
     const maxTotal = Math.max(0, ...whSites.map(totalGtcOf));
     return { dots, maxTotal };
   }, [whSites, mapIndustry]);
-  const topWarehouses = useMemo(() => whDots.dots.slice(0, 8), [whDots]);
+  // Re-sort by industry volume (dmG) when not in DM mode
+  const topWarehouses = useMemo(() => {
+    if (mapIndustry !== "dm") return [...whDots.dots].sort((a, b) => b.dmG - a.dmG).slice(0, 8);
+    return whDots.dots.slice(0, 8);
+  }, [whDots, mapIndustry]);
+
+  // Province stats for the selected industry (NHC/STTP have simpler shape)
+  const activeProvinceStats = useMemo(() => {
+    if (mapIndustry === "nhc" && provinceStatsNhc?.length) return provinceStatsNhc;
+    if (mapIndustry === "sttp" && provinceStatsSttp?.length) return provinceStatsSttp;
+    return provinceStats || [];
+  }, [mapIndustry, provinceStats, provinceStatsNhc, provinceStatsSttp]);
+
+  // Hotspots derived from industry-specific province stats for NHC/STTP
+  const activeHotspots = useMemo(() => {
+    if (mapIndustry === "dm" || mapIndustry === "all" || !hotspotRule) return hotspots;
+    const src = mapIndustry === "nhc" ? provinceStatsNhc : provinceStatsSttp;
+    if (!src?.length) return hotspots;
+    return src
+      .filter((p) => p.details?.evalCount >= (hotspotRule.minEval || 5) && p.details?.ontimePct < (hotspotRule.ontimePct || 80))
+      .map((p) => ({ name: p.name, ontimePct: p.details.ontimePct, orders: p.orders, late: p.details.lateCount, lateHot: true, damageHot: false }))
+      .sort((a, b) => a.ontimePct - b.ontimePct)
+      .slice(0, 5);
+  }, [mapIndustry, hotspots, hotspotRule, provinceStatsNhc, provinceStatsSttp]);
+
+  // InsightPanel data — kho gần vượt tải
+  const nearCapWarehouses = useMemo(() => {
+    if (!whDots.dots.length) return [];
+    return whDots.dots
+      .filter((d) => d.totGtc > 0 && d.dmG > 0)
+      .map((d) => ({ ...d, utilPct: Math.round((d.dmG / d.totGtc) * 100) }))
+      .sort((a, b) => b.utilPct - a.utilPct)
+      .slice(0, 3);
+  }, [whDots.dots]);
+
+  // InsightPanel data — tỉnh ontime thấp (DM reference)
+  const lowOntimeProvsInsight = useMemo(() => {
+    return (provinceStats || [])
+      .map((p) => {
+        const det = provinceDetailsMap[p.name] || p.details;
+        return (det && det.evalCount >= 3) ? { name: p.name, ontimePct: det.ontimePct, orders: p.orders } : null;
+      })
+      .filter(Boolean)
+      .filter((p) => p.ontimePct < 90)
+      .sort((a, b) => a.ontimePct - b.ontimePct)
+      .slice(0, 3);
+  }, [provinceStats, provinceDetailsMap]);
+
+  // InsightPanel data — tỉnh gần vượt năng lực kho (chỉ Tổng 4)
+  const nearCapProvsInsight = useMemo(() => {
+    if (mapIndustry !== "all") return [];
+    return Object.entries(provinceCapUtil)
+      .map(([name, { actual, cap }]) => (cap > 0 ? { name, pct: Math.round((actual / cap) * 100) } : null))
+      .filter(Boolean)
+      .sort((a, b) => b.pct - a.pct)
+      .slice(0, 5);
+  }, [mapIndustry, provinceCapUtil]);
+
   const whSearchResults = useMemo(() => {
     const q = whSearch.trim().toLowerCase();
     if (!q || !showWh) return [];
@@ -867,16 +931,26 @@ export default function ProvinceMapPanel({
           {!singleProjectMode && hotspotRule && (
             <div style={{ background: "var(--panel-bg-strong)", border: "1px solid var(--border)", borderLeft: "3px solid var(--red)", borderRadius: 12, padding: "12px 14px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>🔥 Top 5 điểm nóng cần chú ý</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  🔥 Top 5 điểm nóng cần chú ý
+                  {(mapIndustry === "nhc" || mapIndustry === "sttp") && (
+                    <span style={{ fontSize: 11, color: "var(--amber)", background: "rgba(245,158,11,0.1)", border: "1px solid var(--amber)", borderRadius: 4, padding: "1px 6px", fontWeight: 600 }}>
+                      {mapIndustry === "nhc" ? "🟣 NHC" : "🔵 STTP"}
+                    </span>
+                  )}
+                  {mapIndustry === "all" && (
+                    <span style={{ fontSize: 11, color: "var(--text-muted)", border: "1px solid var(--border)", borderRadius: 4, padding: "1px 6px" }}>tham chiếu ĐM</span>
+                  )}
+                </span>
                 <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                  Trễ: on-time &lt; {hotspotRule.ontimePct}% (≥ {hotspotRule.minEval} đơn đã đánh giá) · Bể vỡ: ≥ 2× TB và ≥ 2 ca · bấm để phóng tới trên bản đồ
+                  Trễ: on-time &lt; {hotspotRule.ontimePct}% (≥ {hotspotRule.minEval} đơn đã đánh giá){mapIndustry === "dm" ? " · Bể vỡ: ≥ 2× TB và ≥ 2 ca" : ""} · bấm để phóng tới
                 </span>
               </div>
-              {hotspots.length === 0 ? (
+              {activeHotspots.length === 0 ? (
                 <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>Không có tỉnh nào vượt ngưỡng trong bộ lọc hiện tại.</div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {hotspots.map((h, i) => {
+                  {activeHotspots.map((h, i) => {
                     const on = pinnedProv === h.name;
                     return (
                       <button key={h.name} onClick={() => (on ? setPinnedProv(null) : selectAndFly(h.name))} style={{
@@ -1014,15 +1088,70 @@ export default function ProvinceMapPanel({
               </>
             ) : (
               <>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", marginBottom: 8 }}>{showWh ? "📍 Chi tiết tỉnh / kho" : "📍 Chi tiết tỉnh"}</div>
-                {showWh && (
-                  <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginBottom: 8 }}>
-                    🏭 Rê hoặc bấm chấm kho để xem tổng tải kho giao (vòng xám) + phần Điện máy (chấm cam): đơn/ngày TB · P90 · max, giao lẫn lấy. Phóng to để tách kho gần nhau và hiện tên.
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", marginBottom: 6 }}>{showWh ? "🔍 Chi tiết tỉnh / kho" : "🔍 Chi tiết tỉnh"}</div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: singleProjectMode ? 12 : 10 }}>
+                  💡 Rê vào tỉnh hoặc kho để xem nhanh; bấm để giữ chi tiết — có đơn, on-time, tuyến lấy, khách hàng và nút xem danh sách.
+                </div>
+
+                {/* InsightPanel — điểm yếu vận hành (chỉ hiện cho chế độ toàn dự án) */}
+                {!singleProjectMode && (nearCapWarehouses.length > 0 || lowOntimeProvsInsight.length > 0 || nearCapProvsInsight.length > 0) && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+                    {showWh && nearCapWarehouses.length > 0 && (
+                      <div style={{ background: "var(--panel-bg)", border: "1px solid var(--border)", borderLeft: "3px solid var(--amber)", borderRadius: 8, padding: "8px 10px" }}>
+                        <div style={SECTION_LABEL}>⚡ Kho ĐM gần vượt GTC cap{mapIndustry !== "dm" ? " (tham chiếu)" : ""}</div>
+                        {nearCapWarehouses.map((d) => (
+                          <button key={d.id} onClick={() => selectWhAndFly(d)} style={{
+                            display: "flex", justifyContent: "space-between", width: "100%", fontSize: 12, marginBottom: 3,
+                            background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", padding: "1px 0",
+                          }}>
+                            <span style={{ color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0, textAlign: "left" }}>• {d.label}</span>
+                            <span style={{ fontWeight: 700, marginLeft: 8, whiteSpace: "nowrap",
+                              color: d.utilPct >= 100 ? "var(--red)" : d.utilPct >= 80 ? "var(--amber)" : "var(--text-primary)" }}>
+                              {d.utilPct}% tải
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {lowOntimeProvsInsight.length > 0 && (
+                      <div style={{ background: "var(--panel-bg)", border: "1px solid var(--border)", borderLeft: "3px solid var(--red)", borderRadius: 8, padding: "8px 10px" }}>
+                        <div style={SECTION_LABEL}>🚨 Tỉnh ontime thấp — ĐM{mapIndustry !== "dm" ? " (tham chiếu)" : ""}</div>
+                        {lowOntimeProvsInsight.map((p) => (
+                          <button key={p.name} onClick={() => selectAndFly(p.name)} style={{
+                            display: "flex", justifyContent: "space-between", width: "100%", fontSize: 12, marginBottom: 3,
+                            background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", padding: "1px 0",
+                          }}>
+                            <span style={{ color: "var(--text-secondary)", textAlign: "left" }}>• {p.name}</span>
+                            <span style={{ fontWeight: 700, color: getOntimeColor(p.ontimePct) }}>{p.ontimePct}%</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {mapIndustry === "all" && nearCapProvsInsight.length > 0 && (
+                      <div style={{ background: "var(--panel-bg)", border: "1px solid var(--border)", borderLeft: "3px solid var(--red)", borderRadius: 8, padding: "8px 10px" }}>
+                        <div style={SECTION_LABEL}>📊 Tỉnh gần vượt năng lực kho (tổng 4 ngành)</div>
+                        {nearCapProvsInsight.map((p) => (
+                          <button key={p.name} onClick={() => selectAndFly(p.name)} style={{
+                            display: "flex", justifyContent: "space-between", width: "100%", fontSize: 12, marginBottom: 3,
+                            background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", padding: "1px 0",
+                          }}>
+                            <span style={{ color: "var(--text-secondary)", textAlign: "left" }}>• {p.name}</span>
+                            <span style={{ fontWeight: 700,
+                              color: p.pct >= 100 ? "var(--red)" : p.pct >= 80 ? "var(--amber)" : "var(--text-primary)" }}>
+                              {p.pct}%
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
-                <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginBottom: singleProjectMode ? 12 : 0 }}>
-                  💡 Rê vào tỉnh để xem nhanh; bấm tỉnh (hoặc điểm nóng / ô Top 8) để giữ — có đơn, on-time, late, ca bể vỡ, tuyến lấy, khách hàng và nút xem danh sách đơn.
-                </div>
+
+                {showWh && (
+                  <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                    🏭 Rê hoặc bấm chấm kho để xem tổng tải + phần {mapIndustry === "nhc" ? "NHC (chấm tím)" : mapIndustry === "sttp" ? "STTP (chấm xanh)" : mapIndustry === "all" ? "tổng 4 ngành (chấm xanh lá)" : "Điện máy (chấm cam)"}. Phóng to để tách kho gần nhau.
+                  </div>
+                )}
 
                 {singleProjectMode && projectOverview && (
                   <>
@@ -1162,7 +1291,7 @@ export default function ProvinceMapPanel({
           {showWh && !singleProjectMode && (
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                🏭 Top 8 kho (tổng tải GTC/ng khi có · ĐM/ng) · bấm để phóng tới
+                🏭 Top 8 kho — {mapIndustry === "nhc" ? "NHC" : mapIndustry === "sttp" ? "STTP" : mapIndustry === "all" ? "4 ngành" : "ĐM"}/ng cao nhất · bấm để phóng tới
               </div>
               <div className="grid-2" style={{ gap: 8 }}>
                 {topWarehouses.map((d) => {
@@ -1183,8 +1312,11 @@ export default function ProvinceMapPanel({
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
                         <span style={{ fontWeight: 600, fontSize: 12.5, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{d.label}</span>
                         <span style={{ fontSize: 12, color: "var(--cyan)", fontWeight: 700, whiteSpace: "nowrap" }}>
-                          {d.totGtc > 0 ? fmt(d.totGtc) : fmt(d.dmG, 1)}
-                          <span style={{ fontSize: 10, color: "var(--text-muted)", marginLeft: 2 }}>{d.totGtc > 0 ? "GTC" : "ĐM"}/ng</span>
+                          {fmt(d.dmG, 1)}
+                          <span style={{ fontSize: 10, color: "var(--text-muted)", marginLeft: 2 }}>
+                            {mapIndustry === "nhc" ? "NHC" : mapIndustry === "sttp" ? "STTP" : mapIndustry === "all" ? "4ng" : "ĐM"}/ng
+                          </span>
+                          {d.totGtc > 0 && <span style={{ fontSize: 10, color: "var(--text-muted)", marginLeft: 4 }}>({fmt(d.totGtc)} GTC)</span>}
                         </span>
                       </div>
                     </div>
@@ -1198,12 +1330,15 @@ export default function ProvinceMapPanel({
 
           {!singleProjectMode && <div>
             <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              💡 Top 8 Tỉnh ({viewMode === "weight" ? "Xếp theo Tải trọng Tấn" : viewMode === "ontime" ? "Cảnh báo Ontime thấp trước" : viewMode === "damage" ? "Xếp theo Ca Bể Vỡ" : "Xếp theo Số đơn"})
+              💡 Top 8 Tỉnh — {mapIndustry === "nhc" ? "🟣 NHC" : mapIndustry === "sttp" ? "🔵 STTP" : mapIndustry === "all" ? "🟢 Tổng 4" : "🟠 ĐM"} ({viewMode === "ontime" || mapIndustry === "nhc" || mapIndustry === "sttp" ? "Ontime thấp trước" : viewMode === "weight" ? "Tải trọng" : viewMode === "damage" ? "Ca Bể Vỡ" : "Số đơn"})
             </div>
             <div className="grid-2" style={{ gap: 8 }}>
               {topProvinces.map((p) => {
                 const isSelected = activeProv === p.name || pinnedProv === p.name;
-                const pDet = provinceDetailsMap[p.name] || p.details;
+                // NHC/STTP: use industry-specific details; DM/all: use provinceDetailsMap
+                const pDet = (mapIndustry === "nhc" || mapIndustry === "sttp")
+                  ? (p.details || null)
+                  : (provinceDetailsMap[p.name] || p.details);
                 const pOntime = pDet ? pDet.ontimePct : 100;
                 const pColor = getOntimeColor(pOntime);
                 const pWeight = pDet?.totalWeight || p.weight || 0;
@@ -1231,12 +1366,12 @@ export default function ProvinceMapPanel({
                         {pOntime < 80 ? <span style={{ fontSize: 10 }}>🚨</span> : pOntime < 90 ? <span style={{ fontSize: 10 }}>⚠️</span> : null}
                       </span>
                       <span style={{ fontSize: 12, color: "var(--cyan)", fontWeight: 700, whiteSpace: "nowrap" }}>
-                        {fmt(p.orders)} đơn ({shortWeight(pWeight)})
+                        {fmt(p.orders)} đơn{pWeight > 0 ? ` (${shortWeight(pWeight)})` : ""}
                       </span>
                     </div>
-                    {p.topClient && (
+                    {(p.topClient || pDet?.ontimePct != null) && (
                       <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        Top: {p.topClient.name} ({p.topClient.pct}%)
+                        {p.topClient ? `Top: ${p.topClient.name} (${p.topClient.pct}%)` : ""}
                         {pDet && ` · Ontime: ${pDet.ontimePct}%`}
                       </div>
                     )}
