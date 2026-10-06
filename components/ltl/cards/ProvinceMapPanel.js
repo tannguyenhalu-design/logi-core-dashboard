@@ -1098,7 +1098,7 @@ export default function ProvinceMapPanel({
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
                     {showWh && nearCapWarehouses.length > 0 && (
                       <div style={{ background: "var(--panel-bg)", border: "1px solid var(--border)", borderLeft: "3px solid var(--amber)", borderRadius: 8, padding: "8px 10px" }}>
-                        <div style={SECTION_LABEL}>⚡ Kho ĐM gần vượt GTC cap{mapIndustry !== "dm" ? " (tham chiếu)" : ""}</div>
+                        <div style={SECTION_LABEL}>⚡ Kho {mapIndustry === "nhc" ? "NHC" : mapIndustry === "sttp" ? "STTP" : mapIndustry === "all" ? "tổng 4 ngành" : "ĐM"} gần vượt GTC cap</div>
                         {nearCapWarehouses.map((d) => (
                           <button key={d.id} onClick={() => selectWhAndFly(d)} style={{
                             display: "flex", justifyContent: "space-between", width: "100%", fontSize: 12, marginBottom: 3,
