@@ -57,7 +57,21 @@ async function liveReport(type, period, clients, minVersion, industry) {
       ...allBase,
       ltlRows: allBase.ltlRows.filter((r) => targets.has(rowIndustry(r, cim))),
     };
-    channelCfg = config; channelsVersion = version;
+    channelsVersion = version;
+    // Non-DM industries: auto-generate a per-client channelConfig so every client
+    // gets its own row in the Ontime / Hàng hoàn tables (sorted by order volume).
+    // Channel (B2B/B2C) is intentionally left unset — resolveChannels() will
+    // derive it from each client's is_B2C majority in the actual orders.
+    const clientVol = {};
+    for (const r of base.ltlRows) {
+      const name = String(r.client_name || "").trim();
+      if (name) clientVol[name] = (clientVol[name] || 0) + 1;
+    }
+    channelCfg = Object.fromEntries(
+      Object.keys(clientVol)
+        .sort((a, b) => clientVol[b] - clientVol[a])
+        .map((name, i) => [name, { ownOntime: true, ownFd: true, order: i + 1 }])
+    );
   }
   const industryConfig = !industry || industry === "DM" ? null : {
     totalLabel: INDUSTRY_TOTAL[industry.toUpperCase()] || `Tổng ${industry}`,
