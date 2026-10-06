@@ -612,7 +612,7 @@ export default function TabCompanyReport() {
 
   // Latest numbers for the current selection (debounced while ticking clients).
   useEffect(() => {
-    if (mode === "pick" && picked.length === 0) { setLive(null); return; }
+    if (mode === "pick" && picked.length === 0) { return; } // keep live so clientOptions populates the picker
     const id = ++reqId.current;
     setLoading(true); setErr(null);
     const t = setTimeout(() => {
