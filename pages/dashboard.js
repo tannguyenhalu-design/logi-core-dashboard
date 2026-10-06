@@ -184,7 +184,7 @@ export default function DashboardPage({ user: initialUser }) {
       // (the extra asOf param is ignored by the API).
       lastQsRef.current = `${qs}&asOf=${encodeURIComponent(data.dataAsOf || "")}`;
       if (withMap && data.ltl?.provinceStats) {
-        setMapData({ qs: lastQsRef.current, fields: { provinceStats: data.ltl.provinceStats, provinceDetailsMap: data.ltl.provinceDetailsMap, originStats: data.ltl.originStats, routeStats: data.ltl.routeStats, warehouseLayer: data.ltl.warehouseLayer ?? null, warehouseLayerAll: data.ltl.warehouseLayerAll ?? null } });
+        setMapData({ qs: lastQsRef.current, fields: { provinceStats: data.ltl.provinceStats, provinceDetailsMap: data.ltl.provinceDetailsMap, originStats: data.ltl.originStats, routeStats: data.ltl.routeStats, warehouseLayer: data.ltl.warehouseLayer ?? null, warehouseLayerAll: data.ltl.warehouseLayerAll ?? null, warehouseLayerNhc: data.ltl.warehouseLayerNhc ?? null, warehouseLayerSttp: data.ltl.warehouseLayerSttp ?? null } });
       }
       setDashData(data);
     } catch (e) {
@@ -290,7 +290,7 @@ export default function DashboardPage({ user: initialUser }) {
     getJSON(mapUrl(qs))
       .then(({ ok, j }) => {
         if (!ok || !j.ok) throw new Error(j.error || `API error`);
-        if (lastQsRef.current === qs) setMapData({ qs, fields: { provinceStats: j.provinceStats, provinceDetailsMap: j.provinceDetailsMap, originStats: j.originStats, routeStats: j.routeStats, warehouseLayer: j.warehouseLayer ?? null, warehouseLayerAll: j.warehouseLayerAll ?? null } });
+        if (lastQsRef.current === qs) setMapData({ qs, fields: { provinceStats: j.provinceStats, provinceDetailsMap: j.provinceDetailsMap, originStats: j.originStats, routeStats: j.routeStats, warehouseLayer: j.warehouseLayer ?? null, warehouseLayerAll: j.warehouseLayerAll ?? null, warehouseLayerNhc: j.warehouseLayerNhc ?? null, warehouseLayerSttp: j.warehouseLayerSttp ?? null } });
       })
       .catch(() => { if (lastQsRef.current === qs) setMapData({ qs, error: true }); })
       .finally(() => { if (mapReqRef.current === qs) mapReqRef.current = null; });

@@ -69,7 +69,9 @@ function Seg({ items, value, onChange, disabled = false, activeBg = "var(--cyan)
 // the warehouse dots (WH_R_MIN/MAX, grey, dashed = estimated).
 function MapLegend({ viewMode, maxOrders, maxWeight, singleProjectMode, showWh = false, whMaxTotal = 0, mapIndustry = "dm" }) {
   const [open, setOpen] = useState(false);
-  const provTitle = { orders: "Số đơn giao", weight: "Tải trọng giao", ontime: "Tỷ lệ on-time", damage: "Ca hư hỏng (Rillnet)" }[viewMode];
+  const provTitle = mapIndustry === "all"
+    ? "Năng lực kho giao (% tải / GTC cap)"
+    : { orders: "Số đơn giao", weight: "Tải trọng giao", ontime: "Tỷ lệ on-time", damage: "Ca hư hỏng (Rillnet)" }[viewMode];
   const title = showWh ? `${provTitle} + kho` : provTitle;
   const dot = (d, extra = {}) => (
     <span style={{ width: d, height: d, borderRadius: "50%", background: "var(--text-secondary)", opacity: 0.75, border: "1px solid var(--text-primary)", flexShrink: 0, boxSizing: "border-box", ...extra }} />
@@ -96,20 +98,32 @@ function MapLegend({ viewMode, maxOrders, maxWeight, singleProjectMode, showWh =
       </button>
       {open && (
         <>
-          {viewMode === "orders" && ramp("rgba(var(--brand-rgb),0.2)", "rgba(var(--brand-rgb),0.95)", "ít", `${fmt(maxOrders)} đơn`)}
-          {viewMode === "weight" && ramp(`rgba(${WEIGHT_RGB},0.25)`, `rgba(${WEIGHT_RGB},0.95)`, "ít", `${fmt(maxWeight / 1000, 1)} tấn`)}
-          {viewMode === "ontime" && (
+          {mapIndustry === "all" ? (
             <>
-              {row(<span style={sw("var(--green)")} />, "≥ 90%")}
-              {row(<span style={sw("var(--amber)")} />, "80% – dưới 90%")}
-              {row(<span style={sw("var(--red)")} />, "dưới 80%")}
+              {row(<span style={sw("rgba(239,68,68,0.8)")} />, "≥ 100%: Quá tải")}
+              {row(<span style={sw("rgba(245,158,11,0.8)")} />, "80–100%: Gần đầy")}
+              {row(<span style={sw("rgba(34,197,94,0.75)")} />, "50–80%: Lành mạnh")}
+              {row(<span style={sw("rgba(59,130,246,0.7)")} />, "< 50%: Còn nhiều dư")}
+              {row(<span style={sw("var(--map-unhighlighted)", { opacity: 0.6 })} />, "Không có dữ liệu kho")}
+            </>
+          ) : (
+            <>
+              {viewMode === "orders" && ramp("rgba(var(--brand-rgb),0.2)", "rgba(var(--brand-rgb),0.95)", "ít", `${fmt(maxOrders)} đơn`)}
+              {viewMode === "weight" && ramp(`rgba(${WEIGHT_RGB},0.25)`, `rgba(${WEIGHT_RGB},0.95)`, "ít", `${fmt(maxWeight / 1000, 1)} tấn`)}
+              {viewMode === "ontime" && (
+                <>
+                  {row(<span style={sw("var(--green)")} />, "≥ 90%")}
+                  {row(<span style={sw("var(--amber)")} />, "80% – dưới 90%")}
+                  {row(<span style={sw("var(--red)")} />, "dưới 80%")}
+                </>
+              )}
+              {viewMode === "damage" && row(<span style={sw("var(--amber)")} />, "Có ca hư hỏng")}
+              {row(<span style={sw("var(--map-unhighlighted)", { opacity: 0.6 })} />, viewMode === "damage" ? "Không có ca / không có đơn" : "Không có đơn trong bộ lọc")}
+              {row(<span style={sw("transparent", { border: "1.5px solid var(--red)", opacity: 1 })} />, "Viền đỏ: on-time < 90%")}
+              {row(<span style={sw("rgba(244,63,94,0.35)", { border: "2px solid var(--red)", opacity: 1 })} />, "Tỉnh đang chọn")}
+              {singleProjectMode && row(<span style={{ width: 16, height: 3, borderRadius: 2, background: ROUTE_COLOR, flexShrink: 0 }} />, "Tuyến lấy → giao (nét dày = nhiều đơn)")}
             </>
           )}
-          {viewMode === "damage" && row(<span style={sw("var(--amber)")} />, "Có ca hư hỏng")}
-          {row(<span style={sw("var(--map-unhighlighted)", { opacity: 0.6 })} />, viewMode === "damage" ? "Không có ca / không có đơn" : "Không có đơn trong bộ lọc")}
-          {row(<span style={sw("transparent", { border: "1.5px solid var(--red)", opacity: 1 })} />, "Viền đỏ: on-time < 90%")}
-          {row(<span style={sw("rgba(244,63,94,0.35)", { border: "2px solid var(--red)", opacity: 1 })} />, "Tỉnh đang chọn")}
-          {singleProjectMode && row(<span style={{ width: 16, height: 3, borderRadius: 2, background: ROUTE_COLOR, flexShrink: 0 }} />, "Tuyến lấy → giao (nét dày = nhiều đơn)")}
         </>
       )}
       {open && showWh && (
@@ -118,12 +132,22 @@ function MapLegend({ viewMode, maxOrders, maxWeight, singleProjectMode, showWh =
           {row(
             <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
               <span style={{ width: 18, height: 18, borderRadius: "50%", border: "1.5px solid var(--text-secondary)", display: "inline-grid", placeItems: "center", flexShrink: 0 }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: mapIndustry === "all" ? "rgba(29,158,117,0.85)" : "rgba(var(--brand-rgb),0.82)" }} />
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background:
+                  mapIndustry === "nhc"  ? "rgba(139,92,246,0.85)" :
+                  mapIndustry === "sttp" ? "rgba(6,182,212,0.85)"  :
+                  mapIndustry === "all"  ? "rgba(29,158,117,0.85)" :
+                  "rgba(var(--brand-rgb),0.82)"
+                }} />
               </span>
             </span>,
-            `Vòng xám = tổng tải kho giao TB lịch sử (GTC/ngày) · ${mapIndustry === "all" ? "chấm teal = tổng 4 ngành" : "chấm cam = phần Điện máy"}${whMaxTotal > 0 ? ` · lớn nhất ${fmt(whMaxTotal)} GTC` : ""}`
+            `Vòng xám = tổng tải kho giao TB lịch sử (GTC/ngày) · ${
+              mapIndustry === "nhc"  ? "chấm tím = NHC" :
+              mapIndustry === "sttp" ? "chấm xanh = STTP" :
+              mapIndustry === "all"  ? "chấm xanh lá = tổng 4 ngành" :
+              "chấm cam = Điện máy"
+            }${whMaxTotal > 0 ? ` · lớn nhất ${fmt(whMaxTotal)} GTC` : ""}`
           )}
-          {row(dot(12, { border: "1.5px dashed var(--text-primary)", background: "transparent" }), `Viền đứt: vị trí ước lượng · Chỉ chấm ${mapIndustry === "all" ? "teal" : "cam"} = chưa có số tổng tải`)}
+          {row(dot(12, { border: "1.5px dashed var(--text-primary)", background: "transparent" }), `Viền đứt: vị trí ước lượng · Chỉ có chấm màu = chưa có số tổng tải`)}
           {row(dot(12, { background: "rgba(var(--brand-rgb),0.9)", border: "2px solid var(--cyan)", opacity: 1 }), "Kho đang chọn · Nhiều tên cùng vị trí = 1 chấm")}
         </>
       )}
@@ -208,7 +232,7 @@ function WhRoleBlock({ title, st, routeLabel }) {
 
 const STATUS_COLOR = { "chắc chắn": "var(--green)", "user xác nhận": "var(--green)", "ước lượng": "var(--amber)" };
 
-function WarehouseDetail({ site, period, dateBasis, pinned, onUnpin, dmOnly = true }) {
+function WarehouseDetail({ site, period, dateBasis, pinned, onUnpin, mapIndustry = "dm" }) {
   const multi = site.names.length > 1;
   const nameOrders = (role, name) => site[role]?.byName?.find((x) => x.name === name)?.orders || 0;
   return (
@@ -278,13 +302,13 @@ function WarehouseDetail({ site, period, dateBasis, pinned, onUnpin, dmOnly = tr
         </div>
       )}
 
-      {dmOnly ? (
-        <div style={{ fontSize: 11.5, color: "var(--amber)", border: "1px solid var(--amber)", borderRadius: 6, padding: "4px 8px", marginBottom: 10 }}>
-          ⚠ Số bên dưới chỉ là phần Điện máy — chưa phải tổng tải của kho
-        </div>
-      ) : (
+      {mapIndustry === "all" ? (
         <div style={{ fontSize: 11.5, color: "var(--cyan)", border: "1px solid var(--cyan)", borderRadius: 6, padding: "4px 8px", marginBottom: 10 }}>
           Tổng 4 ngành: DM + STTP + NHC + ECOM — so với TB lịch sử ở bảng trên
+        </div>
+      ) : (
+        <div style={{ fontSize: 11.5, color: "var(--amber)", border: "1px solid var(--amber)", borderRadius: 6, padding: "4px 8px", marginBottom: 10 }}>
+          ⚠ Số bên dưới chỉ là phần {mapIndustry === "nhc" ? "NH Chung (NHC)" : mapIndustry === "sttp" ? "STTP" : "Điện máy"} — chưa phải tổng tải của kho
         </div>
       )}
 
@@ -366,6 +390,8 @@ export default function ProvinceMapPanel({
   hotspots = [], hotspotRule = null,
   warehouseLayer = null,
   warehouseLayerAll = null,
+  warehouseLayerNhc = null,
+  warehouseLayerSttp = null,
   periodComparison = null,
 }) {
   const [activeProv, setActiveProv] = useState(null);
@@ -374,12 +400,16 @@ export default function ProvinceMapPanel({
   const [viewMode, setViewMode] = useState("ontime"); // 'ontime' | 'orders' | 'weight' | 'damage'
   // Kho layer — checkbox "Hiện kho" (Kế hoạch D · 2a, refactored)
   const [showWhState, setShowWh] = useState(true);
-  const [mapIndustry, setMapIndustry] = useState("dm"); // "dm" | "all"
+  const [mapIndustry, setMapIndustry] = useState("dm"); // "dm" | "nhc" | "sttp" | "all"
   const [whSearch, setWhSearch] = useState("");
   const [activeWh, setActiveWh] = useState(null);
   const [pinnedWh, setPinnedWh] = useState(null);
-  const activeLayer = mapIndustry === "all" && warehouseLayerAll ? warehouseLayerAll : warehouseLayer;
-  const hasWh = !!(warehouseLayer?.sites?.length || warehouseLayerAll?.sites?.length); // for checkbox visibility
+  const activeLayer =
+    mapIndustry === "nhc" && warehouseLayerNhc ? warehouseLayerNhc :
+    mapIndustry === "sttp" && warehouseLayerSttp ? warehouseLayerSttp :
+    mapIndustry === "all" && warehouseLayerAll ? warehouseLayerAll :
+    warehouseLayer;
+  const hasWh = !!(warehouseLayer?.sites?.length || warehouseLayerAll?.sites?.length || warehouseLayerNhc?.sites?.length || warehouseLayerSttp?.sites?.length);
   const showWh = !!activeLayer?.sites?.length && showWhState; // guards activeLayer.totals / .period accesses
   const showProv = true;
 
@@ -460,11 +490,38 @@ export default function ProvinceMapPanel({
     };
   }, [provinceStats, provinceDetailsMap]);
 
+  // For "Tổng 4" mode: aggregate warehouseLayerAll.sites by province →
+  // capacity utilization = (sum actual giao/day) / (sum GTC cap/day).
+  const provinceCapUtil = useMemo(() => {
+    if (!warehouseLayerAll?.sites?.length) return {};
+    const agg = {};
+    for (const w of warehouseLayerAll.sites) {
+      const prov = w.names[0]?.province;
+      if (!prov) continue;
+      if (!agg[prov]) agg[prov] = { actual: 0, cap: 0 };
+      agg[prov].actual += w.giao?.ordersPerDay?.avg ?? 0;
+      agg[prov].cap += w.names.reduce((s, n) => s + (n.total?.avgOrdersGtc ?? 0), 0);
+    }
+    return agg;
+  }, [warehouseLayerAll]);
+
   const colorMap = useMemo(() => {
     const stats = provinceStats || [];
     const { maxOrders, maxWeight } = scale;
     const map = {};
     stats.forEach((p) => {
+      // "Tổng 4" mode: override province fill with capacity utilization.
+      if (mapIndustry === "all" && Object.keys(provinceCapUtil).length > 0) {
+        const u = provinceCapUtil[p.name];
+        if (!u || u.cap === 0) { map[p.name] = "var(--map-unhighlighted)"; return; }
+        const pct = u.actual / u.cap;
+        map[p.name] =
+          pct >= 1.0 ? "rgba(239,68,68,0.8)"  :  // đỏ: quá tải
+          pct >= 0.8 ? "rgba(245,158,11,0.8)" :   // vàng: gần đầy
+          pct >= 0.5 ? "rgba(34,197,94,0.75)"  :  // xanh: lành mạnh
+                       "rgba(59,130,246,0.7)";     // xanh dương: còn nhiều dư
+        return;
+      }
       const pDet = provinceDetailsMap[p.name];
       if (viewMode === "weight") {
         const w = pDet?.totalWeight || p.weight || 0;
@@ -482,7 +539,7 @@ export default function ProvinceMapPanel({
       }
     });
     return map;
-  }, [provinceStats, provinceDetailsMap, viewMode, scale]);
+  }, [provinceStats, provinceDetailsMap, viewMode, scale, mapIndustry, provinceCapUtil]);
 
   const topProvinces = useMemo(() => sortedProvinces.slice(0, 8), [sortedProvinces]);
   const highlightProvinces = useMemo(
@@ -512,17 +569,23 @@ export default function ProvinceMapPanel({
       .map((w) => {
         const totGtc = totalGtcOf(w);
         const dmG = dmGiaoOf(w);
-        const innerLabel = mapIndustry === "all" ? "4 ngành" : "ĐM";
+        const innerLabel = mapIndustry === "nhc" ? "NHC" : mapIndustry === "sttp" ? "STTP" : mapIndustry === "all" ? "4 ngành" : "ĐM";
+        const dotFill =
+          mapIndustry === "nhc"  ? "rgba(139,92,246,0.85)"  :
+          mapIndustry === "sttp" ? "rgba(6,182,212,0.85)"   :
+          mapIndustry === "all"  ? "rgba(29,158,117,0.85)"  :
+          null; // DM: null → VietnamMap default (orange)
+        const chipSuffix = mapIndustry === "all" ? "tổng 4 ngành" : mapIndustry === "nhc" ? "NH Chung" : mapIndustry === "sttp" ? "STTP" : "Điện máy";
         return {
           id: w.id, x: w.x, y: w.y, dashed: w.estimated,
           label: siteLabel(w),
           rOuter: rOf(totGtc),
           rInner: Math.max(1.5, rOf(dmG)),
-          dotFill: mapIndustry === "all" ? "rgba(29,158,117,0.85)" : null, // teal for all-industry; null = VietnamMap default
+          dotFill,
           totGtc, dmG,
           chip: totGtc > 0
             ? `${fmt(totGtc)} GTC/ng (tổng tải TB) · ${fmt(dmG, 1)} ${innerLabel}/ng`
-            : `${fmt(dmG, 1)} đơn/ng (${mapIndustry === "all" ? "tổng 4 ngành" : "Điện máy"})`,
+            : `${fmt(dmG, 1)} đơn/ng (${chipSuffix})`,
         };
       });
     const maxTotal = Math.max(0, ...whSites.map(totalGtcOf));
@@ -653,15 +716,22 @@ export default function ProvinceMapPanel({
               🏭 Hiện kho
             </label>
           )}
-          {showWh && warehouseLayerAll && (
+          {showWh && (warehouseLayerAll || warehouseLayerNhc || warehouseLayerSttp) && (
             <Seg
               items={[
-                { id: "dm", label: "Điện Máy" },
-                { id: "all", label: "Tổng 4 ngành" },
+                { id: "dm",  label: "🟠 ĐM" },
+                ...(warehouseLayerNhc  ? [{ id: "nhc",  label: "🟣 NHC" }]  : []),
+                ...(warehouseLayerSttp ? [{ id: "sttp", label: "🔵 STTP" }] : []),
+                ...(warehouseLayerAll  ? [{ id: "all",  label: "🟢 Tổng 4" }] : []),
               ]}
               value={mapIndustry}
               onChange={setMapIndustry}
-              activeBg={mapIndustry === "all" ? "var(--cyan)" : "var(--cyan)"}
+              activeBg={
+                mapIndustry === "nhc"  ? "rgba(139,92,246,0.8)" :
+                mapIndustry === "sttp" ? "rgba(6,182,212,0.8)"  :
+                mapIndustry === "all"  ? "var(--cyan)"          :
+                "rgba(249,115,22,0.8)"
+              }
             />
           )}
           {showWh && (
@@ -759,9 +829,10 @@ export default function ProvinceMapPanel({
             <span>Đơn có vị trí: giao <b style={{ color: "var(--text-primary)" }}>{pct(t.giao)}%</b> · lấy <b style={{ color: "var(--text-primary)" }}>{pct(t.lay)}%</b></span>
             <span>Theo {activeLayer.dateField === "delivered_time" ? "ngày giao" : "ngày lấy hàng"} {dm(pd.from)}–{dm(pd.to)} ({fmt(pd.days)} ngày)</span>
             <span style={{ color: "var(--text-muted)" }}>
-              {mapIndustry === "all"
-                ? "Vòng xám = tổng tải TB lịch sử · chấm teal = tổng 4 ngành"
-                : "Vòng xám = tổng tải kho giao · chấm cam = phần Điện máy"}
+              {mapIndustry === "nhc"  ? "Vòng xám = tổng tải TB lịch sử · chấm tím = NHC" :
+               mapIndustry === "sttp" ? "Vòng xám = tổng tải TB lịch sử · chấm xanh = STTP" :
+               mapIndustry === "all"  ? "Vòng xám = GTC cap · chấm xanh lá = tổng 4 ngành · màu tỉnh = % tải / cap" :
+               "Vòng xám = tổng tải kho giao · chấm cam = phần Điện máy"}
             </span>
           </div>
         );
@@ -837,7 +908,7 @@ export default function ProvinceMapPanel({
                 site={shownWh} period={activeLayer.period}
                 dateBasis={activeLayer.dateField === "delivered_time" ? "ngày giao" : "ngày lấy hàng"}
                 pinned={whPinnedShown} onUnpin={() => setPinnedWh(null)}
-                dmOnly={mapIndustry !== "all"}
+                mapIndustry={mapIndustry}
               />
             ) : inspectData ? (
               <>
