@@ -712,7 +712,18 @@ export default function ProvinceMapPanel({
   const shownWhId = showWh ? (activeWh || (activeProv ? null : pinnedWh)) : null;
   const shownWh = shownWhId ? whById.get(shownWhId) : null;
   const shownProv = shownWh ? null : (activeProv || pinnedProv);
-  const inspectData = shownProv ? (provinceDetailsMap[shownProv] || provinceStats.find(p => p.name === shownProv)?.details) : null;
+  const inspectData = useMemo(() => {
+    if (!shownProv) return null;
+    if (mapIndustry === "nhc") {
+      const d = provinceStatsNhc?.find((p) => p.name === shownProv)?.details;
+      return d ? { ...d, name: shownProv } : null;
+    }
+    if (mapIndustry === "sttp") {
+      const d = provinceStatsSttp?.find((p) => p.name === shownProv)?.details;
+      return d ? { ...d, name: shownProv } : null;
+    }
+    return provinceDetailsMap[shownProv] || provinceStats.find((p) => p.name === shownProv)?.details || null;
+  }, [shownProv, mapIndustry, provinceDetailsMap, provinceStats, provinceStatsNhc, provinceStatsSttp]);
   const projectOverview = singleProjectMode ? projectSummaries[projectName] : null;
   const ov = (singleProjectMode ? projectOverview : overallData) || {};
   const ovBadge = getOntimeBadge(singleProjectMode ? (projectOverview?.ontimePct ?? 100) : (overallData?.ontimePct ?? 100));
@@ -1010,23 +1021,73 @@ export default function ProvinceMapPanel({
                 </div>
 
                 <div className="province-stat-grid">
-                  <MiniStat label="Đơn giao" color="var(--cyan)">{fmt(inspectData.totalOrders)}</MiniStat>
-                  <MiniStat label="Tải trọng">{fmtWeight(inspectData.totalWeight)}</MiniStat>
+                  <MiniStat label="Đơn giao" color="var(--cyan)">{fmt(inspectData.totalOrders ?? inspectData.evalCount)}</MiniStat>
+                  {inspectData.totalWeight != null && (
+                    <MiniStat label="Tải trọng">{fmtWeight(inspectData.totalWeight)}</MiniStat>
+                  )}
                   <MiniStat label="Tỷ lệ Ontime" color={getOntimeColor(inspectData.ontimePct)}>{inspectData.ontimePct}%</MiniStat>
                   <MiniStat label="Đơn Ontime / Late">
                     <span style={{ color: "var(--green)" }}>{fmt(inspectData.ontimeCount)}</span> / <span style={{ color: "var(--red)" }}>{fmt(inspectData.lateCount)}</span>
                   </MiniStat>
-                  <MiniStat label="Ca hư hỏng" color={inspectData.damageCount > 0 ? "var(--amber)" : "var(--text-secondary)"}>
-                    {inspectData.damageCount || 0} ca {inspectData.damageCount > 0 && "💥"}
-                  </MiniStat>
-                  <MiniStat label="Điểm lấy hàng chính">
-                    <span style={{ fontSize: 12.5, fontWeight: 600 }}>
-                      {inspectData.topOrigins && inspectData.topOrigins.length > 0
-                        ? `${inspectData.topOrigins[0].name} (${inspectData.topOrigins[0].pct}%)`
-                        : "—"}
-                    </span>
-                  </MiniStat>
+                  {inspectData.damageCount != null && (
+                    <MiniStat label="Ca hư hỏng" color={inspectData.damageCount > 0 ? "var(--amber)" : "var(--text-secondary)"}>
+                      {inspectData.damageCount || 0} ca {inspectData.damageCount > 0 && "💥"}
+                    </MiniStat>
+                  )}
+                  {inspectData.topOrigins?.length > 0 && (
+                    <MiniStat label="Điểm lấy hàng chính">
+                      <span style={{ fontSize: 12.5, fontWeight: 600 }}>
+                        {inspectData.topOrigins[0].name} ({inspectData.topOrigins[0].pct}%)
+                      </span>
+                    </MiniStat>
+                  )}
                 </div>
+
+                {mapIndustry === "all" && (() => {
+                  const dmD = provinceDetailsMap[shownProv] || provinceStats.find((p) => p.name === shownProv)?.details;
+                  const nhcD = provinceStatsNhc?.find((p) => p.name === shownProv)?.details;
+                  const sttpD = provinceStatsSttp?.find((p) => p.name === shownProv)?.details;
+                  const rows = [
+                    { label: "🟠 ĐM",   color: "var(--amber)",  orders: dmD?.totalOrders,   ontime: dmD?.ontimePct,   damage: dmD?.damageCount },
+                    { label: "🟣 NHC",  color: "#a78bfa",        orders: nhcD?.evalCount,    ontime: nhcD?.ontimePct,  damage: null },
+                    { label: "🔵 STTP", color: "#38bdf8",        orders: sttpD?.evalCount,   ontime: sttpD?.ontimePct, damage: null },
+                  ].filter((r) => r.orders != null && r.orders > 0);
+                  if (!rows.length) return null;
+                  const total = rows.reduce((s, r) => s + r.orders, 0);
+                  return (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={SECTION_LABEL}>📊 Breakdown theo ngành</div>
+                      <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+                        <table className="data-table" style={{ fontSize: 12 }}>
+                          <thead>
+                            <tr>
+                              <th style={{ padding: "5px 8px" }}>Ngành</th>
+                              <th style={{ padding: "5px 8px", textAlign: "right" }}>Đơn</th>
+                              <th style={{ padding: "5px 8px", textAlign: "right" }}>% đơn</th>
+                              <th style={{ padding: "5px 8px", textAlign: "right" }}>Ontime</th>
+                              <th style={{ padding: "5px 8px", textAlign: "right" }}>Bể vỡ</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rows.map((r) => (
+                              <tr key={r.label}>
+                                <td style={{ padding: "5px 8px", fontWeight: 700, color: r.color }}>{r.label}</td>
+                                <td style={{ padding: "5px 8px", textAlign: "right", color: "var(--cyan)", fontWeight: 700 }}>{fmt(r.orders)}</td>
+                                <td style={{ padding: "5px 8px", textAlign: "right", color: "var(--text-secondary)" }}>{Math.round((r.orders / total) * 100)}%</td>
+                                <td style={{ padding: "5px 8px", textAlign: "right", color: getOntimeColor(r.ontime), fontWeight: 600 }}>
+                                  {r.ontime != null ? `${r.ontime}%${r.ontime < 80 ? " 🚨" : r.ontime < 90 ? " ⚠️" : ""}` : "—"}
+                                </td>
+                                <td style={{ padding: "5px 8px", textAlign: "right", color: r.damage > 0 ? "var(--amber)" : "var(--text-muted)", fontWeight: r.damage > 0 ? 700 : 400 }}>
+                                  {r.damage > 0 ? `${r.damage} ca` : "—"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {inspectData.topOrigins && inspectData.topOrigins.length > 0 && (
                   <div style={{ marginTop: 12 }}>
