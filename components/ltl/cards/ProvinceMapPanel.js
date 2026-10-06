@@ -359,6 +359,7 @@ export default function ProvinceMapPanel({
   projectSummaries = {}, overallData = {}, singleProjectMode, projectName, onProvinceClick,
   hotspots = [], hotspotRule = null,
   warehouseLayer = null,
+  periodComparison = null,
 }) {
   const [activeProv, setActiveProv] = useState(null);
   const [pinnedProv, setPinnedProv] = useState(null); // selected: map click, hotspot or Top 8
@@ -576,6 +577,32 @@ export default function ProvinceMapPanel({
   const projectOverview = singleProjectMode ? projectSummaries[projectName] : null;
   const ov = (singleProjectMode ? projectOverview : overallData) || {};
   const ovBadge = getOntimeBadge(singleProjectMode ? (projectOverview?.ontimePct ?? 100) : (overallData?.ontimePct ?? 100));
+
+  const pcProject = singleProjectMode && periodComparison
+    ? (periodComparison.clients?.find((c) => c.client === projectName) ?? null)
+    : null;
+
+  const provForOntime = useMemo(() => {
+    if (!singleProjectMode) return { best: EMPTY, worst: EMPTY };
+    const qualified = (provinceStats || [])
+      .map((p) => {
+        const det = provinceDetailsMap[p.name] || p.details;
+        return (det && det.evalCount >= 3) ? { name: p.name, ontimePct: det.ontimePct } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.ontimePct - a.ontimePct);
+    return { best: qualified.slice(0, 3), worst: [...qualified].reverse().slice(0, 3) };
+  }, [singleProjectMode, provinceStats, provinceDetailsMap]);
+
+  const dmgProvinces = useMemo(() => {
+    if (!singleProjectMode || !projectOverview?.damageCount) return EMPTY;
+    return (provinceStats || [])
+      .filter((p) => ((provinceDetailsMap[p.name] || p.details)?.damageCount || 0) > 0)
+      .map((p) => ({ name: p.name, count: (provinceDetailsMap[p.name] || p.details).damageCount }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }, [singleProjectMode, projectOverview, provinceStats, provinceDetailsMap]);
+
   const isPinnedShown = !!inspectData && shownProv === pinnedProv;
   const whPinnedShown = !!shownWh && shownWh.id === pinnedWh;
 
@@ -899,56 +926,135 @@ export default function ProvinceMapPanel({
                 </div>
 
                 {singleProjectMode && projectOverview && (
-                  <div className="grid-2" style={{ gap: 12 }}>
-                    <div style={{ background: "var(--panel-bg)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)" }}>
-                      <div style={SECTION_LABEL}>🏬 Điểm lấy hàng chính của {projectName} (bấm để lọc)</div>
-                      {originStats && originStats.length > 0 ? (
-                        originStats.slice(0, 5).map((o) => {
-                          const oDet = o.details;
-                          const isSel = selectedOrigin === o.name;
-                          return (
-                            <div
-                              key={o.name}
-                              onClick={() => onOriginChange?.(isSel ? null : o.name)}
-                              style={{
-                                display: "flex", justifyContent: "space-between", alignItems: "center",
-                                fontSize: 11.5, marginBottom: 3, padding: "3px 6px", borderRadius: 4,
-                                cursor: "pointer",
-                                background: isSel ? "rgba(var(--brand-rgb),0.15)" : "transparent",
-                                border: isSel ? "1px solid var(--cyan)" : "1px solid transparent",
-                              }}
-                            >
-                              <span style={{ color: "var(--text-primary)" }}>{isSel ? "🎯" : "•"} {o.name}</span>
-                              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                <b style={{ color: "var(--cyan)" }}>{o.orders} đơn</b>
-                                {oDet && (
-                                  <span style={{ color: getOntimeColor(oDet.ontimePct), fontSize: 10.5, fontWeight: 600 }}>
-                                    {oDet.ontimePct}%
-                                  </span>
-                                )}
-                              </span>
+                  <>
+                    {/* ② So sánh cùng kỳ */}
+                    {pcProject && (pcProject.ordersDeltaPct != null || pcProject.ontimeDeltaPoints != null) && (
+                      <div style={{ background: "var(--panel-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 12px", marginBottom: 10 }}>
+                        <div style={SECTION_LABEL}>📊 So sánh cùng kỳ ({periodComparison?.periodMode === "mtd" ? "MTD" : "tuần"})</div>
+                        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                          {pcProject.ordersDeltaPct != null && (
+                            <div>
+                              <div style={{ fontSize: 10.5, color: "var(--text-muted)" }}>Sản lượng đơn</div>
+                              <div style={{ fontSize: 14, fontWeight: 700, color: pcProject.ordersDeltaPct > 5 ? "var(--green)" : pcProject.ordersDeltaPct < -5 ? "var(--red)" : "var(--amber)" }}>
+                                {pcProject.ordersDeltaPct > 0 ? "▲" : "▼"} {Math.abs(pcProject.ordersDeltaPct).toFixed(1)}%
+                              </div>
+                              <div style={{ fontSize: 10, color: "var(--text-muted)" }}>{fmt(pcProject.prev?.orders || 0)} → {fmt(pcProject.cur?.orders || 0)}</div>
                             </div>
-                          );
-                        })
-                      ) : (
-                        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Chưa ghi nhận điểm lấy</div>
-                      )}
-                    </div>
+                          )}
+                          {pcProject.ontimeDeltaPoints != null && (
+                            <div>
+                              <div style={{ fontSize: 10.5, color: "var(--text-muted)" }}>Ontime</div>
+                              <div style={{ fontSize: 14, fontWeight: 700, color: pcProject.ontimeDeltaPoints >= 0 ? "var(--green)" : pcProject.ontimeDeltaPoints < -5 ? "var(--red)" : "var(--amber)" }}>
+                                {pcProject.ontimeDeltaPoints >= 0 ? "▲" : "▼"} {Math.abs(pcProject.ontimeDeltaPoints).toFixed(1)} điểm
+                              </div>
+                            </div>
+                          )}
+                          {pcProject.damageDeltaPct != null && pcProject.damageDeltaPct !== 0 && (
+                            <div>
+                              <div style={{ fontSize: 10.5, color: "var(--text-muted)" }}>Bể vỡ</div>
+                              <div style={{ fontSize: 14, fontWeight: 700, color: pcProject.damageDeltaPct > 0 ? "var(--red)" : "var(--green)" }}>
+                                {pcProject.damageDeltaPct > 0 ? "▲" : "▼"} {Math.abs(pcProject.damageDeltaPct).toFixed(0)}%
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
-                    <div style={{ background: "var(--panel-bg)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)" }}>
-                      <div style={SECTION_LABEL}>🚚 Top tỉnh giao hàng lớn nhất{selectedOrigin ? ` (từ ${selectedOrigin})` : ""}</div>
-                      {projectOverview.topProvinces && projectOverview.topProvinces.length > 0 ? (
-                        projectOverview.topProvinces.slice(0, 3).map((p) => (
-                          <div key={p.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 3 }}>
-                            <span style={{ color: "var(--text-primary)" }}>• {p.name}</span>
-                            <b style={{ color: "var(--cyan)" }}>{p.count} đơn ({p.pct}%)</b>
+                    {/* ③ Ontime tốt / tệ */}
+                    {(provForOntime.best.length > 0 || provForOntime.worst.length > 0) && (
+                      <div className="grid-2" style={{ gap: 8, marginBottom: 10 }}>
+                        {provForOntime.best.length > 0 && (
+                          <div style={{ background: "var(--panel-bg)", border: "1px solid var(--border)", borderLeft: "3px solid var(--green)", borderRadius: 8, padding: "8px 10px" }}>
+                            <div style={SECTION_LABEL}>✅ Tỉnh ontime tốt nhất</div>
+                            {provForOntime.best.map((p) => (
+                              <div key={p.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 2 }}>
+                                <span style={{ color: "var(--text-secondary)" }}>• {p.name}</span>
+                                <b style={{ color: "var(--green)" }}>{p.ontimePct}%</b>
+                              </div>
+                            ))}
                           </div>
-                        ))
-                      ) : (
-                        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Chưa ghi nhận tỉnh giao</div>
-                      )}
+                        )}
+                        {provForOntime.worst.length > 0 && (
+                          <div style={{ background: "var(--panel-bg)", border: "1px solid var(--border)", borderLeft: "3px solid var(--red)", borderRadius: 8, padding: "8px 10px" }}>
+                            <div style={SECTION_LABEL}>🚨 Cần cải thiện</div>
+                            {provForOntime.worst.map((p) => (
+                              <div key={p.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 2 }}>
+                                <span style={{ color: "var(--text-secondary)" }}>• {p.name}</span>
+                                <b style={{ color: getOntimeColor(p.ontimePct) }}>{p.ontimePct}%</b>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ④ Bể vỡ */}
+                    {dmgProvinces.length > 0 && (
+                      <div style={{ background: "var(--panel-bg)", border: "1px solid var(--border)", borderLeft: "3px solid var(--amber)", borderRadius: 8, padding: "8px 10px", marginBottom: 10 }}>
+                        <div style={SECTION_LABEL}>💥 Tỉnh có bể vỡ ({projectOverview.damageCount} ca tổng)</div>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {dmgProvinces.map((p) => (
+                            <span key={p.name} style={{ fontSize: 11, background: "rgba(245,158,11,0.12)", border: "1px solid var(--amber)", borderRadius: 4, padding: "2px 7px", color: "var(--amber)", fontWeight: 600 }}>
+                              {p.name}: {p.count} ca
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ⑤ Điểm lấy hàng + top tỉnh (existing) */}
+                    <div className="grid-2" style={{ gap: 12 }}>
+                      <div style={{ background: "var(--panel-bg)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)" }}>
+                        <div style={SECTION_LABEL}>🏬 Điểm lấy hàng chính của {projectName} (bấm để lọc)</div>
+                        {originStats && originStats.length > 0 ? (
+                          originStats.slice(0, 5).map((o) => {
+                            const oDet = o.details;
+                            const isSel = selectedOrigin === o.name;
+                            return (
+                              <div
+                                key={o.name}
+                                onClick={() => onOriginChange?.(isSel ? null : o.name)}
+                                style={{
+                                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                                  fontSize: 11.5, marginBottom: 3, padding: "3px 6px", borderRadius: 4,
+                                  cursor: "pointer",
+                                  background: isSel ? "rgba(var(--brand-rgb),0.15)" : "transparent",
+                                  border: isSel ? "1px solid var(--cyan)" : "1px solid transparent",
+                                }}
+                              >
+                                <span style={{ color: "var(--text-primary)" }}>{isSel ? "🎯" : "•"} {o.name}</span>
+                                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <b style={{ color: "var(--cyan)" }}>{o.orders} đơn</b>
+                                  {oDet && (
+                                    <span style={{ color: getOntimeColor(oDet.ontimePct), fontSize: 10.5, fontWeight: 600 }}>
+                                      {oDet.ontimePct}%
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Chưa ghi nhận điểm lấy</div>
+                        )}
+                      </div>
+
+                      <div style={{ background: "var(--panel-bg)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)" }}>
+                        <div style={SECTION_LABEL}>🚚 Top tỉnh giao hàng lớn nhất{selectedOrigin ? ` (từ ${selectedOrigin})` : ""}</div>
+                        {projectOverview.topProvinces && projectOverview.topProvinces.length > 0 ? (
+                          projectOverview.topProvinces.slice(0, 3).map((p) => (
+                            <div key={p.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 3 }}>
+                              <span style={{ color: "var(--text-primary)" }}>• {p.name}</span>
+                              <b style={{ color: "var(--cyan)" }}>{p.count} đơn ({p.pct}%)</b>
+                            </div>
+                          ))
+                        ) : (
+                          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Chưa ghi nhận tỉnh giao</div>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  </>
                 )}
               </>
             )}
