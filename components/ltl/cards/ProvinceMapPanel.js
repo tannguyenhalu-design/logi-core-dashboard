@@ -472,6 +472,25 @@ export default function ProvinceMapPanel({
     } catch { fail(); }
   }, []);
 
+  // Province stats for the selected industry (NHC/STTP have simpler shape)
+  const activeProvinceStats = useMemo(() => {
+    if (mapIndustry === "nhc" && provinceStatsNhc?.length) return provinceStatsNhc;
+    if (mapIndustry === "sttp" && provinceStatsSttp?.length) return provinceStatsSttp;
+    return provinceStats || [];
+  }, [mapIndustry, provinceStats, provinceStatsNhc, provinceStatsSttp]);
+
+  // Hotspots derived from industry-specific province stats for NHC/STTP
+  const activeHotspots = useMemo(() => {
+    if (mapIndustry === "dm" || mapIndustry === "all" || !hotspotRule) return hotspots;
+    const src = mapIndustry === "nhc" ? provinceStatsNhc : provinceStatsSttp;
+    if (!src?.length) return hotspots;
+    return src
+      .filter((p) => p.details?.evalCount >= (hotspotRule.minEval || 5) && p.details?.ontimePct < (hotspotRule.ontimePct || 80))
+      .map((p) => ({ name: p.name, ontimePct: p.details.ontimePct, orders: p.orders, late: p.details.lateCount, lateHot: true, damageHot: false }))
+      .sort((a, b) => a.ontimePct - b.ontimePct)
+      .slice(0, 5);
+  }, [mapIndustry, hotspots, hotspotRule, provinceStatsNhc, provinceStatsSttp]);
+
   const sortedProvinces = useMemo(() => {
     // NHC/STTP: use industry-specific stats (simpler shape — no weight/damage)
     if ((mapIndustry === "nhc" || mapIndustry === "sttp") && activeProvinceStats.length > 0) {
@@ -603,25 +622,6 @@ export default function ProvinceMapPanel({
     if (mapIndustry !== "dm") return [...whDots.dots].sort((a, b) => b.dmG - a.dmG).slice(0, 8);
     return whDots.dots.slice(0, 8);
   }, [whDots, mapIndustry]);
-
-  // Province stats for the selected industry (NHC/STTP have simpler shape)
-  const activeProvinceStats = useMemo(() => {
-    if (mapIndustry === "nhc" && provinceStatsNhc?.length) return provinceStatsNhc;
-    if (mapIndustry === "sttp" && provinceStatsSttp?.length) return provinceStatsSttp;
-    return provinceStats || [];
-  }, [mapIndustry, provinceStats, provinceStatsNhc, provinceStatsSttp]);
-
-  // Hotspots derived from industry-specific province stats for NHC/STTP
-  const activeHotspots = useMemo(() => {
-    if (mapIndustry === "dm" || mapIndustry === "all" || !hotspotRule) return hotspots;
-    const src = mapIndustry === "nhc" ? provinceStatsNhc : provinceStatsSttp;
-    if (!src?.length) return hotspots;
-    return src
-      .filter((p) => p.details?.evalCount >= (hotspotRule.minEval || 5) && p.details?.ontimePct < (hotspotRule.ontimePct || 80))
-      .map((p) => ({ name: p.name, ontimePct: p.details.ontimePct, orders: p.orders, late: p.details.lateCount, lateHot: true, damageHot: false }))
-      .sort((a, b) => a.ontimePct - b.ontimePct)
-      .slice(0, 5);
-  }, [mapIndustry, hotspots, hotspotRule, provinceStatsNhc, provinceStatsSttp]);
 
   // InsightPanel data — kho gần vượt tải
   const nearCapWarehouses = useMemo(() => {
