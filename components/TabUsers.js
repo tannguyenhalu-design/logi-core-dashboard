@@ -15,11 +15,18 @@ const ROLE_LABELS = {
 };
 
 const TAB_OPTIONS = [
-  { value: "ltl", label: "LTL Dashboard" },
+  { value: "ltl",    label: "Tổng quan LTL" },
+  { value: "map",    label: "Bản đồ tỉnh thành" },
+  { value: "damage", label: "Hư hỏng & Rủi ro" },
+  { value: "events", label: "📅 Sự kiện" },
+  { value: "report", label: "Báo cáo công ty" },
+  { value: "trials", label: "Sổ tay cải tiến" },
 ];
 
 function defaultTabsForRole(role) {
-  if (role === "manager" || role === "sd3" || role === "cs") return ["ltl"];
+  if (role === "manager") return TAB_OPTIONS.map((o) => o.value);
+  if (role === "sd3") return ["ltl", "map", "damage", "events", "report", "trials"];
+  if (role === "cs") return ["ltl", "map", "damage", "events"];
   return [];
 }
 

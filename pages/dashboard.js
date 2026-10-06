@@ -69,10 +69,17 @@ function DashboardSkeleton({ view }) {
 export default function DashboardPage({ user: initialUser }) {
   const user = initialUser || {};
   const isManager = user.role === "manager";
-  // Any pre-refactor tab (operations/tachtrip/ftl) still in an old session
-  // cookie means the user had dashboard access — same mapping as lib/users.js.
-  const canSeeLTL = isManager || (user.tabs || []).some((t) => LEGACY_TABS.includes(t));
-  const [activeTab, setActiveTab] = useState(canSeeLTL ? "ltl" : "none"); // LTL_VIEWS id | 'report' | 'trials' | 'users' | 'auditlog' | 'health' | 'brain' | 'none'
+  const userTabs = user.tabs || [];
+  // Per-tab access — manager always has everything; others use tabs array
+  // (which normalizeTabs already expanded for legacy "ltl"-only accounts).
+  const canSeeLTL    = isManager || userTabs.includes("ltl");
+  const canSeeMap    = isManager || userTabs.includes("map");
+  const canSeeDamage = isManager || userTabs.includes("damage");
+  const canSeeEvents = isManager || userTabs.includes("events");
+  const canSeeReport = isManager || userTabs.includes("report");
+  const canSeeTrials = isManager || userTabs.includes("trials");
+  const firstTab = canSeeLTL ? "ltl" : canSeeMap ? "map" : canSeeDamage ? "damage" : canSeeEvents ? "events" : canSeeReport ? "report" : canSeeTrials ? "trials" : "none";
+  const [activeTab, setActiveTab] = useState(firstTab); // LTL_VIEWS id | 'report' | 'trials' | 'users' | 'auditlog' | 'health' | 'brain' | 'none'
   const isLTLView = LTL_VIEWS.some((v) => v.id === activeTab);
   const [selectedMonths, setSelectedMonths] = useState(() => {
     // Mặc định: 3 tháng gần nhất (VN time). User mở rộng qua FilterBar.
@@ -390,7 +397,12 @@ export default function DashboardPage({ user: initialUser }) {
 
           {/* Active Navigation */}
           <nav className="sidebar-nav" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {canSeeLTL && LTL_VIEWS.map((v) => (
+            {LTL_VIEWS.filter((v) =>
+              v.id === "ltl" ? canSeeLTL :
+              v.id === "map" ? canSeeMap :
+              v.id === "damage" ? canSeeDamage :
+              v.id === "events" ? canSeeEvents : false
+            ).map((v) => (
               <div
                 key={v.id}
                 className={`nav-item ${activeTab === v.id ? "active" : ""}`}
@@ -408,7 +420,7 @@ export default function DashboardPage({ user: initialUser }) {
                 {v.label}
               </div>
             ))}
-            {(user.role === "manager" || user.role === "sd3") && (
+            {canSeeReport && (
               <div
                 className={`nav-item ${activeTab === "report" ? "active" : ""}`}
                 onClick={() => goTab("report")}
@@ -425,7 +437,7 @@ export default function DashboardPage({ user: initialUser }) {
                 Báo cáo công ty
               </div>
             )}
-            {(user.role === "manager" || user.role === "sd3") && (
+            {canSeeTrials && (
               <div
                 className={`nav-item ${activeTab === "trials" ? "active" : ""}`}
                 onClick={() => goTab("trials")}
