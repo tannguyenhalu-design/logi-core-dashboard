@@ -1060,7 +1060,7 @@ export default function ProvinceMapPanel({
             )}
           </div>
 
-          {showWh && (
+          {showWh && !singleProjectMode && (
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                 🏭 Top 8 kho (tổng tải GTC/ng khi có · ĐM/ng) · bấm để phóng tới
@@ -1095,9 +1095,9 @@ export default function ProvinceMapPanel({
             </div>
           )}
 
-          {showWh && <UnplacedPanel layer={warehouseLayer} />}
+          {showWh && !singleProjectMode && <UnplacedPanel layer={warehouseLayer} />}
 
-          <div>
+          {!singleProjectMode && <div>
             <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
               💡 Top 8 Tỉnh ({viewMode === "weight" ? "Xếp theo Tải trọng Tấn" : viewMode === "ontime" ? "Cảnh báo Ontime thấp trước" : viewMode === "damage" ? "Xếp theo Ca Bể Vỡ" : "Xếp theo Số đơn"})
             </div>
@@ -1145,7 +1145,7 @@ export default function ProvinceMapPanel({
                 );
               })}
             </div>
-          </div>
+          </div>}
         </div>
       </div>
     </div>

@@ -46,7 +46,7 @@
   --radius-lg: 16px;
 
   --shadow-panel: 0 4px 24px rgba(0, 0, 0, 0.3);
-  --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease, opacity 0.15s ease;
 
   /* Surface tints — theme-aware equivalents of the old hardcoded literals */
   --panel-bg: #111827;
@@ -114,7 +114,7 @@
   --radius-lg: 16px;
 
   --shadow-panel: 0 4px 20px rgba(15, 23, 42, 0.06);
-  --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease, opacity 0.15s ease;
 
   --panel-bg: #ffffff;
   --panel-bg-strong: #f1f5f9;

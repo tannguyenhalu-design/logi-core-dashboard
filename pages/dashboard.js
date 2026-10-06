@@ -409,7 +409,7 @@ export default function DashboardPage({ user: initialUser }) {
                 onClick={() => goTab(v.id)}
                 style={{
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
+                  padding: "10px 12px", borderRadius: 8,
                   color: activeTab === v.id ? "#fff" : "var(--text-muted)",
                   background: activeTab === v.id ? "rgba(var(--brand-rgb),0.15)" : "transparent"
                 }}
@@ -426,7 +426,7 @@ export default function DashboardPage({ user: initialUser }) {
                 onClick={() => goTab("report")}
                 style={{
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
+                  padding: "10px 12px", borderRadius: 8,
                   color: activeTab === "report" ? "#fff" : "var(--text-muted)",
                   background: activeTab === "report" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
                 }}
@@ -443,7 +443,7 @@ export default function DashboardPage({ user: initialUser }) {
                 onClick={() => goTab("trials")}
                 style={{
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
+                  padding: "10px 12px", borderRadius: 8,
                   color: activeTab === "trials" ? "#fff" : "var(--text-muted)",
                   background: activeTab === "trials" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
                 }}
@@ -460,7 +460,7 @@ export default function DashboardPage({ user: initialUser }) {
                 onClick={() => goTab("users")}
                 style={{
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
+                  padding: "10px 12px", borderRadius: 8,
                   color: activeTab === "users" ? "#fff" : "var(--text-muted)",
                   background: activeTab === "users" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
                 }}
@@ -477,7 +477,7 @@ export default function DashboardPage({ user: initialUser }) {
                 onClick={() => goTab("auditlog")}
                 style={{
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
+                  padding: "10px 12px", borderRadius: 8,
                   color: activeTab === "auditlog" ? "#fff" : "var(--text-muted)",
                   background: activeTab === "auditlog" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
                 }}
@@ -494,7 +494,7 @@ export default function DashboardPage({ user: initialUser }) {
                 onClick={() => goTab("health")}
                 style={{
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
+                  padding: "10px 12px", borderRadius: 8,
                   color: activeTab === "health" ? "#fff" : "var(--text-muted)",
                   background: activeTab === "health" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
                 }}
@@ -511,7 +511,7 @@ export default function DashboardPage({ user: initialUser }) {
                 onClick={() => goTab("brain")}
                 style={{
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8, transition: "all 0.2s",
+                  padding: "10px 12px", borderRadius: 8,
                   color: activeTab === "brain" ? "#fff" : "var(--text-muted)",
                   background: activeTab === "brain" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
                 }}
