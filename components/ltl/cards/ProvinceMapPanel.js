@@ -130,7 +130,21 @@ function MapLegend({ viewMode, maxOrders, maxWeight, singleProjectMode, showWh =
       {open && showWh && (
         <>
           <div style={{ borderTop: "1px solid var(--border)", margin: "2px 0" }} />
-          {row(
+          {whMaxTotal > 0 ? (
+            <>
+              {row(
+                <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                  <span style={{ width: 18, height: 18, borderRadius: "50%", border: "1.5px solid var(--text-secondary)", display: "inline-grid", placeItems: "center", flexShrink: 0 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "rgba(34,197,94,0.85)" }} />
+                  </span>
+                </span>,
+                `Vòng xám = tổng tải kho TB (GTC/ng) · lớn nhất ${fmt(whMaxTotal)} GTC`
+              )}
+              {row(<span style={{ width: 10, height: 10, borderRadius: "50%", background: "rgba(34,197,94,0.85)", flexShrink: 0 }} />, "Chấm xanh = % tải < 70%")}
+              {row(<span style={{ width: 10, height: 10, borderRadius: "50%", background: "rgba(245,158,11,0.85)", flexShrink: 0 }} />, "Chấm vàng = 70–90%")}
+              {row(<span style={{ width: 10, height: 10, borderRadius: "50%", background: "rgba(239,68,68,0.85)", flexShrink: 0 }} />, "Chấm đỏ = ≥ 90% tải")}
+            </>
+          ) : row(
             <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
               <span style={{ width: 18, height: 18, borderRadius: "50%", border: "1.5px solid var(--text-secondary)", display: "inline-grid", placeItems: "center", flexShrink: 0 }}>
                 <span style={{ width: 6, height: 6, borderRadius: "50%", background:
@@ -146,7 +160,7 @@ function MapLegend({ viewMode, maxOrders, maxWeight, singleProjectMode, showWh =
               mapIndustry === "sttp" ? "chấm xanh = STTP" :
               mapIndustry === "all"  ? "chấm xanh lá = tổng 4 ngành" :
               "chấm cam = Điện máy"
-            }${whMaxTotal > 0 ? ` · lớn nhất ${fmt(whMaxTotal)} GTC` : ""}`
+            }`
           )}
           {row(dot(12, { border: "1.5px dashed var(--text-primary)", background: "transparent" }), `Viền đứt: vị trí ước lượng · Chỉ có chấm màu = chưa có số tổng tải`)}
           {row(dot(12, { background: "rgba(var(--brand-rgb),0.9)", border: "2px solid var(--cyan)", opacity: 1 }), "Kho đang chọn · Nhiều tên cùng vị trí = 1 chấm")}
@@ -602,11 +616,15 @@ export default function ProvinceMapPanel({
         const totGtc = totalGtcOf(w);
         const dmG = dmGiaoOf(w);
         const innerLabel = mapIndustry === "nhc" ? "NHC" : mapIndustry === "sttp" ? "STTP" : mapIndustry === "all" ? "4 ngành" : "ĐM";
-        const dotFill =
-          mapIndustry === "nhc"  ? "rgba(139,92,246,0.85)"  :
-          mapIndustry === "sttp" ? "rgba(6,182,212,0.85)"   :
-          mapIndustry === "all"  ? "rgba(29,158,117,0.85)"  :
-          null; // DM: null → VietnamMap default (orange)
+        const utilPct = totGtc > 0 ? dmG / totGtc : null;
+        const dotFill = utilPct != null
+          ? (utilPct >= 0.9 ? "rgba(239,68,68,0.85)"
+           : utilPct >= 0.7 ? "rgba(245,158,11,0.85)"
+           :                  "rgba(34,197,94,0.85)")
+          : (mapIndustry === "nhc"  ? "rgba(139,92,246,0.85)"
+           : mapIndustry === "sttp" ? "rgba(6,182,212,0.85)"
+           : mapIndustry === "all"  ? "rgba(29,158,117,0.85)"
+           : null);
         const chipSuffix = mapIndustry === "all" ? "tổng 4 ngành" : mapIndustry === "nhc" ? "NH Chung" : mapIndustry === "sttp" ? "STTP" : "Điện máy";
         return {
           id: w.id, x: w.x, y: w.y, dashed: w.estimated,
@@ -616,7 +634,7 @@ export default function ProvinceMapPanel({
           dotFill,
           totGtc, dmG,
           chip: totGtc > 0
-            ? `${fmt(totGtc)} GTC/ng (tổng tải TB) · ${fmt(dmG, 1)} ${innerLabel}/ng`
+            ? `${fmt(totGtc)} GTC/ng · ${fmt(dmG, 1)} ${innerLabel}/ng · ${Math.round(utilPct * 100)}% tải`
             : `${fmt(dmG, 1)} đơn/ng (${chipSuffix})`,
         };
       });
