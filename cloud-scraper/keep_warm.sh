@@ -7,8 +7,9 @@
 # {ok} — no data leaves Vercel, nothing is written. Output is discarded.
 source /app/env.sh
 [ -n "$SNAPSHOT_SECRET" ] || exit 0
-BASE="https://logicore-app.vercel.app"
-for p in /api/data /api/report/biweekly /api/trials /api/system-health /api/audit-log /dashboard; do
-  curl -s -o /dev/null -m 60 -H "x-snapshot-secret: ${SNAPSHOT_SECRET}" "${BASE}${p}?warm=1" &
+for BASE in "https://logicore-app.vercel.app" "https://dientudienmay-app.vercel.app"; do
+  for p in /api/data /api/report/biweekly /api/trials /api/system-health /api/audit-log /dashboard; do
+    curl -s -o /dev/null -m 60 -H "x-snapshot-secret: ${SNAPSHOT_SECRET}" "${BASE}${p}?warm=1" &
+  done
 done
 wait
