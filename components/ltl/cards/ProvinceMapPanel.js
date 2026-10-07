@@ -941,7 +941,7 @@ export default function ProvinceMapPanel({
         weight += p.details?.totalWeight || 0;
       }
       const evalCount = ontime + late;
-      return { ontimePct: evalCount > 0 ? Math.round((ontime / evalCount) * 100) : null, ontimeCount: ontime, lateCount: late, totalWeight: weight, damageCount: null };
+      return { totalOrders: orders, ontimePct: evalCount > 0 ? Math.round((ontime / evalCount) * 100) : null, ontimeCount: ontime, lateCount: late, totalWeight: weight, damageCount: null };
     };
     if (mapIndustry === "nhc")  return sumStats(provinceStatsNhc)  || overallData;
     if (mapIndustry === "sttp") return sumStats(provinceStatsSttp) || overallData;
@@ -958,7 +958,7 @@ export default function ProvinceMapPanel({
         }
       }
       const evalCount = ontime + late;
-      return { ontimePct: evalCount > 0 ? Math.round((ontime / evalCount) * 100) : overallData?.ontimePct, ontimeCount: ontime, lateCount: late, totalWeight: weight, damageCount: overallData?.damageCount };
+      return { totalOrders: orders, ontimePct: evalCount > 0 ? Math.round((ontime / evalCount) * 100) : overallData?.ontimePct, ontimeCount: ontime, lateCount: late, totalWeight: weight, damageCount: overallData?.damageCount };
     }
     return null; // DM: use overallData as-is
   }, [singleProjectMode, mapIndustry, provinceStats, provinceStatsNhc, provinceStatsSttp, overallData]);
