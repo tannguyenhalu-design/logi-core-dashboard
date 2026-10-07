@@ -437,7 +437,13 @@ function MapTabAIPanel({ mapIndustry, provinceStats, provinceStatsNhc, provinceS
       ? stats.reduce((s, p) => s + ((p.details?.evalCount ?? 0) >= 1 ? p.orders : 0), 0)
       : null;
 
-    const payload = { mapIndustry, industryLabel, totalOrders, topProvinces, lowOntimeProvinces };
+    // Overall ontime for active industry (weighted avg across provinces with eval data)
+    const allEval = stats.filter((p) => (p.details?.evalCount ?? 0) > 0);
+    const sumOntime = allEval.reduce((s, p) => s + (p.details.ontimeCount || 0), 0);
+    const sumEval   = allEval.reduce((s, p) => s + (p.details.evalCount  || 0), 0);
+    const overallOntimePct = sumEval > 0 ? Math.round((sumOntime / sumEval) * 100) : null;
+
+    const payload = { mapIndustry, industryLabel, totalOrders, overallOntimePct, topProvinces, lowOntimeProvinces };
 
     if (nearCapWarehouses?.length > 0) {
       payload.nearCapWarehouses = nearCapWarehouses.map((d) => ({ label: d.label, utilPct: d.utilPct }));
@@ -920,8 +926,45 @@ export default function ProvinceMapPanel({
     return provinceDetailsMap[shownProv] || provinceStats.find((p) => p.name === shownProv)?.details || null;
   }, [shownProv, mapIndustry, provinceDetailsMap, provinceStats, provinceStatsNhc, provinceStatsSttp]);
   const projectOverview = singleProjectMode ? projectSummaries[projectName] : null;
-  const ov = (singleProjectMode ? projectOverview : overallData) || {};
-  const ovBadge = getOntimeBadge(singleProjectMode ? (projectOverview?.ontimePct ?? 100) : (overallData?.ontimePct ?? 100));
+
+  // KPI aggregated from the active industry's province stats (NHC/STTP/All).
+  // "All" uses DM overallData as base + supplements with NHC/STTP totals.
+  const industryOverallData = useMemo(() => {
+    if (singleProjectMode) return null;
+    const sumStats = (stats) => {
+      if (!stats?.length) return null;
+      let orders = 0, ontime = 0, late = 0, weight = 0;
+      for (const p of stats) {
+        orders += p.orders || 0;
+        ontime += p.details?.ontimeCount || 0;
+        late   += p.details?.lateCount   || 0;
+        weight += p.details?.totalWeight || 0;
+      }
+      const evalCount = ontime + late;
+      return { ontimePct: evalCount > 0 ? Math.round((ontime / evalCount) * 100) : null, ontimeCount: ontime, lateCount: late, totalWeight: weight, damageCount: null };
+    };
+    if (mapIndustry === "nhc")  return sumStats(provinceStatsNhc)  || overallData;
+    if (mapIndustry === "sttp") return sumStats(provinceStatsSttp) || overallData;
+    if (mapIndustry === "all") {
+      // Sum across DM + NHC + STTP
+      let orders = 0, ontime = 0, late = 0, weight = 0;
+      for (const src of [provinceStats, provinceStatsNhc, provinceStatsSttp]) {
+        if (!src?.length) continue;
+        for (const p of src) {
+          orders += p.orders || 0;
+          ontime += p.details?.ontimeCount || 0;
+          late   += p.details?.lateCount   || 0;
+          weight += p.details?.totalWeight || 0;
+        }
+      }
+      const evalCount = ontime + late;
+      return { ontimePct: evalCount > 0 ? Math.round((ontime / evalCount) * 100) : overallData?.ontimePct, ontimeCount: ontime, lateCount: late, totalWeight: weight, damageCount: overallData?.damageCount };
+    }
+    return null; // DM: use overallData as-is
+  }, [singleProjectMode, mapIndustry, provinceStats, provinceStatsNhc, provinceStatsSttp, overallData]);
+
+  const ov = (singleProjectMode ? projectOverview : (industryOverallData || overallData)) || {};
+  const ovBadge = getOntimeBadge(singleProjectMode ? (projectOverview?.ontimePct ?? 100) : (ov?.ontimePct ?? 100));
 
   const pcProject = singleProjectMode && periodComparison
     ? (periodComparison.clients?.find((c) => c.client === projectName) ?? null)
@@ -1085,7 +1128,7 @@ export default function ProvinceMapPanel({
           <span style={{ color: "var(--green)" }}>{fmt(ov.ontimeCount)}</span> / <span style={{ color: "var(--red)" }}>{fmt(ov.lateCount)}</span>
         </Kpi>
         <Kpi label="Số ca bể vỡ / hư hỏng (Rillnet)" color={ov.damageCount > 0 ? "var(--amber)" : "var(--text-secondary)"}>
-          {ov.damageCount || 0} ca {ov.damageCount > 0 && "💥"}
+          {ov.damageCount == null ? "—" : `${ov.damageCount} ca`} {ov.damageCount > 0 && "💥"}
         </Kpi>
       </div>
 
@@ -1297,41 +1340,62 @@ export default function ProvinceMapPanel({
                   </div>
                 )}
 
-                {inspectData.clientDetails && inspectData.clientDetails.length > 0 && (
-                  <div style={{ marginTop: 12 }}>
-                    <div style={SECTION_LABEL}>🏢 Khách hàng giao khu vực {inspectData.name} ({inspectData.clientDetails.length})</div>
-                    <div style={{ maxHeight: 210, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 8 }}>
-                      <table className="data-table" style={{ fontSize: 12 }}>
-                        <thead>
-                          <tr>
-                            <th style={{ padding: "6px 10px" }}>Khách</th>
-                            <th style={{ padding: "6px 10px", textAlign: "right" }}>Đơn</th>
-                            <th style={{ padding: "6px 10px", textAlign: "right" }}>Tải trọng</th>
-                            <th style={{ padding: "6px 10px", textAlign: "right" }}>Ontime</th>
-                            <th style={{ padding: "6px 10px", textAlign: "right" }}>Hỏng</th>
-                            <th style={{ padding: "6px 10px" }}>Lấy tại</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {inspectData.clientDetails.map((c) => (
-                            <tr key={c.name}>
-                              <td style={{ padding: "5px 10px", fontWeight: 600 }}>{c.name}</td>
-                              <td style={{ padding: "5px 10px", textAlign: "right", color: "var(--cyan)", fontWeight: 700 }}>{fmt(c.orders)}</td>
-                              <td style={{ padding: "5px 10px", textAlign: "right" }}>{shortWeight(c.weight)}</td>
-                              <td style={{ padding: "5px 10px", textAlign: "right", color: getOntimeColor(c.ontimePct), fontWeight: 600 }}>
-                                {c.ontimePct}%{c.ontimePct < 80 ? " 🚨" : c.ontimePct < 90 ? " ⚠️" : ""}
-                              </td>
-                              <td style={{ padding: "5px 10px", textAlign: "right", color: c.damageCount > 0 ? "var(--amber)" : "var(--text-muted)", fontWeight: c.damageCount > 0 ? 700 : 400 }}>
-                                {c.damageCount > 0 ? `${c.damageCount} ca` : "—"}
-                              </td>
-                              <td style={{ padding: "5px 10px", color: "var(--text-secondary)" }}>{c.mainOrigin}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                {/* Client breakdown — per-industry (DM has damage col, NHC/STTP don't) */}
+                {(() => {
+                  const clientSections = [];
+                  if (mapIndustry === "all") {
+                    // Multi-section: one per industry with data in this province
+                    const dmClients = (provinceDetailsMap[shownProv] || provinceStats.find((p) => p.name === shownProv)?.details)?.clientDetails;
+                    const nhcClients = provinceStatsNhc?.find((p) => p.name === shownProv)?.details?.clientDetails;
+                    const sttpClients = provinceStatsSttp?.find((p) => p.name === shownProv)?.details?.clientDetails;
+                    if (dmClients?.length)   clientSections.push({ label: "🟠 Khách ĐM",   color: "var(--amber)", clients: dmClients,   showDmg: true });
+                    if (nhcClients?.length)  clientSections.push({ label: "🟣 Khách NHC",  color: "#a78bfa",      clients: nhcClients,  showDmg: false });
+                    if (sttpClients?.length) clientSections.push({ label: "🔵 Khách STTP", color: "#38bdf8",      clients: sttpClients, showDmg: false });
+                  } else if (inspectData.clientDetails?.length) {
+                    const isDm = mapIndustry === "dm";
+                    clientSections.push({ label: `🏢 Khách hàng giao khu vực ${inspectData.name} (${inspectData.clientDetails.length})`, color: null, clients: inspectData.clientDetails, showDmg: isDm });
+                  }
+                  if (!clientSections.length) return null;
+                  return (
+                    <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                      {clientSections.map((sec) => (
+                        <div key={sec.label}>
+                          <div style={{ ...SECTION_LABEL, color: sec.color || undefined }}>{sec.label}</div>
+                          <div style={{ maxHeight: 180, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 8 }}>
+                            <table className="data-table" style={{ fontSize: 12 }}>
+                              <thead>
+                                <tr>
+                                  <th style={{ padding: "5px 8px" }}>Khách</th>
+                                  <th style={{ padding: "5px 8px", textAlign: "right" }}>Đơn</th>
+                                  <th style={{ padding: "5px 8px", textAlign: "right" }}>Ontime</th>
+                                  {sec.showDmg && <th style={{ padding: "5px 8px", textAlign: "right" }}>Hỏng</th>}
+                                  <th style={{ padding: "5px 8px" }}>Lấy tại</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {sec.clients.map((c) => (
+                                  <tr key={c.name}>
+                                    <td style={{ padding: "4px 8px", fontWeight: 600 }}>{c.name}</td>
+                                    <td style={{ padding: "4px 8px", textAlign: "right", color: "var(--cyan)", fontWeight: 700 }}>{fmt(c.orders)}</td>
+                                    <td style={{ padding: "4px 8px", textAlign: "right", color: getOntimeColor(c.ontimePct), fontWeight: 600 }}>
+                                      {c.ontimePct}%{c.ontimePct < 80 ? " 🚨" : c.ontimePct < 90 ? " ⚠️" : ""}
+                                    </td>
+                                    {sec.showDmg && (
+                                      <td style={{ padding: "4px 8px", textAlign: "right", color: c.damageCount > 0 ? "var(--amber)" : "var(--text-muted)", fontWeight: c.damageCount > 0 ? 700 : 400 }}>
+                                        {c.damageCount > 0 ? `${c.damageCount} ca` : "—"}
+                                      </td>
+                                    )}
+                                    <td style={{ padding: "4px 8px", color: "var(--text-secondary)", fontSize: 11 }}>{c.mainOrigin}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {onProvinceClick && (
                   <button type="button" onClick={() => openOrders(inspectData.name)} style={{
