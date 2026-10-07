@@ -409,11 +409,17 @@ export default function ProvinceMapPanel({
   const [activeWh, setActiveWh] = useState(null);
   const [pinnedWh, setPinnedWh] = useState(null);
   const activeLayer =
-    mapIndustry === "nhc"  && warehouseLayerNhc?.sites?.length  ? warehouseLayerNhc  :
-    mapIndustry === "sttp" && warehouseLayerSttp?.sites?.length ? warehouseLayerSttp :
-    mapIndustry === "all"  && warehouseLayerAll?.sites?.length  ? warehouseLayerAll  :
+    mapIndustry === "nhc"  ? (warehouseLayerNhc?.sites?.length  ? warehouseLayerNhc  : null) :
+    mapIndustry === "sttp" ? (warehouseLayerSttp?.sites?.length ? warehouseLayerSttp : null) :
+    mapIndustry === "all"  ? (warehouseLayerAll?.sites?.length  ? warehouseLayerAll  : warehouseLayer) :
     warehouseLayer;
   const hasWh = !!(warehouseLayer?.sites?.length || warehouseLayerAll?.sites?.length || warehouseLayerNhc?.sites?.length || warehouseLayerSttp?.sites?.length);
+  // Show industry selector when any non-DM industry has province ontime OR warehouse data.
+  const hasMultiIndustry = !!(
+    warehouseLayerNhc?.sites?.length || provinceStatsNhc?.length ||
+    warehouseLayerSttp?.sites?.length || provinceStatsSttp?.length ||
+    warehouseLayerAll?.sites?.length
+  );
   const showWh = !!activeLayer?.sites?.length && showWhState; // guards activeLayer.totals / .period accesses
   const showProv = true;
 
@@ -424,6 +430,12 @@ export default function ProvinceMapPanel({
     setPinnedWh(null);
     setMapIndustry("dm");
   }, [projectName, singleProjectMode, selectedOrigin]);
+  // Reset to DM when the selected industry tab loses its data (e.g. filter change removes NHC rows).
+  useEffect(() => {
+    if (!hasMultiIndustry && mapIndustry !== "dm") setMapIndustry("dm");
+    else if (mapIndustry === "nhc" && !provinceStatsNhc?.length && !warehouseLayerNhc?.sites?.length) setMapIndustry("dm");
+    else if (mapIndustry === "sttp" && !provinceStatsSttp?.length && !warehouseLayerSttp?.sites?.length) setMapIndustry("dm");
+  }, [hasMultiIndustry, mapIndustry, provinceStatsNhc, provinceStatsSttp, warehouseLayerNhc, warehouseLayerSttp]);
   // ── Fullscreen (whole panel, so the detail column stays visible) ──
   const panelRef = useRef(null);
   const [isFs, setIsFs] = useState(false);
@@ -785,13 +797,13 @@ export default function ProvinceMapPanel({
               🏭 Hiện kho
             </label>
           )}
-          {showWhState && (warehouseLayerAll?.sites?.length || warehouseLayerNhc?.sites?.length || warehouseLayerSttp?.sites?.length) && (
+          {hasMultiIndustry && (
             <Seg
               items={[
                 { id: "dm",  label: "🟠 ĐM" },
-                ...(warehouseLayerNhc?.sites?.length  ? [{ id: "nhc",  label: "🟣 NHC" }]  : []),
-                ...(warehouseLayerSttp?.sites?.length ? [{ id: "sttp", label: "🔵 STTP" }] : []),
-                ...(warehouseLayerAll?.sites?.length  ? [{ id: "all",  label: "🟢 Tổng 4" }] : []),
+                ...((warehouseLayerNhc?.sites?.length  || provinceStatsNhc?.length)  ? [{ id: "nhc",  label: "🟣 NHC" }]  : []),
+                ...((warehouseLayerSttp?.sites?.length || provinceStatsSttp?.length) ? [{ id: "sttp", label: "🔵 STTP" }] : []),
+                ...((warehouseLayerAll?.sites?.length  || provinceStatsNhc?.length || provinceStatsSttp?.length) ? [{ id: "all",  label: "🟢 Tổng 4" }] : []),
               ]}
               value={mapIndustry}
               onChange={setMapIndustry}

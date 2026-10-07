@@ -42,10 +42,12 @@ function compute({ provinceStats, provinceDetailsMap, viewMode, mapIndustry, act
     });
   }
 
-  // colorMap
+  // colorMap — for NHC/STTP use activeProvinceStats so the map shows that industry's data.
   const colorMap = {};
   const hasCapUtil = Object.keys(capUtil).length > 0;
-  stats.forEach((p) => {
+  const isIndustrySub = (mapIndustry === "nhc" || mapIndustry === "sttp") && (activeProvinceStats || []).length > 0;
+  const colorSrc = isIndustrySub ? activeProvinceStats : stats;
+  colorSrc.forEach((p) => {
     if (mapIndustry === "all" && hasCapUtil) {
       const u = capUtil[p.name];
       if (!u || u.cap === 0) { colorMap[p.name] = "var(--map-unhighlighted)"; return; }
@@ -57,7 +59,7 @@ function compute({ provinceStats, provinceDetailsMap, viewMode, mapIndustry, act
                      "rgba(59,130,246,0.7)";
       return;
     }
-    const pDet = detailsMap[p.name];
+    const pDet = isIndustrySub ? p.details : detailsMap[p.name];
     if (viewMode === "weight") {
       const w = pDet?.totalWeight || p.weight || 0;
       const intensity = Math.min(1, w / maxWeight);
