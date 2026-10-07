@@ -882,17 +882,26 @@ export async function getServerSideProps({ req, res, query }) {
     return { redirect: { destination: "/login", permanent: false } };
   }
 
-  // Live session re-validation: if manager approved the user's role on the Users sheet,
-  // sync the new role/tabs into the active cookie session so they get in on reload.
-  if (session.user.employeeId) {
+  // Live session re-validation: sync role/tabs from Sheets in case a manager
+  // changed them. Throttled to once per 5 minutes to avoid a Google Sheets
+  // API call on every page load (each call is a cold-start hit on a fresh
+  // serverless instance that doesn't share the in-memory cache).
+  const SESSION_RECHECK_MS = 5 * 60 * 1000;
+  const lastChecked = session.user.lastChecked || 0;
+  if (session.user.employeeId && Date.now() - lastChecked > SESSION_RECHECK_MS) {
     try {
       const dbUser = await findUserByEmployeeId(session.user.employeeId);
-      if (dbUser && (dbUser.role !== session.user.role || JSON.stringify(dbUser.tabs) !== JSON.stringify(session.user.tabs))) {
-        session.user.role = dbUser.role;
-        session.user.pic = dbUser.pic || session.user.pic;
-        session.user.tabs = dbUser.tabs || [];
-        await session.save();
+      if (dbUser) {
+        const roleChanged = dbUser.role !== session.user.role;
+        const tabsChanged = JSON.stringify(dbUser.tabs) !== JSON.stringify(session.user.tabs);
+        if (roleChanged || tabsChanged) {
+          session.user.role = dbUser.role;
+          session.user.pic = dbUser.pic || session.user.pic;
+          session.user.tabs = dbUser.tabs || [];
+        }
       }
+      session.user.lastChecked = Date.now();
+      await session.save();
     } catch (e) {
       // fallback to existing session if sheet read fails
     }

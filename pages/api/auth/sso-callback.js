@@ -11,6 +11,8 @@ import { exchangeCodeForTokens, verifyIdToken, fetchUserInfo } from "../../../li
 import { resolveSSOUser } from "../../../lib/users";
 import { logAction } from "../../../lib/audit-log";
 
+export const config = { maxDuration: 30 };
+
 function clearFlowCookie(res) {
   res.setHeader("Set-Cookie", "sso_flow=; Path=/; HttpOnly; Max-Age=0");
 }
@@ -71,6 +73,7 @@ export default async function handler(req, res) {
       project: user.project || null,
       tabs: user.tabs || [],
       idToken: tokens.id_token, // kept only for RP-initiated logout
+      lastChecked: Date.now(), // skip Sheets re-validation on first dashboard load
     };
     await session.save();
 
