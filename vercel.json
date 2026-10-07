@@ -4,6 +4,6 @@
   ],
   "crons": [
     { "path": "/api/cron/build-snapshot", "schedule": "0 2 * * *" },
-    { "path": "/api/cron/build-snapshot", "schedule": "0 11 * * *" }
+    { "path": "/api/cron/backup-raw-ontime", "schedule": "0 2 * * *" }
   ]
 }
