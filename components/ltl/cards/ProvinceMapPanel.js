@@ -522,13 +522,36 @@ export default function ProvinceMapPanel({
     provinceCapUtil,
   });
 
-  // Smart Hotspots (Nhóm 2a): when provinceRisk is available for DM mode,
-  // rank by riskScore instead of current viewMode. The list stays capped at 8
-  // so the panel doesn't grow unbounded, but tiers make every row meaningful.
+  // Smart Hotspots (Nhóm 2a): compute risk scores for DM/all mode using data
+  // already available in the snapshot (no server rebuild required).
+  // Falls back to server-supplied provinceRisk[] if present, else derives
+  // from provinceStats + provinceDetailsMap + damageAvgRate.
+  const computedProvinceRisk = useMemo(() => {
+    if (provinceRisk.length > 0) return provinceRisk;
+    const stats = provinceStats || [];
+    if (!stats.length || (mapIndustry !== "dm" && mapIndustry !== "all")) return [];
+    const avgRate = damageAvgRate || 0;
+    return stats.map((p) => {
+      const det = provinceDetailsMap[p.name] || p.details;
+      const evalCount = (det?.ontimeCount ?? 0) + (det?.lateCount ?? 0);
+      const ontimePct = evalCount > 0 ? det.ontimePct : null;
+      const damageCount = det?.damageCount ?? 0;
+      const damageRate = p.orders > 0 ? (damageCount / p.orders) * 100 : 0;
+      const w1 = ontimePct !== null ? Math.max(0, 90 - ontimePct) : 0;
+      const w2 = avgRate > 0 ? (damageRate / avgRate) * 10 : 0;
+      const riskScore = w1 + w2;
+      const tiers = [];
+      if (evalCount >= 10 && ontimePct !== null && ontimePct < 80) tiers.push("sla");
+      if (damageCount >= 1 && damageRate >= avgRate) tiers.push("damage");
+      if (p.orders >= 100 && evalCount >= 10 && ontimePct !== null && ontimePct >= 95) tiers.push("star");
+      if (tiers.length === 0 && evalCount >= 10 && ontimePct !== null && ontimePct < 90) tiers.push("watchlist");
+      return { name: p.name, orders: p.orders, evalCount, ontimePct, damaged: damageCount, damageRate, riskScore, tiers };
+    }).sort((a, b) => b.riskScore - a.riskScore || b.orders - a.orders);
+  }, [provinceRisk, provinceStats, provinceDetailsMap, damageAvgRate, mapIndustry]);
+
   const topProvinces = useMemo(() => {
-    if (!singleProjectMode && (mapIndustry === "dm" || mapIndustry === "all") && provinceRisk.length > 0) {
-      // Build a name→riskRow index for O(1) lookup.
-      const riskMap = new Map(provinceRisk.map((r) => [r.name, r]));
+    if (!singleProjectMode && (mapIndustry === "dm" || mapIndustry === "all") && computedProvinceRisk.length > 0) {
+      const riskMap = new Map(computedProvinceRisk.map((r) => [r.name, r]));
       return [...(provinceStats || [])]
         .map((p) => {
           const rr = riskMap.get(p.name);
@@ -538,7 +561,7 @@ export default function ProvinceMapPanel({
         .slice(0, 8);
     }
     return sortedProvinces.slice(0, 8);
-  }, [singleProjectMode, mapIndustry, provinceRisk, provinceStats, sortedProvinces]);
+  }, [singleProjectMode, mapIndustry, computedProvinceRisk, provinceStats, sortedProvinces]);
   const highlightProvinces = useMemo(
     () => (singleProjectMode ? [] : sortedProvinces.slice(0, 5).map((p) => p.name)),
     [singleProjectMode, sortedProvinces]
@@ -1363,12 +1386,12 @@ export default function ProvinceMapPanel({
           {!singleProjectMode && <div>
             <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
               <span>
-                {(mapIndustry === "dm" || mapIndustry === "all") && provinceRisk.length > 0
+                {(mapIndustry === "dm" || mapIndustry === "all") && computedProvinceRisk.length > 0
                   ? `🎯 Smart Hotspots — ${mapIndustry === "all" ? "🟢 Tổng 4" : "🟠 ĐM"} (Risk Score)`
                   : `💡 Top 8 Tỉnh — ${mapIndustry === "nhc" ? "🟣 NHC" : mapIndustry === "sttp" ? "🔵 STTP" : mapIndustry === "all" ? "🟢 Tổng 4" : "🟠 ĐM"}`
                 }
               </span>
-              {(mapIndustry === "dm" || mapIndustry === "all") && provinceRisk.length > 0 && (
+              {(mapIndustry === "dm" || mapIndustry === "all") && computedProvinceRisk.length > 0 && (
                 <span style={{ display: "flex", gap: 5, fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: 10.5 }}>
                   <span style={{ background: "rgba(239,68,68,0.15)", color: "var(--red)", border: "1px solid var(--red)", padding: "1px 5px", borderRadius: 4 }}>🔴 SLA</span>
                   <span style={{ background: "rgba(245,158,11,0.15)", color: "var(--amber)", border: "1px solid var(--amber)", padding: "1px 5px", borderRadius: 4 }}>💥 Hỏng</span>
@@ -1389,7 +1412,7 @@ export default function ProvinceMapPanel({
                 const tiers = p.tiers || [];
 
                 // Tier-based border color for Smart Hotspots mode
-                const useSmart = (mapIndustry === "dm" || mapIndustry === "all") && provinceRisk.length > 0;
+                const useSmart = (mapIndustry === "dm" || mapIndustry === "all") && computedProvinceRisk.length > 0;
                 const borderColor = isSelected ? "var(--cyan)"
                   : useSmart
                     ? (tiers.includes("sla") ? "var(--red)" : tiers.includes("damage") ? "var(--amber)" : tiers.includes("star") ? "var(--green)" : "var(--border)")
