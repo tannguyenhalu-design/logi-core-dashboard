@@ -14,6 +14,9 @@ DEBUG_PORT = 9222
 TARGET_URL = "https://rillnet.ghn.vn/"
 APP_BASE_URL = "https://logicore-app.vercel.app"
 SYNC_SECRET = os.environ.get("RILLNET_SYNC_SECRET")
+# Cookies persisted across Chrome restarts / container auto-heals so the
+# cron can recover the Rillnet session without manual noVNC re-login.
+COOKIE_PATH = "/app/rillnet_cookies.json"
 
 
 def get_websocket_url():
@@ -69,6 +72,50 @@ def click_button(ws, text, wait=2):
     ok = run_js(ws, CLICK_BY_TEXT_JS.format(text=text))
     time.sleep(wait)
     return ok
+
+
+def save_cookies(ws):
+    """Sau khi scrape thanh cong: luu toan bo cookie ghn.vn ra file de lan sau
+    tu phuc hoi session neu Chrome bi restart hoac mat session."""
+    try:
+        resp = send_cdp_command(ws, "Network.getAllCookies")
+        cookies = [c for c in resp.get("result", {}).get("cookies", []) if "ghn.vn" in c.get("domain", "")]
+        with open(COOKIE_PATH, "w", encoding="utf-8") as f:
+            json.dump(cookies, f)
+        print(f"Da luu {len(cookies)} cookie GHN -> {COOKIE_PATH}")
+    except Exception as e:
+        print(f"Khong luu duoc cookie: {e}")
+
+
+def restore_cookies(ws):
+    """Thu khoi phuc session tu file cookie da luu (ghi de truoc khi navigate).
+    Loc bo cookie het han. Tra ve True neu co cookie hop le de thu."""
+    if not os.path.exists(COOKIE_PATH):
+        return False
+    try:
+        with open(COOKIE_PATH, encoding="utf-8") as f:
+            cookies = json.load(f)
+        now = time.time()
+        safe = []
+        for c in cookies:
+            entry = {k: c[k] for k in ("name", "value", "domain", "path") if k in c}
+            for k in ("httpOnly", "secure", "sameSite"):
+                if k in c:
+                    entry[k] = c[k]
+            if c.get("expires", -1) > 0:
+                if c["expires"] < now:
+                    continue  # cookie het han
+                entry["expires"] = c["expires"]
+            safe.append(entry)
+        if not safe:
+            print("Tat ca cookie da het han - can dang nhap lai qua noVNC.")
+            return False
+        send_cdp_command(ws, "Network.setCookies", {"cookies": safe})
+        print(f"Da khoi phuc {len(safe)} cookie GHN tu {COOKIE_PATH}")
+        return True
+    except Exception as e:
+        print(f"Khong khoi phuc duoc cookie: {e}")
+        return False
 
 
 def _int(s):
@@ -407,9 +454,9 @@ def main():
     ws_url = get_websocket_url()
     if not ws_url:
         sys.exit(1)
-    # timeout=20 — xem ghi chu trong ftl_scraper.py: khong co timeout thi 1
-    # lenh CDP treo se giu chung flock voi FTL mai mai.
-    ws = websocket.create_connection(ws_url, timeout=20)
+    # timeout=120 — CDP keep-alive (xem sheet_scraper.py: 20s qua ngan voi
+    # ENRICH_JS / MONEY_JS tren 500+ ca; 0 = treo mai mai nen giu timeout co han).
+    ws = websocket.create_connection(ws_url, timeout=120)
 
     print(f"Dieu huong toi {TARGET_URL} ...")
     send_cdp_command(ws, "Page.navigate", {"url": TARGET_URL})
@@ -417,7 +464,20 @@ def main():
 
     print("Bam 'Bao cao be vo'...")
     if not click_button(ws, "📦 Báo cáo bể vỡ", wait=5):
-        print("Khong tim thay nut 'Bao cao be vo' - co the chua dang nhap.")
+        # Session het han — thu khoi phuc cookie tu lan chay truoc.
+        print("Khong tim thay nut 'Bao cao be vo' - thu phuc hoi session tu cookie cu...")
+        if restore_cookies(ws):
+            send_cdp_command(ws, "Page.navigate", {"url": TARGET_URL})
+            time.sleep(6)
+            if not click_button(ws, "📦 Báo cáo bể vỡ", wait=5):
+                print("Phuc hoi cookie that bai - session het han, can dang nhap lai qua noVNC tren Railway.")
+                ws.close()
+                sys.exit(1)
+            print("Phuc hoi session thanh cong tu cookie da luu.")
+        else:
+            print("Khong co cookie da luu - can dang nhap lan dau qua noVNC tren Railway.")
+            ws.close()
+            sys.exit(1)
 
     d_from, d_to = date_range()
     print(f"Dat khoang ngay {d_from} -> {d_to} ...")
@@ -446,10 +506,12 @@ def main():
         time.sleep(1.5)
     if not expanded:
         print("Khong tim thay nut 'Mo het' - co the giao dien da doi khac truoc.")
-    time.sleep(2)  # để 30 bảng con render xong sau khi mở hết
+    # Full scan (3.5 months, 500+ cases) can take >18s to expand all groups.
+    # Each lb-day table renders async after the accordion opens, so retry long.
+    time.sleep(5)
 
     records = None
-    for _ in range(8):
+    for _ in range(25):
         records = run_js(ws, EXTRACT_TABLE_JS)
         if records:
             break
@@ -522,6 +584,9 @@ def main():
     if tong["csTickCount"] or cards["caseCount"] is not None:
         compensation_summary = {**tong, **cards, "rangeFrom": d_from, "rangeTo": d_to, "scope": "all"}
 
+    # Luu cookie truoc khi dong WebSocket — cho phep lan chay tiep theo tu phuc
+    # hoi session ma khong can dang nhap lai qua noVNC.
+    save_cookies(ws)
     ws.close()
 
     payload = {"records": records, "compensationSummary": compensation_summary, "fullScan": full_scan,

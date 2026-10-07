@@ -88,6 +88,8 @@ run_step() {
 }
 run_step kpi kpi_scraper.py
 run_step raw_ontime sheet_scraper.py
+# Auto-heal TARGET_URL: neu deploy cu con rillnet-app.vercel.app thi sua lai truoc khi chay.
+sed -i 's|rillnet-app.vercel.app|rillnet.ghn.vn|g' /app/rillnet_scraper.py 2>/dev/null || true
 run_step rillnet rillnet_scraper.py
 
 # Rebuild the dashboard's LTL snapshot (Vercel Blob) right away so the new
