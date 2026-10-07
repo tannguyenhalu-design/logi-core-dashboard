@@ -15,6 +15,7 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import VietnamMap from "../../VietnamMap";
 import { fmt, fmtWeight, getOntimeColor, getOntimeBadge } from "../utils";
+import { useFilterWorker } from "../../../hooks/useFilterWorker";
 
 const MODES = [
   { id: "orders", label: "📦 Theo Số Đơn", on: "var(--cyan)" },
@@ -388,6 +389,7 @@ export default function ProvinceMapPanel({
   originStats = [], selectedOrigin = null, onOriginChange,
   projectSummaries = {}, overallData = {}, singleProjectMode, projectName, onProvinceClick,
   hotspots = [], hotspotRule = null,
+  provinceRisk = [], damageAvgRate = 0,
   warehouseLayer = null,
   warehouseLayerAll = null,
   warehouseLayerNhc = null,
@@ -491,33 +493,9 @@ export default function ProvinceMapPanel({
       .slice(0, 5);
   }, [mapIndustry, hotspots, hotspotRule, provinceStatsNhc, provinceStatsSttp]);
 
-  const sortedProvinces = useMemo(() => {
-    // NHC/STTP: use industry-specific stats (simpler shape — no weight/damage)
-    if ((mapIndustry === "nhc" || mapIndustry === "sttp") && activeProvinceStats.length > 0) {
-      if (viewMode === "ontime") return [...activeProvinceStats].sort((a, b) => (a.details?.ontimePct ?? 100) - (b.details?.ontimePct ?? 100));
-      return [...activeProvinceStats]; // already sorted by orders desc from backend
-    }
-    return [...(provinceStats || [])].sort((a, b) => {
-      const aDet = provinceDetailsMap[a.name] || a.details;
-      const bDet = provinceDetailsMap[b.name] || b.details;
-      if (viewMode === "weight") return (bDet?.totalWeight || a.weight || 0) - (aDet?.totalWeight || b.weight || 0);
-      if (viewMode === "ontime") return (aDet?.ontimePct ?? 100) - (bDet?.ontimePct ?? 100);
-      if (viewMode === "damage") return (bDet?.damageCount || 0) - (aDet?.damageCount || 0);
-      return b.orders - a.orders;
-    });
-  }, [provinceStats, provinceDetailsMap, viewMode, mapIndustry, activeProvinceStats]);
-
-  // Scale ends — shared by the fills and the legend.
-  const scale = useMemo(() => {
-    const stats = provinceStats || [];
-    return {
-      maxOrders: Math.max(...stats.map((p) => p.orders), 1),
-      maxWeight: Math.max(...stats.map((p) => (provinceDetailsMap[p.name]?.totalWeight || p.weight || 1)), 1),
-    };
-  }, [provinceStats, provinceDetailsMap]);
-
   // For "Tổng 4" mode: aggregate warehouseLayerAll.sites by province →
   // capacity utilization = (sum actual giao/day) / (sum GTC cap/day).
+  // Stays on the main thread — lightweight, and the Worker needs it as input.
   const provinceCapUtil = useMemo(() => {
     if (!warehouseLayerAll?.sites?.length) return {};
     const agg = {};
@@ -531,43 +509,36 @@ export default function ProvinceMapPanel({
     return agg;
   }, [warehouseLayerAll]);
 
-  const colorMap = useMemo(() => {
-    const stats = provinceStats || [];
-    const { maxOrders, maxWeight } = scale;
-    const map = {};
-    stats.forEach((p) => {
-      // "Tổng 4" mode: override province fill with capacity utilization.
-      if (mapIndustry === "all" && Object.keys(provinceCapUtil).length > 0) {
-        const u = provinceCapUtil[p.name];
-        if (!u || u.cap === 0) { map[p.name] = "var(--map-unhighlighted)"; return; }
-        const pct = u.actual / u.cap;
-        map[p.name] =
-          pct >= 1.0 ? "rgba(239,68,68,0.8)"  :  // đỏ: quá tải
-          pct >= 0.8 ? "rgba(245,158,11,0.8)" :   // vàng: gần đầy
-          pct >= 0.5 ? "rgba(34,197,94,0.75)"  :  // xanh: lành mạnh
-                       "rgba(59,130,246,0.7)";     // xanh dương: còn nhiều dư
-        return;
-      }
-      const pDet = provinceDetailsMap[p.name];
-      if (viewMode === "weight") {
-        const w = pDet?.totalWeight || p.weight || 0;
-        const intensity = Math.min(1, w / maxWeight);
-        map[p.name] = `rgba(${WEIGHT_RGB}, ${(0.25 + intensity * 0.7).toFixed(2)})`;
-      } else if (viewMode === "ontime") {
-        const ontime = pDet ? pDet.ontimePct : 100;
-        map[p.name] = getOntimeColor(ontime);
-      } else if (viewMode === "damage") {
-        const dmg = pDet ? pDet.damageCount : 0;
-        map[p.name] = dmg > 0 ? "var(--amber)" : "var(--map-unhighlighted)";
-      } else {
-        const intensity = Math.min(1, p.orders / maxOrders);
-        map[p.name] = `rgba(var(--brand-rgb), ${(0.2 + intensity * 0.75).toFixed(2)})`;
-      }
-    });
-    return map;
-  }, [provinceStats, provinceDetailsMap, viewMode, scale, mapIndustry, provinceCapUtil]);
+  // sortedProvinces / scale / colorMap — computed in a Web Worker to keep
+  // the main thread free during filter changes (Nhóm 1). The hook returns
+  // the last successful result while a new computation is in flight, so
+  // the map never flickers to an empty state.
+  const { sortedProvinces, scale, colorMap } = useFilterWorker({
+    provinceStats,
+    provinceDetailsMap,
+    viewMode,
+    mapIndustry,
+    activeProvinceStats,
+    provinceCapUtil,
+  });
 
-  const topProvinces = useMemo(() => sortedProvinces.slice(0, 8), [sortedProvinces]);
+  // Smart Hotspots (Nhóm 2a): when provinceRisk is available for DM mode,
+  // rank by riskScore instead of current viewMode. The list stays capped at 8
+  // so the panel doesn't grow unbounded, but tiers make every row meaningful.
+  const topProvinces = useMemo(() => {
+    if (!singleProjectMode && (mapIndustry === "dm" || mapIndustry === "all") && provinceRisk.length > 0) {
+      // Build a name→riskRow index for O(1) lookup.
+      const riskMap = new Map(provinceRisk.map((r) => [r.name, r]));
+      return [...(provinceStats || [])]
+        .map((p) => {
+          const rr = riskMap.get(p.name);
+          return { ...p, riskScore: rr?.riskScore ?? 0, tiers: rr?.tiers ?? [] };
+        })
+        .sort((a, b) => b.riskScore - a.riskScore || b.orders - a.orders)
+        .slice(0, 8);
+    }
+    return sortedProvinces.slice(0, 8);
+  }, [singleProjectMode, mapIndustry, provinceRisk, provinceStats, sortedProvinces]);
   const highlightProvinces = useMemo(
     () => (singleProjectMode ? [] : sortedProvinces.slice(0, 5).map((p) => p.name)),
     [singleProjectMode, sortedProvinces]
@@ -1390,19 +1361,39 @@ export default function ProvinceMapPanel({
           {showWh && !singleProjectMode && <UnplacedPanel layer={activeLayer} />}
 
           {!singleProjectMode && <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              💡 Top 8 Tỉnh — {mapIndustry === "nhc" ? "🟣 NHC" : mapIndustry === "sttp" ? "🔵 STTP" : mapIndustry === "all" ? "🟢 Tổng 4" : "🟠 ĐM"} ({viewMode === "ontime" || mapIndustry === "nhc" || mapIndustry === "sttp" ? "Ontime thấp trước" : viewMode === "weight" ? "Tải trọng" : viewMode === "damage" ? "Ca Bể Vỡ" : "Số đơn"})
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
+              <span>
+                {(mapIndustry === "dm" || mapIndustry === "all") && provinceRisk.length > 0
+                  ? `🎯 Smart Hotspots — ${mapIndustry === "all" ? "🟢 Tổng 4" : "🟠 ĐM"} (Risk Score)`
+                  : `💡 Top 8 Tỉnh — ${mapIndustry === "nhc" ? "🟣 NHC" : mapIndustry === "sttp" ? "🔵 STTP" : mapIndustry === "all" ? "🟢 Tổng 4" : "🟠 ĐM"}`
+                }
+              </span>
+              {(mapIndustry === "dm" || mapIndustry === "all") && provinceRisk.length > 0 && (
+                <span style={{ display: "flex", gap: 5, fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: 10.5 }}>
+                  <span style={{ background: "rgba(239,68,68,0.15)", color: "var(--red)", border: "1px solid var(--red)", padding: "1px 5px", borderRadius: 4 }}>🔴 SLA</span>
+                  <span style={{ background: "rgba(245,158,11,0.15)", color: "var(--amber)", border: "1px solid var(--amber)", padding: "1px 5px", borderRadius: 4 }}>💥 Hỏng</span>
+                  <span style={{ background: "rgba(96,165,250,0.15)", color: "#60a5fa", border: "1px solid #60a5fa", padding: "1px 5px", borderRadius: 4 }}>⚡ Chú ý</span>
+                  <span style={{ background: "rgba(34,197,94,0.15)", color: "var(--green)", border: "1px solid var(--green)", padding: "1px 5px", borderRadius: 4 }}>⭐ Tốt</span>
+                </span>
+              )}
             </div>
             <div className="grid-2" style={{ gap: 8 }}>
               {topProvinces.map((p) => {
                 const isSelected = activeProv === p.name || pinnedProv === p.name;
-                // NHC/STTP: use industry-specific details; DM/all: use provinceDetailsMap
                 const pDet = (mapIndustry === "nhc" || mapIndustry === "sttp")
                   ? (p.details || null)
                   : (provinceDetailsMap[p.name] || p.details);
                 const pOntime = pDet ? pDet.ontimePct : 100;
                 const pColor = getOntimeColor(pOntime);
                 const pWeight = pDet?.totalWeight || p.weight || 0;
+                const tiers = p.tiers || [];
+
+                // Tier-based border color for Smart Hotspots mode
+                const useSmart = (mapIndustry === "dm" || mapIndustry === "all") && provinceRisk.length > 0;
+                const borderColor = isSelected ? "var(--cyan)"
+                  : useSmart
+                    ? (tiers.includes("sla") ? "var(--red)" : tiers.includes("damage") ? "var(--amber)" : tiers.includes("star") ? "var(--green)" : "var(--border)")
+                    : (pOntime < 80 ? "var(--red)" : pOntime < 90 ? "var(--amber)" : "var(--border)");
 
                 return (
                   <div
@@ -1413,7 +1404,7 @@ export default function ProvinceMapPanel({
                     title="Bấm để chọn và phóng tới tỉnh này trên bản đồ"
                     style={{
                       background: isSelected ? "rgba(var(--brand-rgb),0.12)" : "var(--panel-bg)",
-                      border: isSelected ? "1px solid var(--cyan)" : `1px solid ${pOntime < 80 ? "var(--red)" : pOntime < 90 ? "var(--amber)" : "var(--border)"}`,
+                      border: `1px solid ${borderColor}`,
                       borderRadius: 8,
                       padding: "8px 12px",
                       cursor: "pointer",
@@ -1422,20 +1413,24 @@ export default function ProvinceMapPanel({
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontWeight: 600, fontSize: 12.5, color: pColor, display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
+                      <span style={{ fontWeight: 600, fontSize: 12.5, color: pColor, display: "flex", alignItems: "center", gap: 4, minWidth: 0, flexWrap: "wrap" }}>
                         {p.name}
-                        {pOntime < 80 ? <span style={{ fontSize: 10 }}>🚨</span> : pOntime < 90 ? <span style={{ fontSize: 10 }}>⚠️</span> : null}
+                        {tiers.includes("sla") && <span style={{ fontSize: 10, background: "rgba(239,68,68,0.15)", color: "var(--red)", borderRadius: 3, padding: "0 3px" }}>🔴SLA</span>}
+                        {tiers.includes("damage") && <span style={{ fontSize: 10, background: "rgba(245,158,11,0.15)", color: "var(--amber)", borderRadius: 3, padding: "0 3px" }}>💥</span>}
+                        {tiers.includes("star") && <span style={{ fontSize: 10, background: "rgba(34,197,94,0.15)", color: "var(--green)", borderRadius: 3, padding: "0 3px" }}>⭐</span>}
+                        {tiers.includes("watchlist") && !tiers.includes("sla") && <span style={{ fontSize: 10, background: "rgba(96,165,250,0.12)", color: "#60a5fa", borderRadius: 3, padding: "0 3px" }}>⚡</span>}
+                        {!useSmart && (pOntime < 80 ? <span style={{ fontSize: 10 }}>🚨</span> : pOntime < 90 ? <span style={{ fontSize: 10 }}>⚠️</span> : null)}
                       </span>
                       <span style={{ fontSize: 12, color: "var(--cyan)", fontWeight: 700, whiteSpace: "nowrap" }}>
                         {fmt(p.orders)} đơn{pWeight > 0 ? ` (${shortWeight(pWeight)})` : ""}
                       </span>
                     </div>
-                    {(p.topClient || pDet?.ontimePct != null) && (
-                      <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {p.topClient ? `Top: ${p.topClient.name} (${p.topClient.pct}%)` : ""}
-                        {pDet && ` · Ontime: ${pDet.ontimePct}%`}
-                      </div>
-                    )}
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {useSmart && p.riskScore > 0
+                        ? `Risk ${p.riskScore.toFixed(1)} · Ontime ${pOntime != null ? pOntime + "%" : "—"}${pDet?.damageCount > 0 ? ` · 💥 ${pDet.damageCount} ca` : ""}`
+                        : `${p.topClient ? `Top: ${p.topClient.name} (${p.topClient.pct}%)` : ""}${pDet ? ` · Ontime: ${pDet.ontimePct}%` : ""}`
+                      }
+                    </div>
                   </div>
                 );
               })}
