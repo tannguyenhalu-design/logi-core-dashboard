@@ -28,6 +28,8 @@ import { getCached, setCached } from "../../lib/mem-cache";
 import { isWarmPing, answerWarm } from "../../lib/warm";
 import { loadLtlBase, loadDefaultBody, buildLtlSnapshot } from "../../lib/ltl-snapshot";
 import { computeDashboard, applyRoleToBody, isDefaultQuery, addWarehouseLayer } from "../../lib/ltl-dashboard";
+import { detectDailyAnomalies } from "../../lib/anomaly-detector";
+import { getSystemHealth } from "../../lib/system-health";
 
 export const config = { maxDuration: 60 };
 
@@ -145,7 +147,7 @@ export default async function handler(req, res) {
   };
   const scope = { role, userProject, userPic };
   const force = req.query.force === "true";
-  const part = req.query.part === "map" ? "map" : req.query.part === "damage" ? "damage" : null;
+  const part = req.query.part === "map" ? "map" : req.query.part === "damage" ? "damage" : req.query.part === "decision" ? "decision" : null;
   const withMap = req.query.withMap === "1";
 
   try {
@@ -183,6 +185,27 @@ export default async function handler(req, res) {
     // served from / written to the full-response cache.
     if (params.province || params.pendingList || params.stuckList || params.dueTodayList) {
       return res.status(200).json(computeDashboard(base, params));
+    }
+
+    // ── Executive Decision Center — anomalies + compact health (~30 KB)
+    if (part === "decision") {
+      const today = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+      const [anomalies, health] = await Promise.all([
+        Promise.resolve(detectDailyAnomalies(base, today)),
+        getSystemHealth(),
+      ]);
+      res.setHeader("Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+      return res.status(200).json({
+        ok: true,
+        anomalies,
+        healthSummary: {
+          overall: health.overall,
+          alertCount: health.alertCount,
+          dataHealth: health.dataHealth,
+          aiHealth: health.aiHealth,
+        },
+        generatedAt: new Date().toISOString(),
+      });
     }
 
     const fullKey = `data:full:${base.builtAt}:${role}:${userPic || ""}:${viewAsType}:${viewAsValue || ""}:${filterMode}:${periodWeeks}:${origin || ""}:${(months || []).join(",")}:${(projects || []).join(",")}:${dateFrom || ""}:${dateTo || ""}`;

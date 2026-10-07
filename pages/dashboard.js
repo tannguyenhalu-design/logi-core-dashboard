@@ -19,6 +19,7 @@ const TabCompanyReport = dynamic(() => import("../components/TabCompanyReport"),
 const TabTrials = dynamic(() => import("../components/TabTrials"), { ssr: false });
 const ExecutiveReport = dynamic(() => import("../components/ExecutiveReport"), { ssr: false });
 const TabBrain      = dynamic(() => import("../components/TabBrain"),      { ssr: false });
+const TabDecision   = dynamic(() => import("../components/TabDecision"),   { ssr: false });
 const AIChatDrawer  = dynamic(() => import("../components/AIChatDrawer"),  { ssr: false });
 
 // Kế hoạch A · P4: while the dashboard is idle, load the code of the tabs this
@@ -26,17 +27,18 @@ const AIChatDrawer  = dynamic(() => import("../components/AIChatDrawer"),  { ssr
 // prefetch(), read back through lib/prefetch.js) — opening a tab is then
 // instant instead of chunk + cold API call.
 const TAB_MODULES = {
+  decision: () => import("../components/TabDecision"),
   report: () => import("../components/TabCompanyReport"),
   trials: () => import("../components/TabTrials"),
   users: () => import("../components/TabUsers"),
   auditlog: () => import("../components/TabAuditLog"),
   health: () => import("../components/TabSystemHealth"),
 };
-const tabsForRole = (role) => (role === "manager" ? ["report", "trials", "auditlog", "health", "users"] : role === "sd3" ? ["report", "trials"] : []);
+const tabsForRole = (role) => (role === "manager" ? ["decision", "report", "trials", "auditlog", "health", "users"] : role === "sd3" ? ["decision", "report", "trials"] : []);
 
 // Kế hoạch A · P3: tabs that stay mounted (hidden) once opened, so coming
 // back shows them at once with their data and state; each has a reload button.
-const KEEP_ALIVE_TABS = ["report", "trials", "users", "auditlog", "health"];
+const KEEP_ALIVE_TABS = ["decision", "report", "trials", "users", "auditlog", "health"];
 
 const LEGACY_TABS = ["ltl", "operations", "tachtrip", "ftl"];
 const LTL_VIEWS = [
@@ -78,7 +80,8 @@ export default function DashboardPage({ user: initialUser }) {
   const canSeeEvents = isManager || userTabs.includes("events");
   const canSeeReport = isManager || userTabs.includes("report");
   const canSeeTrials = isManager || userTabs.includes("trials");
-  const firstTab = canSeeLTL ? "ltl" : canSeeMap ? "map" : canSeeDamage ? "damage" : canSeeEvents ? "events" : canSeeReport ? "report" : canSeeTrials ? "trials" : "none";
+  const canSeeDecision = isManager || user.role === "sd3";
+  const firstTab = canSeeDecision ? "decision" : canSeeLTL ? "ltl" : canSeeMap ? "map" : canSeeDamage ? "damage" : canSeeEvents ? "events" : canSeeReport ? "report" : canSeeTrials ? "trials" : "none";
   const [activeTab, setActiveTab] = useState(firstTab); // LTL_VIEWS id | 'report' | 'trials' | 'users' | 'auditlog' | 'health' | 'brain' | 'none'
   const isLTLView = LTL_VIEWS.some((v) => v.id === activeTab);
   const [selectedMonths, setSelectedMonths] = useState(() => {
@@ -459,6 +462,23 @@ export default function DashboardPage({ user: initialUser }) {
                 {v.label}
               </div>
             ))}
+            {canSeeDecision && (
+              <div
+                className={`nav-item ${activeTab === "decision" ? "active" : ""}`}
+                onClick={() => goTab("decision")}
+                style={{
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", borderRadius: 8,
+                  color: activeTab === "decision" ? "#fff" : "var(--text-muted)",
+                  background: activeTab === "decision" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+                Quyết định hôm nay
+              </div>
+            )}
             {canSeeReport && (
               <div
                 className={`nav-item ${activeTab === "report" ? "active" : ""}`}
@@ -690,7 +710,8 @@ export default function DashboardPage({ user: initialUser }) {
               </button>
               <div className="header-title" style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)" }}>
                 {LTL_VIEWS.find((v) => v.id === activeTab)?.label
-                  || (activeTab === "report" ? "Báo cáo công ty"
+                  || (activeTab === "decision" ? "Quyết định hôm nay"
+                  : activeTab === "report" ? "Báo cáo công ty"
                   : activeTab === "trials" ? "Sổ tay Cải tiến & Đo lường Giải pháp"
                   : activeTab === "users" ? "Quản lý người dùng"
                   : activeTab === "auditlog" ? "Nhật Ký Hoạt Động"
@@ -851,7 +872,8 @@ export default function DashboardPage({ user: initialUser }) {
             {/* Opened tabs stay mounted, hidden while another tab is shown. */}
             {KEEP_ALIVE_TABS.filter((id) => visited.has(id) || activeTab === id).map((id) => (
               <div key={id} style={activeTab === id ? undefined : { display: "none" }}>
-                {id === "report" ? <TabCompanyReport />
+                {id === "decision" ? <TabDecision role={user.role} onNavigate={goTab} />
+                  : id === "report" ? <TabCompanyReport />
                   : id === "trials" ? <TabTrials />
                   : id === "users" ? <TabUsers />
                   : id === "auditlog" ? <TabAuditLog />
