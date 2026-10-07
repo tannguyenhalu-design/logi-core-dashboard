@@ -35,6 +35,19 @@ export default async function handler(req, res) {
       target: "ltl",
       details: { ...stats, tookMs },
     }).catch(() => {});
+
+    // Warm /api/data after build so the first dashboard load finds a hot
+    // instance with the new snapshot already in memory. Fire-and-forget.
+    const origin = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : "https://logicore-app.vercel.app";
+    const secret = process.env.SNAPSHOT_SECRET;
+    if (secret) {
+      fetch(`${origin}/api/data?warm=1`, {
+        headers: { "x-snapshot-secret": secret },
+      }).catch(() => {});
+    }
+
     return res.status(200).json({ ok: true, ...stats, tookMs });
   } catch (err) {
     console.error("[/api/cron/build-snapshot] error:", err);
