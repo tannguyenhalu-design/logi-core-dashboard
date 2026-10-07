@@ -398,6 +398,177 @@ function UnplacedPanel({ layer }) {
   );
 }
 
+// ── AI per-tab panel ──
+// Aggregates province/warehouse data for the active industry tab and renders
+// AINarrativePanel (reused from TabAIInsights) with a map-specific prompt.
+function MapTabAIPanel({ mapIndustry, provinceStats, provinceStatsNhc, provinceStatsSttp, provinceDetailsMap, nearCapWarehouses, lowOntimeProvsInsight, nearCapProvsInsight }) {
+  const [narrative, setNarrative] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Reset narrative when user switches industry tab
+  useEffect(() => { setNarrative(null); setError(null); }, [mapIndustry]);
+
+  const industryLabel = mapIndustry === "nhc" ? "NHC" : mapIndustry === "sttp" ? "STTP" : mapIndustry === "all" ? "Tổng 4 ngành" : "Điện Máy";
+
+  const buildPayload = () => {
+    const topN = (arr, n, key, asc = false) =>
+      [...(arr || [])].sort((a, b) => asc ? (a[key] ?? 0) - (b[key] ?? 0) : (b[key] ?? 0) - (a[key] ?? 0)).slice(0, n);
+
+    const stats = mapIndustry === "nhc" ? (provinceStatsNhc || [])
+      : mapIndustry === "sttp" ? (provinceStatsSttp || [])
+      : (provinceStats || []);
+
+    const topProvinces = topN(stats, 5, "orders").map((p) => ({
+      name: p.name,
+      orders: p.orders,
+      ontimePct: (mapIndustry === "nhc" || mapIndustry === "sttp") ? p.details?.ontimePct : (provinceDetailsMap[p.name]?.ontimePct ?? null),
+    }));
+
+    const lowOntimeProvinces = (mapIndustry === "nhc" || mapIndustry === "sttp")
+      ? [...(stats)].filter((p) => (p.details?.ontimePct ?? 100) < 90 && (p.details?.evalCount ?? 0) >= 2)
+          .sort((a, b) => (a.details?.ontimePct ?? 100) - (b.details?.ontimePct ?? 100))
+          .slice(0, 5)
+          .map((p) => ({ name: p.name, ontimePct: p.details.ontimePct, orders: p.orders }))
+      : lowOntimeProvsInsight.map((p) => ({ name: p.name, ontimePct: p.ontimePct, orders: p.orders }));
+
+    const totalOrders = stats.reduce((s, p) => s + (p.orders || 0), 0);
+    const evalOrders = (mapIndustry === "nhc" || mapIndustry === "sttp")
+      ? stats.reduce((s, p) => s + ((p.details?.evalCount ?? 0) >= 1 ? p.orders : 0), 0)
+      : null;
+
+    const payload = { mapIndustry, industryLabel, totalOrders, topProvinces, lowOntimeProvinces };
+
+    if (nearCapWarehouses?.length > 0) {
+      payload.nearCapWarehouses = nearCapWarehouses.map((d) => ({ label: d.label, utilPct: d.utilPct }));
+    }
+
+    if (mapIndustry === "sttp" && (provinceStats || []).length > 0 && (provinceStatsSttp || []).length > 0) {
+      const dmOntimes = (provinceStats).filter((p) => provinceDetailsMap[p.name]?.evalCount >= 3)
+        .map((p) => provinceDetailsMap[p.name]?.ontimePct ?? null).filter((v) => v != null);
+      const sttpOntimes = (provinceStatsSttp).filter((p) => (p.details?.evalCount ?? 0) >= 2)
+        .map((p) => p.details?.ontimePct ?? null).filter((v) => v != null);
+      const avg = (arr) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null;
+      payload.comparison = { ontimeDmAvg: avg(dmOntimes), ontimeSttpAvg: avg(sttpOntimes) };
+      const dmProvinces = new Set((provinceStats).map((p) => p.name));
+      const sttpProvinces = new Set((provinceStatsSttp).map((p) => p.name));
+      const gap = [...dmProvinces].filter((n) => !sttpProvinces.has(n)).slice(0, 6).map((name) => {
+        const p = provinceStats.find((x) => x.name === name);
+        return { name, dmOrders: p?.orders ?? 0 };
+      }).sort((a, b) => b.dmOrders - a.dmOrders).slice(0, 5);
+      if (gap.length > 0) payload.coverageGap = gap;
+    }
+
+    if (mapIndustry === "all" && nearCapProvsInsight?.length > 0) {
+      payload.nearCapProvinces = nearCapProvsInsight.map((p) => ({ name: p.name, pct: p.pct }));
+    }
+
+    if (mapIndustry === "all" && (provinceStats || []).length > 0) {
+      const industries = [];
+      if (provinceStats?.length)      industries.push({ industry: "DM",   provinces: provinceStats.length,   topOrders: provinceStats[0]?.orders ?? 0 });
+      if (provinceStatsNhc?.length)   industries.push({ industry: "NHC",  provinces: provinceStatsNhc.length, topOrders: provinceStatsNhc[0]?.orders ?? 0 });
+      if (provinceStatsSttp?.length)  industries.push({ industry: "STTP", provinces: provinceStatsSttp.length, topOrders: provinceStatsSttp[0]?.orders ?? 0 });
+      payload.industryRanking = industries;
+    }
+
+    if (evalOrders != null) payload.evalOrders = evalOrders;
+
+    return payload;
+  };
+
+  const handleGenerate = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/ai-map-narrative", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mapIndustry, data: buildPayload() }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setNarrative(json.narrative);
+      } else {
+        const rawErr = typeof json.error === "string" ? json.error : JSON.stringify(json.error);
+        if (rawErr.includes("429") || rawErr.includes("quota") || rawErr.includes("Quota")) {
+          setError("⚠️ Hệ thống AI đang quá tải. Vui lòng thử lại sau ít phút.");
+        } else {
+          setError("⚠️ Chưa thể tạo nhận định AI lúc này. Vui lòng thử lại.");
+        }
+      }
+    } catch {
+      setError("Lỗi kết nối, vui lòng thử lại.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{
+      background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.25)",
+      borderRadius: 10, padding: "12px 14px",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: narrative || error ? 10 : 0 }}>
+        <div style={{ fontWeight: 700, fontSize: 12.5, color: "var(--text-primary)" }}>
+          🤖 Phân tích AI — {industryLabel}
+        </div>
+        <button
+          onClick={handleGenerate}
+          disabled={loading}
+          style={{
+            background: "rgba(139,92,246,0.15)", color: "var(--purple)", border: "1px solid rgba(139,92,246,0.35)",
+            padding: "5px 12px", borderRadius: 7, fontSize: 11.5, fontWeight: 600,
+            cursor: loading ? "default" : "pointer", whiteSpace: "nowrap", fontFamily: "inherit",
+          }}
+        >
+          {loading ? "Đang phân tích..." : narrative ? "↺ Phân tích lại" : "✨ Phân tích"}
+        </button>
+      </div>
+      {error && <div style={{ fontSize: 12, color: "var(--red)" }}>{error}</div>}
+      {narrative && <NarrativeLines text={narrative} />}
+    </div>
+  );
+}
+
+// Bullet renderer (mirrors NarrativeText in TabAIInsights but as a local copy
+// to avoid circular import issues with the full AINarrativePanel).
+const MAP_EMOJI_COLOR = [
+  ["🔴", "var(--red)"],
+  ["⚠️", "var(--amber)"],
+  ["📊", "var(--blue)"],
+  ["📍", "var(--amber)"],
+  ["📈", "var(--green)"],
+  ["🎯", "var(--cyan)"],
+  ["✅", "var(--green)"],
+];
+function narrativeLineColorMap(line) {
+  const hit = MAP_EMOJI_COLOR.find(([emoji]) => line.startsWith(emoji));
+  return hit ? hit[1] : "var(--border)";
+}
+function NarrativeLines({ text }) {
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const bulletLines = lines.filter((l) => l.startsWith("- "));
+  if (bulletLines.length === 0) {
+    return <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6, whiteSpace: "pre-line" }}>{text}</div>;
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+      {lines.map((line, i) => {
+        const content = line.replace(/^-\s*/, "");
+        return (
+          <div key={i} style={{
+            display: "flex", alignItems: "flex-start", gap: 7, padding: "6px 8px", borderRadius: 6,
+            background: "rgba(255,255,255,0.03)", borderLeft: `3px solid ${narrativeLineColorMap(content)}`,
+            fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5,
+          }}>
+            {content}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function ProvinceMapPanel({
   provinceStats, routeStats, provinceDetailsMap = {},
   originStats = [], selectedOrigin = null, onOriginChange,
@@ -1236,6 +1407,20 @@ export default function ProvinceMapPanel({
                   <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
                     🏭 Rê hoặc bấm chấm kho để xem tổng tải + phần {mapIndustry === "nhc" ? "NHC (chấm tím)" : mapIndustry === "sttp" ? "STTP (chấm xanh)" : mapIndustry === "all" ? "tổng 4 ngành (chấm xanh lá)" : "Điện máy (chấm cam)"}. Phóng to để tách kho gần nhau.
                   </div>
+                )}
+
+                {/* AI per-tab analysis — only in full-project view */}
+                {!singleProjectMode && (
+                  <MapTabAIPanel
+                    mapIndustry={mapIndustry}
+                    provinceStats={provinceStats}
+                    provinceStatsNhc={provinceStatsNhc}
+                    provinceStatsSttp={provinceStatsSttp}
+                    provinceDetailsMap={provinceDetailsMap}
+                    nearCapWarehouses={nearCapWarehouses}
+                    lowOntimeProvsInsight={lowOntimeProvsInsight}
+                    nearCapProvsInsight={nearCapProvsInsight}
+                  />
                 )}
 
                 {singleProjectMode && projectOverview && (
