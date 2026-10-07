@@ -44,3 +44,5 @@ next-env.d.ts
 
 .vercel
 scripts/kpi_sync_log.txt
+scripts/dump_0.csv
+scripts/scraper_log.txt
