@@ -577,7 +577,7 @@ function NarrativeLines({ text }) {
   );
 }
 
-export default function ProvinceMapPanel({
+function ProvinceMapPanel({
   provinceStats, routeStats, provinceDetailsMap = {},
   originStats = [], selectedOrigin = null, onOriginChange,
   projectSummaries = {}, overallData = {}, singleProjectMode, projectName, onProvinceClick,
@@ -950,18 +950,24 @@ export default function ProvinceMapPanel({
     if (singleProjectMode) return null;
     const sumStats = (stats) => {
       if (!stats?.length) return null;
-      let orders = 0, ontime = 0, late = 0, weight = 0;
+      let orders = 0, ontime = 0, late = 0, weight = 0, damage = 0;
       for (const p of stats) {
         orders += p.orders || 0;
         ontime += p.details?.ontimeCount || 0;
         late   += p.details?.lateCount   || 0;
         weight += p.details?.totalWeight || 0;
+        damage += p.details?.damageCount || 0;
       }
       const evalCount = ontime + late;
-      return { totalOrders: orders, ontimePct: evalCount > 0 ? Math.round((ontime / evalCount) * 100) : null, ontimeCount: ontime, lateCount: late, totalWeight: weight, damageCount: null };
+      return { totalOrders: orders, ontimePct: evalCount > 0 ? Math.round((ontime / evalCount) * 100) : null, ontimeCount: ontime, lateCount: late, totalWeight: weight, damageCount: damage };
     };
     if (mapIndustry === "nhc")  return sumStats(provinceStatsNhc)  || overallData;
     if (mapIndustry === "sttp") return sumStats(provinceStatsSttp) || overallData;
+    if (mapIndustry === "ecom") {
+      // ECOM không quản lý qua Rillnet → damageCount luôn null (N/A)
+      const base = sumStats(provinceStatsEcom);
+      return base ? { ...base, damageCount: null } : overallData;
+    }
     if (mapIndustry === "all") {
       // Sum across DM + NHC + STTP
       let orders = 0, ontime = 0, late = 0, weight = 0;
@@ -975,10 +981,15 @@ export default function ProvinceMapPanel({
         }
       }
       const evalCount = ontime + late;
-      return { totalOrders: orders, ontimePct: evalCount > 0 ? Math.round((ontime / evalCount) * 100) : overallData?.ontimePct, ontimeCount: ontime, lateCount: late, totalWeight: weight, damageCount: overallData?.damageCount };
+      // Damage: DM từ overallData (authoritative) + NHC + STTP từ province details
+      let nhcDmg = 0, sttpDmg = 0;
+      for (const p of provinceStatsNhc  || []) nhcDmg  += p.details?.damageCount || 0;
+      for (const p of provinceStatsSttp || []) sttpDmg += p.details?.damageCount || 0;
+      const totalDmg = (overallData?.damageCount || 0) + nhcDmg + sttpDmg;
+      return { totalOrders: orders, ontimePct: evalCount > 0 ? Math.round((ontime / evalCount) * 100) : overallData?.ontimePct, ontimeCount: ontime, lateCount: late, totalWeight: weight, damageCount: totalDmg };
     }
     return null; // DM: use overallData as-is
-  }, [singleProjectMode, mapIndustry, provinceStats, provinceStatsNhc, provinceStatsSttp, overallData]);
+  }, [singleProjectMode, mapIndustry, provinceStats, provinceStatsNhc, provinceStatsSttp, provinceStatsEcom, overallData]);
 
   const ov = (singleProjectMode ? projectOverview : (industryOverallData || overallData)) || {};
   const ovBadge = getOntimeBadge(singleProjectMode ? (projectOverview?.ontimePct ?? 100) : (ov?.ontimePct ?? 100));
@@ -1146,8 +1157,8 @@ export default function ProvinceMapPanel({
         <Kpi label="Đơn Ontime / Late">
           <span style={{ color: "var(--green)" }}>{fmt(ov.ontimeCount)}</span> / <span style={{ color: "var(--red)" }}>{fmt(ov.lateCount)}</span>
         </Kpi>
-        <Kpi label="Số ca bể vỡ / hư hỏng (Rillnet)" color={ov.damageCount > 0 ? "var(--amber)" : "var(--text-secondary)"}>
-          {ov.damageCount == null ? "—" : `${ov.damageCount} ca`} {ov.damageCount > 0 && "💥"}
+        <Kpi label="Số ca bể vỡ / hư hỏng (Rillnet)" color={mapIndustry === "ecom" ? "var(--text-muted)" : ov.damageCount > 0 ? "var(--amber)" : "var(--text-secondary)"}>
+          {mapIndustry === "ecom" ? "N/A" : ov.damageCount == null ? "—" : `${ov.damageCount} ca`}{ov.damageCount > 0 && mapIndustry !== "ecom" && " 💥"}
         </Kpi>
       </div>
 
@@ -1802,3 +1813,4 @@ export default function ProvinceMapPanel({
     </div>
   );
 }
+export default React.memo(ProvinceMapPanel);

@@ -76,10 +76,24 @@ function computeSync({ provinceStats, provinceDetailsMap, viewMode, mapIndustry,
   return { sortedProvinces, scale, colorMap };
 }
 
+// Module-level per-industry result cache.
+// Key = "mapIndustry:viewMode". Cleared whenever provinceStats reference changes
+// (new data load) so stale cross-filter results never persist.
+const _perIndustryCache = new Map();
+let _lastProvinceStats = null;
+
 export function useFilterWorker(inputs) {
   const workerRef = useRef(null);
   const seqRef = useRef(0);
-  const [result, setResult] = useState(() => computeSync(inputs));
+
+  // Clear cache when the dataset changes (new API response).
+  if (inputs.provinceStats !== _lastProvinceStats) {
+    _perIndustryCache.clear();
+    _lastProvinceStats = inputs.provinceStats;
+  }
+
+  const cacheKey = `${inputs.mapIndustry}:${inputs.viewMode}`;
+  const [result, setResult] = useState(() => _perIndustryCache.get(cacheKey) || computeSync(inputs));
 
   // Keep a stable inputs snapshot to avoid posting on every render.
   const {
@@ -105,12 +119,18 @@ export function useFilterWorker(inputs) {
 
   // Post message whenever relevant inputs change.
   useEffect(() => {
+    const key = `${mapIndustry}:${viewMode}`;
+    // Serve cached result immediately so industry switches feel instant.
+    const cached = _perIndustryCache.get(key);
+    if (cached) setResult(cached);
+
     const w = workerRef.current;
     const seq = ++seqRef.current;
 
     if (!w) {
-      // No worker available — compute synchronously and update state.
-      setResult(computeSync({ provinceStats, provinceDetailsMap, viewMode, mapIndustry, activeProvinceStats, provinceCapUtil }));
+      const fresh = computeSync({ provinceStats, provinceDetailsMap, viewMode, mapIndustry, activeProvinceStats, provinceCapUtil });
+      _perIndustryCache.set(key, fresh);
+      setResult(fresh);
       return;
     }
 
@@ -118,10 +138,13 @@ export function useFilterWorker(inputs) {
       // Ignore stale responses from previous filter changes.
       if (e.data._seq !== seq) return;
       if (e.data.ok) {
-        setResult({ sortedProvinces: e.data.sortedProvinces, scale: e.data.scale, colorMap: e.data.colorMap });
+        const fresh = { sortedProvinces: e.data.sortedProvinces, scale: e.data.scale, colorMap: e.data.colorMap };
+        _perIndustryCache.set(key, fresh);
+        setResult(fresh);
       } else {
-        // Worker error — fall back to sync for this tick.
-        setResult(computeSync({ provinceStats, provinceDetailsMap, viewMode, mapIndustry, activeProvinceStats, provinceCapUtil }));
+        const fresh = computeSync({ provinceStats, provinceDetailsMap, viewMode, mapIndustry, activeProvinceStats, provinceCapUtil });
+        _perIndustryCache.set(key, fresh);
+        setResult(fresh);
       }
     };
     w.addEventListener("message", onMessage);
