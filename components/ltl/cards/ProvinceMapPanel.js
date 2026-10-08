@@ -731,31 +731,32 @@ export default function ProvinceMapPanel({
   // from provinceStats + provinceDetailsMap + damageAvgRate.
   const computedProvinceRisk = useMemo(() => {
     if (provinceRisk.length > 0) return provinceRisk;
-    const stats = provinceStats || [];
-    if (!stats.length || (mapIndustry !== "dm" && mapIndustry !== "all")) return [];
-    const avgRate = damageAvgRate || 0;
+    const stats = activeProvinceStats;
+    if (!stats.length) return [];
+    const isDmAll = mapIndustry === "dm" || mapIndustry === "all";
+    const avgRate = isDmAll ? (damageAvgRate || 0) : 0;
     return stats.map((p) => {
-      const det = provinceDetailsMap[p.name] || p.details;
+      const det = isDmAll ? (provinceDetailsMap[p.name] || p.details) : (p.details || {});
       const evalCount = (det?.ontimeCount ?? 0) + (det?.lateCount ?? 0);
-      const ontimePct = evalCount > 0 ? det.ontimePct : null;
-      const damageCount = det?.damageCount ?? 0;
-      const damageRate = p.orders > 0 ? (damageCount / p.orders) * 100 : 0;
+      const ontimePct = evalCount > 0 ? (det.ontimePct ?? null) : null;
+      const damageCount = isDmAll ? (det?.damageCount ?? 0) : 0;
+      const damageRate = (isDmAll && p.orders > 0) ? (damageCount / p.orders) * 100 : 0;
       const w1 = ontimePct !== null ? Math.max(0, 90 - ontimePct) : 0;
-      const w2 = avgRate > 0 ? (damageRate / avgRate) * 10 : 0;
+      const w2 = (isDmAll && avgRate > 0) ? (damageRate / avgRate) * 10 : 0;
       const riskScore = w1 + w2;
       const tiers = [];
       if (evalCount >= 10 && ontimePct !== null && ontimePct < 80) tiers.push("sla");
-      if (damageCount >= 1 && damageRate >= avgRate) tiers.push("damage");
+      if (isDmAll && damageCount >= 1 && damageRate >= avgRate) tiers.push("damage");
       if (p.orders >= 100 && evalCount >= 10 && ontimePct !== null && ontimePct >= 95) tiers.push("star");
       if (tiers.length === 0 && evalCount >= 10 && ontimePct !== null && ontimePct < 90) tiers.push("watchlist");
       return { name: p.name, orders: p.orders, evalCount, ontimePct, damaged: damageCount, damageRate, riskScore, tiers };
     }).sort((a, b) => b.riskScore - a.riskScore || b.orders - a.orders);
-  }, [provinceRisk, provinceStats, provinceDetailsMap, damageAvgRate, mapIndustry]);
+  }, [provinceRisk, activeProvinceStats, provinceDetailsMap, damageAvgRate, mapIndustry]);
 
   const topProvinces = useMemo(() => {
-    if (!singleProjectMode && (mapIndustry === "dm" || mapIndustry === "all") && computedProvinceRisk.length > 0) {
+    if (!singleProjectMode && computedProvinceRisk.length > 0) {
       const riskMap = new Map(computedProvinceRisk.map((r) => [r.name, r]));
-      return [...(provinceStats || [])]
+      return [...activeProvinceStats]
         .map((p) => {
           const rr = riskMap.get(p.name);
           return { ...p, riskScore: rr?.riskScore ?? 0, tiers: rr?.tiers ?? [] };
@@ -764,7 +765,7 @@ export default function ProvinceMapPanel({
         .slice(0, 8);
     }
     return sortedProvinces.slice(0, 8);
-  }, [singleProjectMode, mapIndustry, computedProvinceRisk, provinceStats, sortedProvinces]);
+  }, [singleProjectMode, computedProvinceRisk, activeProvinceStats, sortedProvinces]);
   const highlightProvinces = useMemo(
     () => (singleProjectMode ? [] : sortedProvinces.slice(0, 5).map((p) => p.name)),
     [singleProjectMode, sortedProvinces]
@@ -1178,7 +1179,7 @@ export default function ProvinceMapPanel({
 
         <div className="province-map-side">
           {!singleProjectMode && (
-            (mapIndustry === "dm" || mapIndustry === "all") && computedProvinceRisk.length > 0 ? (() => {
+            computedProvinceRisk.length > 0 ? (() => {
               const danger  = computedProvinceRisk.filter(p => p.tiers.includes("sla") || p.tiers.includes("damage")).slice(0, 5);
               const caution = computedProvinceRisk.filter(p => !p.tiers.includes("sla") && !p.tiers.includes("damage") && p.tiers.includes("watchlist")).slice(0, 4);
               const stars   = computedProvinceRisk.filter(p => p.tiers.includes("star")).slice(0, 3);
@@ -1191,7 +1192,7 @@ export default function ProvinceMapPanel({
                 <div style={{ background: "var(--panel-bg-strong)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>
-                      🎯 Smart Hotspots {mapIndustry === "all" ? "🟢 Tổng 4" : "🟠 ĐM"}
+                      🎯 Smart Hotspots {mapIndustry === "nhc" ? "🟣 NHC" : mapIndustry === "sttp" ? "🔵 STTP" : mapIndustry === "all" ? "🟢 Tổng 4" : "🟠 ĐM"}
                     </span>
                     <span style={{ fontSize: 10.5, color: "var(--text-muted)" }}>Risk Score · bấm để phóng</span>
                   </div>
@@ -1666,6 +1667,52 @@ export default function ProvinceMapPanel({
                         )}
                       </div>
                     </div>
+
+                    {/* ⑥ Project Trend Insight */}
+                    {(pcProject || provForOntime.worst.length > 0 || dmgProvinces.length > 0) && (
+                      <div style={{ background: "var(--panel-bg)", border: "1px solid var(--border)", borderLeft: "3px solid var(--cyan)", borderRadius: 8, padding: "10px 12px", marginTop: 8 }}>
+                        <div style={SECTION_LABEL}>📊 Nhận định nhanh dự án</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+                          {pcProject?.ontimeDeltaPoints != null && (
+                            <div style={{ fontSize: 11.5 }}>
+                              <span style={{ fontWeight: 600, color: pcProject.ontimeDeltaPoints >= 0 ? "var(--green)" : "var(--red)" }}>
+                                {pcProject.ontimeDeltaPoints >= 0 ? "▲" : "▼"} On-time {pcProject.ontimeDeltaPoints >= 0 ? "tăng" : "giảm"} {Math.abs(pcProject.ontimeDeltaPoints).toFixed(1)} điểm
+                              </span>
+                              {pcProject.cur?.ontimePct != null && pcProject.prev?.ontimePct != null && (
+                                <span style={{ color: "var(--text-muted)" }}> ({pcProject.prev.ontimePct}% → {pcProject.cur.ontimePct}%)</span>
+                              )}
+                              <span style={{ color: "var(--text-muted)", fontSize: 10.5 }}>
+                                {pcProject.ontimeDeltaPoints >= 2 ? " → Đang cải thiện tốt" : pcProject.ontimeDeltaPoints < -3 ? " → Cần xem lại vận hành" : " → Ổn định"}
+                              </span>
+                            </div>
+                          )}
+                          {dmgProvinces.length > 0 && (
+                            <div style={{ fontSize: 11.5, color: "var(--amber)" }}>
+                              💥 {dmgProvinces.length} tỉnh có bể vỡ · nặng nhất: <b>{dmgProvinces[0].name}</b> ({dmgProvinces[0].count} ca)
+                              {pcProject?.damageDeltaPct != null && pcProject.damageDeltaPct > 0 && (
+                                <span style={{ color: "var(--red)" }}> ▲ +{pcProject.damageDeltaPct.toFixed(0)}% so cùng kỳ</span>
+                              )}
+                            </div>
+                          )}
+                          {provForOntime.worst.length > 0 && (
+                            <div style={{ fontSize: 11.5 }}>
+                              <span style={{ color: "var(--text-muted)" }}>🚨 Tỉnh cần can thiệp: </span>
+                              {provForOntime.worst.map((p, i) => (
+                                <span key={p.name}>
+                                  {i > 0 && <span style={{ color: "var(--text-muted)" }}> · </span>}
+                                  <span
+                                    onClick={() => selectAndFly(p.name)}
+                                    style={{ cursor: "pointer", color: getOntimeColor(p.ontimePct), fontWeight: 600 }}
+                                  >
+                                    {p.name} ({p.ontimePct}%)
+                                  </span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </>
@@ -1715,12 +1762,12 @@ export default function ProvinceMapPanel({
           {!singleProjectMode && <div>
             <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
               <span>
-                {(mapIndustry === "dm" || mapIndustry === "all") && computedProvinceRisk.length > 0
-                  ? `🎯 Smart Hotspots — ${mapIndustry === "all" ? "🟢 Tổng 4" : "🟠 ĐM"} (Risk Score)`
+                {computedProvinceRisk.length > 0
+                  ? `🎯 Smart Hotspots — ${mapIndustry === "nhc" ? "🟣 NHC" : mapIndustry === "sttp" ? "🔵 STTP" : mapIndustry === "all" ? "🟢 Tổng 4" : "🟠 ĐM"} (Risk Score)`
                   : `💡 Top 8 Tỉnh — ${mapIndustry === "nhc" ? "🟣 NHC" : mapIndustry === "sttp" ? "🔵 STTP" : mapIndustry === "all" ? "🟢 Tổng 4" : "🟠 ĐM"}`
                 }
               </span>
-              {(mapIndustry === "dm" || mapIndustry === "all") && computedProvinceRisk.length > 0 && (
+              {computedProvinceRisk.length > 0 && (
                 <span style={{ display: "flex", gap: 5, fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: 10.5 }}>
                   <span style={{ background: "rgba(239,68,68,0.15)", color: "var(--red)", border: "1px solid var(--red)", padding: "1px 5px", borderRadius: 4 }}>🔴 SLA</span>
                   <span style={{ background: "rgba(245,158,11,0.15)", color: "var(--amber)", border: "1px solid var(--amber)", padding: "1px 5px", borderRadius: 4 }}>💥 Hỏng</span>
@@ -1741,7 +1788,7 @@ export default function ProvinceMapPanel({
                 const tiers = p.tiers || [];
 
                 // Tier-based border color for Smart Hotspots mode
-                const useSmart = (mapIndustry === "dm" || mapIndustry === "all") && computedProvinceRisk.length > 0;
+                const useSmart = computedProvinceRisk.length > 0;
                 const borderColor = isSelected ? "var(--cyan)"
                   : useSmart
                     ? (tiers.includes("sla") ? "var(--red)" : tiers.includes("damage") ? "var(--amber)" : tiers.includes("star") ? "var(--green)" : "var(--border)")
