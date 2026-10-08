@@ -734,19 +734,23 @@ export default function ProvinceMapPanel({
     const stats = activeProvinceStats;
     if (!stats.length) return [];
     const isDmAll = mapIndustry === "dm" || mapIndustry === "all";
-    const avgRate = isDmAll ? (damageAvgRate || 0) : 0;
+    // For DM/all use server-supplied avgRate; for NHC/STTP compute from province data
+    const totalOrders = stats.reduce((s, p) => s + (p.orders || 0), 0);
+    const totalDamage = stats.reduce((s, p) => s + (isDmAll ? 0 : (p.details?.damageCount || 0)), 0);
+    const computedAvgRate = totalOrders > 0 ? (totalDamage / totalOrders) * 100 : 0;
+    const avgRate = isDmAll ? (damageAvgRate || 0) : computedAvgRate;
     return stats.map((p) => {
       const det = isDmAll ? (provinceDetailsMap[p.name] || p.details) : (p.details || {});
       const evalCount = (det?.ontimeCount ?? 0) + (det?.lateCount ?? 0);
       const ontimePct = evalCount > 0 ? (det.ontimePct ?? null) : null;
-      const damageCount = isDmAll ? (det?.damageCount ?? 0) : 0;
-      const damageRate = (isDmAll && p.orders > 0) ? (damageCount / p.orders) * 100 : 0;
+      const damageCount = det?.damageCount ?? 0;
+      const damageRate = p.orders > 0 ? (damageCount / p.orders) * 100 : 0;
       const w1 = ontimePct !== null ? Math.max(0, 90 - ontimePct) : 0;
-      const w2 = (isDmAll && avgRate > 0) ? (damageRate / avgRate) * 10 : 0;
+      const w2 = avgRate > 0 ? (damageRate / avgRate) * 10 : 0;
       const riskScore = w1 + w2;
       const tiers = [];
       if (evalCount >= 10 && ontimePct !== null && ontimePct < 80) tiers.push("sla");
-      if (isDmAll && damageCount >= 1 && damageRate >= avgRate) tiers.push("damage");
+      if (damageCount >= 1 && damageRate >= avgRate) tiers.push("damage");
       if (p.orders >= 100 && evalCount >= 10 && ontimePct !== null && ontimePct >= 95) tiers.push("star");
       if (tiers.length === 0 && evalCount >= 10 && ontimePct !== null && ontimePct < 90) tiers.push("watchlist");
       return { name: p.name, orders: p.orders, evalCount, ontimePct, damaged: damageCount, damageRate, riskScore, tiers };
