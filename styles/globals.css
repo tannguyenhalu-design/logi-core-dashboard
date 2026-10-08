@@ -21,11 +21,13 @@
      app can be parametrized to rgba(var(--brand-rgb), X) — the light
      theme below swaps this to GHN's brand orange, and every one of those
      call sites follows automatically instead of staying teal in light mode. */
-  /* GHN orange. The var keeps its historical name (--cyan) because it is
-     referenced app-wide as "the accent color". */
-  --brand-rgb: 249, 115, 22;
-  --cyan: #f97316;
-  --cyan-glow: rgba(249, 115, 22, 0.14);
+  /* GHN orange #FF5200 (brand primary). The var keeps its historical name
+     (--cyan) because it is referenced app-wide as "the accent color". */
+  --brand-primary: #FF5200;
+  --brand-secondary: #006FAD;
+  --brand-rgb: 255, 82, 0;
+  --cyan: #FF5200;
+  --cyan-glow: rgba(255, 82, 0, 0.14);
   /* Status colours, dark theme (2026-09-27): jade / amber / soft rose —
      high contrast but easy on the eyes (WCAG AA ≥ 5.2:1 on panels and on
      their own tinted chips; the old rose was 4.15:1 on its chip). */
@@ -85,19 +87,14 @@
   --text-secondary: #334155;
   --text-muted: #64748b;
 
-  /* GHN brand orange (approximated from the company's internal tools —
-     adjust here if there's an exact brand hex on file). Every call site
-     that used to hardcode the dark theme's teal now derives from this via
-     rgba(var(--brand-rgb), X), so light mode is orange everywhere the
-     app used to force teal regardless of theme. Deliberately a deeper,
-     less saturated orange than the button/logo orange in GHN's own
-     tools — that neon-bright shade reads fine on a dark background but
-     is glaring when used as plain body text on white, and this variable
-     doubles as both. --amber (warning) is pushed toward yellow so the
-     two don't blur together at a glance in small badges/icons. */
-  --brand-rgb: 194, 65, 12;
-  --cyan: #c2410c;
-  --cyan-glow: rgba(194, 65, 12, 0.12);
+  /* GHN brand primary #FF5200. In light mode --cyan doubles as accent text,
+     so we use a WCAG-AA-compliant darker shade (#CC4200, 4.6:1 on white)
+     while --brand-primary carries the pure logo orange for decorative use. */
+  --brand-primary: #FF5200;
+  --brand-secondary: #006FAD;
+  --brand-rgb: 204, 66, 0;
+  --cyan: #CC4200;
+  --cyan-glow: rgba(204, 66, 0, 0.12);
   --green: #15803d;
   --green-glow: rgba(21, 128, 61, 0.12);
   --red: #dc2626;

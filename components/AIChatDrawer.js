@@ -217,9 +217,9 @@ export default function AIChatDrawer({ role }) {
                 <div style={{
                   background: m.sender === "user"
                     ? "linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)"
-                    : "rgba(255,255,255,0.05)",
-                  border: m.sender === "user" ? "none" : "1px solid rgba(255,255,255,0.1)",
-                  color: "var(--text-primary)", padding: "10px 14px",
+                    : "#f8fafc",
+                  border: m.sender === "user" ? "none" : "1px solid #e2e8f0",
+                  color: m.sender === "user" ? "#fff" : "#0f172a", padding: "10px 14px",
                   borderRadius: m.sender === "user" ? "14px 14px 2px 14px" : "14px 14px 14px 2px",
                   fontSize: 12.5, lineHeight: 1.6,
                 }}>
@@ -263,8 +263,8 @@ export default function AIChatDrawer({ role }) {
 
             {loading && (
               <div style={{
-                alignSelf: "flex-start", background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.1)", color: "#a78bfa",
+                alignSelf: "flex-start", background: "#f8fafc",
+                border: "1px solid #e2e8f0", color: "#6366f1",
                 padding: "10px 14px", borderRadius: "14px 14px 14px 2px", fontSize: 12, fontStyle: "italic",
               }}>
                 ⏳ Tiểu Đệ đang truy vấn dữ liệu...
@@ -303,15 +303,15 @@ export default function AIChatDrawer({ role }) {
               onKeyDown={(e) => e.key === "Enter" && !loading && handleSend()}
               placeholder="Nhập câu hỏi vận hành..."
               style={{
-                flex: 1, background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8,
-                padding: "8px 12px", color: "#fff", fontSize: 12, outline: "none",
+                flex: 1, background: "#fff",
+                border: "1px solid rgba(99,102,241,0.35)", borderRadius: 8,
+                padding: "8px 12px", color: "#0f172a", fontSize: 12, outline: "none",
               }}
             />
             <button
               onClick={() => handleSend()} disabled={loading || !input.trim()}
               style={{
-                background: "linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)",
+                background: "linear-gradient(135deg, #FF5200 0%, #f97316 100%)",
                 color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px",
                 fontWeight: 600, fontSize: 12,
                 cursor: loading || !input.trim() ? "default" : "pointer",
