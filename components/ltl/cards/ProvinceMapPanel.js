@@ -1177,51 +1177,101 @@ export default function ProvinceMapPanel({
         </div>
 
         <div className="province-map-side">
-          {!singleProjectMode && hotspotRule && (
-            <div style={{ background: "var(--panel-bg-strong)", border: "1px solid var(--border)", borderLeft: "3px solid var(--red)", borderRadius: 12, padding: "12px 14px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  🔥 Top 5 điểm nóng cần chú ý
-                  {(mapIndustry === "nhc" || mapIndustry === "sttp") && (
-                    <span style={{ fontSize: 11, color: "var(--amber)", background: "rgba(245,158,11,0.1)", border: "1px solid var(--amber)", borderRadius: 4, padding: "1px 6px", fontWeight: 600 }}>
-                      {mapIndustry === "nhc" ? "🟣 NHC" : "🔵 STTP"}
+          {!singleProjectMode && (
+            (mapIndustry === "dm" || mapIndustry === "all") && computedProvinceRisk.length > 0 ? (() => {
+              const danger  = computedProvinceRisk.filter(p => p.tiers.includes("sla") || p.tiers.includes("damage")).slice(0, 5);
+              const caution = computedProvinceRisk.filter(p => !p.tiers.includes("sla") && !p.tiers.includes("damage") && p.tiers.includes("watchlist")).slice(0, 4);
+              const stars   = computedProvinceRisk.filter(p => p.tiers.includes("star")).slice(0, 3);
+              const groups  = [
+                { key: "danger",  label: "🔴 Nguy hiểm",           tip: "→ Can thiệp ngay",    color: "var(--red)",   bg: "rgba(239,68,68,0.08)",   items: danger },
+                { key: "caution", label: "⚡ Chú ý",                tip: "→ Theo dõi xu hướng", color: "#60a5fa",      bg: "rgba(96,165,250,0.08)",  items: caution },
+                { key: "star",    label: "⭐ Điểm sáng Benchmark",  tip: "→ Nhân rộng mô hình", color: "var(--green)", bg: "rgba(34,197,94,0.08)",   items: stars },
+              ].filter(g => g.items.length > 0);
+              return (
+                <div style={{ background: "var(--panel-bg-strong)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>
+                      🎯 Smart Hotspots {mapIndustry === "all" ? "🟢 Tổng 4" : "🟠 ĐM"}
                     </span>
-                  )}
-                  {mapIndustry === "all" && (
-                    <span style={{ fontSize: 11, color: "var(--text-muted)", border: "1px solid var(--border)", borderRadius: 4, padding: "1px 6px" }}>tham chiếu ĐM</span>
-                  )}
-                </span>
-                <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                  Trễ: on-time &lt; {hotspotRule.ontimePct}% (≥ {hotspotRule.minEval} đơn đã đánh giá){mapIndustry === "dm" ? " · Bể vỡ: ≥ 2× TB và ≥ 2 ca" : ""} · bấm để phóng tới
-                </span>
-              </div>
-              {activeHotspots.length === 0 ? (
-                <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>Không có tỉnh nào vượt ngưỡng trong bộ lọc hiện tại.</div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {activeHotspots.map((h, i) => {
-                    const on = pinnedProv === h.name;
-                    return (
-                      <button key={h.name} onClick={() => (on ? setPinnedProv(null) : selectAndFly(h.name))} style={{
-                        display: "flex", alignItems: "center", gap: 10, textAlign: "left", width: "100%", fontFamily: "inherit",
-                        padding: "7px 10px", borderRadius: 8, cursor: "pointer", color: "var(--text-primary)", flexWrap: "wrap",
-                        border: `1px solid ${on ? "var(--red)" : "var(--border)"}`, background: on ? "var(--red-glow)" : "var(--panel-bg)",
-                      }}>
-                        <span style={{ fontWeight: 800, color: "var(--red)", width: 14 }}>{i + 1}</span>
-                        <span style={{ fontWeight: 700, minWidth: 100 }}>{h.name}</span>
-                        <span style={{ fontSize: 12, color: "var(--text-muted)", flex: 1, minWidth: 160 }}>
-                          {h.lateHot && <span style={{ color: getOntimeColor(h.ontimePct), fontWeight: 600 }}>⏱ On-time {h.ontimePct}% · {fmt(h.late)} late</span>}
-                          {h.lateHot && h.damageHot && " · "}
-                          {h.damageHot && <span style={{ color: "var(--amber)", fontWeight: 600 }}>💥 {fmt(h.damaged)} ca hỏng ({h.damageRate}%)</span>}
-                          {!h.lateHot && <span> · on-time {h.ontimePct ?? "—"}%</span>}
-                        </span>
-                        <span style={{ fontSize: 11.5, color: "var(--text-muted)", whiteSpace: "nowrap" }}>{fmt(h.orders)} đơn</span>
-                      </button>
-                    );
-                  })}
+                    <span style={{ fontSize: 10.5, color: "var(--text-muted)" }}>Risk Score · bấm để phóng</span>
+                  </div>
+                  {groups.length === 0 ? (
+                    <div style={{ fontSize: 12, color: "var(--green)" }}>✅ Tất cả tỉnh trong ngưỡng an toàn.</div>
+                  ) : groups.map(g => (
+                    <div key={g.key} style={{ marginBottom: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: g.color }}>{g.label}</span>
+                        <span style={{ fontSize: 10.5, color: "var(--text-muted)" }}>{g.tip}</span>
+                      </div>
+                      {g.items.map(p => {
+                        const on = pinnedProv === p.name;
+                        const desc = g.key === "danger"
+                          ? [p.tiers.includes("sla") ? `⏱ Ontime ${p.ontimePct ?? "—"}%` : null, p.tiers.includes("damage") ? `💥 ${p.damaged} ca hỏng (${p.damageRate.toFixed(1)}%)` : null].filter(Boolean).join(" · ")
+                          : `Ontime ${p.ontimePct ?? "—"}%${p.damaged > 0 ? ` · 💥 ${p.damaged} ca` : ""}`;
+                        return (
+                          <button key={p.name} onClick={() => (on ? setPinnedProv(null) : selectAndFly(p.name))} style={{
+                            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                            width: "100%", padding: "5px 10px", borderRadius: 8, cursor: "pointer",
+                            fontFamily: "inherit", textAlign: "left", flexWrap: "wrap", marginBottom: 3,
+                            border: `1px solid ${on ? g.color : "var(--border)"}`,
+                            background: on ? g.bg : "var(--panel-bg)",
+                          }}>
+                            <span style={{ fontWeight: 700, fontSize: 12.5, color: g.color, minWidth: 80 }}>{p.name}</span>
+                            <span style={{ fontSize: 11, color: "var(--text-muted)", flex: 1 }}>{desc}</span>
+                            <span style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" }}>{fmt(p.orders)} đơn</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
+              );
+            })() : hotspotRule ? (
+              <div style={{ background: "var(--panel-bg-strong)", border: "1px solid var(--border)", borderLeft: "3px solid var(--red)", borderRadius: 12, padding: "12px 14px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    🔥 Top 5 điểm nóng cần chú ý
+                    {(mapIndustry === "nhc" || mapIndustry === "sttp") && (
+                      <span style={{ fontSize: 11, color: "var(--amber)", background: "rgba(245,158,11,0.1)", border: "1px solid var(--amber)", borderRadius: 4, padding: "1px 6px", fontWeight: 600 }}>
+                        {mapIndustry === "nhc" ? "🟣 NHC" : "🔵 STTP"}
+                      </span>
+                    )}
+                    {mapIndustry === "all" && (
+                      <span style={{ fontSize: 11, color: "var(--text-muted)", border: "1px solid var(--border)", borderRadius: 4, padding: "1px 6px" }}>tham chiếu ĐM</span>
+                    )}
+                  </span>
+                  <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                    Trễ: on-time &lt; {hotspotRule.ontimePct}% (≥ {hotspotRule.minEval} đơn đã đánh giá){mapIndustry === "dm" ? " · Bể vỡ: ≥ 2× TB và ≥ 2 ca" : ""} · bấm để phóng tới
+                  </span>
+                </div>
+                {activeHotspots.length === 0 ? (
+                  <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>Không có tỉnh nào vượt ngưỡng trong bộ lọc hiện tại.</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {activeHotspots.map((h, i) => {
+                      const on = pinnedProv === h.name;
+                      return (
+                        <button key={h.name} onClick={() => (on ? setPinnedProv(null) : selectAndFly(h.name))} style={{
+                          display: "flex", alignItems: "center", gap: 10, textAlign: "left", width: "100%", fontFamily: "inherit",
+                          padding: "7px 10px", borderRadius: 8, cursor: "pointer", color: "var(--text-primary)", flexWrap: "wrap",
+                          border: `1px solid ${on ? "var(--red)" : "var(--border)"}`, background: on ? "var(--red-glow)" : "var(--panel-bg)",
+                        }}>
+                          <span style={{ fontWeight: 800, color: "var(--red)", width: 14 }}>{i + 1}</span>
+                          <span style={{ fontWeight: 700, minWidth: 100 }}>{h.name}</span>
+                          <span style={{ fontSize: 12, color: "var(--text-muted)", flex: 1, minWidth: 160 }}>
+                            {h.lateHot && <span style={{ color: getOntimeColor(h.ontimePct), fontWeight: 600 }}>⏱ On-time {h.ontimePct}% · {fmt(h.late)} late</span>}
+                            {h.lateHot && h.damageHot && " · "}
+                            {h.damageHot && <span style={{ color: "var(--amber)", fontWeight: 600 }}>💥 {fmt(h.damaged)} ca hỏng ({h.damageRate}%)</span>}
+                            {!h.lateHot && <span> · on-time {h.ontimePct ?? "—"}%</span>}
+                          </span>
+                          <span style={{ fontSize: 11.5, color: "var(--text-muted)", whiteSpace: "nowrap" }}>{fmt(h.orders)} đơn</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : null
           )}
 
           {/* Province detail — replaces the floating box that used to cover the map */}
