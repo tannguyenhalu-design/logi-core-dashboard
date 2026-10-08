@@ -401,7 +401,7 @@ function UnplacedPanel({ layer }) {
 // ── AI per-tab panel ──
 // Aggregates province/warehouse data for the active industry tab and renders
 // AINarrativePanel (reused from TabAIInsights) with a map-specific prompt.
-function MapTabAIPanel({ mapIndustry, provinceStats, provinceStatsNhc, provinceStatsSttp, provinceDetailsMap, nearCapWarehouses, lowOntimeProvsInsight, nearCapProvsInsight }) {
+function MapTabAIPanel({ mapIndustry, provinceStats, provinceStatsNhc, provinceStatsSttp, provinceStatsEcom, provinceDetailsMap, nearCapWarehouses, lowOntimeProvsInsight, nearCapProvsInsight }) {
   const [narrative, setNarrative] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -409,7 +409,7 @@ function MapTabAIPanel({ mapIndustry, provinceStats, provinceStatsNhc, provinceS
   // Reset narrative when user switches industry tab
   useEffect(() => { setNarrative(null); setError(null); }, [mapIndustry]);
 
-  const industryLabel = mapIndustry === "nhc" ? "NHC" : mapIndustry === "sttp" ? "STTP" : mapIndustry === "all" ? "Tổng 4 ngành" : "Điện Máy";
+  const industryLabel = mapIndustry === "nhc" ? "NHC" : mapIndustry === "sttp" ? "STTP" : mapIndustry === "ecom" ? "ECOM" : mapIndustry === "all" ? "Tổng 4 ngành" : "Điện Máy";
 
   const buildPayload = () => {
     const topN = (arr, n, key, asc = false) =>
@@ -417,15 +417,16 @@ function MapTabAIPanel({ mapIndustry, provinceStats, provinceStatsNhc, provinceS
 
     const stats = mapIndustry === "nhc" ? (provinceStatsNhc || [])
       : mapIndustry === "sttp" ? (provinceStatsSttp || [])
+      : mapIndustry === "ecom" ? (provinceStatsEcom || [])
       : (provinceStats || []);
 
     const topProvinces = topN(stats, 5, "orders").map((p) => ({
       name: p.name,
       orders: p.orders,
-      ontimePct: (mapIndustry === "nhc" || mapIndustry === "sttp") ? p.details?.ontimePct : (provinceDetailsMap[p.name]?.ontimePct ?? null),
+      ontimePct: (mapIndustry === "nhc" || mapIndustry === "sttp" || mapIndustry === "ecom") ? p.details?.ontimePct : (provinceDetailsMap[p.name]?.ontimePct ?? null),
     }));
 
-    const lowOntimeProvinces = (mapIndustry === "nhc" || mapIndustry === "sttp")
+    const lowOntimeProvinces = (mapIndustry === "nhc" || mapIndustry === "sttp" || mapIndustry === "ecom")
       ? [...(stats)].filter((p) => (p.details?.ontimePct ?? 100) < 90 && (p.details?.evalCount ?? 0) >= 2)
           .sort((a, b) => (a.details?.ontimePct ?? 100) - (b.details?.ontimePct ?? 100))
           .slice(0, 5)
@@ -433,7 +434,7 @@ function MapTabAIPanel({ mapIndustry, provinceStats, provinceStatsNhc, provinceS
       : lowOntimeProvsInsight.map((p) => ({ name: p.name, ontimePct: p.ontimePct, orders: p.orders }));
 
     const totalOrders = stats.reduce((s, p) => s + (p.orders || 0), 0);
-    const evalOrders = (mapIndustry === "nhc" || mapIndustry === "sttp")
+    const evalOrders = (mapIndustry === "nhc" || mapIndustry === "sttp" || mapIndustry === "ecom")
       ? stats.reduce((s, p) => s + ((p.details?.evalCount ?? 0) >= 1 ? p.orders : 0), 0)
       : null;
 
@@ -471,9 +472,10 @@ function MapTabAIPanel({ mapIndustry, provinceStats, provinceStatsNhc, provinceS
 
     if (mapIndustry === "all" && (provinceStats || []).length > 0) {
       const industries = [];
-      if (provinceStats?.length)      industries.push({ industry: "DM",   provinces: provinceStats.length,   topOrders: provinceStats[0]?.orders ?? 0 });
+      if (provinceStats?.length)      industries.push({ industry: "DM",   provinces: provinceStats.length,    topOrders: provinceStats[0]?.orders ?? 0 });
       if (provinceStatsNhc?.length)   industries.push({ industry: "NHC",  provinces: provinceStatsNhc.length, topOrders: provinceStatsNhc[0]?.orders ?? 0 });
       if (provinceStatsSttp?.length)  industries.push({ industry: "STTP", provinces: provinceStatsSttp.length, topOrders: provinceStatsSttp[0]?.orders ?? 0 });
+      if (provinceStatsEcom?.length)  industries.push({ industry: "ECOM", provinces: provinceStatsEcom.length, topOrders: provinceStatsEcom[0]?.orders ?? 0 });
       payload.industryRanking = industries;
     }
 
@@ -585,8 +587,10 @@ export default function ProvinceMapPanel({
   warehouseLayerAll = null,
   warehouseLayerNhc = null,
   warehouseLayerSttp = null,
+  warehouseLayerEcom = null,
   provinceStatsNhc = null,
   provinceStatsSttp = null,
+  provinceStatsEcom = null,
   periodComparison = null,
 }) {
   const [activeProv, setActiveProv] = useState(null);
@@ -595,20 +599,22 @@ export default function ProvinceMapPanel({
   const [viewMode, setViewMode] = useState("ontime"); // 'ontime' | 'orders' | 'weight' | 'damage'
   // Kho layer — checkbox "Hiện kho" (Kế hoạch D · 2a, refactored)
   const [showWhState, setShowWh] = useState(true);
-  const [mapIndustry, setMapIndustry] = useState("dm"); // "dm" | "nhc" | "sttp" | "all"
+  const [mapIndustry, setMapIndustry] = useState("dm"); // "dm" | "nhc" | "sttp" | "ecom" | "all"
   const [whSearch, setWhSearch] = useState("");
   const [activeWh, setActiveWh] = useState(null);
   const [pinnedWh, setPinnedWh] = useState(null);
   const activeLayer =
     mapIndustry === "nhc"  ? (warehouseLayerNhc?.sites?.length  ? warehouseLayerNhc  : null) :
     mapIndustry === "sttp" ? (warehouseLayerSttp?.sites?.length ? warehouseLayerSttp : null) :
+    mapIndustry === "ecom" ? (warehouseLayerEcom?.sites?.length ? warehouseLayerEcom : null) :
     mapIndustry === "all"  ? (warehouseLayerAll?.sites?.length  ? warehouseLayerAll  : warehouseLayer) :
     warehouseLayer;
-  const hasWh = !!(warehouseLayer?.sites?.length || warehouseLayerAll?.sites?.length || warehouseLayerNhc?.sites?.length || warehouseLayerSttp?.sites?.length);
+  const hasWh = !!(warehouseLayer?.sites?.length || warehouseLayerAll?.sites?.length || warehouseLayerNhc?.sites?.length || warehouseLayerSttp?.sites?.length || warehouseLayerEcom?.sites?.length);
   // Show industry selector when any non-DM industry has province ontime OR warehouse data.
   const hasMultiIndustry = !!(
     warehouseLayerNhc?.sites?.length || provinceStatsNhc?.length ||
     warehouseLayerSttp?.sites?.length || provinceStatsSttp?.length ||
+    warehouseLayerEcom?.sites?.length || provinceStatsEcom?.length ||
     warehouseLayerAll?.sites?.length
   );
   const showWh = !!activeLayer?.sites?.length && showWhState; // guards activeLayer.totals / .period accesses
@@ -624,9 +630,10 @@ export default function ProvinceMapPanel({
   // Reset to DM when the selected industry tab loses its data (e.g. filter change removes NHC rows).
   useEffect(() => {
     if (!hasMultiIndustry && mapIndustry !== "dm") setMapIndustry("dm");
-    else if (mapIndustry === "nhc" && !provinceStatsNhc?.length && !warehouseLayerNhc?.sites?.length) setMapIndustry("dm");
+    else if (mapIndustry === "nhc"  && !provinceStatsNhc?.length  && !warehouseLayerNhc?.sites?.length)  setMapIndustry("dm");
     else if (mapIndustry === "sttp" && !provinceStatsSttp?.length && !warehouseLayerSttp?.sites?.length) setMapIndustry("dm");
-  }, [hasMultiIndustry, mapIndustry, provinceStatsNhc, provinceStatsSttp, warehouseLayerNhc, warehouseLayerSttp]);
+    else if (mapIndustry === "ecom" && !provinceStatsEcom?.length && !warehouseLayerEcom?.sites?.length) setMapIndustry("dm");
+  }, [hasMultiIndustry, mapIndustry, provinceStatsNhc, provinceStatsSttp, provinceStatsEcom, warehouseLayerNhc, warehouseLayerSttp, warehouseLayerEcom]);
   // ── Fullscreen (whole panel, so the detail column stays visible) ──
   const panelRef = useRef(null);
   const [isFs, setIsFs] = useState(false);
@@ -679,22 +686,23 @@ export default function ProvinceMapPanel({
 
   // Province stats for the selected industry (NHC/STTP have simpler shape)
   const activeProvinceStats = useMemo(() => {
-    if (mapIndustry === "nhc" && provinceStatsNhc?.length) return provinceStatsNhc;
+    if (mapIndustry === "nhc"  && provinceStatsNhc?.length)  return provinceStatsNhc;
     if (mapIndustry === "sttp" && provinceStatsSttp?.length) return provinceStatsSttp;
+    if (mapIndustry === "ecom" && provinceStatsEcom?.length) return provinceStatsEcom;
     return provinceStats || [];
-  }, [mapIndustry, provinceStats, provinceStatsNhc, provinceStatsSttp]);
+  }, [mapIndustry, provinceStats, provinceStatsNhc, provinceStatsSttp, provinceStatsEcom]);
 
-  // Hotspots derived from industry-specific province stats for NHC/STTP
+  // Hotspots derived from industry-specific province stats for NHC/STTP/ECOM
   const activeHotspots = useMemo(() => {
     if (mapIndustry === "dm" || mapIndustry === "all" || !hotspotRule) return hotspots;
-    const src = mapIndustry === "nhc" ? provinceStatsNhc : provinceStatsSttp;
+    const src = mapIndustry === "nhc" ? provinceStatsNhc : mapIndustry === "ecom" ? provinceStatsEcom : provinceStatsSttp;
     if (!src?.length) return hotspots;
     return src
       .filter((p) => p.details?.evalCount >= (hotspotRule.minEval || 5) && p.details?.ontimePct < (hotspotRule.ontimePct || 80))
       .map((p) => ({ name: p.name, ontimePct: p.details.ontimePct, orders: p.orders, late: p.details.lateCount, lateHot: true, damageHot: false }))
       .sort((a, b) => a.ontimePct - b.ontimePct)
       .slice(0, 5);
-  }, [mapIndustry, hotspots, hotspotRule, provinceStatsNhc, provinceStatsSttp]);
+  }, [mapIndustry, hotspots, hotspotRule, provinceStatsNhc, provinceStatsSttp, provinceStatsEcom]);
 
   // For "Tổng 4" mode: aggregate warehouseLayerAll.sites by province →
   // capacity utilization = (sum actual giao/day) / (sum GTC cap/day).
@@ -928,8 +936,12 @@ export default function ProvinceMapPanel({
       const d = provinceStatsSttp?.find((p) => p.name === shownProv)?.details;
       return d ? { ...d, name: shownProv } : null;
     }
+    if (mapIndustry === "ecom") {
+      const d = provinceStatsEcom?.find((p) => p.name === shownProv)?.details;
+      return d ? { ...d, name: shownProv } : null;
+    }
     return provinceDetailsMap[shownProv] || provinceStats.find((p) => p.name === shownProv)?.details || null;
-  }, [shownProv, mapIndustry, provinceDetailsMap, provinceStats, provinceStatsNhc, provinceStatsSttp]);
+  }, [shownProv, mapIndustry, provinceDetailsMap, provinceStats, provinceStatsNhc, provinceStatsSttp, provinceStatsEcom]);
   const projectOverview = singleProjectMode ? projectSummaries[projectName] : null;
 
   // KPI aggregated from the active industry's province stats (NHC/STTP/All).
@@ -1040,13 +1052,15 @@ export default function ProvinceMapPanel({
                 { id: "dm",  label: "🟠 ĐM" },
                 ...((warehouseLayerNhc?.sites?.length  || provinceStatsNhc?.length)  ? [{ id: "nhc",  label: "🟣 NHC" }]  : []),
                 ...((warehouseLayerSttp?.sites?.length || provinceStatsSttp?.length) ? [{ id: "sttp", label: "🔵 STTP" }] : []),
-                ...((warehouseLayerAll?.sites?.length  || provinceStatsNhc?.length || provinceStatsSttp?.length) ? [{ id: "all",  label: "🟢 Tổng 4" }] : []),
+                ...((warehouseLayerEcom?.sites?.length || provinceStatsEcom?.length) ? [{ id: "ecom", label: "🟤 ECOM" }] : []),
+                ...((warehouseLayerAll?.sites?.length  || provinceStatsNhc?.length || provinceStatsSttp?.length || provinceStatsEcom?.length) ? [{ id: "all",  label: "🟢 Tổng 4" }] : []),
               ]}
               value={mapIndustry}
               onChange={setMapIndustry}
               activeBg={
                 mapIndustry === "nhc"  ? "rgba(139,92,246,0.8)" :
                 mapIndustry === "sttp" ? "rgba(6,182,212,0.8)"  :
+                mapIndustry === "ecom" ? "rgba(139,90,43,0.8)"  :
                 mapIndustry === "all"  ? "var(--cyan)"          :
                 "rgba(249,115,22,0.8)"
               }
@@ -1314,7 +1328,14 @@ export default function ProvinceMapPanel({
                 </div>
 
                 <div className="province-stat-grid">
-                  <MiniStat label="Đơn giao" color="var(--cyan)">{fmt(inspectData.totalOrders ?? inspectData.evalCount)}</MiniStat>
+                  <MiniStat label="Đơn giao" color="var(--cyan)">{fmt(
+                    mapIndustry === "all"
+                      ? (provinceStats.find((p) => p.name === shownProv)?.orders || 0) +
+                        (provinceStatsNhc?.find((p) => p.name === shownProv)?.orders || 0) +
+                        (provinceStatsSttp?.find((p) => p.name === shownProv)?.orders || 0) +
+                        (provinceStatsEcom?.find((p) => p.name === shownProv)?.orders || 0)
+                      : (inspectData.totalOrders ?? inspectData.evalCount)
+                  )}</MiniStat>
                   {inspectData.totalWeight != null && (
                     <MiniStat label="Tải trọng">{fmtWeight(inspectData.totalWeight)}</MiniStat>
                   )}
@@ -1337,16 +1358,19 @@ export default function ProvinceMapPanel({
                 </div>
 
                 {mapIndustry === "all" && (() => {
-                  const dmD = provinceDetailsMap[shownProv] || provinceStats.find((p) => p.name === shownProv)?.details;
-                  const nhcD = provinceStatsNhc?.find((p) => p.name === shownProv)?.details;
+                  const dmD   = provinceDetailsMap[shownProv] || provinceStats.find((p) => p.name === shownProv)?.details;
+                  const nhcD  = provinceStatsNhc?.find((p) => p.name === shownProv)?.details;
                   const sttpD = provinceStatsSttp?.find((p) => p.name === shownProv)?.details;
+                  const ecomD = provinceStatsEcom?.find((p) => p.name === shownProv)?.details;
                   const rows = [
-                    { label: "🟠 ĐM",   color: "var(--amber)",  orders: dmD?.totalOrders,   ontime: dmD?.ontimePct,   damage: dmD?.damageCount },
-                    { label: "🟣 NHC",  color: "#a78bfa",        orders: nhcD?.evalCount,    ontime: nhcD?.ontimePct,  damage: null },
-                    { label: "🔵 STTP", color: "#38bdf8",        orders: sttpD?.evalCount,   ontime: sttpD?.ontimePct, damage: null },
+                    { label: "🟠 ĐM",   color: "var(--amber)",       orders: dmD?.totalOrders,   weight: dmD?.totalWeight,   ontime: dmD?.ontimePct,   damage: dmD?.damageCount },
+                    { label: "🟣 NHC",  color: "#a78bfa",             orders: nhcD?.evalCount,    weight: nhcD?.totalWeight,  ontime: nhcD?.ontimePct,  damage: nhcD?.damageCount ?? null },
+                    { label: "🔵 STTP", color: "#38bdf8",             orders: sttpD?.evalCount,   weight: sttpD?.totalWeight, ontime: sttpD?.ontimePct, damage: sttpD?.damageCount ?? null },
+                    { label: "🟤 ECOM", color: "rgba(139,90,43,0.9)", orders: ecomD?.evalCount,   weight: ecomD?.totalWeight, ontime: ecomD?.ontimePct, damage: null, ecomRow: true },
                   ].filter((r) => r.orders != null && r.orders > 0);
                   if (!rows.length) return null;
                   const total = rows.reduce((s, r) => s + r.orders, 0);
+                  const totalWeight = rows.reduce((s, r) => s + (r.weight || 0), 0);
                   return (
                     <div style={{ marginTop: 12 }}>
                       <div style={SECTION_LABEL}>📊 Breakdown theo ngành</div>
@@ -1356,7 +1380,9 @@ export default function ProvinceMapPanel({
                             <tr>
                               <th style={{ padding: "5px 8px" }}>Ngành</th>
                               <th style={{ padding: "5px 8px", textAlign: "right" }}>Đơn</th>
-                              <th style={{ padding: "5px 8px", textAlign: "right" }}>% đơn</th>
+                              <th style={{ padding: "5px 8px", textAlign: "right" }}>% Đơn</th>
+                              <th style={{ padding: "5px 8px", textAlign: "right" }}>Tải trọng</th>
+                              <th style={{ padding: "5px 8px", textAlign: "right" }}>% Tải</th>
                               <th style={{ padding: "5px 8px", textAlign: "right" }}>Ontime</th>
                               <th style={{ padding: "5px 8px", textAlign: "right" }}>Bể vỡ</th>
                             </tr>
@@ -1367,11 +1393,17 @@ export default function ProvinceMapPanel({
                                 <td style={{ padding: "5px 8px", fontWeight: 700, color: r.color }}>{r.label}</td>
                                 <td style={{ padding: "5px 8px", textAlign: "right", color: "var(--cyan)", fontWeight: 700 }}>{fmt(r.orders)}</td>
                                 <td style={{ padding: "5px 8px", textAlign: "right", color: "var(--text-secondary)" }}>{Math.round((r.orders / total) * 100)}%</td>
+                                <td style={{ padding: "5px 8px", textAlign: "right", color: "var(--text-secondary)" }}>
+                                  {r.weight != null && r.weight > 0 ? shortWeight(r.weight) : (r.ecomRow ? "N/A" : "—")}
+                                </td>
+                                <td style={{ padding: "5px 8px", textAlign: "right", color: "var(--text-muted)" }}>
+                                  {totalWeight > 0 && r.weight > 0 ? `${Math.round((r.weight / totalWeight) * 100)}%` : "—"}
+                                </td>
                                 <td style={{ padding: "5px 8px", textAlign: "right", color: getOntimeColor(r.ontime), fontWeight: 600 }}>
                                   {r.ontime != null ? `${r.ontime}%${r.ontime < 80 ? " 🚨" : r.ontime < 90 ? " ⚠️" : ""}` : "—"}
                                 </td>
-                                <td style={{ padding: "5px 8px", textAlign: "right", color: r.damage > 0 ? "var(--amber)" : "var(--text-muted)", fontWeight: r.damage > 0 ? 700 : 400 }}>
-                                  {r.damage > 0 ? `${r.damage} ca` : "—"}
+                                <td style={{ padding: "5px 8px", textAlign: "right", color: r.ecomRow ? "var(--text-muted)" : r.damage > 0 ? "var(--amber)" : "var(--text-muted)", fontWeight: r.ecomRow ? 400 : r.damage > 0 ? 700 : 400 }}>
+                                  {r.ecomRow ? "N/A" : r.damage > 0 ? `${r.damage} ca` : "—"}
                                 </td>
                               </tr>
                             ))}
@@ -1400,12 +1432,14 @@ export default function ProvinceMapPanel({
                   const clientSections = [];
                   if (mapIndustry === "all") {
                     // Multi-section: one per industry with data in this province
-                    const dmClients = (provinceDetailsMap[shownProv] || provinceStats.find((p) => p.name === shownProv)?.details)?.clientDetails;
-                    const nhcClients = provinceStatsNhc?.find((p) => p.name === shownProv)?.details?.clientDetails;
+                    const dmClients   = (provinceDetailsMap[shownProv] || provinceStats.find((p) => p.name === shownProv)?.details)?.clientDetails;
+                    const nhcClients  = provinceStatsNhc?.find((p) => p.name === shownProv)?.details?.clientDetails;
                     const sttpClients = provinceStatsSttp?.find((p) => p.name === shownProv)?.details?.clientDetails;
-                    if (dmClients?.length)   clientSections.push({ label: "🟠 Khách ĐM",   color: "var(--amber)", clients: dmClients,   showDmg: true });
-                    if (nhcClients?.length)  clientSections.push({ label: "🟣 Khách NHC",  color: "#a78bfa",      clients: nhcClients,  showDmg: false });
-                    if (sttpClients?.length) clientSections.push({ label: "🔵 Khách STTP", color: "#38bdf8",      clients: sttpClients, showDmg: false });
+                    const ecomClients = provinceStatsEcom?.find((p) => p.name === shownProv)?.details?.clientDetails;
+                    if (dmClients?.length)   clientSections.push({ label: "🟠 Khách ĐM",   color: "var(--amber)",       clients: dmClients,   showDmg: true });
+                    if (nhcClients?.length)  clientSections.push({ label: "🟣 Khách NHC",  color: "#a78bfa",             clients: nhcClients,  showDmg: false });
+                    if (sttpClients?.length) clientSections.push({ label: "🔵 Khách STTP", color: "#38bdf8",             clients: sttpClients, showDmg: false });
+                    if (ecomClients?.length) clientSections.push({ label: "🟤 Khách ECOM", color: "rgba(139,90,43,0.9)", clients: ecomClients, showDmg: false });
                   } else if (inspectData.clientDetails?.length) {
                     const isDm = mapIndustry === "dm";
                     clientSections.push({ label: `🏢 Khách hàng giao khu vực ${inspectData.name} (${inspectData.clientDetails.length})`, color: null, clients: inspectData.clientDetails, showDmg: isDm });
@@ -1535,6 +1569,7 @@ export default function ProvinceMapPanel({
                     provinceStats={provinceStats}
                     provinceStatsNhc={provinceStatsNhc}
                     provinceStatsSttp={provinceStatsSttp}
+                    provinceStatsEcom={provinceStatsEcom}
                     provinceDetailsMap={provinceDetailsMap}
                     nearCapWarehouses={nearCapWarehouses}
                     lowOntimeProvsInsight={lowOntimeProvsInsight}

@@ -206,7 +206,7 @@ export default function DashboardPage({ user: initialUser }) {
       lastQsRef.current = qsWithAsOf;
       setStaleDash(qs, data, qsWithAsOf); // Store for next stale-serve
       if (withMap && data.ltl?.provinceStats) {
-        setMapData({ qs: qsWithAsOf, fields: { provinceStats: data.ltl.provinceStats, provinceDetailsMap: data.ltl.provinceDetailsMap, originStats: data.ltl.originStats, routeStats: data.ltl.routeStats, warehouseLayer: data.ltl.warehouseLayer ?? null, warehouseLayerAll: data.ltl.warehouseLayerAll ?? null, warehouseLayerNhc: data.ltl.warehouseLayerNhc ?? null, warehouseLayerSttp: data.ltl.warehouseLayerSttp ?? null, provinceStatsNhc: data.ltl.provinceStatsNhc ?? null, provinceStatsSttp: data.ltl.provinceStatsSttp ?? null } });
+        setMapData({ qs: qsWithAsOf, fields: { provinceStats: data.ltl.provinceStats, provinceDetailsMap: data.ltl.provinceDetailsMap, originStats: data.ltl.originStats, routeStats: data.ltl.routeStats, warehouseLayer: data.ltl.warehouseLayer ?? null, warehouseLayerAll: data.ltl.warehouseLayerAll ?? null, warehouseLayerNhc: data.ltl.warehouseLayerNhc ?? null, warehouseLayerSttp: data.ltl.warehouseLayerSttp ?? null, warehouseLayerEcom: data.ltl.warehouseLayerEcom ?? null, provinceStatsNhc: data.ltl.provinceStatsNhc ?? null, provinceStatsSttp: data.ltl.provinceStatsSttp ?? null, provinceStatsEcom: data.ltl.provinceStatsEcom ?? null } });
       }
       setDashData(data);
     } catch (e) {
@@ -312,7 +312,7 @@ export default function DashboardPage({ user: initialUser }) {
     getJSON(mapUrl(qs))
       .then(({ ok, j }) => {
         if (!ok || !j.ok) throw new Error(j.error || `API error`);
-        if (lastQsRef.current === qs) setMapData({ qs, fields: { provinceStats: j.provinceStats, provinceDetailsMap: j.provinceDetailsMap, originStats: j.originStats, routeStats: j.routeStats, warehouseLayer: j.warehouseLayer ?? null, warehouseLayerAll: j.warehouseLayerAll ?? null, warehouseLayerNhc: j.warehouseLayerNhc ?? null, warehouseLayerSttp: j.warehouseLayerSttp ?? null, provinceStatsNhc: j.provinceStatsNhc ?? null, provinceStatsSttp: j.provinceStatsSttp ?? null } });
+        if (lastQsRef.current === qs) setMapData({ qs, fields: { provinceStats: j.provinceStats, provinceDetailsMap: j.provinceDetailsMap, originStats: j.originStats, routeStats: j.routeStats, warehouseLayer: j.warehouseLayer ?? null, warehouseLayerAll: j.warehouseLayerAll ?? null, warehouseLayerNhc: j.warehouseLayerNhc ?? null, warehouseLayerSttp: j.warehouseLayerSttp ?? null, warehouseLayerEcom: j.warehouseLayerEcom ?? null, provinceStatsNhc: j.provinceStatsNhc ?? null, provinceStatsSttp: j.provinceStatsSttp ?? null, provinceStatsEcom: j.provinceStatsEcom ?? null } });
       })
       .catch(() => { if (lastQsRef.current === qs) setMapData({ qs, error: true }); })
       .finally(() => { if (mapReqRef.current === qs) mapReqRef.current = null; });
