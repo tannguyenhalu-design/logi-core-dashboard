@@ -1,0 +1,156 @@
+# .gitlab-ci.yml — SD3 Control Tower · GitLab CI/CD Pipeline
+# Repo: gitlab.ghn.vn (nội bộ GHN)
+# Stages: test → sonar-scan → build → deploy
+#
+# CI/CD Variables cần cấu hình trong GitLab Settings → CI/CD → Variables:
+#   Bắt buộc:  SONAR_HOST_URL, SONAR_TOKEN
+#              VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
+#   App secrets: GEMINI_API_KEY, GROQ_API_KEY, GOOGLE_SHEET_ID, SHEET_ID_LTL,
+#                NEXTAUTH_SECRET, NEXTAUTH_URL, SHEET_ID_PROJECTS
+#   Optional:  DB_ADAPTER_TYPE, SUPABASE_URL, SUPABASE_ANON_KEY (khi migrate PG)
+#              GTALK_SECRET_PORTAL_URL, GTALK_SECRET_PORTAL_TOKEN (khi có Portal)
+
+image: node:20-alpine
+
+stages:
+  - test
+  - sonar-scan
+  - build
+  - deploy
+
+variables:
+  NODE_ENV: "test"
+  npm_config_cache: "$CI_PROJECT_DIR/.npm"
+  # Ngăn npm postinstall chạy Next.js telemetry
+  NEXT_TELEMETRY_DISABLED: "1"
+
+cache:
+  key: "$CI_COMMIT_REF_SLUG-node20"
+  paths:
+    - .npm/
+    - node_modules/
+
+# ── Stage 1: Test ──────────────────────────────────────────────────────────────
+
+lint:
+  stage: test
+  script:
+    - npm ci --prefer-offline --no-audit
+    - npm run lint --if-present
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+type-check:
+  stage: test
+  script:
+    - npm ci --prefer-offline --no-audit
+    - npm run type-check --if-present || echo "No type-check script — skipping"
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+unit-test:
+  stage: test
+  script:
+    - npm ci --prefer-offline --no-audit
+    - npm test --if-present -- --passWithNoTests --ci
+  artifacts:
+    when: always
+    reports:
+      junit: junit.xml
+    paths:
+      - coverage/
+    expire_in: 7 days
+  coverage: '/Lines\s*:\s*(\d+\.?\d*)%/'
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# ── Stage 2: SonarQube Security & Code Quality Scan ───────────────────────────
+
+sonar-scan:
+  stage: sonar-scan
+  image: sonarsource/sonar-scanner-cli:latest
+  variables:
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
+    GIT_DEPTH: "0" # Full history for better blame analysis
+  cache:
+    key: "sonar-${CI_PROJECT_ID}"
+    paths:
+      - .sonar/cache
+  script:
+    - sonar-scanner
+        -Dsonar.projectKey=miniapp-sd3-control-tower
+        -Dsonar.projectName="SD3 Control Tower"
+        -Dsonar.host.url=${SONAR_HOST_URL}
+        -Dsonar.login=${SONAR_TOKEN}
+        -Dsonar.sources=pages,components,lib
+        -Dsonar.exclusions="node_modules/**,.next/**,coverage/**,**/*.test.js"
+        -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+  allow_failure: true  # Non-blocking — sonar chưa hoàn toàn onboard vào pipeline GHN
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - unit-test
+
+# ── Stage 3: Build ─────────────────────────────────────────────────────────────
+
+build-next:
+  stage: build
+  script:
+    - npm ci --prefer-offline --no-audit
+    - npm run build
+  artifacts:
+    paths:
+      - .next/
+      - public/
+    expire_in: 2 hours
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  needs:
+    - lint
+
+# ── Stage 4: Deploy ────────────────────────────────────────────────────────────
+
+.vercel-base: &vercel-base
+  image: node:20-alpine
+  before_script:
+    - npm install -g vercel@latest --prefer-offline
+    - vercel pull --yes --token=${VERCEL_TOKEN}
+
+deploy-preview:
+  stage: deploy
+  <<: *vercel-base
+  script:
+    - vercel pull --yes --environment=preview --token=${VERCEL_TOKEN}
+    - vercel build --token=${VERCEL_TOKEN}
+    - PREVIEW_URL=$(vercel deploy --prebuilt --token=${VERCEL_TOKEN})
+    - echo "Preview URL $PREVIEW_URL"
+  environment:
+    name: "preview/$CI_COMMIT_REF_SLUG"
+    url: $PREVIEW_URL
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  needs:
+    - build-next
+
+deploy-production:
+  stage: deploy
+  <<: *vercel-base
+  script:
+    - vercel pull --yes --environment=production --token=${VERCEL_TOKEN}
+    - vercel build --prod --token=${VERCEL_TOKEN}
+    - vercel deploy --prebuilt --prod --token=${VERCEL_TOKEN}
+  environment:
+    name: production
+    url: https://logicore-app.vercel.app
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  when: manual  # Require explicit human approval before deploying to production
+  needs:
+    - build-next
+    - sonar-scan

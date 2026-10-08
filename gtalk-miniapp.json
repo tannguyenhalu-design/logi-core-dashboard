@@ -1,0 +1,61 @@
+{
+  "$schema": "https://gtalk.miniapp.ghn.vn/schema/v1/manifest.json",
+  "appId": "miniapp-sd3-control-tower",
+  "name": "SD3 Control Tower",
+  "version": "1.0.0",
+  "description": "Hệ thống vận hành thông minh LTL Điện Máy khu vực SD3 — theo dõi đơn hàng, phát hiện bất thường, trợ lý AI Tiểu Đệ SD3",
+  "category": "Vận hành & Kho vận",
+  "vendor": {
+    "name": "GHN SD3 Operations Team",
+    "email": "sd3-ops@ghn.vn",
+    "department": "SD3 / Logistics Intelligence"
+  },
+  "platforms": ["web", "mobile"],
+  "entryPoints": {
+    "web":    "/dashboard",
+    "mobile": "/dashboard?platform=mobile"
+  },
+  "auth": {
+    "provider": "ghn-sso",
+    "scopes": ["profile", "email", "department"],
+    "roles": ["manager", "sd3", "cs", "client"]
+  },
+  "secrets": {
+    "provider": "gtalk-secret-portal",
+    "portalEnvVar": "GTALK_SECRET_PORTAL_URL",
+    "tokenEnvVar":  "GTALK_SECRET_PORTAL_TOKEN",
+    "required": [
+      "GEMINI_API_KEY",
+      "GROQ_API_KEY",
+      "GOOGLE_SHEET_ID",
+      "SHEET_ID_LTL",
+      "NEXTAUTH_SECRET",
+      "NEXTAUTH_URL"
+    ],
+    "optional": [
+      "GOOGLE_SHEET_ID_PROJECTS",
+      "SUPABASE_URL",
+      "SUPABASE_ANON_KEY",
+      "DB_ADAPTER_TYPE"
+    ]
+  },
+  "permissions": [
+    "identity",
+    "notifications"
+  ],
+  "features": {
+    "aiChat":        { "enabled": true,  "roles": ["manager", "sd3"] },
+    "decisionCenter":{ "enabled": true,  "roles": ["manager", "sd3"] },
+    "damageReport":  { "enabled": true,  "roles": ["manager", "sd3", "cs"] },
+    "ltlDashboard":  { "enabled": true,  "roles": ["manager", "sd3", "cs", "client"] },
+    "trials":        { "enabled": true,  "roles": ["manager", "sd3"] }
+  },
+  "deployment": {
+    "hosting": "vercel",
+    "productionUrl": "https://logicore-app.vercel.app",
+    "cicd": "gitlab-ci",
+    "gitlabRepo": "gitlab.ghn.vn/sd3/control-tower"
+  },
+  "minPlatformVersion": "2.0",
+  "icon": "/favicon.ico"
+}
