@@ -6,7 +6,6 @@
  * "Phân tích sâu" mới gọi AI khi user click (TODO Phase 3).
  */
 import { useState, useEffect, useCallback, useRef } from "react";
-import { RemixiconReact } from "@remixicon/react";
 
 // ─── Color maps ────────────────────────────────────────────────────────────────
 const ANOMALY_COLOR = {
@@ -214,7 +213,7 @@ export default function TabDecision({ role, onNavigate }) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       lastFetchRef.current = Date.now();
-      setState({ loading: false, error: null, anomalies: data.anomalies || [], healthSummary: data.healthSummary || null, generatedAt: data.generatedAt });
+      setState({ loading: false, error: null, anomalies: Array.isArray(data.anomalies) ? data.anomalies : [], healthSummary: data.healthSummary || null, generatedAt: data.generatedAt });
     } catch (e) {
       setState((s) => ({ ...s, loading: false, error: e.message }));
     }
@@ -247,7 +246,7 @@ export default function TabDecision({ role, onNavigate }) {
     );
   }
 
-  const noIssues = !anomalies || anomalies.length === 0;
+  const noIssues = !Array.isArray(anomalies) || anomalies.length === 0;
 
   return (
     <div style={{ padding: "20px 24px", maxWidth: 900 }}>

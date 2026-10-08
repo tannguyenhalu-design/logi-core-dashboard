@@ -62,7 +62,7 @@ function StepsPanel({ steps }) {
 export default function AIChatDrawer({ role }) {
   const isManager = role === "manager";
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState(() => loadFromSession() || [INIT_MSG]);
+  const [messages, setMessages] = useState(() => { const s = loadFromSession(); return Array.isArray(s) && s.length > 0 ? s : [INIT_MSG]; });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [approving, setApproving] = useState(null); // msgIndex being approved
