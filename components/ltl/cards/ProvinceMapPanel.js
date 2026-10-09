@@ -798,7 +798,7 @@ function ProvinceMapPanel({
       : []
   ), [singleProjectMode, routeStats]);
 
-  // Saturation check — flag warehouses > 85% of GTC cap
+  // Warehouse health — Clear-Time logic (Sheet Anh Tân, 2026-10-09)
   const saturationData = useMemo(
     () => computeWarehouseSaturation(warehouseLayerAll),
     [warehouseLayerAll]
@@ -836,7 +836,11 @@ function ProvinceMapPanel({
            : null);
         const chipSuffix = mapIndustry === "all" ? "tổng 4 ngành" : mapIndustry === "nhc" ? "NH Chung" : mapIndustry === "sttp" ? "STTP" : "Điện máy";
         const satInfo = satMap.get(w.id);
-        const satWarning = satInfo?.unstable ? ` · 🔴 QUÁ TẢI ${Math.round(satInfo.satRate)}%` : "";
+        const satWarning = satInfo?.unstable
+          ? ` · 🔴 BẤT ỔN (xả ${satInfo.est_clear_hien_tai?.toFixed(1)}ng · peak ×${satInfo.peak_ratio?.toFixed(2)})`
+          : satInfo?.hasData && !satInfo.unstable
+            ? ` · ✅ ổn (${satInfo.est_clear_hien_tai?.toFixed(1)}ng)`
+            : "";
         return {
           id: w.id, x: w.x, y: w.y, dashed: w.estimated,
           label: siteLabel(w),
