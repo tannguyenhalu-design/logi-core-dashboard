@@ -16,6 +16,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import VietnamMap from "../../VietnamMap";
 import { fmt, fmtWeight, getOntimeColor, getOntimeBadge } from "../utils";
 import { useFilterWorker } from "../../../hooks/useFilterWorker";
+import { computeWarehouseSaturation } from "../../../lib/warehouse-health";
 
 const MODES = [
   { id: "orders", label: "📦 Theo Số Đơn", on: "var(--cyan)" },
@@ -747,6 +748,10 @@ function ProvinceMapPanel({
     const totalDamage = stats.reduce((s, p) => s + (isDmAll ? 0 : (p.details?.damageCount || 0)), 0);
     const computedAvgRate = totalOrders > 0 ? (totalDamage / totalOrders) * 100 : 0;
     const avgRate = isDmAll ? (damageAvgRate || 0) : computedAvgRate;
+    // w3: tải trọng — tỉnh nào nhận > 150% trung bình tỉnh thì tăng risk
+    const provWithWeight = stats.filter((p) => (p.details?.totalWeight || 0) > 0);
+    const totalWeightAll = provWithWeight.reduce((s, p) => s + p.details.totalWeight, 0);
+    const avgWeightPerProv = provWithWeight.length > 0 ? totalWeightAll / provWithWeight.length : 0;
     return stats.map((p) => {
       const det = isDmAll ? (provinceDetailsMap[p.name] || p.details) : (p.details || {});
       const evalCount = (det?.ontimeCount ?? 0) + (det?.lateCount ?? 0);
@@ -755,13 +760,17 @@ function ProvinceMapPanel({
       const damageRate = p.orders > 0 ? (damageCount / p.orders) * 100 : 0;
       const w1 = ontimePct !== null ? Math.max(0, 90 - ontimePct) : 0;
       const w2 = avgRate > 0 ? (damageRate / avgRate) * 10 : 0;
-      const riskScore = w1 + w2;
+      const provWeight = det?.totalWeight || 0;
+      const wRatio = avgWeightPerProv > 0 ? provWeight / avgWeightPerProv : 0;
+      const w3 = Math.max(0, (wRatio - 1.5) * 3);
+      const riskScore = w1 + w2 + w3;
       const tiers = [];
       if (evalCount >= 10 && ontimePct !== null && ontimePct < 80) tiers.push("sla");
       if (damageCount >= 1 && damageRate >= avgRate) tiers.push("damage");
       if (p.orders >= 100 && evalCount >= 10 && ontimePct !== null && ontimePct >= 95) tiers.push("star");
       if (tiers.length === 0 && evalCount >= 10 && ontimePct !== null && ontimePct < 90) tiers.push("watchlist");
-      return { name: p.name, orders: p.orders, evalCount, ontimePct, damaged: damageCount, damageRate, riskScore, tiers };
+      if (provWeight > 0 && wRatio > 1.5) tiers.push("heavy");
+      return { name: p.name, orders: p.orders, evalCount, ontimePct, damaged: damageCount, damageRate, riskScore, tiers, totalWeight: provWeight, wRatio };
     }).sort((a, b) => b.riskScore - a.riskScore || b.orders - a.orders);
   }, [provinceRisk, activeProvinceStats, provinceDetailsMap, damageAvgRate, mapIndustry]);
 
@@ -788,6 +797,16 @@ function ProvinceMapPanel({
       ? (routeStats || []).slice(0, 25).map((r) => ({ from: r.from, to: r.to, weight: r.orders, color: ROUTE_COLOR }))
       : []
   ), [singleProjectMode, routeStats]);
+
+  // Saturation check — flag warehouses > 85% of GTC cap
+  const saturationData = useMemo(
+    () => computeWarehouseSaturation(warehouseLayerAll),
+    [warehouseLayerAll]
+  );
+  const satMap = useMemo(
+    () => new Map(saturationData.sites.map((s) => [s.id, s])),
+    [saturationData]
+  );
 
   // Warehouse dots — outer ring (grey) = total GTC delivery load (KhoGiaoTongTai),
   // inner dot (orange) = Điện máy giao share. Both scale on the same √ axis so
@@ -816,6 +835,8 @@ function ProvinceMapPanel({
            : mapIndustry === "all"  ? "rgba(29,158,117,0.85)"
            : null);
         const chipSuffix = mapIndustry === "all" ? "tổng 4 ngành" : mapIndustry === "nhc" ? "NH Chung" : mapIndustry === "sttp" ? "STTP" : "Điện máy";
+        const satInfo = satMap.get(w.id);
+        const satWarning = satInfo?.unstable ? ` · 🔴 QUÁ TẢI ${Math.round(satInfo.satRate)}%` : "";
         return {
           id: w.id, x: w.x, y: w.y, dashed: w.estimated,
           label: siteLabel(w),
@@ -824,8 +845,8 @@ function ProvinceMapPanel({
           dotFill,
           totGtc, dmG,
           chip: totGtc > 0
-            ? `${fmt(totGtc)} GTC/ng · ${fmt(dmG, 1)} ${innerLabel}/ng · ${Math.round(utilPct * 100)}% tải`
-            : `${fmt(dmG, 1)} đơn/ng (${chipSuffix})`,
+            ? `${fmt(totGtc)} GTC/ng · ${fmt(dmG, 1)} ${innerLabel}/ng · ${Math.round(utilPct * 100)}% tải${satWarning}`
+            : `${fmt(dmG, 1)} đơn/ng (${chipSuffix})${satWarning}`,
         };
       });
     const maxTotal = Math.max(0, ...whSites.map(totalGtcOf));
@@ -1211,11 +1232,13 @@ function ProvinceMapPanel({
             computedProvinceRisk.length > 0 ? (() => {
               const danger  = computedProvinceRisk.filter(p => p.tiers.includes("sla") || p.tiers.includes("damage")).slice(0, 5);
               const caution = computedProvinceRisk.filter(p => !p.tiers.includes("sla") && !p.tiers.includes("damage") && p.tiers.includes("watchlist")).slice(0, 4);
+              const heavy   = computedProvinceRisk.filter(p => p.tiers.includes("heavy") && !p.tiers.includes("sla") && !p.tiers.includes("damage")).slice(0, 3);
               const stars   = computedProvinceRisk.filter(p => p.tiers.includes("star")).slice(0, 3);
               const groups  = [
-                { key: "danger",  label: "🔴 Nguy hiểm",           tip: "→ Can thiệp ngay",    color: "var(--red)",   bg: "rgba(239,68,68,0.08)",   items: danger },
-                { key: "caution", label: "⚡ Chú ý",                tip: "→ Theo dõi xu hướng", color: "#60a5fa",      bg: "rgba(96,165,250,0.08)",  items: caution },
-                { key: "star",    label: "⭐ Điểm sáng Benchmark",  tip: "→ Nhân rộng mô hình", color: "var(--green)", bg: "rgba(34,197,94,0.08)",   items: stars },
+                { key: "danger",  label: "🔴 Nguy hiểm",           tip: "→ Can thiệp ngay",    color: "var(--red)",    bg: "rgba(239,68,68,0.08)",    items: danger },
+                { key: "heavy",   label: "⚖️ Tải trọng cao",        tip: "→ Kiểm tra năng lực bãi", color: "var(--amber)", bg: "rgba(245,158,11,0.08)", items: heavy },
+                { key: "caution", label: "⚡ Chú ý",                tip: "→ Theo dõi xu hướng", color: "#60a5fa",       bg: "rgba(96,165,250,0.08)",   items: caution },
+                { key: "star",    label: "⭐ Điểm sáng Benchmark",  tip: "→ Nhân rộng mô hình", color: "var(--green)",  bg: "rgba(34,197,94,0.08)",    items: stars },
               ].filter(g => g.items.length > 0);
               return (
                 <div style={{ background: "var(--panel-bg-strong)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px" }}>
@@ -1237,6 +1260,8 @@ function ProvinceMapPanel({
                         const on = pinnedProv === p.name;
                         const desc = g.key === "danger"
                           ? [p.tiers.includes("sla") ? `⏱ Ontime ${p.ontimePct ?? "—"}%` : null, p.tiers.includes("damage") ? `💥 ${p.damaged} ca hỏng (${p.damageRate.toFixed(1)}%)` : null].filter(Boolean).join(" · ")
+                          : g.key === "heavy"
+                          ? `⚖️ ${(p.totalWeight / 1000).toFixed(1)}T · ${Math.round(p.wRatio * 100)}% TB · Ontime ${p.ontimePct ?? "—"}%`
                           : `Ontime ${p.ontimePct ?? "—"}%${p.damaged > 0 ? ` · 💥 ${p.damaged} ca` : ""}`;
                         return (
                           <button key={p.name} onClick={() => (on ? setPinnedProv(null) : selectAndFly(p.name))} style={{
