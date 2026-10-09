@@ -270,7 +270,7 @@ export default function TrendPanel({ selectedProjects = [], selectedOrigin = nul
           )}
           {!loading && !error && weeks.length > 0 && (
             <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginTop: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginTop: 16 }}>
                 <div style={{ background: "var(--bg-card)", borderRadius: 10, padding: "12px 14px" }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 8 }}>SLA Ontime %</div>
                   <SlaChart weeks={weeks} theme={theme} />
@@ -301,11 +301,13 @@ export default function TrendPanel({ selectedProjects = [], selectedOrigin = nul
                       <span style={{ fontSize: 11, color: "var(--amber)", marginLeft: 4 }}>tuần hiện tại chưa hoàn thành</span>
                     )}
                   </div>
-                  <DeclineTable
-                    declines={data.provinceDeclines}
-                    curLabel={declineCurLabel}
-                    prevLabel={declinePrevLabel}
-                  />
+                  <div style={{ overflowX: "auto" }}>
+                    <DeclineTable
+                      declines={data.provinceDeclines}
+                      curLabel={declineCurLabel}
+                      prevLabel={declinePrevLabel}
+                    />
+                  </div>
                 </div>
               )}
             </>
