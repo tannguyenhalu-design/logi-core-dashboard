@@ -17,6 +17,7 @@ import DamageMoneyPanel from "./damage/DamageMoneyPanel";
 import { OpenCasesPanel, RecurrencePanel, LegRoutesPanel } from "./damage/DamageAnalysis";
 import ExceptionsPanel from "./cards/ExceptionsPanel";
 import CampaignForecast from "./CampaignForecast";
+import TrendPanel from "./TrendPanel";
 
 // Trend chart above only shows the COMBINED weekly total — "tuần 2 → tuần 3
 // giảm" was visible but which client drove it wasn't, and the AI chat had
@@ -529,6 +530,10 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
           </div>
         );
       })()}
+
+      {showOverview && !todayMode && (
+        <TrendPanel selectedProjects={selectedProjects} selectedOrigin={selectedOrigin} />
+      )}
 
       {/* Map fields arrive separately (/api/data?part=map, Kế hoạch A · P6) */}
       {showMap && mapState === "loading" && (
