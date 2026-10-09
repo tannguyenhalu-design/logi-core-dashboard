@@ -540,6 +540,12 @@ function VietnamMap({
                     strokeWidth={rO > 0 ? 0 : px(on ? 2.2 : hov ? 1.8 : w.dashed ? 1.4 : 1.1)}
                     strokeDasharray={rO === 0 && w.dashed ? `${px(3)} ${px(2.2)}` : undefined}
                   />
+                  {w.unstable && (
+                    <circle
+                      className="wh-unstable-ring" cx={w.x} cy={w.y} r={px(Math.max(rO, rI) + 3.5)}
+                      fill="none" stroke="#ef4444" strokeWidth={px(2.2)} pointerEvents="none"
+                    />
+                  )}
                 </g>
               );
             })}

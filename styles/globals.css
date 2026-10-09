@@ -634,6 +634,10 @@ body {
 .warning-pulse-card {
   animation: blink-warning 1.6s ease-in-out infinite;
 }
+
+@keyframes wh-unstable-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+.wh-unstable-ring { animation: wh-unstable-pulse 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .wh-unstable-ring { animation: none; } }
 .btn-primary {
   width: 100%; padding: 12px;
   background: var(--cyan); color: #fff;

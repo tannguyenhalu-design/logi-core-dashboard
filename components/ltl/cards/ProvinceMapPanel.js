@@ -604,6 +604,7 @@ function ProvinceMapPanel({
   const [whSearch, setWhSearch] = useState("");
   const [activeWh, setActiveWh] = useState(null);
   const [pinnedWh, setPinnedWh] = useState(null);
+  const [showAllUnstable, setShowAllUnstable] = useState(false);
   const activeLayer =
     mapIndustry === "nhc"  ? (warehouseLayerNhc?.sites?.length  ? warehouseLayerNhc  : null) :
     mapIndustry === "sttp" ? (warehouseLayerSttp?.sites?.length ? warehouseLayerSttp : null) :
@@ -807,6 +808,16 @@ function ProvinceMapPanel({
     () => new Map(saturationData.sites.map((s) => [s.id, s])),
     [saturationData]
   );
+  const unstableSites = useMemo(() => {
+    const byId = new Map((warehouseLayerAll?.healthSites || warehouseLayerAll?.sites || []).map((w) => [w.id, w]));
+    return saturationData.sites
+      .filter((s) => s.unstable && byId.has(s.id))
+      .map((s) => {
+        const w = byId.get(s.id);
+        return { ...s, x: w.x, y: w.y, label: siteLabel(w) };
+      })
+      .sort((a, b) => b.est_clear_hien_tai - a.est_clear_hien_tai);
+  }, [saturationData, warehouseLayerAll]);
 
   // Warehouse dots — outer ring (grey) = total GTC delivery load (KhoGiaoTongTai),
   // inner dot (orange) = Điện máy giao share. Both scale on the same √ axis so
@@ -837,12 +848,13 @@ function ProvinceMapPanel({
         const chipSuffix = mapIndustry === "all" ? "tổng 4 ngành" : mapIndustry === "nhc" ? "NH Chung" : mapIndustry === "sttp" ? "STTP" : "Điện máy";
         const satInfo = satMap.get(w.id);
         const satWarning = satInfo?.unstable
-          ? ` · 🔴 BẤT ỔN (xả ${satInfo.est_clear_hien_tai?.toFixed(1)}ng · peak ×${satInfo.peak_ratio?.toFixed(2)})`
+          ? ` · 🔴 ${satInfo.headline} (xả ${satInfo.est_clear_hien_tai?.toFixed(1)}ng · peak ×${satInfo.peak_ratio?.toFixed(2)})`
           : satInfo?.hasData && !satInfo.unstable
             ? ` · ✅ ổn (${satInfo.est_clear_hien_tai?.toFixed(1)}ng)`
             : "";
         return {
           id: w.id, x: w.x, y: w.y, dashed: w.estimated,
+          unstable: !!satInfo?.unstable,
           label: siteLabel(w),
           rOuter: rOf(totGtc),
           rInner: Math.max(1.5, rOf(dmG)),
@@ -855,7 +867,7 @@ function ProvinceMapPanel({
       });
     const maxTotal = Math.max(0, ...whSites.map(totalGtcOf));
     return { dots, maxTotal };
-  }, [whSites, mapIndustry]);
+  }, [whSites, mapIndustry, satMap]);
   // Re-sort by industry volume (dmG) when not in DM mode
   const topWarehouses = useMemo(() => {
     if (mapIndustry !== "dm") return [...whDots.dots].sort((a, b) => b.dmG - a.dmG).slice(0, 8);
@@ -1205,6 +1217,41 @@ function ProvinceMapPanel({
           </div>
         );
       })()}
+
+      {unstableSites.length > 0 && (
+        <div className="wh-unstable-card" style={{ border: "1px solid rgba(239,68,68,0.55)", background: "rgba(239,68,68,0.06)", borderRadius: 12, padding: "12px 14px", margin: "0 0 12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--red)" }}>🔴 {unstableSites.length} kho bất ổn — cần chú ý</div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Cần &gt; 1,5 ngày mới giao hết tồn và tồn &gt; 1,2 lần ngày giao cao nhất 7 ngày · Sheet Anh Tân</div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 8 }}>
+            {(showAllUnstable ? unstableSites : unstableSites.slice(0, 4)).map((s) => (
+              <button key={s.id} type="button" onClick={() => selectWhAndFly(s)} title="Bấm để phóng tới kho trên bản đồ" style={{
+                textAlign: "left", cursor: "pointer", fontFamily: "inherit", borderRadius: 8, padding: "8px 10px",
+                border: `1px solid ${pinnedWh === s.id ? "var(--red)" : "var(--border)"}`, background: "var(--panel-bg)", color: "inherit",
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
+                  <span style={{ fontWeight: 700, fontSize: 13, color: "var(--text-primary)" }}>📍 {s.label}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "var(--red)", whiteSpace: "nowrap" }}>
+                    {s.est_clear_hien_tai.toFixed(2).replace(".", ",")} ngày{s.peak_ratio != null ? ` · ×${s.peak_ratio.toFixed(2).replace(".", ",")}` : ""}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--red)", margin: "3px 0 4px" }}>{s.headline}</div>
+                <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, lineHeight: 1.5, color: "var(--text-secondary)" }}>
+                  {s.reasons.map((r) => <li key={r}>{r}</li>)}
+                </ul>
+              </button>
+            ))}
+          </div>
+          {unstableSites.length > 4 && (
+            <button type="button" onClick={() => setShowAllUnstable((v) => !v)} style={{
+              marginTop: 8, background: "transparent", border: "none", color: "var(--red)", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, padding: 0,
+            }}>
+              {showAllUnstable ? "Thu gọn" : `Xem thêm ${unstableSites.length - 4} kho`}
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="province-map-layout">
         <div className="province-map-sticky">
