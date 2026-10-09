@@ -812,34 +812,43 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
                   ) : provOrdersList.length === 0 ? (
                     <tr><td colSpan="5" style={{ padding: 20, textAlign: "center", color: "var(--text-muted)" }}>Không có đơn hàng nào</td></tr>
                   ) : (
-                    provOrdersList.map((odr, idx) => {
-                      // Same rule as the ontime KPI (company-report rule, 28/09); older responses without `outcome` fall back to the flag.
-                      const outcome = odr.outcome !== undefined ? odr.outcome : (String(odr.odr_success || "").toLowerCase().includes("late") ? "late" : "ontime");
-                      const isLate = outcome === "late";
-                      return (
-                        <tr key={idx} style={{ borderBottom: "1px solid var(--border)", background: idx % 2 === 0 ? "transparent" : "var(--panel-glow)" }}>
-                          <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--text-primary)" }}>{odr.order_code || "N/A"}</td>
-                          <td style={{ padding: "10px 12px", color: "var(--text-muted)" }}>{odr.client_name}</td>
-                          <td style={{ padding: "10px 12px", color: "var(--text-muted)" }}>
-                            <span style={{ color: odr.from_province_name === selectedProvinceOrders ? "var(--cyan)" : "inherit" }}>{odr.from_province_name || "?"}</span>
-                            {" → "}
-                            <span style={{ color: odr.to_province_name === selectedProvinceOrders ? "var(--cyan)" : "inherit" }}>{odr.to_province_name || "?"}</span>
-                          </td>
-                          <td style={{ padding: "10px 12px", color: "var(--text-muted)" }}>
-                            {odr.weight ? `${(parseFloat(odr.weight) / 1000).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} kg` : "-"}
-                          </td>
-                          <td style={{ padding: "10px 12px" }}>
-                            {isLate ? (
-                              <span style={{ background: "rgba(244,63,94,0.15)", color: "var(--red)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 }}>Late</span>
-                            ) : outcome == null ? (
-                              <span style={{ background: "rgba(127,127,127,0.15)", color: "var(--text-muted)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 }} title="Không tính vào % ontime">{/return|cancel/i.test(String(odr.status || "")) ? "Hoàn / huỷ" : "Chưa có KQ"}</span>
-                            ) : (
-                              <span style={{ background: "rgba(16,185,129,0.15)", color: "var(--green)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 }}>Ontime</span>
-                            )}
+                    <>
+                      {provOrdersList.slice(0, 300).map((odr, idx) => {
+                        // Same rule as the ontime KPI (company-report rule, 28/09); older responses without `outcome` fall back to the flag.
+                        const outcome = odr.outcome !== undefined ? odr.outcome : (String(odr.odr_success || "").toLowerCase().includes("late") ? "late" : "ontime");
+                        const isLate = outcome === "late";
+                        return (
+                          <tr key={idx} style={{ borderBottom: "1px solid var(--border)", background: idx % 2 === 0 ? "transparent" : "var(--panel-glow)" }}>
+                            <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--text-primary)" }}>{odr.order_code || "N/A"}</td>
+                            <td style={{ padding: "10px 12px", color: "var(--text-muted)" }}>{odr.client_name}</td>
+                            <td style={{ padding: "10px 12px", color: "var(--text-muted)" }}>
+                              <span style={{ color: odr.from_province_name === selectedProvinceOrders ? "var(--cyan)" : "inherit" }}>{odr.from_province_name || "?"}</span>
+                              {" → "}
+                              <span style={{ color: odr.to_province_name === selectedProvinceOrders ? "var(--cyan)" : "inherit" }}>{odr.to_province_name || "?"}</span>
+                            </td>
+                            <td style={{ padding: "10px 12px", color: "var(--text-muted)" }}>
+                              {odr.weight ? `${(parseFloat(odr.weight) / 1000).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} kg` : "-"}
+                            </td>
+                            <td style={{ padding: "10px 12px" }}>
+                              {isLate ? (
+                                <span style={{ background: "var(--red-glow)", color: "var(--red)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 }}>Late</span>
+                              ) : outcome == null ? (
+                                <span style={{ background: "rgba(127,127,127,0.15)", color: "var(--text-muted)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 }} title="Không tính vào % ontime">{/return|cancel/i.test(String(odr.status || "")) ? "Hoàn / huỷ" : "Chưa có KQ"}</span>
+                              ) : (
+                                <span style={{ background: "var(--green-glow)", color: "var(--green)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 }}>Ontime</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {provOrdersList.length > 300 && (
+                        <tr>
+                          <td colSpan="5" style={{ padding: "10px 12px", textAlign: "center", fontSize: 12, color: "var(--text-muted)", borderTop: "1px solid var(--border)", fontStyle: "italic" }}>
+                            Hiển thị 300 / {provOrdersList.length} đơn — lọc tháng hoặc chọn dự án cụ thể để thu hẹp kết quả
                           </td>
                         </tr>
-                      );
-                    })
+                      )}
+                    </>
                   )}
                 </tbody>
               </table>

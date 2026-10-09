@@ -7,15 +7,15 @@ import { useState, useEffect } from "react";
 const TYPE_LABELS = {
   user_preference: { label: "Sở thích Đại Ca", emoji: "📌", color: "#8b5cf6" },
   business_insight: { label: "Insight kinh doanh", emoji: "📊", color: "#06b6d4" },
-  correction: { label: "Sửa lỗi AI", emoji: "✏️", color: "#f59e0b" },
-  faq: { label: "FAQ hay gặp", emoji: "❓", color: "#10b981" },
+  correction: { label: "Sửa lỗi AI", emoji: "✏️", color: "var(--amber)" },
+  faq: { label: "FAQ hay gặp", emoji: "❓", color: "var(--green)" },
   pattern: { label: "Pattern vận hành", emoji: "🔄", color: "#6366f1" },
 };
 
 const STATUS_CFG = {
-  "Đề xuất": { color: "#f59e0b", bg: "rgba(245,158,11,0.12)", label: "Đề xuất" },
-  "Đã duyệt": { color: "#10b981", bg: "rgba(16,185,129,0.12)", label: "✓ Đã duyệt" },
-  "Bỏ":       { color: "#ef4444", bg: "rgba(239,68,68,0.10)", label: "✕ Bỏ" },
+  "Đề xuất": { color: "var(--amber)", bg: "var(--amber-glow)", label: "Đề xuất" },
+  "Đã duyệt": { color: "var(--green)", bg: "var(--green-glow)", label: "✓ Đã duyệt" },
+  "Bỏ":       { color: "var(--red)",   bg: "var(--red-glow)",   label: "✕ Bỏ" },
 };
 
 function StatusBadge({ status }) {
@@ -206,8 +206,8 @@ export default function TabBrain({ role }) {
             <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
               Kiến thức tích lũy từ các cuộc hội thoại — inject ưu tiên mục Đã duyệt mỗi lần chat.
               Hiện có <strong style={{ color: "var(--brand-glow)" }}>{entries.length}</strong> insights
-              {" · "}<span style={{ color: "#10b981" }}>{statusCounts["Đã duyệt"]} đã duyệt</span>
-              {statusCounts["Đề xuất"] > 0 && <span style={{ color: "#f59e0b" }}> · {statusCounts["Đề xuất"]} chờ duyệt</span>}
+              {" · "}<span style={{ color: "var(--green)" }}>{statusCounts["Đã duyệt"]} đã duyệt</span>
+              {statusCounts["Đề xuất"] > 0 && <span style={{ color: "var(--amber)" }}> · {statusCounts["Đề xuất"]} chờ duyệt</span>}
             </p>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -230,9 +230,9 @@ export default function TabBrain({ role }) {
             <button
               onClick={() => setShowAddForm(true)}
               style={{
-                background: "rgba(16,185,129,0.15)",
+                background: "var(--green-glow)",
                 color: "var(--green)",
-                border: "1px solid rgba(16,185,129,0.3)",
+                border: "1px solid var(--green)",
                 borderRadius: 8,
                 padding: "8px 14px",
                 fontSize: 12,
@@ -246,9 +246,9 @@ export default function TabBrain({ role }) {
               onClick={handleReset}
               disabled={resetting}
               style={{
-                background: "rgba(244,63,94,0.1)",
+                background: "var(--red-glow)",
                 color: "var(--red)",
-                border: "1px solid rgba(244,63,94,0.25)",
+                border: "1px solid var(--red)",
                 borderRadius: 8,
                 padding: "8px 14px",
                 fontSize: 12,
@@ -294,14 +294,19 @@ export default function TabBrain({ role }) {
         {/* Status filter bar */}
         <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
           <span style={{ fontSize: 11, color: "var(--text-muted)", alignSelf: "center", marginRight: 4 }}>Trạng thái:</span>
-          {[["all", "Tất cả", "#64748b"], ["Đề xuất", "Đề xuất", "#f59e0b"], ["Đã duyệt", "✓ Đã duyệt", "#10b981"], ["Bỏ", "✕ Bỏ", "#ef4444"]].map(([val, label, color]) => (
+          {[
+            { val: "all",    label: "Tất cả",        color: "var(--text-muted)", bg: "var(--panel-glow)"  },
+            { val: "Đề xuất", label: "Đề xuất",       color: "var(--amber)",      bg: "var(--amber-glow)" },
+            { val: "Đã duyệt", label: "✓ Đã duyệt", color: "var(--green)",      bg: "var(--green-glow)" },
+            { val: "Bỏ",     label: "✕ Bỏ",          color: "var(--red)",        bg: "var(--red-glow)"   },
+          ].map(({ val, label, color, bg }) => (
             <button
               key={val}
               onClick={() => setFilterStatus(val)}
               style={{
-                background: filterStatus === val ? `${color}22` : "rgba(255,255,255,0.03)",
+                background: filterStatus === val ? bg : "rgba(255,255,255,0.03)",
                 color: filterStatus === val ? color : "var(--text-muted)",
-                border: `1px solid ${filterStatus === val ? color + "66" : "var(--border)"}`,
+                border: `1px solid ${filterStatus === val ? color : "var(--border)"}`,
                 borderRadius: 7, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer",
               }}
             >
@@ -541,8 +546,8 @@ export default function TabBrain({ role }) {
                             onClick={() => handleReview(e, "Đã duyệt")}
                             style={{
                               display: "block", width: "100%", marginBottom: 4,
-                              background: "rgba(16,185,129,0.15)", color: "#10b981",
-                              border: "1px solid rgba(16,185,129,0.3)", borderRadius: 6,
+                              background: "var(--green-glow)", color: "var(--green)",
+                              border: "1px solid var(--green)", borderRadius: 6,
                               padding: "4px 6px", fontSize: 10.5, fontWeight: 600, cursor: "pointer",
                             }}
                           >
@@ -555,8 +560,8 @@ export default function TabBrain({ role }) {
                             onClick={() => handleReview(e, "Bỏ")}
                             style={{
                               display: "block", width: "100%",
-                              background: "rgba(239,68,68,0.1)", color: "#ef4444",
-                              border: "1px solid rgba(239,68,68,0.25)", borderRadius: 6,
+                              background: "var(--red-glow)", color: "var(--red)",
+                              border: "1px solid var(--red)", borderRadius: 6,
                               padding: "4px 6px", fontSize: 10.5, fontWeight: 600, cursor: "pointer",
                             }}
                           >

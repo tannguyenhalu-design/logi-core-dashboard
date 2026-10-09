@@ -14,9 +14,9 @@ const fmtKg = (kg) => {
 
 function LevelBadge({ level }) {
   const cfg = {
-    critical: { bg: "rgba(239,68,68,0.15)",  border: "var(--red)",   text: "var(--red)",   label: "🔴 Nên tách ngay" },
-    warning:  { bg: "rgba(245,158,11,0.12)", border: "var(--amber)",      text: "var(--amber)",      label: "🟡 Gần ngưỡng tách" },
-    ok:       { bg: "rgba(34,197,94,0.10)",  border: "var(--green)",  text: "var(--green)", label: "🟢 Ổn" },
+    critical: { bg: "var(--red-glow)",   border: "var(--red)",   text: "var(--red)",   label: "🔴 Nên tách ngay" },
+    warning:  { bg: "var(--amber-glow)", border: "var(--amber)", text: "var(--amber)", label: "🟡 Gần ngưỡng tách" },
+    ok:       { bg: "var(--green-glow)", border: "var(--green)", text: "var(--green)", label: "🟢 Ổn" },
   };
   const c = cfg[level] || cfg.ok;
   return (

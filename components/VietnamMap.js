@@ -543,7 +543,7 @@ function VietnamMap({
                   {w.unstable && (
                     <circle
                       className="wh-unstable-ring" cx={w.x} cy={w.y} r={px(Math.max(rO, rI) + 3.5)}
-                      fill="none" stroke="#ef4444" strokeWidth={px(2.2)} pointerEvents="none"
+                      fill="none" stroke="var(--red)" strokeWidth={px(2.2)} pointerEvents="none"
                     />
                   )}
                 </g>

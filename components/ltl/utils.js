@@ -20,7 +20,7 @@ export function getOntimeColor(pct) {
 }
 
 export function getOntimeBadge(pct) {
-  if (pct >= 90) return { label: "Tốt (≥90%)", color: "var(--green)", bg: "rgba(16,185,129,0.15)" };
-  if (pct >= 80) return { label: "⚠️ Trung bình (80-90%)", color: "var(--amber)", bg: "rgba(245,158,11,0.15)" };
-  return { label: "🚨 CẢNH BÁO LOW (<80%)", color: "var(--red)", bg: "rgba(244,63,94,0.18)" };
+  if (pct >= 90) return { label: "Tốt (≥90%)", color: "var(--green)", bg: "var(--green-glow)" };
+  if (pct >= 80) return { label: "⚠️ Trung bình (80-90%)", color: "var(--amber)", bg: "var(--amber-glow)" };
+  return { label: "🚨 CẢNH BÁO LOW (<80%)", color: "var(--red)", bg: "var(--red-glow)" };
 }
