@@ -604,35 +604,11 @@ export default function TabCompanyReport() {
   const [detailsErr, setDetailsErr] = useState(null);
   const [, setDetailsTick] = useState(0);
   const remember = (report, detailsUrl) => { if (report) srcRef.current.set(report, detailsUrl); return report; };
-  const [pdfBusy, setPdfBusy] = useState(false);
 
-  const handleExportPDF = useCallback(async () => {
-    const el = document.getElementById("bao-cao-noi-dung");
-    if (!el) return;
-    setPdfBusy(true);
-    try {
-      if (!window.html2pdf) {
-        await new Promise((res, rej) => {
-          const s = document.createElement("script");
-          s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
-          s.onload = res; s.onerror = rej;
-          document.head.appendChild(s);
-        });
-      }
-      await window.html2pdf().set({
-        margin: [8, 8, 8, 8],
-        filename: `Bao-cao-${industry}-${type}-${period}.pdf`,
-        image: { type: "jpeg", quality: 0.92 },
-        html2canvas: { scale: 1.5, useCORS: true, logging: false },
-        jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
-        pagebreak: { mode: ["avoid-all", "css"], before: ".report-table-block" },
-      }).from(el).save();
-    } catch (e) {
-      console.error("PDF export failed:", e);
-    } finally {
-      setPdfBusy(false);
-    }
-  }, [industry, type, period]);
+  const handleExportPDF = useCallback(() => {
+    document.body.classList.add("printing-company-report");
+    try { window.print(); } finally { document.body.classList.remove("printing-company-report"); }
+  }, []);
 
   useEffect(() => { const p = readPicked(); if (p.length) setPicked(p); }, []);
   const clients = mode === "pick" ? picked : null;
@@ -879,7 +855,7 @@ export default function TabCompanyReport() {
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button style={btn} disabled={mode === "pick" && !picked.length} onClick={() => { window.location.href = apiUrl(type, period, clients, "", industry); }}>⬇ Tải Excel (số mới nhất)</button>
             {saved && <button style={btn} onClick={() => { window.location.href = apiUrl(type, period, null, "&version=locked", industry); }}>⬇ Tải bản đã chốt</button>}
-            <button style={ghost} disabled={pdfBusy || !shown} onClick={handleExportPDF}>{pdfBusy ? "Đang xuất PDF…" : "⬇ Xuất PDF"}</button>
+            <button style={ghost} disabled={!shown} onClick={handleExportPDF}>⬇ Xuất PDF</button>
             <button style={ghost} disabled={busy || (mode === "pick" && !picked.length)} onClick={doLock}>{busy ? "Đang chốt…" : saved ? "🔒 Chốt lại" : "🔒 Chốt số kỳ này"}</button>
             <button style={ghost} disabled={busy} onClick={refresh} title="Tải lại số mới nhất và danh sách kỳ đã chốt">↻ Làm mới</button>
           </div>

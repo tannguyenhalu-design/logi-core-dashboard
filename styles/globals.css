@@ -660,3 +660,24 @@ body {
   .exec-report .exec-page { box-shadow: none !important; margin: 0 auto !important; padding: 0 !important; }
   @page { size: A4; margin: 14mm; }
 }
+
+/* "Báo cáo công ty" (components/TabCompanyReport.js): in chỉ bảng số */
+@media print {
+  .printing-company-report * { visibility: hidden !important; }
+  .printing-company-report #bao-cao-noi-dung,
+  .printing-company-report #bao-cao-noi-dung * { visibility: visible !important; }
+  .printing-company-report #bao-cao-noi-dung {
+    position: absolute !important;
+    inset: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+    overflow: visible !important;
+    padding: 8mm !important;
+  }
+  .printing-company-report #bao-cao-noi-dung .glass {
+    background: #fff !important;
+    border: 1px solid #ccc !important;
+    border-radius: 0 !important;
+    break-inside: avoid;
+  }
+}
