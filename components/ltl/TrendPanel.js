@@ -120,7 +120,7 @@ function SlaChart({ weeks, theme }) {
   const values = weeks.map((w) => w.ontimePct);
   const incompleteIdx = weeks.findIndex((w) => !w.mature);
   useChart(ref, () => buildLineConfig(labels, values, GREEN, "SLA %", incompleteIdx, t), [JSON.stringify(weeks)], theme);
-  return <canvas ref={ref} style={{ height: 180 }} />;
+  return <div style={{ position: "relative", height: 180, width: "100%" }}><canvas ref={ref} /></div>;
 }
 
 function DamageChart({ weeks, theme }) {
@@ -130,7 +130,7 @@ function DamageChart({ weeks, theme }) {
   const values = weeks.map((w) => w.damagePct);
   const incompleteIdx = weeks.findIndex((w) => !w.mature);
   useChart(ref, () => buildSmallLineConfig(labels, values, AMBER, "Bể vỡ %", incompleteIdx, t), [JSON.stringify(weeks)], theme);
-  return <canvas ref={ref} style={{ height: 180 }} />;
+  return <div style={{ position: "relative", height: 180, width: "100%" }}><canvas ref={ref} /></div>;
 }
 
 function FdChart({ weeks, theme }) {
@@ -140,7 +140,7 @@ function FdChart({ weeks, theme }) {
   const values = weeks.map((w) => w.fdPct);
   const incompleteIdx = weeks.findIndex((w) => !w.mature);
   useChart(ref, () => buildSmallLineConfig(labels, values, CORAL, "Hoàn %", incompleteIdx, t), [JSON.stringify(weeks)], theme);
-  return <canvas ref={ref} style={{ height: 180 }} />;
+  return <div style={{ position: "relative", height: 180, width: "100%" }}><canvas ref={ref} /></div>;
 }
 
 function DeclineTable({ declines, curLabel, prevLabel }) {
