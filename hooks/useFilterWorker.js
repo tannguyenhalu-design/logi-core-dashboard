@@ -81,19 +81,21 @@ function computeSync({ provinceStats, provinceDetailsMap, viewMode, mapIndustry,
 }
 
 // Module-level per-industry result cache.
-// Key = "mapIndustry:viewMode". Cleared whenever provinceStats reference changes
-// (new data load) so stale cross-filter results never persist.
+// Key = "mapIndustry:viewMode". Cleared whenever provinceStats OR provinceDetailsMap
+// reference changes (new data load) so stale cross-filter results never persist.
 const _perIndustryCache = new Map();
 let _lastProvinceStats = null;
+let _lastProvinceDetailsMap = null;
 
 export function useFilterWorker(inputs) {
   const workerRef = useRef(null);
   const seqRef = useRef(0);
 
-  // Clear cache when the dataset changes (new API response).
-  if (inputs.provinceStats !== _lastProvinceStats) {
+  // Clear cache when EITHER dataset reference changes (new API response).
+  if (inputs.provinceStats !== _lastProvinceStats || inputs.provinceDetailsMap !== _lastProvinceDetailsMap) {
     _perIndustryCache.clear();
     _lastProvinceStats = inputs.provinceStats;
+    _lastProvinceDetailsMap = inputs.provinceDetailsMap;
   }
 
   const cacheKey = `${inputs.mapIndustry}:${inputs.viewMode}`;
@@ -124,20 +126,23 @@ export function useFilterWorker(inputs) {
   // Post message whenever relevant inputs change.
   useEffect(() => {
     const key = `${mapIndustry}:${viewMode}`;
-    // Serve cached result immediately so industry switches feel instant.
     const cached = _perIndustryCache.get(key);
-    if (cached) setResult(cached);
 
-    const w = workerRef.current;
-    const seq = ++seqRef.current;
-
-    if (!w) {
+    if (cached) {
+      // Industry/viewMode switch — serve cache immediately (feels instant).
+      setResult(cached);
+    } else {
+      // Cache was cleared (filter data changed) — compute synchronously NOW so the
+      // map never shows stale colours while an async worker message is in flight.
       const fresh = computeSync({ provinceStats, provinceDetailsMap, viewMode, mapIndustry, activeProvinceStats, provinceCapUtil });
       _perIndustryCache.set(key, fresh);
       setResult(fresh);
-      return;
     }
 
+    const w = workerRef.current;
+    if (!w) return;
+
+    const seq = ++seqRef.current;
     const onMessage = (e) => {
       // Ignore stale responses from previous filter changes.
       if (e.data._seq !== seq) return;
@@ -146,9 +151,7 @@ export function useFilterWorker(inputs) {
         _perIndustryCache.set(key, fresh);
         setResult(fresh);
       } else {
-        const fresh = computeSync({ provinceStats, provinceDetailsMap, viewMode, mapIndustry, activeProvinceStats, provinceCapUtil });
-        _perIndustryCache.set(key, fresh);
-        setResult(fresh);
+        // Worker error — sync result already set above, no further action needed.
       }
     };
     w.addEventListener("message", onMessage);

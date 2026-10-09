@@ -151,9 +151,11 @@ export default async function handler(req, res) {
 
     // exceljs (~0.3s to load) only when a file is actually downloaded.
     const { buildBiweeklyWorkbook } = await import("../../../lib/biweekly-xlsx");
-    const buf = await buildBiweeklyWorkbook(report, lock);
-    logAction({ actor, action: "report.export", target: `${type} ${period}${lock ? " (đã chốt)" : ""}` }).catch(() => {});
-    const name = `Bao-cao-Dien-may-${FILE_PREFIX[type]}-${period}${lock ? "-da-chot" : ""}.xlsx`;
+    const buf = await buildBiweeklyWorkbook(report, lock, industry || null);
+    logAction({ actor, action: "report.export", target: `${type} ${period}${lock ? " (đã chốt)" : ""}${industry ? ` [${industry}]` : ""}` }).catch(() => {});
+    const IND_FILE = { STTP: "STTP", NHC: "NHC", ECOM: "Ecom", "STTP+NHC": "STTP-NHC" };
+    const indFile = industry ? (IND_FILE[industry] ?? industry) : "Dien-may";
+    const name = `Bao-cao-${indFile}-${FILE_PREFIX[type]}-${period}${lock ? "-da-chot" : ""}.xlsx`;
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", `attachment; filename="${name}"`);
     return res.status(200).send(Buffer.from(buf));

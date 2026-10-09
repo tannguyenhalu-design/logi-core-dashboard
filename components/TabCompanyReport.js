@@ -376,16 +376,21 @@ function CasePanel({ title, cases, expected, onClose }) {
 
 // Draft insight block (Bể vỡ / Ontime / Hàng hoàn) — same text as the
 // Insight sheet of the Excel file.
-function InsightBox({ ins, title, noneLabel = "Không phát sinh" }) {
+function InsightBox({ ins, title, noneLabel = "Không phát sinh", sectionTitle }) {
   const [copied, setCopied] = useState(false);
   if (!ins || !(ins.clients.length || ins.total)) return null;
   const none = ins.none || [];
-  const text = [ins.total, ins.pending, ...ins.clients.flatMap((c) => ["• " + c.lines[0], ...c.lines.slice(1).map((l) => "   " + scrubTruyThu(l))]),
+  const text = [ins.total, ins.pending, ...ins.clients.flatMap((c) => [c.lines[0], ...c.lines.slice(1).map((l) => "    • " + scrubTruyThu(l))]),
     ...(none.length ? [`${noneLabel}: ${none.join(", ")}.`] : [])].filter(Boolean).join(NL);
   const copy = () => { try { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* no clipboard */ } };
   const tone = (l) => (l.startsWith("⚠") || l.startsWith("⏳") ? "var(--amber)" : "var(--text-secondary)");
   return (
     <div className="glass" style={{ padding: 16, marginBottom: 16 }}>
+      {sectionTitle && (
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, color: "var(--text-muted)", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid var(--border)" }}>
+          {sectionTitle}
+        </div>
+      )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
         <div style={{ fontSize: 14, fontWeight: 700 }}>Gợi ý insight {title} · {ins.span}{ins.prevSpan ? ` so với ${ins.prevSpan}` : ""}</div>
         <button onClick={copy} style={{ ...smallBtn, border: "1px solid rgba(var(--brand-rgb),0.3)", background: "rgba(var(--brand-rgb),0.1)", color: "var(--cyan)", fontWeight: 600 }}>{copied ? "✓ Đã copy" : "📋 Copy gợi ý"}</button>
@@ -398,9 +403,9 @@ function InsightBox({ ins, title, noneLabel = "Không phát sinh" }) {
         {ins.total && <div style={{ fontWeight: 700, marginBottom: ins.pending ? 2 : 8 }}>{ins.total}</div>}
         {ins.pending && <div style={{ color: "var(--amber)", marginBottom: 8 }}>{ins.pending}</div>}
         {ins.clients.map((c) => (
-          <div key={c.client} style={{ marginBottom: 10 }}>
-            <div style={{ fontWeight: 600 }}>• {c.lines[0]}</div>
-            {c.lines.slice(1).map((l, i) => <div key={i} style={{ paddingLeft: 16, color: tone(l) }}>{scrubTruyThu(l)}</div>)}
+          <div key={c.client} style={{ marginBottom: 16 }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>{c.lines[0]}</div>
+            {c.lines.slice(1).map((l, i) => <div key={i} style={{ paddingLeft: 20, color: tone(l) }}>• {scrubTruyThu(l)}</div>)}
           </div>
         ))}
         {none.length > 0 && <div style={{ color: "var(--text-muted)" }}>{noneLabel}: {none.join(", ")}.</div>}
@@ -599,6 +604,35 @@ export default function TabCompanyReport() {
   const [detailsErr, setDetailsErr] = useState(null);
   const [, setDetailsTick] = useState(0);
   const remember = (report, detailsUrl) => { if (report) srcRef.current.set(report, detailsUrl); return report; };
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  const handleExportPDF = useCallback(async () => {
+    const el = document.getElementById("bao-cao-noi-dung");
+    if (!el) return;
+    setPdfBusy(true);
+    try {
+      if (!window.html2pdf) {
+        await new Promise((res, rej) => {
+          const s = document.createElement("script");
+          s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+          s.onload = res; s.onerror = rej;
+          document.head.appendChild(s);
+        });
+      }
+      await window.html2pdf().set({
+        margin: [8, 8, 8, 8],
+        filename: `Bao-cao-${industry}-${type}-${period}.pdf`,
+        image: { type: "jpeg", quality: 0.92 },
+        html2canvas: { scale: 1.5, useCORS: true, logging: false },
+        jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
+        pagebreak: { mode: ["avoid-all", "css"], before: ".report-table-block" },
+      }).from(el).save();
+    } catch (e) {
+      console.error("PDF export failed:", e);
+    } finally {
+      setPdfBusy(false);
+    }
+  }, [industry, type, period]);
 
   useEffect(() => { const p = readPicked(); if (p.length) setPicked(p); }, []);
   const clients = mode === "pick" ? picked : null;
@@ -845,6 +879,7 @@ export default function TabCompanyReport() {
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button style={btn} disabled={mode === "pick" && !picked.length} onClick={() => { window.location.href = apiUrl(type, period, clients, "", industry); }}>⬇ Tải Excel (số mới nhất)</button>
             {saved && <button style={btn} onClick={() => { window.location.href = apiUrl(type, period, null, "&version=locked", industry); }}>⬇ Tải bản đã chốt</button>}
+            <button style={ghost} disabled={pdfBusy || !shown} onClick={handleExportPDF}>{pdfBusy ? "Đang xuất PDF…" : "⬇ Xuất PDF"}</button>
             <button style={ghost} disabled={busy || (mode === "pick" && !picked.length)} onClick={doLock}>{busy ? "Đang chốt…" : saved ? "🔒 Chốt lại" : "🔒 Chốt số kỳ này"}</button>
             <button style={ghost} disabled={busy} onClick={refresh} title="Tải lại số mới nhất và danh sách kỳ đã chốt">↻ Làm mới</button>
           </div>
@@ -891,7 +926,7 @@ export default function TabCompanyReport() {
       )}
       {!shown && loading && <div className="skeleton" style={{ height: 320, borderRadius: 12 }} />}
       {shown && (
-        <div style={{ opacity: loading && view === "live" ? 0.55 : 1, transition: "opacity 0.15s" }}>
+        <div id="bao-cao-noi-dung" style={{ opacity: loading && view === "live" ? 0.55 : 1, transition: "opacity 0.15s" }}>
           <div style={{ ...small, marginBottom: 8 }}>
             {shown.periodLabel} · dữ liệu tính đến {vnTime(shown.dataAsOf)}
             {view === "locked" ? " · BẢN ĐÃ CHỐT" : " · số mới nhất (chưa chốt)"}
@@ -908,7 +943,8 @@ export default function TabCompanyReport() {
                 onClose={() => setPick(null)} />
             )}
           </ReportTable>
-          <InsightBox ins={shown.insights && shown.insights.ontime} title="Ontime" />
+          <InsightBox ins={shown.insights && shown.insights.ontime} title="Ontime"
+            sectionTitle="Section 1: ONTIME SLA & LATE DELIVERIES (Chậm chuyến & Vỡ tuyến)" />
           {shown.hasDamage !== false && (
             <ReportTable title="Bể vỡ và đền bù" countTitle="# case bể và đền (theo ngày phát hiện)" rateTitle={shown.damage.rows.some((r) => Array.isArray(r.ltc)) ? "% bể đền / LTC" : "% bể đền / GTC"} sec={shown.damage} higherIsBetter={false}
               picked={pickOf("damage")} onPick={togglePick("damage")}>
@@ -923,7 +959,8 @@ export default function TabCompanyReport() {
               )}
             </ReportTable>
           )}
-          {shown.hasDamage !== false && <InsightBox ins={shown.insights && shown.insights.damage} title="Bể vỡ" noneLabel="Không phát sinh ca" />}
+          {shown.hasDamage !== false && <InsightBox ins={shown.insights && shown.insights.damage} title="Bể vỡ" noneLabel="Không phát sinh ca"
+            sectionTitle="Section 2: RILLNET DAMAGE & LOSS (Bể vỡ & Đền bù)" />}
           <ReportTable title="Hàng hoàn" countTitle="# đơn FD" rateTitle="% FD" sec={shown.fd} higherIsBetter={false}
             picked={pickOf("fd")} onPick={togglePick("fd")} pickHint="Bấm số đơn hoàn để xem mã đơn">
             {pickOf("fd") && !full && <DetailsLoading title={`Hàng hoàn · ${shown.fd.rows[pick.row].name}`} error={detailsErr} onClose={() => setPick(null)} />}
@@ -935,7 +972,8 @@ export default function TabCompanyReport() {
                 onClose={() => setPick(null)} />
             )}
           </ReportTable>
-          <InsightBox ins={shown.insights && shown.insights.fd} title="Hàng hoàn" noneLabel="Không có đơn hoàn" />
+          <InsightBox ins={shown.insights && shown.insights.fd} title="Hàng hoàn" noneLabel="Không có đơn hoàn"
+            sectionTitle="Section 3: FAILED DELIVERY & RETURNS (Hàng hoàn & Rủi ro)" />
           <div style={{ ...small, marginTop: -4 }}>
             % bể đền của mỗi khách = ca bể (theo ngày phát hiện) / đơn LTC của chính khách đó (theo ngày lấy). Dòng tổng chỉ cộng các khách trong bảng.
             # đơn LTC theo ngày lấy, ca bể theo ngày phát hiện (chi tiết trong file Excel). On-time = đơn có cờ ontime / đơn có cờ ontime hoặc late (cờ GHN), loại đơn hoàn/huỷ — cùng cách tính báo cáo công ty.
