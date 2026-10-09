@@ -93,11 +93,18 @@ function zoomAt(v, factor, px, py, W, H) {
 function fillFor(name, { colorMap, provinceDetailsMap, viewMode, highlightSet }) {
   if (colorMap[name]) return colorMap[name];
   const d = provinceDetailsMap[name];
-  if (d && d.totalOrders > 0) {
-    if (viewMode === "ontime") return d.ontimePct >= 90 ? "var(--green)" : d.ontimePct >= 80 ? "var(--amber)" : "var(--red)";
-    if (viewMode === "damage") return d.damageCount > 0 ? "var(--amber)" : "var(--green)";
-    if (d.ontimePct < 80) return "var(--red)";
-    if (d.ontimePct < 90) return "var(--amber)";
+  // Guard: only enter if the province has at least one evaluated (ontime/late) order.
+  const evalCount = (d?.ontimeCount ?? 0) + (d?.lateCount ?? 0);
+  if (d && evalCount > 0) {
+    if (viewMode === "ontime") {
+      // Recompute from counts (not pre-cached ontimePct) so null/NaN never maps to red.
+      const pct = Math.round(((d.ontimeCount ?? 0) / evalCount) * 100);
+      return pct >= 90 ? "var(--green)" : pct >= 80 ? "var(--amber)" : "var(--red)";
+    }
+    if (viewMode === "damage") return (d.damageCount ?? 0) > 0 ? "var(--amber)" : "var(--green)";
+    const otp = d.ontimePct ?? 100; // null-safe for orders/weight fallback tint
+    if (otp < 80) return "var(--red)";
+    if (otp < 90) return "var(--amber)";
     return "rgba(var(--brand-rgb),0.55)";
   }
   if (highlightSet.has(name)) return "var(--cyan)";
@@ -120,7 +127,9 @@ const ProvinceLayer = memo(function ProvinceLayer({ colorMap, provinceDetailsMap
     <g onMouseOver={onOver} onMouseLeave={onLeave} onClick={onClick} style={{ cursor: "pointer" }}>
       {PATH_ENTRIES.map(([name, d]) => {
         const det = provinceDetailsMap[name];
-        const isWarning = det && det.totalOrders > 0 && det.ontimePct < 90;
+        const detEval = (det?.ontimeCount ?? 0) + (det?.lateCount ?? 0);
+        const detOtp = detEval > 0 ? Math.round(((det?.ontimeCount ?? 0) / detEval) * 100) : 100;
+        const isWarning = det && detEval > 0 && detOtp < 90;
         const isHighlight = highlightSet.has(name) || colorMap[name] || isWarning;
         return (
           <path

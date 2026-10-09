@@ -65,7 +65,13 @@ function compute({ provinceStats, provinceDetailsMap, viewMode, mapIndustry, act
       const intensity = Math.min(1, w / maxWeight);
       colorMap[p.name] = `rgba(${WEIGHT_RGB}, ${pctFmt(0.25 + intensity * 0.7)})`;
     } else if (viewMode === "ontime") {
-      colorMap[p.name] = getOntimeColor(pDet ? pDet.ontimePct : 100);
+      // Recompute from raw counts so pending/return/cancel orders never inflate
+      // the denominator and a null/undefined ontimePct never becomes red.
+      const nOntime = pDet?.ontimeCount ?? 0;
+      const nLate   = pDet?.lateCount   ?? 0;
+      const nEval   = nOntime + nLate;
+      const pct = nEval > 0 ? Math.round((nOntime / nEval) * 100) : null;
+      colorMap[p.name] = getOntimeColor(pct); // null → "var(--green)" (no SLA data yet)
     } else if (viewMode === "damage") {
       colorMap[p.name] = (pDet?.damageCount ?? 0) > 0 ? "var(--amber)" : "var(--map-unhighlighted)";
     } else {

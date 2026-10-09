@@ -64,7 +64,11 @@ function computeSync({ provinceStats, provinceDetailsMap, viewMode, mapIndustry,
       const intensity = Math.min(1, w / maxWeight);
       colorMap[p.name] = `rgba(${WEIGHT_RGB}, ${(0.25 + intensity * 0.7).toFixed(2)})`;
     } else if (viewMode === "ontime") {
-      colorMap[p.name] = getOntimeColorSync(pDet ? pDet.ontimePct : 100);
+      const nOntime = pDet?.ontimeCount ?? 0;
+      const nLate   = pDet?.lateCount   ?? 0;
+      const nEval   = nOntime + nLate;
+      const pct = nEval > 0 ? Math.round((nOntime / nEval) * 100) : null;
+      colorMap[p.name] = getOntimeColorSync(pct);
     } else if (viewMode === "damage") {
       colorMap[p.name] = (pDet?.damageCount ?? 0) > 0 ? "var(--amber)" : "var(--map-unhighlighted)";
     } else {
