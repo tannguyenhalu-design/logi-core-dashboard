@@ -253,6 +253,35 @@ export default function TabSystemHealth() {
             ))}
           </div>
 
+          {data.dataHealth && (
+            <div className="kpi-card" style={{ padding: 16, marginTop: 16, borderLeft: `3px solid ${(LEVELS[data.dataHealth.level] || LEVELS.unknown).color}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <div style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)" }}>Chất lượng dữ liệu LTL</div>
+                <Badge level={data.dataHealth.level} />
+              </div>
+              <div style={{ fontSize: 13, color: (LEVELS[data.dataHealth.level] || LEVELS.unknown).color, marginBottom: 12 }}>
+                {data.dataHealth.reason}
+              </div>
+              {(() => {
+                const f = data.dataHealth.facts || {};
+                return (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0 24px" }}>
+                    <Fact label="Tổng số đơn" value={fmtNum(f.totalRows)} />
+                    {f.errorCells > 0 && <Fact label="Ô lỗi công thức" value={<span style={{ color: "var(--amber)" }}>{fmtNum(f.errorCells)}</span>} />}
+                    {f.duplicateOrderCodes > 0 && <Fact label="Mã đơn trùng" value={<span style={{ color: "var(--amber)" }}>{fmtNum(f.duplicateOrderCodes)}</span>} />}
+                    {f.emptyOrderCode > 0 && <Fact label="Thiếu mã đơn" value={<span style={{ color: "var(--amber)" }}>{fmtNum(f.emptyOrderCode)}</span>} />}
+                    {f.emptyProject > 0 && <Fact label="Thiếu tên dự án" value={<span style={{ color: "var(--amber)" }}>{fmtNum(f.emptyProject)}</span>} />}
+                    {f.nullPickupTimes > 0 && <Fact label="Thiếu ngày lấy hàng" value={<span style={{ color: "var(--amber)" }}>{fmtNum(f.nullPickupTimes)}</span>} />}
+                    <Fact label="Đơn thiếu kho lấy" value={fmtNum(f.emptyKhoLay)} />
+                    <Fact label="Đơn thiếu kho giao" value={fmtNum(f.emptyKhoGiao)} />
+                    {f.zeroWeight > 0 && <Fact label="Trọng lượng = 0" value={fmtNum(f.zeroWeight)} hint="(có thể hợp lệ)" />}
+                    {f.malformedDamageRecent > 0 && <Fact label="Ca hư hỏng định dạng sai (7d)" value={<span style={{ color: "var(--amber)" }}>{fmtNum(f.malformedDamageRecent)}</span>} />}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
           {data.history?.length > 0 && (
             <div className="kpi-card" style={{ padding: 16, marginTop: 16 }}>
               <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10, color: "var(--text-primary)" }}>Các lần chạy scraper gần nhất</div>

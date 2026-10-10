@@ -102,6 +102,7 @@ export default function DashboardPage({ user: initialUser }) {
   const [selectedOrigin, setSelectedOrigin] = useState(null);
   const [dashData, setDashData] = useState(null);
   const [loading, setLoading] = useState(canSeeLTL);
+  const [dhBadge, setDhBadge] = useState(null);
   const [error, setError] = useState(null);
   // Only the latest request may write state — quick filter clicks could
   // otherwise let a slower, older response overwrite a newer one.
@@ -159,6 +160,18 @@ export default function DashboardPage({ user: initialUser }) {
         setStaffPics(names);
       })
       .catch(() => {});
+  }, [isManager]);
+
+  // Data health badge — fetch once after mount, manager only.
+  useEffect(() => {
+    if (!isManager) return;
+    const t = setTimeout(() => {
+      fetch("/api/system-health")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (d?.dataHealth) setDhBadge(d.dataHealth); })
+        .catch(() => {});
+    }, 4000);
+    return () => clearTimeout(t);
   }, [isManager]);
 
   // ── Fetch aggregated data from Backend API ──
@@ -884,6 +897,23 @@ export default function DashboardPage({ user: initialUser }) {
         </div>
       </div>
       {user.role !== "cs" && <AIChatDrawer role={user.role} />}
+      {isManager && dhBadge && dhBadge.level !== "green" && (
+        <button
+          onClick={() => goTab("health")}
+          title={dhBadge.reason}
+          style={{
+            position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+            zIndex: 200, padding: "6px 16px", borderRadius: 20, fontSize: 12, fontWeight: 600,
+            cursor: "pointer", border: "1px solid", whiteSpace: "nowrap",
+            background: dhBadge.level === "red" ? "rgba(244,63,94,0.15)" : "rgba(245,158,11,0.15)",
+            color: dhBadge.level === "red" ? "var(--red)" : "var(--amber)",
+            borderColor: dhBadge.level === "red" ? "var(--red)" : "var(--amber)",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+          }}
+        >
+          {dhBadge.level === "red" ? "🔴" : "⚠️"} Chất lượng dữ liệu: {dhBadge.reason.split(" · ")[0]}
+        </button>
+      )}
     </>
   );
 }
