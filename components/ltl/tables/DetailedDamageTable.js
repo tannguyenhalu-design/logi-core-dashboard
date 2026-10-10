@@ -149,15 +149,23 @@ function ClaimDrawer({ c, claim, canEdit, onClose, onSave }) {
           {c.amount > 0 && <Field label="Số tiền (nguồn)">{`${c.amount.toLocaleString("vi-VN")} đ`}</Field>}
         </div>
 
-        {/* Gallery ảnh Rillnet — hiển thị nếu record có image_urls / evidence_links */}
+        {/* Gallery ảnh Rillnet — hiển thị nếu record có image_urls / evidence_links / links / hinh_anh */}
         {(() => {
-          const raw = c.image_urls || c.evidence_links || "";
-          if (!raw) return null;
+          const raw = c.image_urls || c.evidence_links || c.links || c.hinh_anh || "";
           const urls = Array.isArray(raw)
             ? raw.filter(Boolean)
-            : String(raw).split(/[\n,]+/).map(u => u.trim()).filter(Boolean);
-          if (!urls.length) return null;
-          return <ImageGallery urls={urls} />;
+            : String(raw).split(/[\n,]+/).map(u => u.trim()).filter(u => u.startsWith("http"));
+          if (urls.length) return <ImageGallery urls={urls} />;
+          if (c.photo_count > 0) return (
+            <div style={{ padding: "8px 0", fontSize: 13, color: "var(--text-secondary)" }}>
+              📷 Có {c.photo_count} ảnh ·{" "}
+              <a href="https://rillnet.ghn.vn/" target="_blank" rel="noreferrer"
+                style={{ color: "var(--cyan)", textDecoration: "underline" }}>
+                Xem trên Rillnet
+              </a>
+            </div>
+          );
+          return null;
         })()}
 
         <div>

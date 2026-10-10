@@ -16,20 +16,38 @@ function getISOWeek(utcDate) {
 }
 
 function getKhau(c) {
-  const txt = [c.damage_details, c.suspected_leg, c.damage_type].filter(Boolean).join(" ").toLowerCase();
-  if (/bốc xếp|boc xep|loading/.test(txt)) return "Bốc xếp";
-  if (/chèn lót|chen lot|ftl|packing/.test(txt)) return "Chèn lót FTL";
-  if (/hub|trung chuy[eê]n|transit/.test(txt)) return "Hub";
-  if (/last.?mile|lastmile|giao cuối|d2d/.test(txt)) return "Lastmile";
+  // damage_details = r["suspected_leg"] từ Rillnet: "Kho lấy → Trung chuyển", "Trung chuyển → Kho giao", v.v.
+  const det = (c.damage_details || "").toLowerCase();
+  const src = (c.source || "").toLowerCase();
+  const status = (c.ltl_status || "").toLowerCase();
+  const dtype = (c.damage_type || "").toLowerCase();
+
+  // "Kho lấy → Trung chuyển" → lỗi tại kho nguồn / bốc xếp
+  if (det.includes("kho lấy") || det.includes("kho lay")) return "Kho Nguồn / Bốc xếp";
+
+  // "Trung chuyển → Kho giao" hoặc chỉ "Trung chuyển" → lỗi trong quá trình vận chuyển FTL
+  if (det.includes("trung chuyển") || det.includes("trung chuyen")) return "Vận chuyển FTL";
+
+  // "Kho giao" trong chặng hoặc nguồn báo là kho giao
+  if (det.includes("kho giao") || src.includes("kho giao")) return "Kho Đích / Phân loại";
+
+  // Giao hàng lastmile: bưu tá hoặc trạng thái đơn có từ giao
+  if (status.includes("bưu tá") || status.includes("buu ta") || status.includes("giao hàng") || status.includes("giao hang")) return "Giao hàng Lastmile";
+
+  // Fallback từ damage_type / nguồn báo
+  if (dtype.includes("bốc xếp") || dtype.includes("boc xep")) return "Kho Nguồn / Bốc xếp";
+  if (dtype.includes("vận chuyển") || dtype.includes("van chuyen") || dtype.includes("ftl")) return "Vận chuyển FTL";
+  if (src.includes("lastmile") || src.includes("last mile") || src.includes("d2d")) return "Giao hàng Lastmile";
+
   return "Khác";
 }
 
-const KHAU_LIST = ["Bốc xếp", "Chèn lót FTL", "Hub", "Lastmile", "Khác"];
+const KHAU_LIST = ["Kho Nguồn / Bốc xếp", "Vận chuyển FTL", "Kho Đích / Phân loại", "Giao hàng Lastmile", "Khác"];
 const KHAU_COLOR = {
-  "Bốc xếp": "var(--red)",
-  "Chèn lót FTL": "var(--amber)",
-  "Hub": "var(--cyan)",
-  "Lastmile": "#3b82f6",
+  "Kho Nguồn / Bốc xếp": "var(--red)",
+  "Vận chuyển FTL": "var(--amber)",
+  "Kho Đích / Phân loại": "var(--cyan)",
+  "Giao hàng Lastmile": "#3b82f6",
   "Khác": "var(--text-muted)",
 };
 

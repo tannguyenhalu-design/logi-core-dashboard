@@ -60,8 +60,10 @@ function Panel({ title, sub, children }) {
 export function OpenCasesPanel({ open, onOpenCase }) {
   const [stage, setStage] = useState("CS");
   const [copied, setCopied] = useState(false);
+  const [expanded, setExpanded] = useState(false); // Thu gọn mặc định
   if (!open) return null;
   const list = stage ? open.cases.filter((c) => c.stage === stage) : open.cases;
+  const over30Cases = open.cases.filter((c) => c.days != null && c.days > 30);
   const copy = () => { try { navigator.clipboard.writeText(list.map((c) => c.order_code).join("\n")); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* */ } };
   return (
     <Panel title="📂 Ca còn mở" sub={`không theo bộ lọc tháng/ngày · ${fmt(open.total)}/${fmt(open.all)} ca Điện máy chưa xử lý xong`}>
@@ -74,7 +76,7 @@ export function OpenCasesPanel({ open, onOpenCase }) {
         {open.byStage.map((s) => {
           const on = stage === s.stage;
           return (
-            <button key={s.stage} onClick={() => setStage(on ? null : s.stage)} style={{
+            <button key={s.stage} onClick={() => { setStage(on ? null : s.stage); if (!expanded) setExpanded(true); }} style={{
               textAlign: "left", padding: "8px 12px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
               border: `1px solid ${on ? STAGE_COLOR[s.stage] : "var(--border)"}`, borderLeft: `4px solid ${STAGE_COLOR[s.stage] || "var(--border)"}`,
               background: on ? "rgba(var(--brand-rgb),0.08)" : "var(--bg-panel)", color: "var(--text-primary)",
@@ -85,40 +87,56 @@ export function OpenCasesPanel({ open, onOpenCase }) {
           );
         })}
       </div>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
-        <span style={small}>{stage ? `Lọc khâu ${stage}: ` : ""}{fmt(list.length)} ca · bấm 1 dòng để mở chi tiết ca · tiền đền đã có {vnd(open.money.amount)} ({fmt(open.money.withAmount)}/{fmt(open.money.compensated)} ca đã chốt có số tiền)</span>
-        <button style={{ ...seg(false), marginLeft: "auto" }} onClick={copy}>{copied ? "✓ Đã copy" : `📋 Copy ${fmt(list.length)} mã đơn`}</button>
-        {stage && <button style={seg(false)} onClick={() => setStage(null)}>Bỏ lọc ✕</button>}
-      </div>
-      <div style={{ overflowX: "auto", maxHeight: 420, overflowY: "auto" }}>
-        <table className="data-table" style={{ fontSize: 12, minWidth: 820 }}>
-          <thead><tr>
-            <th style={th}>Đơn / Khách</th><th style={th}>Tuyến</th>
-            <th style={th}>Ngày ca</th><th style={{ ...th, textAlign: "right" }}>Tồn</th><th style={th}>Khâu</th><th style={th}>Trạng thái</th>
-            <th style={{ ...th, textAlign: "right" }}>Tiền đền</th>
-          </tr></thead>
-          <tbody>
-            {list.map((c) => (
-              <tr key={c.order_code + c.case_date} onClick={() => onOpenCase?.(c)} style={{ cursor: onOpenCase ? "pointer" : "default" }}>
-                <td style={{ ...td, whiteSpace: "nowrap" }}>
-                  <div style={{ fontFamily: "monospace", fontWeight: 700, color: "var(--cyan)" }}>{c.order_code}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>{c.client_name}</div>
-                </td>
-                <td style={{ ...td, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`${c.kho_lay} → ${c.kho_giao}`}>{shortRoute(c)}</td>
-                <td style={td}>{dm(c.case_iso)}</td>
-                <td style={{ ...num, fontWeight: 700, color: daysColor(c.days) }}>{c.days == null ? "—" : `${fmt(c.days)}n`}</td>
-                <td style={{ ...td, color: STAGE_COLOR[c.stage], fontWeight: 600 }}>{c.stage}</td>
-                <td style={{ ...td, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-secondary)" }} title={c.rillnet_status || ""}>{shortStatus(c.rillnet_status)}</td>
-                <td style={{ ...num, color: c.comp_amount ? "var(--amber)" : "var(--text-muted)" }}>{c.comp_amount ? vnd(c.comp_amount) : c.compensated ? "đã chốt" : "—"}</td>
-              </tr>
-            ))}
-            {!list.length && <tr><td colSpan={7} style={{ ...td, textAlign: "center", color: "var(--text-muted)" }}>Không có ca còn mở.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-      <div style={{ ...small, marginTop: 6 }}>
-        Còn mở = mọi trạng thái Rillnet trừ "Đã chốt — không truy thu" và "Hoàn tất kết luận QLRR". Tồn = hôm nay − ngày ghi nhận ca. Khâu suy từ chữ trạng thái: {open.byStatus.map((s) => `${s.status} (${s.count}) → ${s.stage}`).join(" · ")}.
-      </div>
+
+      {/* Accordion toggle */}
+      <button onClick={() => setExpanded((v) => !v)} style={{
+        width: "100%", padding: "7px 12px", marginBottom: expanded ? 8 : 0,
+        background: expanded ? "rgba(6,182,212,0.06)" : "rgba(239,68,68,0.06)",
+        border: `1px solid ${expanded ? "var(--cyan)" : "var(--red)"}`,
+        borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600,
+        color: expanded ? "var(--cyan)" : "var(--red)", textAlign: "left", display: "flex", alignItems: "center", gap: 8,
+      }}>
+        {expanded ? "🔺 Thu gọn danh sách ca" : `🔻 Hiển thị ${fmt(open.over30)} ca tồn đọng trên 30 ngày (${fmt(open.total)} ca tổng)`}
+      </button>
+
+      {expanded && (
+        <>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+            <span style={small}>{stage ? `Lọc khâu ${stage}: ` : ""}{fmt(list.length)} ca · bấm 1 dòng để mở chi tiết ca · tiền đền đã có {vnd(open.money.amount)} ({fmt(open.money.withAmount)}/{fmt(open.money.compensated)} ca đã chốt có số tiền)</span>
+            <button style={{ ...seg(false), marginLeft: "auto" }} onClick={copy}>{copied ? "✓ Đã copy" : `📋 Copy ${fmt(list.length)} mã đơn`}</button>
+            {stage && <button style={seg(false)} onClick={() => setStage(null)}>Bỏ lọc ✕</button>}
+          </div>
+          <div style={{ overflowX: "auto", maxHeight: 420, overflowY: "auto" }}>
+            <table className="data-table" style={{ fontSize: 12, minWidth: 820 }}>
+              <thead><tr>
+                <th style={th}>Đơn / Khách</th><th style={th}>Tuyến</th>
+                <th style={th}>Ngày ca</th><th style={{ ...th, textAlign: "right" }}>Tồn</th><th style={th}>Khâu</th><th style={th}>Trạng thái</th>
+                <th style={{ ...th, textAlign: "right" }}>Tiền đền</th>
+              </tr></thead>
+              <tbody>
+                {list.map((c) => (
+                  <tr key={c.order_code + c.case_date} onClick={() => onOpenCase?.(c)} style={{ cursor: onOpenCase ? "pointer" : "default" }}>
+                    <td style={{ ...td, whiteSpace: "nowrap" }}>
+                      <div style={{ fontFamily: "monospace", fontWeight: 700, color: "var(--cyan)" }}>{c.order_code}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>{c.client_name}</div>
+                    </td>
+                    <td style={{ ...td, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`${c.kho_lay} → ${c.kho_giao}`}>{shortRoute(c)}</td>
+                    <td style={td}>{dm(c.case_iso)}</td>
+                    <td style={{ ...num, fontWeight: 700, color: daysColor(c.days) }}>{c.days == null ? "—" : `${fmt(c.days)}n`}</td>
+                    <td style={{ ...td, color: STAGE_COLOR[c.stage], fontWeight: 600 }}>{c.stage}</td>
+                    <td style={{ ...td, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-secondary)" }} title={c.rillnet_status || ""}>{shortStatus(c.rillnet_status)}</td>
+                    <td style={{ ...num, color: c.comp_amount ? "var(--amber)" : "var(--text-muted)" }}>{c.comp_amount ? vnd(c.comp_amount) : c.compensated ? "đã chốt" : "—"}</td>
+                  </tr>
+                ))}
+                {!list.length && <tr><td colSpan={7} style={{ ...td, textAlign: "center", color: "var(--text-muted)" }}>Không có ca còn mở.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ ...small, marginTop: 6 }}>
+            Còn mở = mọi trạng thái Rillnet trừ "Đã chốt — không truy thu" và "Hoàn tất kết luận QLRR". Tồn = hôm nay − ngày ghi nhận ca. Khâu suy từ chữ trạng thái: {open.byStatus.map((s) => `${s.status} (${s.count}) → ${s.stage}`).join(" · ")}.
+          </div>
+        </>
+      )}
     </Panel>
   );
 }

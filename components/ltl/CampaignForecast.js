@@ -298,8 +298,11 @@ function EventCard({ event, byDay, weightByDay, byClientAndDay, byProvinceAndDay
 
       {/* KAM note — FC frozen, hiển thị L7D baseline cho event tương lai */}
       {isFuture && (
-        <div style={{ padding: "5px 12px", background: "rgba(245,158,11,0.10)", borderBottom: "1px solid var(--border)", fontSize: 11, color: "var(--amber)", display: "flex", alignItems: "center", gap: 6 }}>
-          ⚠ Cần nhập kế hoạch Event từ KAM — L7D baseline: ~{n(l7dPerDay)} đơn/ngày
+        <div style={{ padding: "5px 12px", background: "rgba(245,158,11,0.10)", borderBottom: "1px solid var(--border)", fontSize: 11, color: "var(--amber)" }}>
+          ⚠ Cần nhập kế hoạch Event từ KAM<br />
+          <span style={{ color: "var(--text-secondary)", fontSize: 10.5 }}>
+            📐 Công thức: <strong>Dự báo FC = L7D Baseline × Spike Ratio</strong> · Baseline: ~{n(l7dPerDay)} đơn/ngày
+          </span>
         </div>
       )}
 
@@ -361,6 +364,24 @@ function EventCard({ event, byDay, weightByDay, byClientAndDay, byProvinceAndDay
             <span>FC đã chốt: ~{n(fcTotal)}</span>
             <span>Actual: {n(actualTotal)}</span>
             {err != null && <span style={{ fontWeight: 700, color: errClr }}>Lệch: {err >= 0 ? "+" : ""}{(err * 100).toFixed(1)}%</span>}
+          </div>
+        );
+      })()}
+      {!isFuture && hasData && !fcSnapshot && (() => {
+        // Không có FC chốt → so sánh actual vs L7D × 3 như mức target cơ sở
+        const l7dTarget = l7dPerDay * 3;
+        const completion = l7dTarget > 0 ? totO / l7dTarget : null;
+        const clr = completion == null ? "var(--text-muted)" : completion >= 1.2 ? "var(--green)" : completion >= 0.9 ? "var(--amber)" : "var(--red)";
+        return (
+          <div style={{ padding: "5px 12px 6px", borderTop: "1px solid var(--border)", fontSize: 10.5, color: "var(--text-muted)", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <span>Actual: <strong style={{ color: "var(--text-primary)" }}>{n(totO)}</strong></span>
+            <span>vs L7D×3: ~{n(l7dTarget)}</span>
+            {completion != null && (
+              <span style={{ fontWeight: 700, color: clr }}>
+                {(completion * 100).toFixed(0)}% mục tiêu cơ sở
+              </span>
+            )}
+            <span style={{ color: "var(--text-muted)", fontSize: 10 }}>· Chưa chốt FC từ KAM</span>
           </div>
         );
       })()}
