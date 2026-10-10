@@ -15,41 +15,7 @@ function getISOWeek(utcDate) {
   return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
-function getKhau(c) {
-  // damage_details = r["suspected_leg"] từ Rillnet: "Kho lấy → Trung chuyển", "Trung chuyển → Kho giao", v.v.
-  const det = (c.damage_details || "").toLowerCase();
-  const src = (c.source || "").toLowerCase();
-  const status = (c.ltl_status || "").toLowerCase();
-  const dtype = (c.damage_type || "").toLowerCase();
-
-  // "Kho lấy → Trung chuyển" → lỗi tại kho nguồn / bốc xếp
-  if (det.includes("kho lấy") || det.includes("kho lay")) return "Kho Nguồn / Bốc xếp";
-
-  // "Trung chuyển → Kho giao" hoặc chỉ "Trung chuyển" → lỗi trong quá trình vận chuyển FTL
-  if (det.includes("trung chuyển") || det.includes("trung chuyen")) return "Trung chuyển hàng hóa";
-
-  // "Kho giao" trong chặng hoặc nguồn báo là kho giao
-  if (det.includes("kho giao") || src.includes("kho giao")) return "Kho Đích / Phân loại";
-
-  // Giao hàng lastmile: bưu tá hoặc trạng thái đơn có từ giao
-  if (status.includes("bưu tá") || status.includes("buu ta") || status.includes("giao hàng") || status.includes("giao hang")) return "Giao hàng Lastmile";
-
-  // Fallback từ damage_type / nguồn báo
-  if (dtype.includes("bốc xếp") || dtype.includes("boc xep")) return "Kho Nguồn / Bốc xếp";
-  if (dtype.includes("vận chuyển") || dtype.includes("van chuyen") || dtype.includes("ftl")) return "Trung chuyển hàng hóa";
-  if (src.includes("lastmile") || src.includes("last mile") || src.includes("d2d")) return "Giao hàng Lastmile";
-
-  return "Khác";
-}
-
-const KHAU_LIST = ["Kho Nguồn / Bốc xếp", "Trung chuyển hàng hóa", "Kho Đích / Phân loại", "Giao hàng Lastmile", "Khác"];
-const KHAU_COLOR = {
-  "Kho Nguồn / Bốc xếp": "var(--red)",
-  "Trung chuyển hàng hóa": "var(--amber)",
-  "Kho Đích / Phân loại": "var(--cyan)",
-  "Giao hàng Lastmile": "#3b82f6",
-  "Khác": "var(--text-muted)",
-};
+const KHAU_PALETTE = ["var(--amber)", "var(--red)", "var(--cyan)", "#3b82f6", "var(--green)", "#a855f7", "var(--text-muted)"];
 
 const panelStyle = {
   background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px", marginBottom: 16,
@@ -104,12 +70,19 @@ export default function WeeklyReviewBoard({ ordersByProjectAndWeek, ordersByMont
   const topGains = [...clients].sort((a, b) => b.delta - a.delta).filter(c => c.delta > 0).slice(0, 5);
   const topDrops = [...clients].sort((a, b) => a.delta - b.delta).filter(c => c.delta < 0).slice(0, 5);
 
-  // ── Part 2: Bể vỡ theo Khâu ─────────────────────────────────────────────
+  // ── Part 2: Bể vỡ theo Khâu — group trực tiếp từ damage_details thật ───
   const khauCounts = useMemo(() => {
-    const map = Object.fromEntries(KHAU_LIST.map(k => [k, 0]));
-    for (const c of damageCases) map[getKhau(c)] = (map[getKhau(c)] || 0) + 1;
+    const map = {};
+    for (const c of damageCases) {
+      const key = (c.damage_details || "").trim() || "Chưa xác định";
+      map[key] = (map[key] || 0) + 1;
+    }
     return map;
   }, [damageCases]);
+  const khauList = useMemo(
+    () => Object.entries(khauCounts).sort((a, b) => b[1] - a[1]).map(([k]) => k),
+    [khauCounts]
+  );
   const totalCases = damageCases.length;
 
   if (!wCurr || !wPrev) {
@@ -208,11 +181,10 @@ export default function WeeklyReviewBoard({ ordersByProjectAndWeek, ordersByMont
           <div style={{ color: "var(--text-muted)", fontSize: 13 }}>Không có ca bể vỡ trong kỳ lọc.</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {KHAU_LIST.map(khau => {
+            {khauList.map((khau, i) => {
               const count = khauCounts[khau] || 0;
-              if (!count) return null;
               const pct = Math.round((count / totalCases) * 100);
-              const color = KHAU_COLOR[khau];
+              const color = KHAU_PALETTE[i % KHAU_PALETTE.length];
               return (
                 <div key={khau}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
