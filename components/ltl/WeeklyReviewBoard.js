@@ -26,7 +26,7 @@ function getKhau(c) {
   if (det.includes("kho lấy") || det.includes("kho lay")) return "Kho Nguồn / Bốc xếp";
 
   // "Trung chuyển → Kho giao" hoặc chỉ "Trung chuyển" → lỗi trong quá trình vận chuyển FTL
-  if (det.includes("trung chuyển") || det.includes("trung chuyen")) return "Vận chuyển FTL";
+  if (det.includes("trung chuyển") || det.includes("trung chuyen")) return "Trung chuyển hàng hóa";
 
   // "Kho giao" trong chặng hoặc nguồn báo là kho giao
   if (det.includes("kho giao") || src.includes("kho giao")) return "Kho Đích / Phân loại";
@@ -36,16 +36,16 @@ function getKhau(c) {
 
   // Fallback từ damage_type / nguồn báo
   if (dtype.includes("bốc xếp") || dtype.includes("boc xep")) return "Kho Nguồn / Bốc xếp";
-  if (dtype.includes("vận chuyển") || dtype.includes("van chuyen") || dtype.includes("ftl")) return "Vận chuyển FTL";
+  if (dtype.includes("vận chuyển") || dtype.includes("van chuyen") || dtype.includes("ftl")) return "Trung chuyển hàng hóa";
   if (src.includes("lastmile") || src.includes("last mile") || src.includes("d2d")) return "Giao hàng Lastmile";
 
   return "Khác";
 }
 
-const KHAU_LIST = ["Kho Nguồn / Bốc xếp", "Vận chuyển FTL", "Kho Đích / Phân loại", "Giao hàng Lastmile", "Khác"];
+const KHAU_LIST = ["Kho Nguồn / Bốc xếp", "Trung chuyển hàng hóa", "Kho Đích / Phân loại", "Giao hàng Lastmile", "Khác"];
 const KHAU_COLOR = {
   "Kho Nguồn / Bốc xếp": "var(--red)",
-  "Vận chuyển FTL": "var(--amber)",
+  "Trung chuyển hàng hóa": "var(--amber)",
   "Kho Đích / Phân loại": "var(--cyan)",
   "Giao hàng Lastmile": "#3b82f6",
   "Khác": "var(--text-muted)",
