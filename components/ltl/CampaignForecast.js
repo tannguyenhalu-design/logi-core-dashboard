@@ -261,13 +261,22 @@ function EventCard({ event, byDay, weightByDay, byClientAndDay, byProvinceAndDay
     ? { dm1: { orders: fc.dm1O, weight: fc.dm1W }, d0: { orders: fc.d0O, weight: fc.d0W }, dp1: { orders: fc.dp1O, weight: fc.dp1W } }
     : { dm1: { orders: 0, weight: 0 }, d0: { orders: 0, weight: 0 }, dp1: { orders: 0, weight: 0 } };
 
-  const days = isFuture ? forecast : actual;
+  // FC FROZEN (2026-10-10): hiển thị L7D non-event baseline thay vì forecast event cho tương lai
+  const l7dPerDay = Math.round(normalStats.orders || 0);
+  const l7dWeight = Math.round(normalStats.weight || 0);
+  const l7dDays = {
+    dm1: { orders: l7dPerDay, weight: l7dWeight },
+    d0:  { orders: l7dPerDay, weight: l7dWeight },
+    dp1: { orders: l7dPerDay, weight: l7dWeight },
+  };
+  const days = isFuture ? l7dDays : actual;
   const hasData = !isFuture && (actual.d0.orders > 0 || actual.dm1.orders > 0 || actual.dp1.orders > 0);
 
   const totO = days.dm1.orders + days.d0.orders + days.dp1.orders;
   const totW = days.dm1.weight + days.d0.weight + days.dp1.weight;
   const maxO = Math.max(days.dm1.orders, days.d0.orders, days.dp1.orders, 1);
-  const spikeRatio = normalStats.orders > 0 && totO > 0 ? totO / (normalStats.orders * 3) : null;
+  // spikeRatio chỉ tính cho ca đã qua — với L7D baseline totO = normalStats*3 → luôn = 1.0 vô nghĩa
+  const spikeRatio = !isFuture && normalStats.orders > 0 && totO > 0 ? totO / (normalStats.orders * 3) : null;
 
   // Forecast per-client breakdown from baseline avg
   const forecastByClient = useMemo(() => {
@@ -286,6 +295,13 @@ function EventCard({ event, byDay, weightByDay, byClientAndDay, byProvinceAndDay
           {isFuture ? "⏳ Sắp tới" : hasData ? "✓ Đã qua" : "? Không có data"}
         </span>
       </div>
+
+      {/* KAM note — FC frozen, hiển thị L7D baseline cho event tương lai */}
+      {isFuture && (
+        <div style={{ padding: "5px 12px", background: "rgba(245,158,11,0.10)", borderBottom: "1px solid var(--border)", fontSize: 11, color: "var(--amber)", display: "flex", alignItems: "center", gap: 6 }}>
+          ⚠ Cần nhập kế hoạch Event từ KAM — L7D baseline: ~{n(l7dPerDay)} đơn/ngày
+        </div>
+      )}
 
       {/* 3-day columns */}
       <div style={{ display: "flex", padding: "10px 6px 6px", gap: 2 }}>
@@ -350,7 +366,7 @@ function EventCard({ event, byDay, weightByDay, byClientAndDay, byProvinceAndDay
       })()}
 
       {/* Toggles: dự án + tỉnh thành */}
-      {(hasData || (isFuture && fc)) && (
+      {hasData && (
         <div style={{ borderTop: "1px solid var(--border)" }}>
           <button onClick={() => setShowProjects((v) => !v)} style={{
             width: "100%", padding: "5px 12px", background: "none", border: "none", cursor: "pointer",
@@ -380,7 +396,7 @@ function EventCard({ event, byDay, weightByDay, byClientAndDay, byProvinceAndDay
           )}
         </div>
       )}
-      {(hasData || (isFuture && khoLayForecast && Object.keys(khoLayForecast).length > 0)) && (
+      {hasData && (
         <div style={{ borderTop: "1px solid var(--border)" }}>
           <button onClick={() => setShowKhoLay((v) => !v)} style={{
             width: "100%", padding: "5px 12px", background: "none", border: "none", cursor: "pointer",

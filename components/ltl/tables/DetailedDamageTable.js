@@ -45,6 +45,38 @@ function Field({ label, children }) {
   );
 }
 
+function ImageGallery({ urls }) {
+  const [lightbox, setLightbox] = useState(null);
+  if (!urls.length) return null;
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8 }}>Ảnh hiện trường ({urls.length})</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {urls.map((url, i) => (
+          <img key={i} src={url} alt={`Ảnh ${i + 1}`}
+            onClick={() => setLightbox(url)}
+            onError={(e) => { e.target.style.display = "none"; }}
+            style={{ width: 76, height: 76, objectFit: "cover", borderRadius: 6, cursor: "pointer", border: "1px solid var(--border)" }}
+          />
+        ))}
+      </div>
+      {lightbox && (
+        <div onClick={() => setLightbox(null)} style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 10000,
+          display: "flex", alignItems: "center", justifyContent: "center", cursor: "zoom-out",
+        }}>
+          <img src={lightbox} alt="Ảnh phóng to" style={{ maxWidth: "90vw", maxHeight: "85vh", borderRadius: 8, objectFit: "contain" }} />
+          <button onClick={(e) => { e.stopPropagation(); setLightbox(null); }} style={{
+            position: "absolute", top: 20, right: 20, background: "rgba(255,255,255,0.2)", border: "none",
+            color: "#fff", fontSize: 20, cursor: "pointer", borderRadius: "50%", width: 36, height: 36,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>✕</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ClaimDrawer({ c, claim, canEdit, onClose, onSave }) {
   const [status, setStatus] = useState(claim.status);
   const [assignee, setAssignee] = useState(claim.assignee || "");
@@ -117,6 +149,17 @@ function ClaimDrawer({ c, claim, canEdit, onClose, onSave }) {
           {c.amount > 0 && <Field label="Số tiền (nguồn)">{`${c.amount.toLocaleString("vi-VN")} đ`}</Field>}
         </div>
 
+        {/* Gallery ảnh Rillnet — hiển thị nếu record có image_urls / evidence_links */}
+        {(() => {
+          const raw = c.image_urls || c.evidence_links || "";
+          if (!raw) return null;
+          const urls = Array.isArray(raw)
+            ? raw.filter(Boolean)
+            : String(raw).split(/[\n,]+/).map(u => u.trim()).filter(Boolean);
+          if (!urls.length) return null;
+          return <ImageGallery urls={urls} />;
+        })()}
+
         <div>
           <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 6 }}>Người phụ trách</div>
           <input value={assignee} onChange={(e) => setAssignee(e.target.value)} disabled={!canEdit} placeholder="Chưa gán" style={input} />
@@ -164,6 +207,7 @@ export default function DetailedDamageTable({ cases, filter, showClaimsWorkflow 
   const [typeFilter, setTypeFilter] = useState("all");
   const [warehouseFilter, setWarehouseFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [openClosedFilter, setOpenClosedFilter] = useState("all"); // "all" | "open" | "closed"
 
   useEffect(() => {
     if (!showClaimsWorkflow) return;
@@ -208,11 +252,14 @@ export default function DetailedDamageTable({ cases, filter, showClaimsWorkflow 
   // Pipeline counts follow every filter except the status one itself.
   const statusCounts = Object.fromEntries(CLAIM_STATUSES.map((s) => [s, 0]));
   baseFiltered.forEach((c) => { statusCounts[claimOf(c.order_code).status]++; });
-  const filteredCases = statusFilter === "all" ? baseFiltered : baseFiltered.filter((c) => claimOf(c.order_code).status === statusFilter);
+  const byStatus = statusFilter === "all" ? baseFiltered : baseFiltered.filter((c) => claimOf(c.order_code).status === statusFilter);
+  const filteredCases = openClosedFilter === "all" ? byStatus
+    : openClosedFilter === "open"   ? byStatus.filter((c) => claimOf(c.order_code).status !== "Đã đóng")
+    : byStatus.filter((c) => claimOf(c.order_code).status === "Đã đóng");
 
-  const hasLocalFilters = q || projectFilter !== "all" || typeFilter !== "all" || warehouseFilter !== "all" || statusFilter !== "all";
+  const hasLocalFilters = q || projectFilter !== "all" || typeFilter !== "all" || warehouseFilter !== "all" || statusFilter !== "all" || openClosedFilter !== "all";
   const clearLocalFilters = () => {
-    setSearchQuery(""); setProjectFilter("all"); setTypeFilter("all"); setWarehouseFilter("all"); setStatusFilter("all");
+    setSearchQuery(""); setProjectFilter("all"); setTypeFilter("all"); setWarehouseFilter("all"); setStatusFilter("all"); setOpenClosedFilter("all");
   };
   const showAmount = cases.some((c) => c.amount > 0);
   // externalCase: a case opened from "Ca còn mở" (may be outside the month/date filter)
@@ -226,6 +273,19 @@ export default function DetailedDamageTable({ cases, filter, showClaimsWorkflow 
 
   return (
     <div style={{ marginTop: 16 }}>
+      {showClaimsWorkflow && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Trạng thái ca:</span>
+          {[["all", "Tất cả"], ["open", "Chỉ ca CÒN MỞ"], ["closed", "Ca ĐÃ ĐÓNG"]].map(([v, label]) => (
+            <button key={v} onClick={() => setOpenClosedFilter(v)} style={{
+              padding: "4px 12px", borderRadius: 20, cursor: "pointer", fontFamily: "inherit", fontSize: 11.5, fontWeight: 600,
+              border: `1px solid ${openClosedFilter === v ? "var(--cyan)" : "var(--border)"}`,
+              background: openClosedFilter === v ? "rgba(6,182,212,0.12)" : "transparent",
+              color: openClosedFilter === v ? "var(--cyan)" : "var(--text-muted)",
+            }}>{label}</button>
+          ))}
+        </div>
+      )}
       {showClaimsWorkflow && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, marginBottom: 14 }}>
           {CLAIM_STATUSES.map((s, i) => {

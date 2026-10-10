@@ -18,6 +18,7 @@ import { OpenCasesPanel, RecurrencePanel, LegRoutesPanel } from "./damage/Damage
 import ExceptionsPanel from "./cards/ExceptionsPanel";
 import CampaignForecast from "./CampaignForecast";
 import TrendPanel from "./TrendPanel";
+import WeeklyReviewBoard from "./WeeklyReviewBoard";
 
 // Trend chart above only shows the COMBINED weekly total — "tuần 2 → tuần 3
 // giảm" was visible but which client drove it wasn't, and the AI chat had
@@ -637,7 +638,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
           { label: "Tiền đền cho khách", value: moneyFmt, sub: damageMoney ? `${fmt(damageMoney.total.compensated)} ca đã chốt đền bù` : "", color: "var(--amber)" },
           { label: "Ca còn mở", value: fmt(damageAnalysis?.open?.total || 0), sub: damageAnalysis?.open ? `${fmt(damageAnalysis.open.over30)} ca > 30 ngày` : "", color: damageAnalysis?.open?.total ? "var(--red)" : "var(--text-muted)" },
         ];
-        const TABS = [["cases", "📂 Ca & xử lý"], ["finance", "💰 Tài chính"], ["risk", "📊 Phân tích rủi ro"]];
+        const TABS = [["cases", "📂 Ca & xử lý"], ["finance", "💰 Tài chính"], ["risk", "📊 Phân tích rủi ro"], ["review", "📋 Review tuần"]];
         return (
           <>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
@@ -710,6 +711,14 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
                 {damageAnalysis && <LegRoutesPanel legs={damageAnalysis.legs} />}
                 {damageRisk && <RouteRiskMatrix risk={damageRisk} riskOnly={riskOnly} onRiskOnlyChange={setRiskOnly} />}
               </>
+            )}
+
+            {damageSubTab === "review" && (
+              <WeeklyReviewBoard
+                ordersByProjectAndWeek={data.ordersByProjectAndWeek || {}}
+                ordersByMonth={data.ordersByMonth || {}}
+                damageCases={data.detailedDamageCases || []}
+              />
             )}
           </>
         );
