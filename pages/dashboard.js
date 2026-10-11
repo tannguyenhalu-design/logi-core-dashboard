@@ -90,9 +90,9 @@ export default function DashboardPage({ user: initialUser }) {
   const [activeTab, setActiveTab] = useState(firstTab); // LTL_VIEWS id | 'report' | 'trials' | 'users' | 'auditlog' | 'health' | 'brain' | 'none'
   const isLTLView = LTL_VIEWS.some((v) => v.id === activeTab);
   const [selectedMonths, setSelectedMonths] = useState(() => {
-    // Mặc định: 3 tháng gần nhất (VN time). User mở rộng qua FilterBar.
+    // Mặc định: tháng hiện tại (VN time). Chọn thêm tháng cũ qua FilterBar.
     const m = new Date(Date.now() + 7 * 3600 * 1000).getUTCMonth() + 1;
-    return Array.from({ length: 3 }, (_, i) => m - 2 + i).filter((v) => v >= 1);
+    return [m];
   });
   const [selectedProjects, setSelectedProjects] = useState([]);
   const [riskOnly, setRiskOnly] = useState(false); // "Tuyến rủi ro cao" quick filter
