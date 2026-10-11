@@ -4,6 +4,7 @@
  * Filter state managed here and passed down to all tabs for sync.
  */
 import { useState, useEffect, useCallback, useRef, useMemo, startTransition } from "react";
+import { useRouter } from "next/router";
 import Head from "next/head";
 import FilterBar from "../components/FilterBar";
 import { KpiCardSkeleton } from "../components/KpiCard";
@@ -71,6 +72,7 @@ function DashboardSkeleton({ view }) {
 
 export default function DashboardPage({ user: initialUser }) {
   const user = initialUser || {};
+  const router = useRouter();
   const isManager = user.role === "manager";
   const userTabs = user.tabs || [];
   // Per-tab access — manager always has everything; others use tabs array
@@ -84,7 +86,10 @@ export default function DashboardPage({ user: initialUser }) {
   const canSeeTrials = isManager || userTabs.includes("trials");
   const canSeeDecision = isManager || user.role === "sd3";
   const firstTab = canSeeDecision ? "decision" : canSeeLTL ? "ltl" : canSeeMap ? "map" : canSeeDamage ? "damage" : canSeeEvents ? "events" : canSeeReport ? "report" : canSeeTrials ? "trials" : "none";
-  const [activeTab, setActiveTab] = useState(firstTab); // LTL_VIEWS id | 'report' | 'trials' | 'users' | 'auditlog' | 'health' | 'brain' | 'none'
+  // ?t=tabId in URL overrides default tab (for direct links / audit screenshots)
+  const VALID_TABS = ["ltl","map","damage","events","vehicles","decision","report","trials","users","auditlog","health","brain"];
+  const initialTab = (router.query.t && VALID_TABS.includes(router.query.t)) ? router.query.t : firstTab;
+  const [activeTab, setActiveTab] = useState(initialTab); // LTL_VIEWS id | 'report' | 'trials' | 'users' | 'auditlog' | 'health' | 'brain' | 'none'
   const isLTLView = LTL_VIEWS.some((v) => v.id === activeTab);
   const [selectedMonths, setSelectedMonths] = useState(() => {
     // Mặc định: 3 tháng gần nhất (VN time). User mở rộng qua FilterBar.
