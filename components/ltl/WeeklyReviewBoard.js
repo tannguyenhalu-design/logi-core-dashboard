@@ -5,7 +5,7 @@
  *   2. Truy vết bể vỡ theo Khâu (Bốc xếp / Chèn lót FTL / Hub / Lastmile)
  *   3. Ghi chú & Chỉ đạo Ops tuần — lưu localStorage
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 
 function getISOWeek(utcDate) {
   // utcDate phải được tạo bằng Date.UTC để tránh lệch múi giờ
@@ -24,23 +24,59 @@ const h3Style = {
   fontSize: 11.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5,
 };
 
+function newNote() {
+  return { id: `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, issue: "", detail: "", imageUrl: "", actionPlan: "" };
+}
+
 export default function WeeklyReviewBoard({ ordersByProjectAndWeek, ordersByMonth, damageCases = [] }) {
   // Lấy ngày VN qua ISO string để tránh double-shift (vnNow là UTC+7 nhưng getFullYear() lại dùng local TZ)
   const vnDateStr = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
   const [vy, vm, vd] = vnDateStr.split("-").map(Number);
   const weekNum = getISOWeek(new Date(Date.UTC(vy, vm - 1, vd)));
-  const LS_KEY = `ops_directives_W${weekNum}_${vy}`;
+  const weekKey = `W${weekNum}_${vy}`;
+  const LS_KEY = `ops_notes_${weekKey}`;
 
-  const [directives, setDirectives] = useState(() => {
-    try { return localStorage.getItem(LS_KEY) || ""; } catch { return ""; }
+  // Lưu ý vận hành — mảng 4 cột
+  const [notes, setNotes] = useState(() => {
+    try { const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : [newNote()]; } catch { return [newNote()]; }
   });
   const [savedMsg, setSavedMsg] = useState(false);
+  const [imgModal, setImgModal] = useState(null); // URL đang xem phóng to
 
-  const saveDirectives = () => {
-    try { localStorage.setItem(LS_KEY, directives); } catch {}
+  // Load từ API khi mount
+  useEffect(() => {
+    fetch(`/api/ops-notes?week=${weekKey}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.ok && d.notes?.length) {
+          setNotes(d.notes);
+          try { localStorage.setItem(LS_KEY, JSON.stringify(d.notes)); } catch {}
+        }
+      })
+      .catch(() => {});
+  }, [weekKey, LS_KEY]);
+
+  const updateNote = useCallback((id, field, value) => {
+    setNotes((prev) => prev.map((n) => n.id === id ? { ...n, [field]: value } : n));
+  }, []);
+
+  const addNote = useCallback(() => setNotes((prev) => [...prev, newNote()]), []);
+
+  const removeNote = useCallback((id) => {
+    setNotes((prev) => prev.length > 1 ? prev.filter((n) => n.id !== id) : prev);
+  }, []);
+
+  const saveNotes = useCallback(async () => {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(notes)); } catch {}
+    try {
+      await fetch("/api/ops-notes", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ week: weekKey, notes }),
+      });
+    } catch {}
     setSavedMsg(true);
-    setTimeout(() => setSavedMsg(false), 2000);
-  };
+    setTimeout(() => setSavedMsg(false), 2500);
+  }, [notes, weekKey, LS_KEY]);
 
   // ── Part 1: W_prev vs W_curr ─────────────────────────────────────────────
   const weeks = useMemo(
@@ -206,32 +242,117 @@ export default function WeeklyReviewBoard({ ordersByProjectAndWeek, ordersByMont
         )}
       </div>
 
-      {/* ── Part 3: Chỉ đạo Ops tuần ────────────────────────────────────── */}
+      {/* ── Part 3: Lưu ý vận hành 4 cột ─────────────────────────────────── */}
       <div style={panelStyle}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
-          <span style={h3Style}>Ghi chú & Chỉ đạo Ops — Tuần W{weekNum}</span>
-          <button onClick={saveDirectives} style={{
-            padding: "5px 16px", background: savedMsg ? "rgba(16,185,129,0.15)" : "rgba(6,182,212,0.12)",
-            border: `1px solid ${savedMsg ? "var(--green)" : "var(--cyan)"}`,
-            color: savedMsg ? "var(--green)" : "var(--cyan)",
-            borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s",
-          }}>
-            {savedMsg ? "✓ Đã lưu" : "Lưu"}
-          </button>
+          <span style={h3Style}>LƯU Ý VẬN HÀNH — TUẦN W{weekNum}</span>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={addNote} style={{
+              padding: "5px 12px", background: "rgba(6,182,212,0.08)", border: "1px solid var(--cyan)",
+              color: "var(--cyan)", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+            }}>
+              ➕ Thêm lưu ý
+            </button>
+            <button onClick={saveNotes} style={{
+              padding: "5px 14px", background: savedMsg ? "rgba(16,185,129,0.15)" : "rgba(6,182,212,0.12)",
+              border: `1px solid ${savedMsg ? "var(--green)" : "var(--cyan)"}`,
+              color: savedMsg ? "var(--green)" : "var(--cyan)",
+              borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s",
+            }}>
+              {savedMsg ? "✓ Đã lưu" : `💾 Lưu danh sách W${weekNum}`}
+            </button>
+          </div>
         </div>
-        <textarea
-          value={directives}
-          onChange={(e) => setDirectives(e.target.value)}
-          rows={6}
-          placeholder={`Nhập chỉ đạo vận hành tuần W${weekNum}...\nVD:\n- Kho HAN01 tỷ lệ bể vỡ cao — theo dõi sát\n- Follow up dự án [X] về đơn treo\n- Ưu tiên KH tiềm năng đang tăng trưởng`}
-          style={{
-            width: "100%", boxSizing: "border-box", resize: "vertical", fontFamily: "inherit", fontSize: 13,
-            background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--text-primary)",
-            borderRadius: 8, padding: "10px 12px", lineHeight: 1.7,
-          }}
-        />
-        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>
-          Lưu trên trình duyệt này · Tuần W{weekNum} · {vy}
+
+        {/* Modal xem ảnh phóng to */}
+        {imgModal && (
+          <div onClick={() => setImgModal(null)} style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 9999,
+            display: "flex", alignItems: "center", justifyContent: "center", cursor: "zoom-out",
+          }}>
+            <img src={imgModal} alt="" style={{ maxWidth: "90vw", maxHeight: "90vh", borderRadius: 8, boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }} />
+          </div>
+        )}
+
+        {/* Bảng 4 cột */}
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+            <thead>
+              <tr style={{ background: "var(--bg-panel)" }}>
+                {["Vấn đề", "Chi tiết vấn đề", "Hình ảnh", "Action plan", ""].map((h, i) => (
+                  <th key={i} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 600, fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.4, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap", width: i === 0 ? 160 : i === 2 ? 120 : i === 4 ? 36 : "auto" }}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {notes.map((note, idx) => (
+                <tr key={note.id} style={{ borderBottom: "1px solid var(--border)", background: idx % 2 === 0 ? "transparent" : "var(--bg-panel)" }}>
+                  {/* Cột 1: Vấn đề */}
+                  <td style={{ padding: "8px 10px", verticalAlign: "top" }}>
+                    <input
+                      value={note.issue}
+                      onChange={(e) => updateNote(note.id, "issue", e.target.value)}
+                      placeholder="Tên vấn đề..."
+                      style={{ width: "100%", boxSizing: "border-box", padding: "5px 7px", borderRadius: 5, border: "1px solid var(--border)", fontFamily: "inherit", fontSize: 12.5, background: "var(--input-bg)", color: "var(--text-primary)" }}
+                    />
+                  </td>
+                  {/* Cột 2: Chi tiết */}
+                  <td style={{ padding: "8px 10px", verticalAlign: "top" }}>
+                    <textarea
+                      value={note.detail}
+                      onChange={(e) => updateNote(note.id, "detail", e.target.value)}
+                      placeholder="Mô tả chi tiết, số liệu, kho liên quan..."
+                      rows={3}
+                      style={{ width: "100%", boxSizing: "border-box", padding: "5px 7px", borderRadius: 5, border: "1px solid var(--border)", fontFamily: "inherit", fontSize: 12, resize: "vertical", background: "var(--input-bg)", color: "var(--text-primary)", lineHeight: 1.5 }}
+                    />
+                  </td>
+                  {/* Cột 3: Hình ảnh */}
+                  <td style={{ padding: "8px 10px", verticalAlign: "top" }}>
+                    <input
+                      value={note.imageUrl}
+                      onChange={(e) => updateNote(note.id, "imageUrl", e.target.value)}
+                      placeholder="URL ảnh..."
+                      style={{ width: "100%", boxSizing: "border-box", padding: "5px 7px", borderRadius: 5, border: "1px solid var(--border)", fontFamily: "inherit", fontSize: 11.5, marginBottom: 4, background: "var(--input-bg)", color: "var(--text-primary)" }}
+                    />
+                    {note.imageUrl && (
+                      <img
+                        src={note.imageUrl}
+                        alt=""
+                        onClick={() => setImgModal(note.imageUrl)}
+                        onError={(e) => { e.target.style.display = "none"; }}
+                        style={{ width: 80, height: 56, objectFit: "cover", borderRadius: 4, cursor: "zoom-in", border: "1px solid var(--border)" }}
+                      />
+                    )}
+                  </td>
+                  {/* Cột 4: Action plan */}
+                  <td style={{ padding: "8px 10px", verticalAlign: "top" }}>
+                    <textarea
+                      value={note.actionPlan}
+                      onChange={(e) => updateNote(note.id, "actionPlan", e.target.value)}
+                      placeholder="Phân công, deadline, người chịu trách nhiệm..."
+                      rows={3}
+                      style={{ width: "100%", boxSizing: "border-box", padding: "5px 7px", borderRadius: 5, border: "1px solid var(--border)", fontFamily: "inherit", fontSize: 12, resize: "vertical", background: "var(--input-bg)", color: "var(--text-primary)", lineHeight: 1.5 }}
+                    />
+                  </td>
+                  {/* Cột xóa */}
+                  <td style={{ padding: "8px 6px", verticalAlign: "top" }}>
+                    <button
+                      onClick={() => removeNote(note.id)}
+                      title="Xóa dòng"
+                      disabled={notes.length === 1}
+                      style={{ background: "none", border: "1px solid var(--border)", color: "var(--red)", cursor: notes.length > 1 ? "pointer" : "default", borderRadius: 5, padding: "4px 7px", fontSize: 13, opacity: notes.length === 1 ? 0.3 : 1 }}
+                    >✕</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8 }}>
+          Lưu vào Vercel Blob + trình duyệt này · Tuần W{weekNum} · {vy} · {notes.length} lưu ý
         </div>
       </div>
     </div>

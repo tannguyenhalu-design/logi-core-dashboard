@@ -248,7 +248,49 @@ function WhRoleBlock({ title, st, routeLabel }) {
 
 const STATUS_COLOR = { "chắc chắn": "var(--green)", "user xác nhận": "var(--green)", "ước lượng": "var(--amber)" };
 
-function WarehouseDetail({ site, period, dateBasis, pinned, onUnpin, mapIndustry = "dm" }) {
+function WarehouseHealthCard({ satInfo }) {
+  if (!satInfo?.hasData) return null;
+  const { backlog, tbGtc, maxGtc, est_clear_hien_tai, est_clear_sap_ve, peak_ratio, unstable, reasons } = satInfo;
+  const badge = unstable
+    ? { color: "#b91c1c", bg: "#fee2e2", border: "#fca5a5", icon: "🔴", label: "BẤT ỔN" }
+    : est_clear_hien_tai > 1.0
+    ? { color: "#92400e", bg: "#fef3c7", border: "#fcd34d", icon: "🟡", label: "CHÚ Ý" }
+    : { color: "#065f46", bg: "#dcfce7", border: "#86efac", icon: "✅", label: "ỔN ĐỊNH" };
+  const cell = { padding: "6px 10px", fontSize: 12 };
+  return (
+    <div style={{ border: `1.5px solid ${badge.border}`, background: badge.bg, borderRadius: 8, padding: "10px 12px", marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
+        <span style={{ fontWeight: 700, fontSize: 13, color: badge.color }}>{badge.icon} {badge.label} — Trạng thái kho</span>
+        <span style={{ fontSize: 11, color: "#6b7280" }}>Nguồn: Sheet Anh Tân</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 6 }}>
+        {[
+          { label: "Tồn hiện tại", value: `${backlog ?? "—"} đơn` },
+          { label: "Clear Time hiện tại", value: est_clear_hien_tai != null ? `${est_clear_hien_tai.toFixed(1)} ngày` : "—" },
+          { label: "Clear Time sắp về", value: est_clear_sap_ve != null ? `${est_clear_sap_ve.toFixed(1)} ngày` : "—" },
+          { label: "TB giao/ngày (L7D)", value: tbGtc != null ? `${Math.round(tbGtc)} đơn` : "—" },
+          { label: "Max giao/ngày (L7D)", value: maxGtc != null ? `${maxGtc} đơn` : "—" },
+          { label: "Peak Ratio", value: peak_ratio != null ? `×${peak_ratio.toFixed(2)}` : "—" },
+        ].map(({ label, value }) => (
+          <div key={label} style={{ background: "rgba(255,255,255,0.5)", borderRadius: 6, padding: "6px 8px" }}>
+            <div style={{ fontSize: 10.5, color: "#6b7280", marginBottom: 2 }}>{label}</div>
+            <div style={{ fontWeight: 700, fontSize: 13, color: badge.color }}>{value}</div>
+          </div>
+        ))}
+      </div>
+      {reasons?.length > 0 && (
+        <div style={{ marginTop: 8, fontSize: 11.5, color: badge.color }}>
+          {reasons.map((r, i) => <div key={i}>⚠ {r}</div>)}
+        </div>
+      )}
+      <div style={{ marginTop: 6, fontSize: 11, color: "#9ca3af" }}>
+        Tỷ lệ bể vỡ / số đơn trễ: chưa có dữ liệu cấp kho — xem tab Hư hỏng & Rủi ro
+      </div>
+    </div>
+  );
+}
+
+function WarehouseDetail({ site, period, dateBasis, pinned, onUnpin, mapIndustry = "dm", satInfo = null }) {
   const multi = site.names.length > 1;
   const nameOrders = (role, name) => site[role]?.byName?.find((x) => x.name === name)?.orders || 0;
   return (
@@ -284,6 +326,8 @@ function WarehouseDetail({ site, period, dateBasis, pinned, onUnpin, mapIndustry
           </div>
         ))}
       </div>
+
+      <WarehouseHealthCard satInfo={satInfo} />
 
       {site.names.some((n) => n.total) && (
         <div style={{ background: "var(--panel-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 10px", marginBottom: 10 }}>
@@ -1388,6 +1432,7 @@ function ProvinceMapPanel({
                 dateBasis={activeLayer.dateField === "delivered_time" ? "ngày giao" : "ngày lấy hàng"}
                 pinned={whPinnedShown} onUnpin={() => setPinnedWh(null)}
                 mapIndustry={mapIndustry}
+                satInfo={satMap.get(shownWh.id) || null}
               />
             ) : inspectData ? (
               <>

@@ -17,6 +17,7 @@ import DamageMoneyPanel from "./damage/DamageMoneyPanel";
 import { OpenCasesPanel, RecurrencePanel, LegRoutesPanel } from "./damage/DamageAnalysis";
 import ExceptionsPanel from "./cards/ExceptionsPanel";
 import CampaignForecast from "./CampaignForecast";
+import VehicleCapacityPanel from "./VehicleCapacityPanel";
 import TrendPanel from "./TrendPanel";
 import WeeklyReviewBoard from "./WeeklyReviewBoard";
 
@@ -252,10 +253,11 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
   const isClient = userRole === "client";
   const singleProjectMode = selectedProjects.length === 1;
 
-  const showOverview = view === "ltl";
-  const showMap = view === "map";
-  const showDamage = view === "damage";
-  const showEvents = view === "events";
+  const showOverview  = view === "ltl";
+  const showMap       = view === "map";
+  const showDamage    = view === "damage";
+  const showEvents    = view === "events";
+  const showVehicles  = view === "vehicles";
   const todayMode = showOverview && viewMode === "today";
 
   const exportSummaryCSV = () => {
@@ -740,6 +742,9 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
       )}
       {showEvents && (
         <CampaignForecast dailyOrders={dailyOrders || {}} />
+      )}
+      {showVehicles && (
+        <VehicleCapacityPanel />
       )}
 
       {pendingModalOpen && (

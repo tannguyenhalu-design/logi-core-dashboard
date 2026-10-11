@@ -43,9 +43,10 @@ const KEEP_ALIVE_TABS = ["decision", "report", "trials", "users", "auditlog", "h
 const LEGACY_TABS = ["ltl", "operations", "tachtrip", "ftl"];
 const LTL_VIEWS = [
   { id: "ltl", label: "Tổng quan LTL", icon: "M3 3h18v18H3zM21 9H3M9 21V9" },
-  { id: "map", label: "Bản đồ tỉnh thành", icon: "M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-.553-.894L15 4m0 13V4m0 0L9 7" },
+  { id: "map", label: "Performance cả nước", icon: "M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-.553-.894L15 4m0 13V4m0 0L9 7" },
   { id: "damage", label: "Hư hỏng & Rủi ro", icon: "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" },
   { id: "events", label: "📅 Sự kiện", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z" },
+  { id: "vehicles", label: "🚛 Ghép chuyến", icon: "M1 3h15v13H1zM16 8h4l3 3v5h-7V8zM5.5 21a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM18.5 21a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" },
 ];
 
 function DashboardSkeleton({ view }) {
@@ -77,7 +78,8 @@ export default function DashboardPage({ user: initialUser }) {
   const canSeeLTL    = isManager || userTabs.includes("ltl");
   const canSeeMap    = isManager || userTabs.includes("map");
   const canSeeDamage = isManager || userTabs.includes("damage");
-  const canSeeEvents = isManager || userTabs.includes("events");
+  const canSeeEvents   = isManager || userTabs.includes("events");
+  const canSeeVehicles = isManager || userTabs.includes("vehicles");
   const canSeeReport = isManager || userTabs.includes("report");
   const canSeeTrials = isManager || userTabs.includes("trials");
   const canSeeDecision = isManager || user.role === "sd3";
@@ -456,7 +458,8 @@ export default function DashboardPage({ user: initialUser }) {
               v.id === "ltl" ? canSeeLTL :
               v.id === "map" ? canSeeMap :
               v.id === "damage" ? canSeeDamage :
-              v.id === "events" ? canSeeEvents : false
+              v.id === "events" ? canSeeEvents :
+              v.id === "vehicles" ? canSeeVehicles : false
             ).map((v) => (
               <div
                 key={v.id}
