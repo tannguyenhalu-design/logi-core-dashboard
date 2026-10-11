@@ -41,15 +41,18 @@ export default function WeeklyReviewBoard({ ordersByProjectAndWeek, ordersByMont
     try { const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : [newNote()]; } catch { return [newNote()]; }
   });
   const [savedMsg, setSavedMsg] = useState(false);
-  const [imgModal, setImgModal] = useState(null); // URL đang xem phóng to
+  const [imgModal, setImgModal] = useState(null); // URL ảnh đang xem phóng to
+  const [videoModal, setVideoModal] = useState(null); // URL video đang xem
+  const [damagePicker, setDamagePicker] = useState(false); // hiện dropdown chọn ca bể vỡ
 
-  // ESC đóng lightbox
+  // ESC đóng lightbox / video modal / picker
   useEffect(() => {
-    if (!imgModal) return;
-    const handler = (e) => { if (e.key === "Escape") setImgModal(null); };
+    const handler = (e) => {
+      if (e.key === "Escape") { setImgModal(null); setVideoModal(null); setDamagePicker(false); }
+    };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [imgModal]);
+  }, []);
 
   // Load từ API khi mount
   useEffect(() => {
@@ -85,6 +88,32 @@ export default function WeeklyReviewBoard({ ordersByProjectAndWeek, ordersByMont
     setSavedMsg(true);
     setTimeout(() => setSavedMsg(false), 2500);
   }, [notes, weekKey, LS_KEY]);
+
+  // Detect video URL
+  const isVideoUrl = (url) => url && /\.(mp4|mov|webm|avi|mkv)(\?.*)?$/i.test(url);
+
+  // Auto-fill dòng đầu trống từ ca bể vỡ Rillnet
+  const fillFromDamageCase = useCallback((c) => {
+    const emptyIdx = notes.findIndex((n) => !n.issue && !n.detail);
+    const detail = [
+      c.order_code ? `Mã đơn: ${c.order_code}` : "",
+      c.client_name ? `KH: ${c.client_name}` : "",
+      c.suspected_leg ? `Khâu: ${c.suspected_leg}` : "",
+      c.severity ? `Mức: ${c.severity}` : "",
+      c.case_date ? `Ngày: ${c.case_date}` : "",
+    ].filter(Boolean).join(" · ");
+    const newRow = {
+      ...(emptyIdx >= 0 ? notes[emptyIdx] : newNote()),
+      issue: (c.damage_details || "Bể vỡ hàng hóa").slice(0, 80),
+      detail,
+    };
+    if (emptyIdx >= 0) {
+      setNotes((prev) => prev.map((n, i) => i === emptyIdx ? newRow : n));
+    } else {
+      setNotes((prev) => [...prev, newRow]);
+    }
+    setDamagePicker(false);
+  }, [notes]);
 
   // ── Part 1: W_prev vs W_curr ─────────────────────────────────────────────
   const weeks = useMemo(
@@ -254,7 +283,39 @@ export default function WeeklyReviewBoard({ ordersByProjectAndWeek, ordersByMont
       <div style={panelStyle}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
           <span style={h3Style}>LƯU Ý VẬN HÀNH — TUẦN W{weekNum}</span>
-          <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", position: "relative" }}>
+            {/* Nút nhập từ Ca Bể vỡ Rillnet */}
+            <div style={{ position: "relative" }}>
+              <button onClick={() => setDamagePicker((v) => !v)} style={{
+                padding: "5px 12px", background: "rgba(239,68,68,0.08)", border: "1px solid var(--red)",
+                color: "var(--red)", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+              }}>
+                🔗 Nhập từ Ca Bể vỡ
+              </button>
+              {damagePicker && damageCases.length > 0 && (
+                <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, zIndex: 200, background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.18)", minWidth: 320, maxHeight: 260, overflowY: "auto" }}>
+                  <div style={{ padding: "6px 10px", fontSize: 10.5, color: "var(--text-muted)", borderBottom: "1px solid var(--border)", fontWeight: 600 }}>Chọn ca bể vỡ để tự điền Vấn đề + Chi tiết</div>
+                  {damageCases.slice(0, 50).map((c, i) => (
+                    <button key={c.order_code || i} onClick={() => fillFromDamageCase(c)} style={{
+                      display: "block", width: "100%", textAlign: "left", padding: "7px 10px",
+                      background: "none", border: "none", borderBottom: "1px solid var(--border)",
+                      cursor: "pointer", fontFamily: "inherit", fontSize: 12, color: "var(--text-primary)",
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = "rgba(var(--brand-rgb),0.08)"}
+                    onMouseLeave={(e) => e.currentTarget.style.background = "none"}>
+                      <span style={{ fontWeight: 600, color: "var(--red)" }}>{c.order_code || "—"}</span>
+                      <span style={{ color: "var(--text-muted)", marginLeft: 6, fontSize: 11 }}>{c.client_name}</span>
+                      <span style={{ display: "block", fontSize: 11, color: "var(--text-secondary)", marginTop: 1 }}>{(c.damage_details || "").slice(0, 60)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {damagePicker && damageCases.length === 0 && (
+                <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, zIndex: 200, background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "var(--text-muted)" }}>
+                  Không có ca bể vỡ trong kỳ lọc.
+                </div>
+              )}
+            </div>
             <button onClick={addNote} style={{
               padding: "5px 12px", background: "rgba(6,182,212,0.08)", border: "1px solid var(--cyan)",
               color: "var(--cyan)", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
@@ -280,6 +341,16 @@ export default function WeeklyReviewBoard({ ordersByProjectAndWeek, ordersByMont
           }}>
             <button onClick={() => setImgModal(null)} style={{ position: "absolute", top: 20, right: 24, background: "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "4px 12px", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>✕ Đóng (ESC)</button>
             <img src={imgModal} alt="" style={{ maxWidth: "90vw", maxHeight: "88vh", borderRadius: 10, boxShadow: "0 12px 48px rgba(0,0,0,0.7)" }} onClick={(e) => e.stopPropagation()} />
+          </div>
+        )}
+        {/* Modal xem video */}
+        {videoModal && (
+          <div onClick={() => setVideoModal(null)} style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", backdropFilter: "blur(6px)", zIndex: 9999,
+            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+          }}>
+            <button onClick={() => setVideoModal(null)} style={{ position: "absolute", top: 20, right: 24, background: "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "4px 12px", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>✕ Đóng (ESC)</button>
+            <video src={videoModal} controls autoPlay={false} style={{ maxWidth: "92vw", maxHeight: "88vh", borderRadius: 10, boxShadow: "0 12px 48px rgba(0,0,0,0.7)" }} onClick={(e) => e.stopPropagation()} />
           </div>
         )}
 
@@ -317,21 +388,33 @@ export default function WeeklyReviewBoard({ ordersByProjectAndWeek, ordersByMont
                       style={{ width: "100%", boxSizing: "border-box", padding: "5px 7px", borderRadius: 5, border: "1px solid var(--border)", fontFamily: "inherit", fontSize: 12, resize: "vertical", background: "var(--input-bg)", color: "var(--text-primary)", lineHeight: 1.5 }}
                     />
                   </td>
-                  {/* Cột 3: Hình ảnh */}
+                  {/* Cột 3: Hình ảnh / Video */}
                   <td style={{ padding: "8px 10px", verticalAlign: "top", minWidth: 90 }}>
                     {note.imageUrl ? (
                       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        <img
-                          src={note.imageUrl}
-                          alt=""
-                          onClick={() => setImgModal(note.imageUrl)}
-                          onError={(e) => { e.currentTarget.style.display = "none"; }}
-                          style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 6, cursor: "zoom-in", border: "1px solid var(--border)" }}
-                        />
+                        {isVideoUrl(note.imageUrl) ? (
+                          <button onClick={() => setVideoModal(note.imageUrl)} style={{
+                            width: 60, height: 60, borderRadius: 6, border: "1px solid var(--border)",
+                            background: "rgba(0,0,0,0.55)", cursor: "pointer", display: "flex", flexDirection: "column",
+                            alignItems: "center", justifyContent: "center", gap: 2, padding: 0,
+                          }}>
+                            <span style={{ fontSize: 18 }}>▶</span>
+                            <span style={{ fontSize: 9, color: "#fff", fontWeight: 600 }}>Video</span>
+                          </button>
+                        ) : (
+                          <img
+                            src={note.imageUrl}
+                            alt=""
+                            loading="lazy"
+                            onClick={() => setImgModal(note.imageUrl)}
+                            onError={(e) => { e.currentTarget.style.display = "none"; }}
+                            style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 6, cursor: "zoom-in", border: "1px solid var(--border)" }}
+                          />
+                        )}
                         <input
                           value={note.imageUrl}
                           onChange={(e) => updateNote(note.id, "imageUrl", e.target.value)}
-                          placeholder="URL ảnh..."
+                          placeholder="URL ảnh/video..."
                           style={{ width: "100%", boxSizing: "border-box", padding: "3px 6px", borderRadius: 5, border: "1px solid var(--border)", fontFamily: "inherit", fontSize: 10.5, background: "var(--input-bg)", color: "var(--text-muted)" }}
                         />
                       </div>
@@ -344,7 +427,7 @@ export default function WeeklyReviewBoard({ ordersByProjectAndWeek, ordersByMont
                         <input
                           value={note.imageUrl}
                           onChange={(e) => updateNote(note.id, "imageUrl", e.target.value)}
-                          placeholder="URL ảnh..."
+                          placeholder="URL ảnh/video..."
                           style={{ width: "100%", boxSizing: "border-box", padding: "3px 6px", borderRadius: 5, border: "1px solid var(--border)", fontFamily: "inherit", fontSize: 10.5, background: "var(--input-bg)", color: "var(--text-primary)" }}
                         />
                       </div>

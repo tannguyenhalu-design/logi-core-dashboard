@@ -283,7 +283,7 @@ function DayCol({ label, date, orders, weightKg, maxOrders, isPeak, isFuture }) 
 }
 
 // ─── EventCard ───────────────────────────────────────────────────────────────
-function EventCard({ event, byDay, weightByDay, byClientAndDay, byProvinceAndDay, weightByProvinceAndDay, byKhoLayAndDay, forecastBaseline, normalStats, today, growthRateO, fcSnapshot, onChot, provinceForecast, khoLayForecast, spikeRatio = 2.5 }) {
+function EventCard({ event, byDay, weightByDay, byClientAndDay, byProvinceAndDay, weightByProvinceAndDay, byKhoLayAndDay, forecastBaseline, normalStats, today, growthRateO, fcSnapshot, onChot, provinceForecast, khoLayForecast, spikeRatio = 2.5, annotations = [] }) {
   const [showProjects, setShowProjects] = useState(false);
   const [showProvince, setShowProvince] = useState(false);
   const [showKhoLay, setShowKhoLay] = useState(false);
@@ -328,6 +328,16 @@ function EventCard({ event, byDay, weightByDay, byClientAndDay, byProvinceAndDay
     return fc.clientAvg;
   }, [isFuture, fc]);
 
+  // Clients bị tạm ngưng theo annotation scope matching event date
+  const pausedSet = useMemo(() => {
+    const s = new Set();
+    for (const ann of annotations) {
+      if (ann.reasonType !== "pause") continue;
+      if (ann.scope === "global" || (ann.scope === "event" && ann.eventDate === date)) s.add(ann.client);
+    }
+    return s;
+  }, [annotations, date]);
+
   const headerBg = isFuture ? "rgba(251,191,36,0.09)" : hasData ? "rgba(34,197,94,0.07)" : "transparent";
   const headerBorder = isFuture ? "rgba(251,191,36,0.35)" : hasData ? "var(--green)" : "var(--border)";
   return (
@@ -343,19 +353,40 @@ function EventCard({ event, byDay, weightByDay, byClientAndDay, byProvinceAndDay
       </div>
 
       {/* FC target row — tương lai */}
-      {isFuture && (
-        <div style={{ padding: "6px 12px", background: "rgba(245,158,11,0.10)", borderBottom: "1px solid var(--border)", fontSize: 11 }}>
-          <span style={{ color: "var(--amber)", fontWeight: 700 }}>FC {spikeRatio.toFixed(1)}×: </span>
-          <strong style={{ color: "var(--amber)", fontSize: 13 }}>~{n(fcTarget)}</strong>
-          <span style={{ color: "var(--text-secondary)" }}> đơn · ~{ton(fcWeightTarget)}</span>
-          <span style={{ color: "var(--text-muted)", marginLeft: 8, fontSize: 10.5 }}>L7D {n(l7dPerDay)}/ngày × {spikeRatio.toFixed(1)} × 3</span>
-        </div>
-      )}
-      {/* TOP 5 dự án (FC) — chỉ hiện cho event tương lai */}
+      {isFuture && (() => {
+        // Tính fcTarget sau khi loại client tạm ngưng
+        let adjustedFcTarget = fcTarget;
+        let adjustedFcWeight = fcWeightTarget;
+        if (forecastByClient && pausedSet.size > 0) {
+          const fcBaseTotal = fc ? (fc.dm1O + fc.d0O + fc.dp1O) : (l7dPerDay * 3);
+          if (fcBaseTotal > 0) {
+            let pausedTotal = 0;
+            for (const [cl, v] of Object.entries(forecastByClient)) {
+              if (pausedSet.has(cl)) pausedTotal += (v.total || 0);
+            }
+            const ratio = Math.max(0, (fcBaseTotal - pausedTotal) / fcBaseTotal);
+            adjustedFcTarget = Math.round(fcTarget * ratio);
+            adjustedFcWeight = Math.round(fcWeightTarget * ratio);
+          }
+        }
+        const reduced = adjustedFcTarget < fcTarget;
+        return (
+          <div style={{ padding: "6px 12px", background: "rgba(245,158,11,0.10)", borderBottom: "1px solid var(--border)", fontSize: 11 }}>
+            <span style={{ color: "var(--amber)", fontWeight: 700 }}>FC {spikeRatio.toFixed(1)}×: </span>
+            <strong style={{ color: "var(--amber)", fontSize: 13 }}>~{n(adjustedFcTarget)}</strong>
+            <span style={{ color: "var(--text-secondary)" }}> đơn · ~{ton(adjustedFcWeight)}</span>
+            {reduced
+              ? <span style={{ color: "var(--red)", marginLeft: 8, fontSize: 10.5 }}>(-{n(fcTarget - adjustedFcTarget)} tạm ngưng)</span>
+              : <span style={{ color: "var(--text-muted)", marginLeft: 8, fontSize: 10.5 }}>L7D {n(l7dPerDay)}/ngày × {spikeRatio.toFixed(1)} × 3</span>}
+          </div>
+        );
+      })()}
+      {/* TOP 5 dự án (FC) — chỉ hiện cho event tương lai, đã lọc client tạm ngưng */}
       {isFuture && forecastByClient && (() => {
         const fcBaseTotal = fc ? (fc.dm1O + fc.d0O + fc.dp1O) : (l7dPerDay * 3);
         const scale = fcBaseTotal > 0 ? fcTarget / fcBaseTotal : 1;
         const top5 = Object.entries(forecastByClient)
+          .filter(([name]) => !pausedSet.has(name))
           .map(([name, v]) => ({ name, fc: Math.round((v.total || 0) * scale) }))
           .filter((r) => r.fc > 0)
           .sort((a, b) => b.fc - a.fc)
@@ -1305,7 +1336,8 @@ export default function CampaignForecast({ dailyOrders = {} }) {
               onChot={handleChotFc}
               provinceForecast={activeEvent.date > today ? (provincesForecastBySlot[activeEvent.slot ?? 0] || null) : null}
               khoLayForecast={activeEvent.date > today ? (khoLayForecastBySlot[activeEvent.slot ?? 0] || null) : null}
-              spikeRatio={spikeRatio} />
+              spikeRatio={spikeRatio}
+              annotations={annotations} />
           )}
         </div>
       )}
