@@ -86,10 +86,8 @@ export default function DashboardPage({ user: initialUser }) {
   const canSeeTrials = isManager || userTabs.includes("trials");
   const canSeeDecision = isManager || user.role === "sd3";
   const firstTab = canSeeDecision ? "decision" : canSeeLTL ? "ltl" : canSeeMap ? "map" : canSeeDamage ? "damage" : canSeeEvents ? "events" : canSeeReport ? "report" : canSeeTrials ? "trials" : "none";
-  // ?t=tabId in URL overrides default tab (for direct links / audit screenshots)
   const VALID_TABS = ["ltl","map","damage","events","vehicles","decision","report","trials","users","auditlog","health","brain"];
-  const initialTab = (router.query.t && VALID_TABS.includes(router.query.t)) ? router.query.t : firstTab;
-  const [activeTab, setActiveTab] = useState(initialTab); // LTL_VIEWS id | 'report' | 'trials' | 'users' | 'auditlog' | 'health' | 'brain' | 'none'
+  const [activeTab, setActiveTab] = useState(firstTab); // LTL_VIEWS id | 'report' | 'trials' | 'users' | 'auditlog' | 'health' | 'brain' | 'none'
   const isLTLView = LTL_VIEWS.some((v) => v.id === activeTab);
   const [selectedMonths, setSelectedMonths] = useState(() => {
     // Mặc định: 3 tháng gần nhất (VN time). User mở rộng qua FilterBar.
@@ -124,6 +122,12 @@ export default function DashboardPage({ user: initialUser }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const activeFilterCount = (selectedMonths.length ? 1 : 0) + (selectedProjects.length ? 1 : 0) + (dateFrom || dateTo ? 1 : 0);
   const goTab = (id) => { startTransition(() => { setActiveTab(id); setNavOpen(false); }); };
+  // ?t=tabId in URL → switch to that tab after client hydration (direct links / audit)
+  useEffect(() => {
+    if (router.isReady && router.query.t && VALID_TABS.includes(router.query.t)) {
+      setActiveTab(router.query.t);
+    }
+  }, [router.isReady, router.query.t]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!navOpen) return;
     const onKey = (e) => { if (e.key === "Escape") setNavOpen(false); };
