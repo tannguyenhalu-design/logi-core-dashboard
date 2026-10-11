@@ -43,6 +43,14 @@ export default function WeeklyReviewBoard({ ordersByProjectAndWeek, ordersByMont
   const [savedMsg, setSavedMsg] = useState(false);
   const [imgModal, setImgModal] = useState(null); // URL đang xem phóng to
 
+  // ESC đóng lightbox
+  useEffect(() => {
+    if (!imgModal) return;
+    const handler = (e) => { if (e.key === "Escape") setImgModal(null); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [imgModal]);
+
   // Load từ API khi mount
   useEffect(() => {
     fetch(`/api/ops-notes?week=${weekKey}`)
@@ -267,10 +275,11 @@ export default function WeeklyReviewBoard({ ordersByProjectAndWeek, ordersByMont
         {/* Modal xem ảnh phóng to */}
         {imgModal && (
           <div onClick={() => setImgModal(null)} style={{
-            position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 9999,
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)", backdropFilter: "blur(6px)", zIndex: 9999,
             display: "flex", alignItems: "center", justifyContent: "center", cursor: "zoom-out",
           }}>
-            <img src={imgModal} alt="" style={{ maxWidth: "90vw", maxHeight: "90vh", borderRadius: 8, boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }} />
+            <button onClick={() => setImgModal(null)} style={{ position: "absolute", top: 20, right: 24, background: "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 8, padding: "4px 12px", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>✕ Đóng (ESC)</button>
+            <img src={imgModal} alt="" style={{ maxWidth: "90vw", maxHeight: "88vh", borderRadius: 10, boxShadow: "0 12px 48px rgba(0,0,0,0.7)" }} onClick={(e) => e.stopPropagation()} />
           </div>
         )}
 
@@ -309,21 +318,36 @@ export default function WeeklyReviewBoard({ ordersByProjectAndWeek, ordersByMont
                     />
                   </td>
                   {/* Cột 3: Hình ảnh */}
-                  <td style={{ padding: "8px 10px", verticalAlign: "top" }}>
-                    <input
-                      value={note.imageUrl}
-                      onChange={(e) => updateNote(note.id, "imageUrl", e.target.value)}
-                      placeholder="URL ảnh..."
-                      style={{ width: "100%", boxSizing: "border-box", padding: "5px 7px", borderRadius: 5, border: "1px solid var(--border)", fontFamily: "inherit", fontSize: 11.5, marginBottom: 4, background: "var(--input-bg)", color: "var(--text-primary)" }}
-                    />
-                    {note.imageUrl && (
-                      <img
-                        src={note.imageUrl}
-                        alt=""
-                        onClick={() => setImgModal(note.imageUrl)}
-                        onError={(e) => { e.target.style.display = "none"; }}
-                        style={{ width: 80, height: 56, objectFit: "cover", borderRadius: 4, cursor: "zoom-in", border: "1px solid var(--border)" }}
-                      />
+                  <td style={{ padding: "8px 10px", verticalAlign: "top", minWidth: 90 }}>
+                    {note.imageUrl ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <img
+                          src={note.imageUrl}
+                          alt=""
+                          onClick={() => setImgModal(note.imageUrl)}
+                          onError={(e) => { e.currentTarget.style.display = "none"; }}
+                          style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 6, cursor: "zoom-in", border: "1px solid var(--border)" }}
+                        />
+                        <input
+                          value={note.imageUrl}
+                          onChange={(e) => updateNote(note.id, "imageUrl", e.target.value)}
+                          placeholder="URL ảnh..."
+                          style={{ width: "100%", boxSizing: "border-box", padding: "3px 6px", borderRadius: 5, border: "1px solid var(--border)", fontFamily: "inherit", fontSize: 10.5, background: "var(--input-bg)", color: "var(--text-muted)" }}
+                        />
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <div style={{ width: 60, height: 60, border: "1.5px dashed var(--border)", borderRadius: 6, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, color: "var(--text-muted)", fontSize: 18, cursor: "default" }}>
+                          📷
+                          <span style={{ fontSize: 9.5, letterSpacing: 0 }}>Dán link</span>
+                        </div>
+                        <input
+                          value={note.imageUrl}
+                          onChange={(e) => updateNote(note.id, "imageUrl", e.target.value)}
+                          placeholder="URL ảnh..."
+                          style={{ width: "100%", boxSizing: "border-box", padding: "3px 6px", borderRadius: 5, border: "1px solid var(--border)", fontFamily: "inherit", fontSize: 10.5, background: "var(--input-bg)", color: "var(--text-primary)" }}
+                        />
+                      </div>
                     )}
                   </td>
                   {/* Cột 4: Action plan */}

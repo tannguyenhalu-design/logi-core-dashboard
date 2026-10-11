@@ -14,7 +14,7 @@
  */
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import VietnamMap from "../../VietnamMap";
-import { fmt, fmtWeight, getOntimeColor, getOntimeBadge } from "../utils";
+import { fmt, fmtPct, fmtWeight, getOntimeColor, getOntimeBadge } from "../utils";
 import { useFilterWorker } from "../../../hooks/useFilterWorker";
 import { computeWarehouseSaturation } from "../../../lib/warehouse-health";
 
@@ -1409,10 +1409,10 @@ function ProvinceMapPanel({
                           <span style={{ fontWeight: 800, color: "var(--red)", width: 14 }}>{i + 1}</span>
                           <span style={{ fontWeight: 700, minWidth: 100 }}>{h.name}</span>
                           <span style={{ fontSize: 12, color: "var(--text-muted)", flex: 1, minWidth: 160 }}>
-                            {h.lateHot && <span style={{ color: getOntimeColor(h.ontimePct), fontWeight: 600 }}>⏱ On-time {h.ontimePct}% · {fmt(h.late)} late</span>}
+                            {h.lateHot && <span style={{ color: getOntimeColor(h.ontimePct), fontWeight: 600 }}>⏱ On-time {fmtPct(h.ontimePct)}% · {fmt(h.late)} late</span>}
                             {h.lateHot && h.damageHot && " · "}
-                            {h.damageHot && <span style={{ color: "var(--amber)", fontWeight: 600 }}>💥 {fmt(h.damaged)} ca hỏng ({h.damageRate}%)</span>}
-                            {!h.lateHot && <span> · on-time {h.ontimePct ?? "—"}%</span>}
+                            {h.damageHot && <span style={{ color: "var(--amber)", fontWeight: 600 }}>💥 {fmt(h.damaged)} ca hỏng ({fmt(h.damageRate, 1)}%)</span>}
+                            {!h.lateHot && <span> · on-time {fmtPct(h.ontimePct ?? null)}%</span>}
                           </span>
                           <span style={{ fontSize: 11.5, color: "var(--text-muted)", whiteSpace: "nowrap" }}>{fmt(h.orders)} đơn</span>
                         </button>
@@ -1471,7 +1471,7 @@ function ProvinceMapPanel({
                   {inspectData.totalWeight != null && (
                     <MiniStat label="Tải trọng">{fmtWeight(inspectData.totalWeight)}</MiniStat>
                   )}
-                  <MiniStat label="Tỷ lệ Ontime" color={getOntimeColor(inspectData.ontimePct)}>{inspectData.ontimePct}%</MiniStat>
+                  <MiniStat label="Tỷ lệ Ontime" color={getOntimeColor(inspectData.ontimePct)}>{fmtPct(inspectData.ontimePct)}%</MiniStat>
                   <MiniStat label="Đơn Ontime / Late">
                     <span style={{ color: "var(--green)" }}>{fmt(inspectData.ontimeCount)}</span> / <span style={{ color: "var(--red)" }}>{fmt(inspectData.lateCount)}</span>
                   </MiniStat>
@@ -1599,7 +1599,7 @@ function ProvinceMapPanel({
                                     <td style={{ padding: "4px 8px", fontWeight: 600 }}>{c.name}</td>
                                     <td style={{ padding: "4px 8px", textAlign: "right", color: "var(--cyan)", fontWeight: 700 }}>{fmt(c.orders)}</td>
                                     <td style={{ padding: "4px 8px", textAlign: "right", color: getOntimeColor(c.ontimePct), fontWeight: 600 }}>
-                                      {c.ontimePct}%{c.ontimePct < 80 ? " 🚨" : c.ontimePct < 90 ? " ⚠️" : ""}
+                                      {fmtPct(c.ontimePct)}%{c.ontimePct < 80 ? " 🚨" : c.ontimePct < 90 ? " ⚠️" : ""}
                                     </td>
                                     {sec.showDmg && (
                                       <td style={{ padding: "4px 8px", textAlign: "right", color: c.damageCount > 0 ? "var(--amber)" : "var(--text-muted)", fontWeight: c.damageCount > 0 ? 700 : 400 }}>
@@ -1663,7 +1663,7 @@ function ProvinceMapPanel({
                             background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", padding: "1px 0",
                           }}>
                             <span style={{ color: "var(--text-secondary)", textAlign: "left" }}>• {p.name}</span>
-                            <span style={{ fontWeight: 700, color: getOntimeColor(p.ontimePct) }}>{p.ontimePct}%</span>
+                            <span style={{ fontWeight: 700, color: getOntimeColor(p.ontimePct) }}>{fmtPct(p.ontimePct)}%</span>
                           </button>
                         ))}
                       </div>
@@ -1754,7 +1754,7 @@ function ProvinceMapPanel({
                             {provForOntime.best.map((p) => (
                               <div key={p.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 2 }}>
                                 <span style={{ color: "var(--text-secondary)" }}>• {p.name}</span>
-                                <b style={{ color: "var(--green)" }}>{p.ontimePct}%</b>
+                                <b style={{ color: "var(--green)" }}>{fmtPct(p.ontimePct)}%</b>
                               </div>
                             ))}
                           </div>
@@ -1765,7 +1765,7 @@ function ProvinceMapPanel({
                             {provForOntime.worst.map((p) => (
                               <div key={p.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 2 }}>
                                 <span style={{ color: "var(--text-secondary)" }}>• {p.name}</span>
-                                <b style={{ color: getOntimeColor(p.ontimePct) }}>{p.ontimePct}%</b>
+                                <b style={{ color: getOntimeColor(p.ontimePct) }}>{fmtPct(p.ontimePct)}%</b>
                               </div>
                             ))}
                           </div>
@@ -1812,7 +1812,7 @@ function ProvinceMapPanel({
                                   <b style={{ color: "var(--cyan)" }}>{o.orders} đơn</b>
                                   {oDet && (
                                     <span style={{ color: getOntimeColor(oDet.ontimePct), fontSize: 10.5, fontWeight: 600 }}>
-                                      {oDet.ontimePct}%
+                                      {fmtPct(oDet.ontimePct)}%
                                     </span>
                                   )}
                                 </span>
@@ -1850,7 +1850,7 @@ function ProvinceMapPanel({
                                 {pcProject.ontimeDeltaPoints >= 0 ? "▲" : "▼"} On-time {pcProject.ontimeDeltaPoints >= 0 ? "tăng" : "giảm"} {Math.abs(pcProject.ontimeDeltaPoints).toFixed(1)} điểm
                               </span>
                               {pcProject.cur?.ontimePct != null && pcProject.prev?.ontimePct != null && (
-                                <span style={{ color: "var(--text-muted)" }}> ({pcProject.prev.ontimePct}% → {pcProject.cur.ontimePct}%)</span>
+                                <span style={{ color: "var(--text-muted)" }}> ({fmtPct(pcProject.prev.ontimePct)}% → {fmtPct(pcProject.cur.ontimePct)}%)</span>
                               )}
                               <span style={{ color: "var(--text-muted)", fontSize: 10.5 }}>
                                 {pcProject.ontimeDeltaPoints >= 2 ? " → Đang cải thiện tốt" : pcProject.ontimeDeltaPoints < -3 ? " → Cần xem lại vận hành" : " → Ổn định"}
@@ -1875,7 +1875,7 @@ function ProvinceMapPanel({
                                     onClick={() => selectAndFly(p.name)}
                                     style={{ cursor: "pointer", color: getOntimeColor(p.ontimePct), fontWeight: 600 }}
                                   >
-                                    {p.name} ({p.ontimePct}%)
+                                    {p.name} ({fmtPct(p.ontimePct)}%)
                                   </span>
                                 </span>
                               ))}

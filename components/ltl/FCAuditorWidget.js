@@ -8,8 +8,20 @@ const REASON_TYPES = [
 
 function ScoreRing({ score }) {
   const color = score >= 80 ? "#22c55e" : score >= 50 ? "#f59e0b" : "#ef4444";
+  const r = 18, cx = 22, cy = 22, stroke = 4;
+  const circ = 2 * Math.PI * r;
+  const dash = (score / 100) * circ;
   return (
-    <span style={{ fontWeight: 700, fontSize: 18, color }}>{score}/100</span>
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <svg width="44" height="44" viewBox="0 0 44 44" style={{ flexShrink: 0 }}>
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(150,150,150,0.2)" strokeWidth={stroke} />
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={stroke}
+          strokeDasharray={`${dash} ${circ}`} strokeDashoffset={circ * 0.25}
+          strokeLinecap="round" style={{ transition: "stroke-dasharray 0.5s ease" }} />
+        <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="middle" fill={color} fontSize="11" fontWeight="700" fontFamily="inherit">{score}</text>
+      </svg>
+      <span style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.2 }}>/ 100</span>
+    </div>
   );
 }
 
@@ -137,8 +149,8 @@ export default function FCAuditorWidget({ auditResult, eventDate, onAnnotationSa
 
   return (
     <div style={{
-      margin: "8px 0 12px",
-      borderRadius: 8,
+      margin: "12px 0 16px",
+      borderRadius: 12,
       border: `1.5px solid ${hasRed ? "#fca5a5" : "#e5e7eb"}`,
       background: hasRed ? "#fff8f8" : "#f9fafb",
       overflow: "hidden",
@@ -146,17 +158,17 @@ export default function FCAuditorWidget({ auditResult, eventDate, onAnnotationSa
       {/* Header */}
       <div
         onClick={() => setCollapsed((v) => !v)}
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", cursor: "pointer", userSelect: "none" }}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", cursor: "pointer", userSelect: "none" }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 700 }}>🔍 AI FC Auditor</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 13.5, fontWeight: 700 }}>🔍 AI FC Auditor</span>
           {alerts.length > 0 && (
-            <span style={{ fontSize: 11, padding: "1px 7px", borderRadius: 10, background: hasRed ? "#fee2e2" : "#fef3c7", color: hasRed ? "#b91c1c" : "#92400e", border: `1px solid ${hasRed ? "#fca5a5" : "#fcd34d"}` }}>
-              {alerts.filter((a) => !a.annotated).length} cảnh báo chưa ghi nhận
+            <span style={{ fontSize: 11.5, padding: "2px 9px", borderRadius: 10, fontWeight: 600, background: hasRed ? "#fee2e2" : "#fef3c7", color: hasRed ? "#b91c1c" : "#92400e", border: `1px solid ${hasRed ? "#fca5a5" : "#fcd34d"}` }}>
+              {alerts.filter((a) => !a.annotated).length} cảnh báo
             </span>
           )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <ScoreRing score={score} />
           <span style={{ fontSize: 12, color: "#9ca3af" }}>{collapsed ? "▼" : "▲"}</span>
         </div>
@@ -164,7 +176,7 @@ export default function FCAuditorWidget({ auditResult, eventDate, onAnnotationSa
 
       {/* Body */}
       {!collapsed && (
-        <div style={{ padding: "0 12px 12px" }}>
+        <div style={{ padding: "0 14px 14px" }}>
           {commentary.map((c, i) => (
             <p key={i} style={{ margin: "0 0 6px", fontSize: 12, color: "#374151" }}>{c}</p>
           ))}

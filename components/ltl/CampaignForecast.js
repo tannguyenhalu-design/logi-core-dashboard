@@ -328,14 +328,16 @@ function EventCard({ event, byDay, weightByDay, byClientAndDay, byProvinceAndDay
     return fc.clientAvg;
   }, [isFuture, fc]);
 
+  const headerBg = isFuture ? "rgba(251,191,36,0.09)" : hasData ? "rgba(34,197,94,0.07)" : "transparent";
+  const headerBorder = isFuture ? "rgba(251,191,36,0.35)" : hasData ? "var(--green)" : "var(--border)";
   return (
-    <div style={{ background: "var(--bg-panel)", border: `1px solid ${isFuture ? "var(--amber)" : hasData ? "var(--green)" : "var(--border)"}`, borderRadius: 10, overflow: "hidden" }}>
+    <div style={{ background: "var(--bg-panel)", border: `1.5px solid ${headerBorder}`, borderRadius: 12, overflow: "hidden" }}>
       {/* Header */}
-      <div style={{ padding: "7px 12px", borderBottom: "1px solid var(--border)", background: isFuture ? "rgba(251,191,36,0.06)" : "transparent", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: isFuture ? "var(--amber)" : "var(--text-primary)" }}>
+      <div style={{ padding: "9px 14px", borderBottom: `1px solid ${headerBorder}`, background: headerBg, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: isFuture ? "var(--amber)" : "var(--text-primary)" }}>
           🛒 {name}{isCustom ? " ✎" : ""}
         </span>
-        <span style={{ fontSize: 10, color: isFuture ? "var(--amber)" : hasData ? "var(--green)" : "var(--text-muted)" }}>
+        <span style={{ fontSize: 10.5, fontWeight: 600, padding: "1px 7px", borderRadius: 10, background: isFuture ? "rgba(251,191,36,0.18)" : hasData ? "rgba(34,197,94,0.15)" : "rgba(var(--text-muted-rgb,150,150,150),0.1)", color: isFuture ? "var(--amber)" : hasData ? "var(--green)" : "var(--text-muted)" }}>
           {isFuture ? "⏳ Sắp tới" : hasData ? "✓ Đã qua" : "? Không có data"}
         </span>
       </div>
@@ -412,8 +414,8 @@ function EventCard({ event, byDay, weightByDay, byClientAndDay, byProvinceAndDay
               <span>Thực tế / FC {spikeRatio.toFixed(1)}×</span>
               <span style={{ fontWeight: 700, color: barClr }}>{pctNum}%</span>
             </div>
-            <div style={{ height: 6, borderRadius: 3, background: "var(--border)", overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${Math.min(ratio, 1) * 100}%`, borderRadius: 3, background: barClr }} />
+            <div style={{ height: 8, borderRadius: 4, background: "rgba(var(--text-muted-rgb,150,150,150),0.15)", overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${Math.min(ratio, 1) * 100}%`, borderRadius: 4, background: barClr, transition: "width 0.4s ease" }} />
             </div>
             <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 3 }}>{n(actualTotal)} / ~{n(fcTarget)} đơn</div>
           </div>

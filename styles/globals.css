@@ -334,9 +334,10 @@ body {
 .nav-item {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 12px; border-radius: 8px;
-  color: var(--text-secondary); font-size: 14px; font-weight: 500;
+  color: var(--text-secondary); font-size: 13px; font-weight: 500;
   cursor: pointer; transition: background-color 0.15s ease, color 0.15s ease;
   text-decoration: none; position: relative;
+  white-space: nowrap; overflow: hidden;
 }
 .nav-item:hover { color: var(--text-primary); background: var(--panel-glow); }
 .nav-item.active { color: var(--text-primary); background: var(--cyan-glow); }
@@ -455,7 +456,7 @@ body {
 /* Bản đồ tỉnh thành — layout A (Kế hoạch D · Phần 1, 29/09): map ~60% on the
    left, screen-high and sticky inside <main> (the scroll container); detail
    column on the right; one column below 1100px; phone: map full width. */
-.province-kpi-strip { display: grid; grid-template-columns: minmax(180px, 1.2fr) repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+.province-kpi-strip { display: grid; grid-template-columns: minmax(180px, 1.2fr) repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; border-radius: 10px; padding: 10px 12px; background: var(--bg-panel); border: 1px solid var(--border); }
 .province-kpi-title { display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; }
 .province-map-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
 .province-map-sticky { position: sticky; top: 8px; min-width: 0; }
@@ -465,7 +466,7 @@ body {
 .province-map-panel:fullscreen { overflow-y: auto; border-radius: 0; border: none; background: var(--bg-base); }
 .province-map-panel:fullscreen .province-map-canvas { height: calc(100vh - 150px); min-height: 420px; }
 @media (max-width: 1280px) {
-  .province-kpi-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .province-kpi-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .province-kpi-title { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 8px; }
 }
 @media (max-width: 1100px) {

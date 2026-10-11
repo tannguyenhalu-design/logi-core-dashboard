@@ -3,6 +3,11 @@ export function fmt(n, decimals = 0) {
   return Number(n).toLocaleString("vi-VN", { maximumFractionDigits: decimals });
 }
 
+export function fmtPct(n, decimals = 1) {
+  if (n === null || n === undefined) return "—";
+  return Number(n).toLocaleString("vi-VN", { maximumFractionDigits: decimals });
+}
+
 export function fmtWeight(kg) {
   if (!kg || kg <= 0) return "0 kg";
   if (kg >= 1000) {
