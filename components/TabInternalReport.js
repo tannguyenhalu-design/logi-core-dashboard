@@ -4,7 +4,7 @@
  * 5 section: CompMatrix (LTL/FTL đối soát), CaseList, PICTaskBoard,
  *            NewProjectPipeline, ZaloExport.
  */
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -17,6 +17,56 @@ function getISOWeek(d) {
 
 function vnNow() {
   return new Date(Date.now() + 7 * 3600 * 1000);
+}
+
+// "W40-W41" + 2026 → "2026-W41" (odd-ending week of the biweekly range)
+function labelToApiPeriod(label, year) {
+  const weeks = [...String(label).matchAll(/W(\d+)/gi)].map((m) => parseInt(m[1]));
+  if (!weeks.length) return null;
+  const odd = weeks.find((w) => w % 2 === 1) ?? Math.max(...weeks);
+  return `${year}-W${String(odd).padStart(2, "0")}`;
+}
+
+// Extract auto-fill values from a biweekly report for the "Kỳ này" span column.
+function extractFromReport(report) {
+  if (!report?.ontime?.rows) return null;
+  const spanIdx = report.ontime.delta?.[1] ?? (report.ontime.cols.length - 1);
+  const dmgSpanIdx = report.damage?.delta?.[1] ?? (report.damage?.cols?.length - 1);
+  const pct1 = (v) => (v == null || isNaN(v) ? "" : String(Math.round(v * 1000) / 10));
+  const cnt = (rows, name, grand) => {
+    const row = grand ? rows?.find((r) => r.grand) : rows?.find((r) => r.name === name);
+    const v = row?.counts?.[spanIdx];
+    return v == null ? "" : String(v);
+  };
+  const rate = (rows, name, grand) => {
+    const row = grand ? rows?.find((r) => r.grand) : rows?.find((r) => r.name === name);
+    return pct1(row?.rates?.[spanIdx]);
+  };
+  const dmgCnt = (rows) => {
+    const row = rows?.find((r) => r.grand);
+    const v = row?.counts?.[dmgSpanIdx ?? spanIdx];
+    return v == null ? "" : String(v);
+  };
+  return {
+    ltl: {
+      don:    cnt(report.ontime.rows, null, true),
+      ontime: rate(report.ontime.rows, null, true),
+      bevo:   dmgCnt(report.damage?.rows),
+      fd:     cnt(report.fd?.rows, null, true),
+    },
+    b2c: {
+      don:    cnt(report.ontime.rows, "Tổng Khách B2C", false),
+      ontime: rate(report.ontime.rows, "Tổng Khách B2C", false),
+      bevo:   "",
+      fd:     cnt(report.fd?.rows, "Tổng Khách B2C", false),
+    },
+    b2b: {
+      don:    cnt(report.ontime.rows, "Tổng Khách B2B LTL", false),
+      ontime: rate(report.ontime.rows, "Tổng Khách B2B LTL", false),
+      bevo:   "",
+      fd:     cnt(report.fd?.rows, "Tổng Khách B2B LTL", false),
+    },
+  };
 }
 
 function delta(curr, prev) {
@@ -161,7 +211,7 @@ function SectionHeader({ title, weekLabel, onAdd }) {
 
 // ── Sub-component: CompMatrix ─────────────────────────────────────────────────
 
-function CompMatrix({ matrix, setMatrix, prevLabel, currLabel, weeklyOrderData }) {
+function CompMatrix({ matrix, setMatrix, prevLabel, currLabel, apiData, apiLoading }) {
   const setLTL = useCallback((seg, metric, period, val) => {
     setMatrix((prev) => ({ ...prev, [seg]: { ...prev[seg], [metric]: { ...prev[seg][metric], [period]: val } } }));
   }, [setMatrix]);
@@ -189,6 +239,11 @@ function CompMatrix({ matrix, setMatrix, prevLabel, currLabel, weeklyOrderData }
 
   return (
     <div>
+      {/* Badge trạng thái API */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 11, color: apiLoading ? "var(--amber)" : apiData ? "var(--green)" : "var(--text-muted)" }}>
+        {apiLoading ? "⏳ Đang nạp số liệu từ Báo cáo Công ty..." : apiData ? "✓ Số liệu LTL tự động từ Báo cáo Công ty · FTL nhập tay" : "ℹ Chưa nạp được dữ liệu API — nhập tay"}
+      </div>
+
       {/* LTL/B2C/B2B table */}
       <div style={{ marginBottom: 16, overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
@@ -260,11 +315,9 @@ function CompMatrix({ matrix, setMatrix, prevLabel, currLabel, weeklyOrderData }
         </table>
       </div>
 
-      {weeklyOrderData && (
-        <div style={{ fontSize: 10.5, color: "var(--text-muted)", marginTop: 8 }}>
-          Tự động tính từ dashData — # Đơn LTC hàng LTL tổng đã điền sẵn, các chỉ số khác nhập tay.
-        </div>
-      )}
+      <div style={{ fontSize: 10.5, color: "var(--text-muted)", marginTop: 8 }}>
+        FTL (chuyến xe, fill%) — nhập tay từ hệ thống booking FTL riêng.
+      </div>
     </div>
   );
 }
@@ -499,7 +552,8 @@ export default function TabInternalReport() {
     } catch { return JSON.parse(JSON.stringify(INITIAL_PIPELINE)); }
   });
 
-  const [weeklyOrderData, setWeeklyOrderData] = useState(null);
+  const [apiData, setApiData] = useState(null);   // {prev: extracted, curr: extracted}
+  const [apiLoading, setApiLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -520,42 +574,38 @@ export default function TabInternalReport() {
       .catch(() => {});
   }, [weekKey]);
 
-  // Fetch weekly order data để auto-fill # đơn LTC
+  // Auto-populate từ Báo cáo Công ty (biweekly API) khi prevLabel/currLabel thay đổi
   useEffect(() => {
-    const vnNowDate = vnNow();
-    const m = vnNowDate.getUTCMonth() + 1;
-    const monthsToFetch = m >= 2 ? `${m - 1},${m}` : String(m);
-    fetch(`/api/data?months=${monthsToFetch}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d?.ltl?.ordersByProjectAndWeek) {
-          setWeeklyOrderData(d.ltl.ordersByProjectAndWeek);
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  // Auto-fill # đơn LTC tổng từ weeklyOrderData
-  useEffect(() => {
-    if (!weeklyOrderData) return;
-    const prevWeekNums = prevLabel.match(/W(\d+)/g)?.map((w) => parseInt(w.slice(1))) || [];
-    const currWeekNums = currLabel.match(/W(\d+)/g)?.map((w) => parseInt(w.slice(1))) || [];
-
-    let prevTotal = 0, currTotal = 0;
-    for (const byWeek of Object.values(weeklyOrderData)) {
-      for (const [wNum, cnt] of Object.entries(byWeek)) {
-        const w = parseInt(wNum);
-        if (prevWeekNums.includes(w)) prevTotal += cnt;
-        if (currWeekNums.includes(w)) currTotal += cnt;
-      }
-    }
-    if (prevTotal > 0 || currTotal > 0) {
-      setMatrix((prev) => ({
-        ...prev,
-        ltl: { ...prev.ltl, don: { prev: prevTotal > 0 ? String(prevTotal) : prev.ltl.don.prev, curr: currTotal > 0 ? String(currTotal) : prev.ltl.don.curr } },
-      }));
-    }
-  }, [weeklyOrderData, prevLabel, currLabel]);
+    const prevKey = labelToApiPeriod(prevLabel, thisYear);
+    const currKey = labelToApiPeriod(currLabel, thisYear);
+    if (!prevKey && !currKey) return;
+    setApiLoading(true);
+    const base = "/api/report/biweekly?type=biweekly&format=json&lite=1&period=";
+    Promise.all([
+      prevKey ? fetch(base + encodeURIComponent(prevKey)).then((r) => r.json()).catch(() => null) : Promise.resolve(null),
+      currKey ? fetch(base + encodeURIComponent(currKey)).then((r) => r.json()).catch(() => null) : Promise.resolve(null),
+    ]).then(([prevResp, currResp]) => {
+      const prevExt = extractFromReport(prevResp?.report);
+      const currExt = extractFromReport(currResp?.report);
+      if (!prevExt && !currExt) { setApiLoading(false); return; }
+      setApiData({ prev: prevExt, curr: currExt });
+      // Điền thẳng vào matrix: LTL / B2C / B2B — 4 chỉ số
+      setMatrix((m) => {
+        const fill = (seg, metric) => ({
+          prev: prevExt?.[seg]?.[metric] !== undefined ? prevExt[seg][metric] : m[seg][metric].prev,
+          curr: currExt?.[seg]?.[metric] !== undefined ? currExt[seg][metric] : m[seg][metric].curr,
+        });
+        return {
+          ...m,
+          ltl: { don: fill("ltl","don"), ontime: fill("ltl","ontime"), bevo: fill("ltl","bevo"), fd: fill("ltl","fd") },
+          b2c: { don: fill("b2c","don"), ontime: fill("b2c","ontime"), bevo: fill("b2c","bevo"), fd: fill("b2c","fd") },
+          b2b: { don: fill("b2b","don"), ontime: fill("b2b","ontime"), bevo: fill("b2b","bevo"), fd: fill("b2b","fd") },
+        };
+      });
+      setApiLoading(false);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prevLabel, currLabel, thisYear]);
 
   // Persist localStorage
   useEffect(() => {
@@ -688,7 +738,7 @@ export default function TabInternalReport() {
       {/* ── 1. Bảng đối soát ───────────────────────────────────── */}
       <div style={panel}>
         <SectionHeader title="Bảng đối soát LTL / FTL" weekLabel={`${prevLabel} vs ${currLabel}`} />
-        <CompMatrix matrix={matrix} setMatrix={setMatrix} prevLabel={prevLabel} currLabel={currLabel} weeklyOrderData={weeklyOrderData} />
+        <CompMatrix matrix={matrix} setMatrix={setMatrix} prevLabel={prevLabel} currLabel={currLabel} apiData={apiData} apiLoading={apiLoading} />
       </div>
 
       {/* ── 2. Điều tra case thực tế ───────────────────────────── */}
