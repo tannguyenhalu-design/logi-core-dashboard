@@ -311,20 +311,22 @@ function OpsIssuesTable({ ops, setOps, setLightbox }) {
                 <td style={colStyle(150)}>{inp(row.id, "solution", "Biện pháp khắc phục...", row.solution, 150)}</td>
                 {/* Status & Ảnh */}
                 <td style={colStyle(170)}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <select value={row.statusText} onChange={(e) => upd(row.id, "statusText", e.target.value)}
-                    style={{ ...cellInput, color: OPS_STATUS_COLOR[row.statusText] || "var(--text-muted)", cursor: "pointer", marginBottom: 4, fontSize: 11 }}>
+                    style={{ ...cellInput, display: "block", color: OPS_STATUS_COLOR[row.statusText] || "var(--text-muted)", cursor: "pointer", fontSize: 11 }}>
                     <option value="">-- Chọn status --</option>
                     {OPS_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
                   <input value={row.imageUrl} onChange={(e) => upd(row.id, "imageUrl", e.target.value)} placeholder="Dán URL hình ảnh/video..."
-                    style={{ ...cellInput, fontSize: 10.5, borderBottom: "1px solid var(--border)", paddingBottom: 2 }} />
+                    style={{ ...cellInput, display: "block", fontSize: 10.5, borderBottom: "1px solid var(--border)", paddingBottom: 2 }} />
                   {isImgUrl(row.imageUrl) && (
-                    <div style={{ marginTop: 4 }}>
+                    <div>
                       <img src={row.imageUrl} alt="thumb" onClick={() => setLightbox(row.imageUrl)}
                         style={{ maxWidth: 80, maxHeight: 55, borderRadius: 4, cursor: "zoom-in", border: "1px solid var(--border)", objectFit: "cover" }}
                         onError={(e) => { e.target.style.display = "none"; }} />
                     </div>
                   )}
+                  </div>
                 </td>
                 {/* Support */}
                 <td style={colStyle(130)}>
