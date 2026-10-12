@@ -21,6 +21,7 @@ const TabTrials = dynamic(() => import("../components/TabTrials"), { ssr: false 
 const ExecutiveReport = dynamic(() => import("../components/ExecutiveReport"), { ssr: false });
 const TabBrain      = dynamic(() => import("../components/TabBrain"),      { ssr: false });
 const TabDecision   = dynamic(() => import("../components/TabDecision"),   { ssr: false });
+const TabInternalReport = dynamic(() => import("../components/TabInternalReport"), { ssr: false });
 const AIChatDrawer  = dynamic(() => import("../components/AIChatDrawer"),  { ssr: false });
 
 // Kế hoạch A · P4: while the dashboard is idle, load the code of the tabs this
@@ -34,12 +35,13 @@ const TAB_MODULES = {
   users: () => import("../components/TabUsers"),
   auditlog: () => import("../components/TabAuditLog"),
   health: () => import("../components/TabSystemHealth"),
+  teamreport: () => import("../components/TabInternalReport"),
 };
 const tabsForRole = (role) => (role === "manager" ? ["decision", "report", "trials", "auditlog", "health", "users"] : role === "sd3" ? ["decision", "report", "trials"] : []);
 
 // Kế hoạch A · P3: tabs that stay mounted (hidden) once opened, so coming
 // back shows them at once with their data and state; each has a reload button.
-const KEEP_ALIVE_TABS = ["decision", "report", "trials", "users", "auditlog", "health"];
+const KEEP_ALIVE_TABS = ["decision", "report", "trials", "users", "auditlog", "health", "teamreport"];
 
 const LEGACY_TABS = ["ltl", "operations", "tachtrip", "ftl"];
 const LTL_VIEWS = [
@@ -83,10 +85,11 @@ export default function DashboardPage({ user: initialUser }) {
   const canSeeEvents   = isManager || userTabs.includes("events");
   const canSeeVehicles = isManager || userTabs.includes("vehicles");
   const canSeeReport = isManager || userTabs.includes("report");
+  const canSeeTeamReport = isManager || userTabs.includes("teamreport");
   const canSeeTrials = isManager || userTabs.includes("trials");
   const canSeeDecision = isManager || user.role === "sd3";
   const firstTab = canSeeDecision ? "decision" : canSeeLTL ? "ltl" : canSeeMap ? "map" : canSeeDamage ? "damage" : canSeeEvents ? "events" : canSeeReport ? "report" : canSeeTrials ? "trials" : "none";
-  const VALID_TABS = ["ltl","map","damage","events","vehicles","decision","report","trials","users","auditlog","health","brain"];
+  const VALID_TABS = ["ltl","map","damage","events","vehicles","decision","report","trials","users","auditlog","health","brain","teamreport"];
   const [activeTab, setActiveTab] = useState(firstTab); // LTL_VIEWS id | 'report' | 'trials' | 'users' | 'auditlog' | 'health' | 'brain' | 'none'
   const isLTLView = LTL_VIEWS.some((v) => v.id === activeTab);
   const [selectedMonths, setSelectedMonths] = useState(() => {
@@ -521,6 +524,23 @@ export default function DashboardPage({ user: initialUser }) {
                 Báo cáo công ty
               </div>
             )}
+            {canSeeTeamReport && (
+              <div
+                className={`nav-item ${activeTab === "teamreport" ? "active" : ""}`}
+                onClick={() => goTab("teamreport")}
+                style={{
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", borderRadius: 8,
+                  color: activeTab === "teamreport" ? "#fff" : "var(--text-muted)",
+                  background: activeTab === "teamreport" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+                Báo cáo nội bộ ĐTĐM
+              </div>
+            )}
             {canSeeTrials && (
               <div
                 className={`nav-item ${activeTab === "trials" ? "active" : ""}`}
@@ -742,6 +762,7 @@ export default function DashboardPage({ user: initialUser }) {
                   : activeTab === "auditlog" ? "Nhật Ký Hoạt Động"
                   : activeTab === "health" ? "Trạng thái hệ thống"
                   : activeTab === "brain" ? "Bộ Não Tiểu Đệ"
+                  : activeTab === "teamreport" ? "Báo cáo nội bộ ĐTĐM"
                   : "SD3- Dashboard Điện Máy")}
               </div>
               {isManager && viewAs.type !== "manager" && (
@@ -902,6 +923,7 @@ export default function DashboardPage({ user: initialUser }) {
                   : id === "trials" ? <TabTrials />
                   : id === "users" ? <TabUsers />
                   : id === "auditlog" ? <TabAuditLog />
+                  : id === "teamreport" ? <TabInternalReport />
                   : <TabSystemHealth />}
               </div>
             ))}
