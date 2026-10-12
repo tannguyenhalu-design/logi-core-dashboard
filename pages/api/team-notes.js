@@ -41,7 +41,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "POST") {
-    const { week, tasks, matrix, cases, pipeline } = req.body || {};
+    const { week, tasks, matrix, cases, pipeline, insights } = req.body || {};
     if (!week) return res.status(400).json({ ok: false, error: "Cần tham số week" });
     const cleanTasks = Array.isArray(tasks) ? tasks.map((t) => ({
       id: t.id || `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -51,7 +51,13 @@ export default async function handler(req, res) {
       deadline: String(t.deadline || "").slice(0, 20),
       status: ["pending", "done", "inprogress"].includes(t.status) ? t.status : "pending",
     })) : [];
-    await saveData(week, { tasks: cleanTasks, matrix: matrix || null, cases: cases || null, pipeline: pipeline || null });
+    await saveData(week, {
+      tasks: cleanTasks,
+      matrix: matrix || null,
+      cases: cases || null,
+      pipeline: pipeline || null,
+      insights: typeof insights === "string" ? insights.slice(0, 5000) : "",
+    });
     return res.status(200).json({ ok: true, saved: cleanTasks.length });
   }
 
