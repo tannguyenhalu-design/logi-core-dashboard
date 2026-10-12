@@ -41,7 +41,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "POST") {
-    const { week, tasks, matrix, cases, pipeline, insights, ops } = req.body || {};
+    const { week, tasks, matrix, cases, pipeline, insights, ops, picMembers } = req.body || {};
     if (!week) return res.status(400).json({ ok: false, error: "Cần tham số week" });
     const cleanTasks = Array.isArray(tasks) ? tasks.map((t) => ({
       id: t.id || `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -62,6 +62,9 @@ export default async function handler(req, res) {
       support:   String(o.support   || "").slice(0, 200),
       pic:       String(o.pic       || "").slice(0, 50),
     })) : [];
+    const cleanPicMembers = Array.isArray(picMembers)
+      ? picMembers.map((n) => String(n).slice(0, 50)).filter(Boolean).slice(0, 30)
+      : null;
     await saveData(week, {
       tasks: cleanTasks,
       matrix: matrix || null,
@@ -69,6 +72,7 @@ export default async function handler(req, res) {
       pipeline: pipeline || null,
       insights: typeof insights === "string" ? insights.slice(0, 5000) : "",
       ops: cleanOps,
+      picMembers: cleanPicMembers,
     });
     return res.status(200).json({ ok: true, saved: cleanTasks.length });
   }

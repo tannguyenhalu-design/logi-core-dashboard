@@ -48,7 +48,7 @@ const colShortLabel = (col) => {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const PICS = ["Tú", "Đạt", "Diện", "Tân"];
+const DEFAULT_PICS = ["Tú", "Đạt", "Diện", "Tân"];
 const TASK_STATUSES = ["pending", "inprogress", "done"];
 const TASK_LABEL = { pending: "Chờ xử lý", inprogress: "Đang làm", done: "Hoàn thành" };
 const TASK_COLOR = { pending: "var(--text-muted)", inprogress: "var(--amber)", done: "var(--green)" };
@@ -255,14 +255,14 @@ function DamageTable({ section, loading, insights, setInsights }) {
 const OPS_STATUS_OPTIONS = ["Đang xử lý", "Đã khắc phục", "Chờ phản hồi", "Đang theo dõi", "Đã đóng"];
 const OPS_STATUS_COLOR   = { "Đang xử lý": "var(--amber)", "Đã khắc phục": "var(--green)", "Chờ phản hồi": "#3b82f6", "Đang theo dõi": "var(--cyan,#06b6d4)", "Đã đóng": "var(--text-muted)" };
 const TEAM_OPTIONS = ["BD", "CS", "Kho", "Transport", "Finance", "Tech", "Khác"];
-const ALL_PICS = ["Tú", "Đạt", "Diện", "Tân", "Vi", "Ân", "Khác"];
+// ALL_PICS is now dynamic — sourced from picMembers state passed as prop
 
 function isImgUrl(url) {
   if (!url) return false;
   return /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?.*)?$/i.test(url) || url.includes("drive.google.com") || url.includes("imgur") || url.includes("cloudinary");
 }
 
-function OpsIssuesTable({ ops, setOps, setLightbox }) {
+function OpsIssuesTable({ ops, setOps, setLightbox, picMembers }) {
   const upd = (id, field, val) => setOps((p) => p.map((r) => r.id !== id ? r : { ...r, [field]: val }));
   const del = (id) => setOps((p) => p.filter((r) => r.id !== id));
   const add = () => setOps((p) => [...p, { id: `oi_${Date.now()}`, problem: "", client: "", cause: "", solution: "", statusText: "", imageUrl: "", support: "", pic: "" }]);
@@ -350,7 +350,7 @@ function OpsIssuesTable({ ops, setOps, setLightbox }) {
                   <select value={row.pic} onChange={(e) => upd(row.id, "pic", e.target.value)}
                     style={{ ...cellInput, color: row.pic ? "var(--amber)" : "var(--text-muted)", cursor: "pointer", fontSize: 11, fontWeight: row.pic ? 700 : 400 }}>
                     <option value="">--</option>
-                    {ALL_PICS.map((p) => <option key={p} value={p}>{p}</option>)}
+                    {(picMembers || DEFAULT_PICS).map((p) => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </td>
                 {/* Xóa */}
@@ -423,19 +423,35 @@ function PipelineTable({ pipeline, setPipeline }) {
 
 // ── Sub: PICTaskBoard ─────────────────────────────────────────────────────────
 
-function PICTaskBoard({ tasks, setTasks }) {
+function PICTaskBoard({ tasks, setTasks, picMembers, setPicMembers }) {
+  const [newPic, setNewPic] = useState("");
   const add = (pic) => setTasks((p) => [...p, { id: `${Date.now()}_${Math.random().toString(36).slice(2, 5)}`, pic, client: "", action: "", deadline: "", status: "pending" }]);
   const update = (id, field, val) => setTasks((p) => p.map((t) => t.id !== id ? t : { ...t, [field]: val }));
   const remove = (id) => setTasks((p) => p.filter((t) => t.id !== id));
+  const addPic = () => {
+    const name = newPic.trim();
+    if (!name || picMembers.includes(name)) return;
+    setPicMembers((p) => [...p, name]);
+    setNewPic("");
+  };
+  const removePic = (pic) => {
+    if (tasks.some((t) => t.pic === pic)) return;
+    setPicMembers((p) => p.filter((x) => x !== pic));
+  };
   return (
     <div>
-      {PICS.map((pic) => {
+      {picMembers.map((pic) => {
         const mine = tasks.filter((t) => t.pic === pic);
+        const canRemove = mine.length === 0;
         return (
           <div key={pic} style={{ marginBottom: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
               <span style={{ background: "var(--amber)", color: "#fff", borderRadius: 4, padding: "1px 10px", fontSize: 11, fontWeight: 700 }}>{pic}</span>
               <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{mine.length} task</span>
+              {canRemove && (
+                <button onClick={() => removePic(pic)} title="Xóa thành viên (chỉ khi chưa có task)"
+                  style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--text-muted)" }}>✕</button>
+              )}
               <button onClick={() => add(pic)} style={{ marginLeft: "auto", fontSize: 10, padding: "2px 8px", borderRadius: 5, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--text-secondary)" }}>+ Thêm</button>
             </div>
             {mine.length === 0 ? (
@@ -471,6 +487,18 @@ function PICTaskBoard({ tasks, setTasks }) {
           </div>
         );
       })}
+      {/* Thêm thành viên mới */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, paddingTop: 10, borderTop: "1px dashed var(--border)" }}>
+        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Thêm thành viên:</span>
+        <input value={newPic} onChange={(e) => setNewPic(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") addPic(); }}
+          placeholder="Tên thành viên..." maxLength={30}
+          style={{ ...cellInput, border: "1px solid var(--border)", borderRadius: 5, padding: "3px 8px", fontSize: 11, width: 140, background: "var(--bg-panel)" }} />
+        <button onClick={addPic} disabled={!newPic.trim() || picMembers.includes(newPic.trim())}
+          style={{ fontSize: 10, padding: "3px 10px", borderRadius: 5, border: "1px solid var(--amber)", background: "var(--amber)", color: "#fff", cursor: "pointer", opacity: (!newPic.trim() || picMembers.includes(newPic.trim())) ? 0.4 : 1 }}>
+          + Thêm
+        </button>
+      </div>
     </div>
   );
 }
@@ -614,6 +642,9 @@ export default function TabInternalReport() {
   const [pipeline, setPipeline] = useState(() => {
     try { const r = localStorage.getItem("teamreport_pipeline"); return r ? JSON.parse(r) : INITIAL_PIPELINE; } catch { return INITIAL_PIPELINE; }
   });
+  const [picMembers, setPicMembers] = useState(() => {
+    try { const r = localStorage.getItem("teamreport_pic_members"); return r ? JSON.parse(r) : DEFAULT_PICS; } catch { return DEFAULT_PICS; }
+  });
 
   // UI
   const [ops, setOps] = useState([]);
@@ -654,6 +685,7 @@ export default function TabInternalReport() {
         if (typeof data.insights === "string") setInsights(data.insights);
         if (Array.isArray(data.ops)) setOps(data.ops);
         if (Array.isArray(data.pipeline)) setPipeline(data.pipeline);
+        if (Array.isArray(data.picMembers) && data.picMembers.length > 0) setPicMembers(data.picMembers);
         setBlobLoaded(true);
       }).catch(() => {});
   }, [period]);
@@ -663,6 +695,7 @@ export default function TabInternalReport() {
   useEffect(() => { try { localStorage.setItem(`teamreport_insights_${period}`, insights); } catch {} }, [insights, period]);
   useEffect(() => { try { localStorage.setItem(`teamreport_ops_${period}`, JSON.stringify(ops)); } catch {} }, [ops, period]);
   useEffect(() => { try { localStorage.setItem("teamreport_pipeline", JSON.stringify(pipeline)); } catch {} }, [pipeline]);
+  useEffect(() => { try { localStorage.setItem("teamreport_pic_members", JSON.stringify(picMembers)); } catch {} }, [picMembers]);
 
   // ── Save to Blob ─────────────────────────────────────────────────────────────
   const saveToBlob = useCallback(async () => {
@@ -671,13 +704,13 @@ export default function TabInternalReport() {
       await fetch("/api/team-notes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ week: period, tasks, insights, ops, pipeline }),
+        body: JSON.stringify({ week: period, tasks, insights, ops, pipeline, picMembers }),
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch {}
     setSaving(false);
-  }, [period, tasks, insights, pipeline]);
+  }, [period, tasks, insights, pipeline, picMembers]);
 
   // ── Build Zalo text ──────────────────────────────────────────────────────────
   const copyZalo = useCallback(() => {
@@ -828,7 +861,7 @@ export default function TabInternalReport() {
           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--amber)", marginBottom: 8, letterSpacing: 0.4 }}>
             🔎 Vấn đề vận hành chi tiết <span style={{ fontWeight: 400, color: "var(--text-muted)", fontSize: 10.5 }}>— Ghi nhận từng ca, có attribution người phụ trách</span>
           </div>
-          <OpsIssuesTable ops={ops} setOps={setOps} setLightbox={setLightbox} />
+          <OpsIssuesTable ops={ops} setOps={setOps} setLightbox={setLightbox} picMembers={picMembers} />
         </div>
       </div>
 
@@ -849,7 +882,7 @@ export default function TabInternalReport() {
       {/* ── Bảng 4: Action Plan PIC ───────────────────────────────────── */}
       <div style={panel}>
         <SectionHeader title={`Bảng 4 — Action Plan & Phân công PIC`} badge={periLabel} />
-        <PICTaskBoard tasks={tasks} setTasks={setTasks} />
+        <PICTaskBoard tasks={tasks} setTasks={setTasks} picMembers={picMembers} setPicMembers={setPicMembers} />
       </div>
 
       <div style={{ fontSize: 10.5, color: "var(--text-muted)", textAlign: "center", marginTop: 8 }}>
