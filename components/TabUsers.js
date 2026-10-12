@@ -15,12 +15,13 @@ const ROLE_LABELS = {
 };
 
 const TAB_OPTIONS = [
-  { value: "ltl",    label: "Tổng quan LTL" },
-  { value: "map",    label: "Bản đồ tỉnh thành" },
-  { value: "damage", label: "Hư hỏng & Rủi ro" },
-  { value: "events", label: "📅 Sự kiện" },
-  { value: "report", label: "Báo cáo công ty" },
-  { value: "trials", label: "Sổ tay cải tiến" },
+  { value: "ltl",        label: "Tổng quan LTL" },
+  { value: "map",        label: "Bản đồ tỉnh thành" },
+  { value: "damage",     label: "Hư hỏng & Rủi ro" },
+  { value: "events",     label: "📅 Sự kiện" },
+  { value: "report",     label: "Báo cáo công ty" },
+  { value: "trials",     label: "Sổ tay cải tiến" },
+  { value: "teamreport", label: "Báo cáo nội bộ ĐTĐM" },
 ];
 
 function defaultTabsForRole(role) {
