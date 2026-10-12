@@ -37,6 +37,23 @@ function listBiweeklyPeriods(week, year) {
   return out;
 }
 
+function prevBiweeklyPeriod(period) {
+  const m = String(period).match(/^(\d{4})-W(\d+)$/);
+  if (!m) return null;
+  const year = parseInt(m[1], 10);
+  const odd = parseInt(m[2], 10);
+  const prevOdd = odd - 2;
+  if (prevOdd < 1) return `${year - 1}-W51`;
+  return `${year}-W${String(prevOdd).padStart(2, "0")}`;
+}
+
+function biweeklyPeriodLabel(period) {
+  const m = String(period).match(/^(\d{4})-W(\d+)$/);
+  if (!m) return period;
+  const odd = parseInt(m[2], 10);
+  return `W${odd - 1}–W${odd}`;
+}
+
 const fmtN = (v) => (v == null || v === "" || v === 0 ? "—" : Number(v).toLocaleString("vi-VN"));
 const fmtP = (v) => (v == null || isNaN(v) ? "—" : `${(v * 100).toFixed(1)}%`);
 const colShortLabel = (col) => {
@@ -637,6 +654,8 @@ export default function TabInternalReport() {
   // Editable per-period data
   const [insights, setInsights] = useState("");
   const [tasks, setTasks] = useState([]);
+  const [carryLoading, setCarryLoading] = useState(false);
+  const [carryMsg, setCarryMsg] = useState("");
 
   // Shared across periods
   const [pipeline, setPipeline] = useState(() => {
@@ -711,6 +730,41 @@ export default function TabInternalReport() {
     } catch {}
     setSaving(false);
   }, [period, tasks, insights, pipeline, picMembers]);
+
+  // ── Carryover tasks từ kỳ trước ─────────────────────────────────────────────
+  const handleCarryover = useCallback(async () => {
+    const prev = prevBiweeklyPeriod(period);
+    if (!prev || carryLoading) return;
+    setCarryLoading(true);
+    setCarryMsg("");
+    try {
+      const res = await fetch(`/api/team-notes?week=${encodeURIComponent(prev)}`);
+      const { data } = await res.json();
+      const prevTasks = Array.isArray(data?.tasks) ? data.tasks : [];
+      const toCarry = prevTasks.filter((t) => t.status !== "done");
+      if (toCarry.length === 0) {
+        setCarryMsg("✓ Không có task nào chưa xong từ kỳ trước");
+        setTimeout(() => setCarryMsg(""), 3000);
+        setCarryLoading(false);
+        return;
+      }
+      const existingKeys = new Set(tasks.map((t) => `${t.pic}|${(t.action || "").trim()}`));
+      const newTasks = toCarry
+        .filter((t) => !existingKeys.has(`${t.pic}|${(t.action || "").trim()}`))
+        .map((t) => ({ ...t, id: `${Date.now()}_${Math.random().toString(36).slice(2, 5)}` }));
+      if (newTasks.length === 0) {
+        setCarryMsg("✓ Tất cả task đã tồn tại, không cần thêm");
+      } else {
+        setTasks((p) => [...p, ...newTasks]);
+        setCarryMsg(`✓ Đã thêm ${newTasks.length} task từ ${biweeklyPeriodLabel(prev)}`);
+      }
+      setTimeout(() => setCarryMsg(""), 4000);
+    } catch {
+      setCarryMsg("✗ Không thể tải kỳ trước");
+      setTimeout(() => setCarryMsg(""), 3000);
+    }
+    setCarryLoading(false);
+  }, [period, carryLoading, tasks]);
 
   // ── Build Zalo text ──────────────────────────────────────────────────────────
   const copyZalo = useCallback(() => {
@@ -881,7 +935,23 @@ export default function TabInternalReport() {
 
       {/* ── Bảng 4: Action Plan PIC ───────────────────────────────────── */}
       <div style={panel}>
-        <SectionHeader title={`Bảng 4 — Action Plan & Phân công PIC`} badge={periLabel} />
+        <SectionHeader
+          title={`Bảng 4 — Action Plan & Phân công PIC`}
+          badge={periLabel}
+          right={
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {carryMsg && <span style={{ fontSize: 10.5, color: carryMsg.startsWith("✗") ? "var(--red)" : "var(--green)" }}>{carryMsg}</span>}
+              <button
+                onClick={handleCarryover}
+                disabled={carryLoading}
+                title={`Nhắc lại task chưa xong từ ${biweeklyPeriodLabel(prevBiweeklyPeriod(period))}`}
+                style={{ fontSize: 10.5, padding: "3px 10px", borderRadius: 5, border: "1px solid var(--border)", background: "transparent", cursor: carryLoading ? "wait" : "pointer", color: "var(--text-secondary)", opacity: carryLoading ? 0.5 : 1 }}
+              >
+                {carryLoading ? "⏳" : "↩"} Nhắc lại từ {biweeklyPeriodLabel(prevBiweeklyPeriod(period))}
+              </button>
+            </div>
+          }
+        />
         <PICTaskBoard tasks={tasks} setTasks={setTasks} picMembers={picMembers} setPicMembers={setPicMembers} />
       </div>
 
