@@ -358,77 +358,116 @@ function PICTaskBoard({ tasks, setTasks }) {
 
 // ── Excel Export ─────────────────────────────────────────────────────────────
 
-async function buildExcel({ report, pipeline, tasks, insights, periLabel, period }) {
-  const XLSX = await import("xlsx");
-  const wb = XLSX.utils.book_new();
+// Palette Excel
+const XL_HDR  = { fill: { fgColor: { rgb: "0F7C7B" } }, font: { bold: true, color: { rgb: "FFFFFF" }, sz: 10 }, alignment: { horizontal: "center", vertical: "center", wrapText: true } };
+const XL_GRAND = { fill: { fgColor: { rgb: "BFEAE9" } }, font: { bold: true, color: { rgb: "0A5756" }, sz: 10 }, alignment: { horizontal: "right" } };
+const XL_GRAND_L = { ...XL_GRAND, alignment: { horizontal: "left" } };
+const XL_TOTAL = { fill: { fgColor: { rgb: "EDF8F8" } }, font: { bold: true, sz: 10 }, alignment: { horizontal: "right" } };
+const XL_TOTAL_L = { ...XL_TOTAL, alignment: { horizontal: "left" } };
+const XL_NORM  = { font: { sz: 10 }, alignment: { horizontal: "right" } };
+const XL_NORM_L = { ...XL_NORM, alignment: { horizontal: "left" } };
 
-  // ── Sheet 1: On-time LTL ──────────────────────────────────────────────────
+function styleRow(ws, ri, numCols, styleLeft, styleRight) {
+  for (let c = 0; c < numCols; c++) {
+    const addr = encodeCell(ri, c);
+    if (!ws[addr]) ws[addr] = { v: "", t: "s" };
+    ws[addr].s = c === 0 ? styleLeft : styleRight;
+  }
+}
+function encodeCell(r, c) {
+  const col = c < 26 ? String.fromCharCode(65 + c) : String.fromCharCode(64 + Math.floor(c / 26)) + String.fromCharCode(65 + (c % 26));
+  return `${col}${r + 1}`;
+}
+
+async function buildExcel({ report, pipeline, tasks, insights, periLabel, period }) {
+  const XLSX = await import("xlsx-js-style");
+  const wb = XLSX.utils.book_new();
+  const NUM_HDR_ROWS = 2; // double header
+
+  // ── Sheet 1: On-time LTL ─────────────────────────────────────────────────
   if (report?.ontime) {
     const { cols, rows } = report.ontime;
     const colLabels = cols.map(colShortLabel);
-    // Double header row: group + columns
+    const totalCols = 1 + cols.length + 1 + cols.length + 1; // KH + counts + ± + rates + ±
     const hdr1 = ["Khách hàng", ...colLabels.map(() => "# Đơn LTC"), "", ...colLabels.map(() => "% On-time"), ""];
     const hdr2 = ["", ...colLabels, "±", ...colLabels, "±"];
-    const data = [hdr1, hdr2];
+    const dataRows = [];
     for (const row of rows) {
       const counts = cols.map((_, i) => row.counts[i] ?? "");
       const rates = cols.map((_, i) => row.rates[i] != null ? +(row.rates[i] * 100).toFixed(1) : "");
       const [ia, ib] = report.ontime.delta || [cols.length - 2, cols.length - 1];
       const dCount = (row.counts[ib] ?? 0) - (row.counts[ia] ?? 0);
       const dRate = row.rates[ia] != null && row.rates[ib] != null ? +((row.rates[ib] - row.rates[ia]) * 100).toFixed(1) : "";
-      data.push([row.name, ...counts, dCount, ...rates, dRate]);
+      dataRows.push({ values: [row.name, ...counts, dCount, ...rates, dRate], grand: row.grand, total: row.total });
     }
-    const ws1 = XLSX.utils.aoa_to_sheet(data);
+    const ws1 = XLSX.utils.aoa_to_sheet([hdr1, hdr2, ...dataRows.map((r) => r.values)]);
     ws1["!cols"] = [{ wch: 26 }, ...cols.map(() => ({ wch: 10 })), { wch: 6 }, ...cols.map(() => ({ wch: 9 })), { wch: 6 }];
+    // Style headers
+    styleRow(ws1, 0, totalCols, XL_HDR, XL_HDR);
+    styleRow(ws1, 1, totalCols, XL_HDR, XL_HDR);
+    // Style data rows
+    dataRows.forEach((row, i) => {
+      const ri = NUM_HDR_ROWS + i;
+      if (row.grand)       styleRow(ws1, ri, totalCols, XL_GRAND_L, XL_GRAND);
+      else if (row.total)  styleRow(ws1, ri, totalCols, XL_TOTAL_L, XL_TOTAL);
+      else                 styleRow(ws1, ri, totalCols, XL_NORM_L, XL_NORM);
+    });
     XLSX.utils.book_append_sheet(wb, ws1, "1. On-time LTL");
   }
 
-  // ── Sheet 2: Bể vỡ & Đền bù ──────────────────────────────────────────────
+  // ── Sheet 2: Bể vỡ & Đền bù ─────────────────────────────────────────────
   if (report?.damage) {
     const { cols, rows } = report.damage;
     const colLabels = cols.map(colShortLabel);
+    const totalCols = 1 + cols.length + 1 + cols.length + 1;
     const hdr1 = ["Khách hàng", ...colLabels.map(() => "# Case bể đền"), "", ...colLabels.map(() => "% Bể đền / LTC"), ""];
     const hdr2 = ["", ...colLabels, "±", ...colLabels, "±"];
-    const data = [hdr1, hdr2];
+    const dataRows = [];
     for (const row of rows) {
       const counts = cols.map((_, i) => row.counts[i] ?? "");
       const rates = cols.map((_, i) => row.rates[i] != null ? +(row.rates[i] * 100).toFixed(2) : "");
       const [ia, ib] = report.damage.delta || [cols.length - 2, cols.length - 1];
       const dCount = (row.counts[ib] ?? 0) - (row.counts[ia] ?? 0);
       const dRate = row.rates[ia] != null && row.rates[ib] != null ? +((row.rates[ib] - row.rates[ia]) * 100).toFixed(2) : "";
-      data.push([row.name, ...counts, dCount, ...rates, dRate]);
+      dataRows.push({ values: [row.name, ...counts, dCount, ...rates, dRate], grand: row.grand, total: row.total });
     }
-    // Append insights below
-    data.push([]);
-    data.push(["Insight & Giải trình case:"]);
-    data.push([insights || "(chưa có nội dung)"]);
-    const ws2 = XLSX.utils.aoa_to_sheet(data);
+    const insightRows = [[], ["Insight & Giải trình case:"], [insights || "(chưa có nội dung)"]];
+    const ws2 = XLSX.utils.aoa_to_sheet([hdr1, hdr2, ...dataRows.map((r) => r.values), ...insightRows]);
     ws2["!cols"] = [{ wch: 26 }, ...cols.map(() => ({ wch: 10 })), { wch: 6 }, ...cols.map(() => ({ wch: 10 })), { wch: 6 }];
+    styleRow(ws2, 0, totalCols, XL_HDR, XL_HDR);
+    styleRow(ws2, 1, totalCols, XL_HDR, XL_HDR);
+    dataRows.forEach((row, i) => {
+      const ri = NUM_HDR_ROWS + i;
+      if (row.grand)       styleRow(ws2, ri, totalCols, XL_GRAND_L, XL_GRAND);
+      else if (row.total)  styleRow(ws2, ri, totalCols, XL_TOTAL_L, XL_TOTAL);
+      else                 styleRow(ws2, ri, totalCols, XL_NORM_L, XL_NORM);
+    });
     XLSX.utils.book_append_sheet(wb, ws2, "2. Bể vỡ & Đền bù");
   }
 
-  // ── Sheet 3: Pipeline ──────────────────────────────────────────────────────
+  // ── Sheet 3: Pipeline ────────────────────────────────────────────────────
   {
     const headers = ["Tên dự án", "Trạng thái", "Thời gian dự kiến", "Mô hình", "Volume dự kiến", "Khu vực Pick up", "Mô tả cách vận hành", "Khó khăn"];
     const data = [headers, ...pipeline.map((p) => [p.name, p.status, p.time, p.model, p.vol, p.area, p.desc, p.issues])];
     const ws3 = XLSX.utils.aoa_to_sheet(data);
     ws3["!cols"] = [22, 18, 16, 14, 14, 16, 28, 28].map((wch) => ({ wch }));
+    styleRow(ws3, 0, headers.length, XL_HDR, XL_HDR);
     XLSX.utils.book_append_sheet(wb, ws3, "3. Pipeline");
   }
 
-  // ── Sheet 4: Action Plan PIC ──────────────────────────────────────────────
+  // ── Sheet 4: Action Plan PIC ─────────────────────────────────────────────
   {
     const headers = ["PIC", "Khách / Sự cố", "Action Plan", "Deadline", "Trạng thái"];
     const data = [headers, ...tasks.map((t) => [t.pic, t.client, t.action, t.deadline, TASK_LABEL[t.status] || t.status])];
     const ws4 = XLSX.utils.aoa_to_sheet(data);
     ws4["!cols"] = [8, 22, 36, 12, 14].map((wch) => ({ wch }));
+    styleRow(ws4, 0, headers.length, XL_HDR, XL_HDR);
     XLSX.utils.book_append_sheet(wb, ws4, "4. Action Plan PIC");
   }
 
-  // ── Trigger download ───────────────────────────────────────────────────────
+  // ── Download ─────────────────────────────────────────────────────────────
   const safeLabel = (periLabel || period || "export").replace(/[^\w\-]/g, "_");
-  const filename = `BaoCaoNoiBo_DTDM_${safeLabel}.xlsx`;
-  XLSX.writeFile(wb, filename);
+  XLSX.writeFile(wb, `BaoCaoNoiBo_DTDM_${safeLabel}.xlsx`);
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
