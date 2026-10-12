@@ -233,17 +233,134 @@ function DamageTable({ section, loading, insights, setInsights }) {
         </table>
       </div>
 
-      {/* Insight & Giải trình textarea */}
-      <div style={{ marginTop: 4 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4 }}>📝 Insight & Giải trình case phát sinh trong kỳ</div>
+      {/* Block 1: Insight tổng quan */}
+      <div style={{ marginTop: 14, borderTop: "1px solid var(--border)", paddingTop: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--amber)", marginBottom: 6, letterSpacing: 0.4 }}>
+          💡 Insight: <span style={{ fontWeight: 400, color: "var(--text-muted)", fontSize: 10.5 }}>Nhận định tổng quan sản lượng, điểm sáng/tối trong kỳ</span>
+        </div>
         <textarea
           value={insights}
           onChange={(e) => setInsights(e.target.value)}
-          placeholder={"VD:\n• Smartlink GYR4ND4B — nghi mất hàng, đang xác minh kho HN\n• Komex — móp tủ lạnh HN-BN, Điện đang làm việc với Komex\n• PSD — lên Rillnet trễ, Tân follow up"}
-          rows={5}
+          placeholder={"• Smartlink — sản lượng W41 tăng nhờ chạy thêm tuyến đi thẳng ≥80% tải trọng\n• Digiworld — tỉ lệ on-time W40 giảm do thiếu xe buổi sáng\n• PSD — bảo vệ CCDC tốt, 0 ca nẹp góc bị bể"}
+          rows={4}
           style={{ width: "100%", background: "var(--surface-0, rgba(255,255,255,0.04))", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 12px", fontSize: 12, color: "var(--text-primary)", resize: "vertical", fontFamily: "inherit", lineHeight: 1.6, boxSizing: "border-box" }}
         />
       </div>
+    </div>
+  );
+}
+
+// ── Sub: OpsIssuesTable ───────────────────────────────────────────────────────
+
+const OPS_STATUS_OPTIONS = ["Đang xử lý", "Đã khắc phục", "Chờ phản hồi", "Đang theo dõi", "Đã đóng"];
+const OPS_STATUS_COLOR   = { "Đang xử lý": "var(--amber)", "Đã khắc phục": "var(--green)", "Chờ phản hồi": "#3b82f6", "Đang theo dõi": "var(--cyan,#06b6d4)", "Đã đóng": "var(--text-muted)" };
+const TEAM_OPTIONS = ["BD", "CS", "Kho", "Transport", "Finance", "Tech", "Khác"];
+const ALL_PICS = ["Tú", "Đạt", "Diện", "Tân", "Vi", "Ân", "Khác"];
+
+function isImgUrl(url) {
+  if (!url) return false;
+  return /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?.*)?$/i.test(url) || url.includes("drive.google.com") || url.includes("imgur") || url.includes("cloudinary");
+}
+
+function OpsIssuesTable({ ops, setOps, setLightbox }) {
+  const upd = (id, field, val) => setOps((p) => p.map((r) => r.id !== id ? r : { ...r, [field]: val }));
+  const del = (id) => setOps((p) => p.filter((r) => r.id !== id));
+  const add = () => setOps((p) => [...p, { id: `oi_${Date.now()}`, problem: "", client: "", cause: "", solution: "", statusText: "", imageUrl: "", support: "", pic: "" }]);
+
+  const colStyle = (w) => ({ ...tdBase, textAlign: "left", padding: "4px 5px", minWidth: w, verticalAlign: "top" });
+  const inp = (id, field, placeholder, val, w) => (
+    <textarea value={val} onChange={(e) => upd(id, field, e.target.value)} placeholder={placeholder} rows={2}
+      style={{ ...cellInput, resize: "vertical", lineHeight: 1.5, fontSize: 11, minWidth: w - 10, minHeight: 36 }} />
+  );
+
+  if (ops.length === 0) {
+    return (
+      <div>
+        <div style={{ fontSize: 11.5, color: "var(--text-muted)", fontStyle: "italic", padding: "8px 0" }}>Chưa có vấn đề vận hành nào được ghi nhận.</div>
+        <button onClick={add} style={{ fontSize: 11, padding: "5px 14px", borderRadius: 6, border: "1px dashed var(--border)", background: "transparent", cursor: "pointer", color: "var(--cyan,#06b6d4)" }}>➕ Thêm vấn đề vận hành</button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ borderCollapse: "collapse", fontSize: 11, width: "100%" }}>
+          <thead>
+            <tr>
+              <th style={{ ...thBase, textAlign: "left", minWidth: 130 }}>Vấn đề</th>
+              <th style={{ ...thBase, textAlign: "left", minWidth: 90 }}>Khách hàng</th>
+              <th style={{ ...thBase, textAlign: "left", minWidth: 150 }}>Nguyên nhân</th>
+              <th style={{ ...thBase, textAlign: "left", minWidth: 150 }}>Giải pháp</th>
+              <th style={{ ...thBase, textAlign: "left", minWidth: 170 }}>Status & Hình ảnh</th>
+              <th style={{ ...thBase, textAlign: "left", minWidth: 130 }}>Support từ team</th>
+              <th style={{ ...thBase, textAlign: "left", minWidth: 80 }}>Người ghi</th>
+              <th style={{ ...thBase, width: 28 }} />
+            </tr>
+          </thead>
+          <tbody>
+            {ops.map((row) => (
+              <tr key={row.id} style={{ verticalAlign: "top" }}>
+                {/* Vấn đề */}
+                <td style={colStyle(130)}>{inp(row.id, "problem", "VD: Hàng cấn góc...", row.problem, 130)}</td>
+                {/* Khách hàng */}
+                <td style={colStyle(90)}>{inp(row.id, "client", "VD: Digiworld", row.client, 90)}</td>
+                {/* Nguyên nhân */}
+                <td style={colStyle(150)}>{inp(row.id, "cause", "Mô tả nguyên nhân...", row.cause, 150)}</td>
+                {/* Giải pháp */}
+                <td style={colStyle(150)}>{inp(row.id, "solution", "Biện pháp khắc phục...", row.solution, 150)}</td>
+                {/* Status & Ảnh */}
+                <td style={colStyle(170)}>
+                  <select value={row.statusText} onChange={(e) => upd(row.id, "statusText", e.target.value)}
+                    style={{ ...cellInput, color: OPS_STATUS_COLOR[row.statusText] || "var(--text-muted)", cursor: "pointer", marginBottom: 4, fontSize: 11 }}>
+                    <option value="">-- Chọn status --</option>
+                    {OPS_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <input value={row.imageUrl} onChange={(e) => upd(row.id, "imageUrl", e.target.value)} placeholder="Dán URL hình ảnh/video..."
+                    style={{ ...cellInput, fontSize: 10.5, borderBottom: "1px solid var(--border)", paddingBottom: 2 }} />
+                  {isImgUrl(row.imageUrl) && (
+                    <div style={{ marginTop: 4 }}>
+                      <img src={row.imageUrl} alt="thumb" onClick={() => setLightbox(row.imageUrl)}
+                        style={{ maxWidth: 80, maxHeight: 55, borderRadius: 4, cursor: "zoom-in", border: "1px solid var(--border)", objectFit: "cover" }}
+                        onError={(e) => { e.target.style.display = "none"; }} />
+                    </div>
+                  )}
+                </td>
+                {/* Support */}
+                <td style={colStyle(130)}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                    {TEAM_OPTIONS.map((t) => {
+                      const sel = (row.support || "").split(",").map((x) => x.trim()).includes(t);
+                      return (
+                        <span key={t} onClick={() => {
+                          const cur = (row.support || "").split(",").map((x) => x.trim()).filter(Boolean);
+                          const next = sel ? cur.filter((x) => x !== t) : [...cur, t];
+                          upd(row.id, "support", next.join(", "));
+                        }} style={{ fontSize: 10, padding: "1px 6px", borderRadius: 8, cursor: "pointer", border: `1px solid ${sel ? "var(--cyan,#06b6d4)" : "var(--border)"}`, background: sel ? "rgba(6,182,212,0.15)" : "transparent", color: sel ? "var(--cyan,#06b6d4)" : "var(--text-muted)", userSelect: "none" }}>
+                          {t}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </td>
+                {/* Người ghi */}
+                <td style={colStyle(80)}>
+                  <select value={row.pic} onChange={(e) => upd(row.id, "pic", e.target.value)}
+                    style={{ ...cellInput, color: row.pic ? "var(--amber)" : "var(--text-muted)", cursor: "pointer", fontSize: 11, fontWeight: row.pic ? 700 : 400 }}>
+                    <option value="">--</option>
+                    {ALL_PICS.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </td>
+                {/* Xóa */}
+                <td style={{ ...tdBase, textAlign: "center", verticalAlign: "middle" }}>
+                  <button onClick={() => del(row.id)} style={{ border: "none", background: "none", cursor: "pointer", color: "var(--red)", fontSize: 12, padding: 0 }}>✕</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <button onClick={add} style={{ marginTop: 8, fontSize: 11, padding: "5px 14px", borderRadius: 6, border: "1px dashed var(--border)", background: "transparent", cursor: "pointer", color: "var(--cyan,#06b6d4)" }}>➕ Thêm vấn đề vận hành</button>
     </div>
   );
 }
@@ -379,7 +496,7 @@ function encodeCell(r, c) {
   return `${col}${r + 1}`;
 }
 
-async function buildExcel({ report, pipeline, tasks, insights, periLabel, period }) {
+async function buildExcel({ report, pipeline, tasks, insights, ops, periLabel, period }) {
   const XLSX = await import("xlsx-js-style");
   const wb = XLSX.utils.book_new();
   const NUM_HDR_ROWS = 2; // double header
@@ -431,7 +548,12 @@ async function buildExcel({ report, pipeline, tasks, insights, periLabel, period
       const dRate = row.rates[ia] != null && row.rates[ib] != null ? +((row.rates[ib] - row.rates[ia]) * 100).toFixed(2) : "";
       dataRows.push({ values: [row.name, ...counts, dCount, ...rates, dRate], grand: row.grand, total: row.total });
     }
-    const insightRows = [[], ["Insight & Giải trình case:"], [insights || "(chưa có nội dung)"]];
+    const insightRows = [[], ["💡 Insight tổng quan:"], [insights || "(chưa có nội dung)"]];
+    if (ops.length > 0) {
+      insightRows.push([]);
+      insightRows.push(["Vấn đề", "Khách hàng", "Nguyên nhân", "Giải pháp", "Status", "Support từ team", "Người ghi"]);
+      for (const o of ops) insightRows.push([o.problem, o.client, o.cause, o.solution, o.statusText, o.support, o.pic]);
+    }
     const ws2 = XLSX.utils.aoa_to_sheet([hdr1, hdr2, ...dataRows.map((r) => r.values), ...insightRows]);
     ws2["!cols"] = [{ wch: 26 }, ...cols.map(() => ({ wch: 10 })), { wch: 6 }, ...cols.map(() => ({ wch: 10 })), { wch: 6 }];
     styleRow(ws2, 0, totalCols, XL_HDR, XL_HDR);
@@ -492,6 +614,8 @@ export default function TabInternalReport() {
   });
 
   // UI
+  const [ops, setOps] = useState([]);
+  const [lightbox, setLightbox] = useState(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [blobLoaded, setBlobLoaded] = useState(false);
@@ -515,7 +639,9 @@ export default function TabInternalReport() {
       setTasks(t ? JSON.parse(t) : []);
       const ins = localStorage.getItem(`teamreport_insights_${period}`);
       setInsights(ins || "");
-    } catch { setTasks([]); setInsights(""); }
+      const o = localStorage.getItem(`teamreport_ops_${period}`);
+      setOps(o ? JSON.parse(o) : []);
+    } catch { setTasks([]); setInsights(""); setOps([]); }
     setBlobLoaded(false);
     // Load from Blob
     fetch(`/api/team-notes?week=${encodeURIComponent(period)}`)
@@ -524,6 +650,7 @@ export default function TabInternalReport() {
         if (!data) return;
         if (Array.isArray(data.tasks)) setTasks(data.tasks);
         if (typeof data.insights === "string") setInsights(data.insights);
+        if (Array.isArray(data.ops)) setOps(data.ops);
         if (Array.isArray(data.pipeline)) setPipeline(data.pipeline);
         setBlobLoaded(true);
       }).catch(() => {});
@@ -532,6 +659,7 @@ export default function TabInternalReport() {
   // ── Persist localStorage ─────────────────────────────────────────────────────
   useEffect(() => { try { localStorage.setItem(`teamreport_tasks_${period}`, JSON.stringify(tasks)); } catch {} }, [tasks, period]);
   useEffect(() => { try { localStorage.setItem(`teamreport_insights_${period}`, insights); } catch {} }, [insights, period]);
+  useEffect(() => { try { localStorage.setItem(`teamreport_ops_${period}`, JSON.stringify(ops)); } catch {} }, [ops, period]);
   useEffect(() => { try { localStorage.setItem("teamreport_pipeline", JSON.stringify(pipeline)); } catch {} }, [pipeline]);
 
   // ── Save to Blob ─────────────────────────────────────────────────────────────
@@ -541,7 +669,7 @@ export default function TabInternalReport() {
       await fetch("/api/team-notes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ week: period, tasks, insights, pipeline }),
+        body: JSON.stringify({ week: period, tasks, insights, ops, pipeline }),
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -589,8 +717,21 @@ export default function TabInternalReport() {
 
     if (insights.trim()) {
       lines.push("━━━━━━━━━━━━━━━━━━━━");
-      lines.push("📝 GIẢI TRÌNH CASE");
+      lines.push("💡 INSIGHT TỔNG QUAN");
       lines.push(insights.trim());
+    }
+
+    if (ops.length > 0) {
+      lines.push("━━━━━━━━━━━━━━━━━━━━");
+      lines.push("🔎 VẤN ĐỀ VẬN HÀNH");
+      for (const o of ops) {
+        const who = o.pic ? ` [${o.pic}]` : "";
+        const st = o.statusText ? ` — ${o.statusText}` : "";
+        lines.push(`• ${[o.problem, o.client].filter(Boolean).join(" / ")}${st}${who}`);
+        if (o.cause)    lines.push(`  Nguyên nhân: ${o.cause}`);
+        if (o.solution) lines.push(`  Giải pháp: ${o.solution}`);
+        if (o.support)  lines.push(`  Support: ${o.support}`);
+      }
     }
 
     lines.push("━━━━━━━━━━━━━━━━━━━━");
@@ -619,7 +760,7 @@ export default function TabInternalReport() {
       const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta);
       setCopied(true); setTimeout(() => setCopied(false), 2500);
     });
-  }, [report, insights, tasks, pipeline, period, periodOptions]);
+  }, [report, insights, ops, tasks, pipeline, period, periodOptions]);
 
   // Period label for display
   const periOpt = periodOptions.find((o) => o.value === period);
@@ -651,7 +792,7 @@ export default function TabInternalReport() {
           <button
             onClick={async () => {
               setExporting(true);
-              try { await buildExcel({ report, pipeline, tasks, insights, periLabel, period }); } catch (e) { alert("Lỗi xuất Excel: " + e.message); }
+              try { await buildExcel({ report, pipeline, tasks, insights, ops, periLabel, period }); } catch (e) { alert("Lỗi xuất Excel: " + e.message); }
               setExporting(false);
             }}
             disabled={exporting || apiLoading}
@@ -679,7 +820,23 @@ export default function TabInternalReport() {
       <div style={panel}>
         <SectionHeader title={`Bảng 2 — Bể vỡ & Đền bù theo KH`} badge={periLabel} />
         <DamageTable section={report?.damage} loading={apiLoading} insights={insights} setInsights={setInsights} />
+
+        {/* Block 2: Bảng Vấn đề vận hành */}
+        <div style={{ marginTop: 16, borderTop: "1px solid var(--border)", paddingTop: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--amber)", marginBottom: 8, letterSpacing: 0.4 }}>
+            🔎 Vấn đề vận hành chi tiết <span style={{ fontWeight: 400, color: "var(--text-muted)", fontSize: 10.5 }}>— Ghi nhận từng ca, có attribution người phụ trách</span>
+          </div>
+          <OpsIssuesTable ops={ops} setOps={setOps} setLightbox={setLightbox} />
+        </div>
       </div>
+
+      {/* Lightbox */}
+      {lightbox && (
+        <div onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", cursor: "zoom-out" }}>
+          <img src={lightbox} alt="preview" style={{ maxWidth: "90vw", maxHeight: "88vh", borderRadius: 8, boxShadow: "0 8px 40px rgba(0,0,0,0.6)", objectFit: "contain" }} />
+          <div style={{ position: "absolute", top: 18, right: 24, color: "#fff", fontSize: 28, cursor: "pointer", lineHeight: 1 }}>✕</div>
+        </div>
+      )}
 
       {/* ── Bảng 3: Pipeline dự án mới ───────────────────────────────── */}
       <div style={panel}>
