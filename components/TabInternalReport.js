@@ -7,7 +7,7 @@
  * Bảng 4: Action Plan PIC Tú / Đạt / Diện / Tân.
  * Lưu: localStorage (per period) + Vercel Blob.
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -356,6 +356,81 @@ function PICTaskBoard({ tasks, setTasks }) {
   );
 }
 
+// ── Excel Export ─────────────────────────────────────────────────────────────
+
+async function buildExcel({ report, pipeline, tasks, insights, periLabel, period }) {
+  const XLSX = await import("xlsx");
+  const wb = XLSX.utils.book_new();
+
+  // ── Sheet 1: On-time LTL ──────────────────────────────────────────────────
+  if (report?.ontime) {
+    const { cols, rows } = report.ontime;
+    const colLabels = cols.map(colShortLabel);
+    // Double header row: group + columns
+    const hdr1 = ["Khách hàng", ...colLabels.map(() => "# Đơn LTC"), "", ...colLabels.map(() => "% On-time"), ""];
+    const hdr2 = ["", ...colLabels, "±", ...colLabels, "±"];
+    const data = [hdr1, hdr2];
+    for (const row of rows) {
+      const counts = cols.map((_, i) => row.counts[i] ?? "");
+      const rates = cols.map((_, i) => row.rates[i] != null ? +(row.rates[i] * 100).toFixed(1) : "");
+      const [ia, ib] = report.ontime.delta || [cols.length - 2, cols.length - 1];
+      const dCount = (row.counts[ib] ?? 0) - (row.counts[ia] ?? 0);
+      const dRate = row.rates[ia] != null && row.rates[ib] != null ? +((row.rates[ib] - row.rates[ia]) * 100).toFixed(1) : "";
+      data.push([row.name, ...counts, dCount, ...rates, dRate]);
+    }
+    const ws1 = XLSX.utils.aoa_to_sheet(data);
+    ws1["!cols"] = [{ wch: 26 }, ...cols.map(() => ({ wch: 10 })), { wch: 6 }, ...cols.map(() => ({ wch: 9 })), { wch: 6 }];
+    XLSX.utils.book_append_sheet(wb, ws1, "1. On-time LTL");
+  }
+
+  // ── Sheet 2: Bể vỡ & Đền bù ──────────────────────────────────────────────
+  if (report?.damage) {
+    const { cols, rows } = report.damage;
+    const colLabels = cols.map(colShortLabel);
+    const hdr1 = ["Khách hàng", ...colLabels.map(() => "# Case bể đền"), "", ...colLabels.map(() => "% Bể đền / LTC"), ""];
+    const hdr2 = ["", ...colLabels, "±", ...colLabels, "±"];
+    const data = [hdr1, hdr2];
+    for (const row of rows) {
+      const counts = cols.map((_, i) => row.counts[i] ?? "");
+      const rates = cols.map((_, i) => row.rates[i] != null ? +(row.rates[i] * 100).toFixed(2) : "");
+      const [ia, ib] = report.damage.delta || [cols.length - 2, cols.length - 1];
+      const dCount = (row.counts[ib] ?? 0) - (row.counts[ia] ?? 0);
+      const dRate = row.rates[ia] != null && row.rates[ib] != null ? +((row.rates[ib] - row.rates[ia]) * 100).toFixed(2) : "";
+      data.push([row.name, ...counts, dCount, ...rates, dRate]);
+    }
+    // Append insights below
+    data.push([]);
+    data.push(["Insight & Giải trình case:"]);
+    data.push([insights || "(chưa có nội dung)"]);
+    const ws2 = XLSX.utils.aoa_to_sheet(data);
+    ws2["!cols"] = [{ wch: 26 }, ...cols.map(() => ({ wch: 10 })), { wch: 6 }, ...cols.map(() => ({ wch: 10 })), { wch: 6 }];
+    XLSX.utils.book_append_sheet(wb, ws2, "2. Bể vỡ & Đền bù");
+  }
+
+  // ── Sheet 3: Pipeline ──────────────────────────────────────────────────────
+  {
+    const headers = ["Tên dự án", "Trạng thái", "Thời gian dự kiến", "Mô hình", "Volume dự kiến", "Khu vực Pick up", "Mô tả cách vận hành", "Khó khăn"];
+    const data = [headers, ...pipeline.map((p) => [p.name, p.status, p.time, p.model, p.vol, p.area, p.desc, p.issues])];
+    const ws3 = XLSX.utils.aoa_to_sheet(data);
+    ws3["!cols"] = [22, 18, 16, 14, 14, 16, 28, 28].map((wch) => ({ wch }));
+    XLSX.utils.book_append_sheet(wb, ws3, "3. Pipeline");
+  }
+
+  // ── Sheet 4: Action Plan PIC ──────────────────────────────────────────────
+  {
+    const headers = ["PIC", "Khách / Sự cố", "Action Plan", "Deadline", "Trạng thái"];
+    const data = [headers, ...tasks.map((t) => [t.pic, t.client, t.action, t.deadline, TASK_LABEL[t.status] || t.status])];
+    const ws4 = XLSX.utils.aoa_to_sheet(data);
+    ws4["!cols"] = [8, 22, 36, 12, 14].map((wch) => ({ wch }));
+    XLSX.utils.book_append_sheet(wb, ws4, "4. Action Plan PIC");
+  }
+
+  // ── Trigger download ───────────────────────────────────────────────────────
+  const safeLabel = (periLabel || period || "export").replace(/[^\w\-]/g, "_");
+  const filename = `BaoCaoNoiBo_DTDM_${safeLabel}.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function TabInternalReport() {
@@ -382,6 +457,7 @@ export default function TabInternalReport() {
   const [saving, setSaving] = useState(false);
   const [blobLoaded, setBlobLoaded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // ── Load API report when period changes ─────────────────────────────────────
   useEffect(() => {
@@ -529,9 +605,20 @@ export default function TabInternalReport() {
           </select>
         </div>
 
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button onClick={saveToBlob} disabled={saving} style={{ ...btnBase, background: saving ? "var(--border)" : "var(--amber)", color: saving ? "var(--text-muted)" : "#fff" }}>
             {saving ? "Đang lưu..." : saved ? "✓ Đã lưu" : "💾 Lưu báo cáo"}
+          </button>
+          <button
+            onClick={async () => {
+              setExporting(true);
+              try { await buildExcel({ report, pipeline, tasks, insights, periLabel, period }); } catch (e) { alert("Lỗi xuất Excel: " + e.message); }
+              setExporting(false);
+            }}
+            disabled={exporting || apiLoading}
+            style={{ ...btnBase, background: exporting ? "var(--border)" : "#1d6f42", color: exporting ? "var(--text-muted)" : "#fff" }}
+          >
+            {exporting ? "Đang xuất..." : "📊 Xuất Excel"}
           </button>
           <button onClick={copyZalo} style={{ ...btnBase, background: copied ? "var(--green)" : "var(--surface-1, var(--bg-panel))", color: copied ? "#fff" : "var(--text-primary)", border: "1px solid var(--border)" }}>
             {copied ? "✓ Đã copy!" : "📋 Copy Báo cáo Zalo"}
