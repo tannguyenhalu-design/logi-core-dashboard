@@ -2,7 +2,7 @@ import { useState } from "react";
 import KpiCard from "../../components/KpiCard";
 import TruckLoader from "../../components/TruckLoader";
 import { downloadCSV } from "../../lib/csv-export";
-import { PeriodComparisonSection, BreakageAlertSection } from "../../components/TabAIInsights";
+import { PeriodComparisonSection } from "../../components/TabAIInsights";
 import { useTheme } from "./charts/chartUtils";
 import { fmt } from "./utils";
 
@@ -12,14 +12,12 @@ import { SHOW_TRUY_THU } from "../../lib/display-flags";
 
 import ProvinceMapPanel from "./cards/ProvinceMapPanel";
 import DetailedDamageTable from "./tables/DetailedDamageTable";
-import RouteRiskMatrix from "./damage/RouteRiskMatrix";
 import DamageMoneyPanel from "./damage/DamageMoneyPanel";
-import { OpenCasesPanel, RecurrencePanel, LegRoutesPanel, ProductGroupPanel, CompensationPanel } from "./damage/DamageAnalysis";
+import { OpenCasesPanel, RecurrencePanel, ProductGroupPanel, CompensationPanel } from "./damage/DamageAnalysis";
 import ExceptionsPanel from "./cards/ExceptionsPanel";
 import CampaignForecast from "./CampaignForecast";
 import VehicleCapacityPanel from "./VehicleCapacityPanel";
 import TrendPanel from "./TrendPanel";
-import WeeklyReviewBoard from "./WeeklyReviewBoard";
 
 // Trend chart above only shows the COMBINED weekly total — "tuần 2 → tuần 3
 // giảm" was visible but which client drove it wasn't, and the AI chat had
@@ -246,7 +244,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
     setViewMode(m);
     try { localStorage.setItem("ltl_view_mode", m); } catch {}
   };
-  const [damageSubTab, setDamageSubTab] = useState("cases");
+  const [damageSubTab, setDamageSubTab] = useState("active");
 
   if (!data) return <TruckLoader />;
 
@@ -640,7 +638,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
           { label: "Tiền đền cho khách", value: moneyFmt, sub: damageMoney ? `${fmt(damageMoney.total.compensated)} ca đã chốt đền bù` : "", color: "var(--amber)" },
           { label: "Ca còn mở", value: fmt(damageAnalysis?.open?.total || 0), sub: damageAnalysis?.open ? `${fmt(damageAnalysis.open.over30)} ca > 30 ngày` : "", color: damageAnalysis?.open?.total ? "var(--red)" : "var(--text-muted)" },
         ];
-        const TABS = [["cases", "📂 Ca & xử lý"], ["product", "📦 Nhóm & Hồ sơ"], ["finance", "💰 Tài chính"], ["risk", "📊 Phân tích rủi ro"], ["review", "📋 Review tuần"]];
+        const TABS = [["active", "🔥 Ca Đang Mở & Xử Lý"], ["financial", "💰 Tiền Đền Bù & Hồ Sơ Claim"], ["rootcause", "📊 Phân Tích Gốc Rễ Lỗi"]];
         return (
           <>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
@@ -664,7 +662,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
               ))}
             </div>
 
-            {damageSubTab === "cases" && (
+            {damageSubTab === "active" && (
               <>
                 {damageAnalysis && <OpenCasesPanel open={damageAnalysis.open} onOpenCase={setDrawerCase} />}
                 <div className="chart-panel">
@@ -682,52 +680,18 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
               </>
             )}
 
-            {damageSubTab === "product" && (
+            {damageSubTab === "financial" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                <ProductGroupPanel cases={data.detailedDamageCases || []} />
+                {damageMoney && <DamageMoneyPanel money={damageMoney} />}
                 <CompensationPanel cases={data.detailedDamageCases || []} />
               </div>
             )}
 
-            {damageSubTab === "finance" && damageMoney && <DamageMoneyPanel money={damageMoney} />}
-
-            {damageSubTab === "risk" && (
-              <>
-                {aiInsights && (
-                  <div className="chart-panel" style={{ width: "100%" }}>
-                    <div className="chart-panel-title">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
-                      Xu hướng bể vỡ
-                    </div>
-                    <div style={{ padding: "0 16px 16px" }}>
-                      <BreakageAlertSection
-                        hideRouteList
-                        routes={aiInsights.breakageRoutes}
-                        avgDmgRate={aiInsights.avgDmgRate}
-                        totalOrders={aiInsights.totalOrders}
-                        damageCauses={aiInsights.damageCauses}
-                        damageTrend={damageTrend}
-                        recentCases={
-                          aiInsights.damageCauses?.totalCases > 0 && aiInsights.damageCauses.totalCases <= 8
-                            ? (data.detailedDamageCases || []).slice(0, 8).map((c) => ({ orderCode: c.order_code, client: c.client_name, warehouse: c.warehouse_giao, leg: c.damage_details, province: c.to_province }))
-                            : []
-                        }
-                      />
-                    </div>
-                  </div>
-                )}
+            {damageSubTab === "rootcause" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <ProductGroupPanel cases={data.detailedDamageCases || []} />
                 {damageAnalysis && <RecurrencePanel recurrence={damageAnalysis.recurrence} />}
-                {damageAnalysis && <LegRoutesPanel legs={damageAnalysis.legs} />}
-                {damageRisk && <RouteRiskMatrix risk={damageRisk} riskOnly={riskOnly} onRiskOnlyChange={setRiskOnly} />}
-              </>
-            )}
-
-            {damageSubTab === "review" && (
-              <WeeklyReviewBoard
-                ordersByProjectAndWeek={data.ordersByProjectAndWeek || {}}
-                ordersByMonth={data.ordersByMonth || {}}
-                damageCases={data.detailedDamageCases || []}
-              />
+              </div>
             )}
           </>
         );
