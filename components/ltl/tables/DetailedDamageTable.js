@@ -13,6 +13,16 @@ const STATUS_COLOR = {
 const DEFAULT_CLAIM = { status: CLAIM_STATUSES[0], assignee: "", notes: "" };
 const fmtYmd = (s) => (/^\d{4}-\d{2}-\d{2}/.test(String(s)) ? String(s).slice(0, 10).split("-").reverse().join("/") : s || "—");
 
+const fmtPickupWeek = (s) => {
+  if (!s || !/^\d{4}-\d{2}-\d{2}/.test(String(s))) return "—";
+  const d = new Date(String(s).slice(0, 10) + "T00:00:00Z");
+  const tmp = new Date(d.getTime());
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+  const ys = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+  const w = Math.ceil((((tmp - ys) / 86400000) + 1) / 7);
+  return `W${w} · T${d.getUTCMonth() + 1}`;
+};
+
 function StatusBadge({ status }) {
   const color = STATUS_COLOR[status] || "var(--text-muted)";
   return (
@@ -358,6 +368,7 @@ export default function DetailedDamageTable({ cases, filter, showClaimsWorkflow 
             <th>Tỉnh nhận</th>
             <th>Loại lỗi</th>
             <th>Chặng nghi vấn</th>
+            <th title="Tuần và tháng lấy hàng thành công">Tuần lấy hàng</th>
             <th>{SHOW_TRUY_THU ? "Đền bù / Truy thu" : "Đền bù cho khách"}</th>
             {showAmount && <th style={{ textAlign: "right" }}>Số tiền</th>}
             {showClaimsWorkflow && <th>Trạng thái xử lý</th>}
@@ -378,6 +389,7 @@ export default function DetailedDamageTable({ cases, filter, showClaimsWorkflow 
               <td style={{ fontSize: 12 }}>{c.to_province}</td>
               <td><span className="badge bg-red" style={{ fontSize: 10, padding: "2px 6px" }}>{c.damage_type}</span></td>
               <td style={{ fontSize: 12, color: "var(--text-secondary)" }}>{c.damage_details || "—"}</td>
+              <td style={{ fontSize: 12, fontFamily: "monospace", color: "var(--text-muted)", whiteSpace: "nowrap" }}>{fmtPickupWeek(c.pickup_time)}</td>
               <td><CompBadges c={c} /></td>
               {showAmount && (
                 <td style={{ textAlign: "right", fontFamily: "monospace", color: "var(--amber)", fontSize: 12, fontWeight: 600 }}>
@@ -391,7 +403,7 @@ export default function DetailedDamageTable({ cases, filter, showClaimsWorkflow 
           })}
           {filteredCases.length === 0 && (
             <tr>
-              <td colSpan={10} style={{ textAlign: "center", color: "var(--text-muted)", padding: 30 }}>
+              <td colSpan={11} style={{ textAlign: "center", color: "var(--text-muted)", padding: 30 }}>
                 {cases.length === 0 ? "Không có dữ liệu ca hư hỏng chi tiết." : "Không có ca nào khớp bộ lọc hiện tại."}
               </td>
             </tr>
