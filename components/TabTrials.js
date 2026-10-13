@@ -787,6 +787,284 @@ function FormModal({ title, onCancel, children }) {
 const goalInit = (s = {}) => ({ problem: s.problem || "", action: s.action || "", primaryMetric: s.primaryMetric || "", primaryTarget: s.primaryTarget ?? "", secondaryMetrics: s.secondaryMetrics || [], guardrails: s.guardrails || [], owner: s.owner || "", reviewDate: s.reviewDate || "", metricNote: s.metricNote || "" });
 const EMPTY_PHASE = { id: "", label: "Trial 1", khoLay: [], khoGiao: [], provinces: [], startDate: "", endDate: "", ongoing: true, status: "Đang trial", description: "", liveDate: "", controlMode: "" };
 
+// ─── P1B: Kaizen Board ────────────────────────────────────────────────────────
+const KHAU_ICON = { "Kho Nguồn": "📦", "Trung Chuyển": "🚛", "Kho Đích": "🏪", "Lastmile": "🛵" };
+function KaizenBoard({ sols, onOpen }) {
+  const [kFilter, setKFilter] = useState("all");
+  const statusList = ["Đang trial", "Thành công", "Đã thành solution chung", "Dừng", "Đã hủy"];
+  const shown = kFilter === "all" ? sols : sols.filter((s) => s.status === kFilter);
+  if (!sols.length) return <div style={{ ...small, padding: "24px 0", textAlign: "center", color: "var(--text-muted)" }}>Chưa có cải tiến nào — thêm giải pháp ở tab "Giải pháp".</div>;
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+        <button style={seg(kFilter === "all")} onClick={() => setKFilter("all")}>Tất cả ({sols.length})</button>
+        {statusList.filter((s) => sols.some((x) => x.status === s)).map((s) => (
+          <button key={s} style={seg(kFilter === s)} onClick={() => setKFilter(s)}>
+            {(STATUS_STYLE[s] || {}).icon || "○"} {s} ({sols.filter((x) => x.status === s).length})
+          </button>
+        ))}
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table className="data-table" style={{ fontSize: 12.5, minWidth: 820, width: "100%" }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: "left", minWidth: 220 }}>Tên cải tiến</th>
+              <th style={{ textAlign: "left", minWidth: 140 }}>Khách / PIC</th>
+              <th style={{ textAlign: "left", minWidth: 160 }}>Chỉ số mục tiêu</th>
+              <th style={{ textAlign: "left", minWidth: 120 }}>Giai đoạn</th>
+              <th style={{ textAlign: "left", minWidth: 110 }}>Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((s, idx) => {
+              const lastPhase = [...s.phases].sort((a, b) => (b.startDate || "").localeCompare(a.startDate || ""))[0];
+              const verdict = lastPhase?.verdict || "—";
+              const kpiText = s.primaryMetric ? `${METRICS[s.primaryMetric]?.label || s.primaryMetric}${s.primaryTarget ? ` → ${targetText(s.primaryMetric, s.primaryTarget)}` : ""}` : "—";
+              return (
+                <tr key={s.id} style={{ cursor: "pointer" }} onClick={() => onOpen && onOpen(s.id)}>
+                  <td style={{ fontWeight: 600, whiteSpace: "normal" }}>
+                    <span style={{ color: "var(--text-muted)", fontSize: 11, marginRight: 6 }}>#{idx + 1}</span>
+                    {s.name}
+                    {verdict !== "—" && <div style={{ ...small, marginTop: 2, color: "var(--text-secondary)" }}>{verdict}</div>}
+                  </td>
+                  <td style={{ whiteSpace: "normal", maxWidth: 160 }}>
+                    <ClientsCompact clients={s.clients} max={2} />
+                  </td>
+                  <td style={{ whiteSpace: "normal", maxWidth: 180, fontSize: 12, color: s.primaryMetric ? "var(--text-primary)" : "var(--text-muted)" }}>
+                    {kpiText}
+                  </td>
+                  <td>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                      {s.phases.map((p) => (
+                        <span key={p.id} style={{ fontSize: 11, padding: "2px 6px", borderRadius: 8, border: "1px solid var(--border)", background: (STATUS_STYLE[p.status] || {}).bg, whiteSpace: "nowrap" }}>
+                          {(STATUS_STYLE[p.status] || {}).icon} {p.label}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td><StatusBadge s={s.status} /></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── P1C: Impact Summary ──────────────────────────────────────────────────────
+function ImpactSummary({ sols }) {
+  const SUCCESS = ["Thành công", "Đã thành solution chung"];
+  const done = sols.filter((s) => SUCCESS.includes(s.status));
+  const inProgress = sols.filter((s) => s.status === "Đang trial");
+  const renderRow = (s, dim = false) => {
+    const completedPhases = s.phases.filter((p) => ["Thành công", "Đã thành solution chung"].includes(p.status));
+    const lastPhase = completedPhases[completedPhases.length - 1] || s.phases[s.phases.length - 1];
+    const kpiText = s.primaryMetric ? `${METRICS[s.primaryMetric]?.label || s.primaryMetric}${s.primaryTarget ? ` · Target: ${targetText(s.primaryMetric, s.primaryTarget)}` : ""}` : "—";
+    const verdictLevel = lastPhase?.verdictLevel || "watch";
+    const verdict = lastPhase?.verdict || "—";
+    return (
+      <tr key={s.id} style={{ opacity: dim ? 0.65 : 1 }}>
+        <td style={{ fontWeight: 600, whiteSpace: "normal", maxWidth: 240 }}>{s.name}</td>
+        <td style={{ whiteSpace: "normal", maxWidth: 150, fontSize: 12, color: "var(--text-secondary)" }}>
+          <ClientsCompact clients={s.clients} max={2} />
+        </td>
+        <td style={{ fontSize: 12 }}>{kpiText}</td>
+        <td>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {s.phases.map((p) => <span key={p.id} style={{ fontSize: 11, padding: "1px 6px", borderRadius: 8, border: "1px solid var(--border)", background: (STATUS_STYLE[p.status] || {}).bg, whiteSpace: "nowrap" }}>{(STATUS_STYLE[p.status] || {}).icon} {p.label}</span>)}
+          </div>
+        </td>
+        <td><StatusBadge s={s.status} /></td>
+        <td style={{ whiteSpace: "normal", maxWidth: 200, fontSize: 12 }}>
+          <VerdictChip level={verdictLevel} text={verdict} />
+        </td>
+      </tr>
+    );
+  };
+  if (!done.length && !inProgress.length) return <div style={{ ...small, padding: "24px 0", textAlign: "center", color: "var(--text-muted)" }}>Chưa có cải tiến nào có số liệu impact.</div>;
+  return (
+    <div>
+      {done.length > 0 && <>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--green)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>✅ Đã thành công ({done.length})</div>
+        <div style={{ overflowX: "auto", marginBottom: 20 }}>
+          <table className="data-table" style={{ fontSize: 12.5, minWidth: 780 }}>
+            <thead><tr><th style={{ textAlign: "left" }}>Giải pháp</th><th style={{ textAlign: "left" }}>Khách</th><th style={{ textAlign: "left" }}>Chỉ số</th><th style={{ textAlign: "left" }}>Giai đoạn</th><th>Trạng thái</th><th style={{ textAlign: "left" }}>Nhận định</th></tr></thead>
+            <tbody>{done.map((s) => renderRow(s, false))}</tbody>
+          </table>
+        </div>
+      </>}
+      {inProgress.length > 0 && <>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--cyan)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>⏳ Đang chạy ({inProgress.length})</div>
+        <div style={{ overflowX: "auto" }}>
+          <table className="data-table" style={{ fontSize: 12.5, minWidth: 780, opacity: 0.85 }}>
+            <thead><tr><th style={{ textAlign: "left" }}>Giải pháp</th><th style={{ textAlign: "left" }}>Khách</th><th style={{ textAlign: "left" }}>Chỉ số</th><th style={{ textAlign: "left" }}>Giai đoạn</th><th>Trạng thái</th><th style={{ textAlign: "left" }}>Nhận định tạm</th></tr></thead>
+            <tbody>{inProgress.map((s) => renderRow(s, true))}</tbody>
+          </table>
+        </div>
+      </>}
+      <div style={{ ...small, marginTop: 10 }}>Bảng Impact tổng hợp — nhận định từ dữ liệu đã có. Xem số liệu chi tiết (trước/sau, delta %) trong tab "Giải pháp" → click từng dòng.</div>
+    </div>
+  );
+}
+
+// ─── P1A: SOPs CCDC Section ───────────────────────────────────────────────────
+const SOP_TYPES = ["mút EVA", "nẹp góc PP", "vách ngăn", "khác"];
+const SOP_TYPE_COLOR = {
+  "mút EVA": { bg: "rgba(var(--brand-rgb),0.10)", color: "var(--cyan)" },
+  "nẹp góc PP": { bg: "var(--amber-glow, rgba(251,191,36,0.12))", color: "var(--amber)" },
+  "vách ngăn": { bg: "var(--green-glow, rgba(45,212,191,0.10))", color: "var(--green)" },
+  "khác": { bg: "rgba(100,116,139,0.10)", color: "var(--text-muted)" },
+};
+
+const EMPTY_SOP = { id: "", title: "", materialType: "mút EVA", useCase: "", steps: "", note: "" };
+
+function SopsSection() {
+  const [sops, setSops] = useState(null);
+  const [sopErr, setSopErr] = useState(null);
+  const [sopForm, setSopForm] = useState(null); // null | sop object (new or edit)
+  const [sopMsg, setSopMsg] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [expanded, setExpanded] = useState({});
+
+  const loadSops = useCallback(async () => {
+    try {
+      const r = await fetch("/api/sops");
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error);
+      setSops(j.sops);
+      setSopErr(null);
+    } catch (e) { setSopErr(e.message); }
+  }, []);
+  useEffect(() => { loadSops(); }, [loadSops]);
+
+  const save = async () => {
+    if (!sopForm?.title?.trim()) return;
+    setSaving(true);
+    try {
+      const r = await fetch("/api/sops", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "upsert", sop: sopForm }) });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error);
+      setSops(j.sops);
+      setSopForm(null);
+      setSopMsg(`✓ Đã lưu "${sopForm.title}"`);
+      setTimeout(() => setSopMsg(null), 3000);
+    } catch (e) { setSopMsg(`⚠ ${e.message}`); }
+    finally { setSaving(false); }
+  };
+
+  const deleteSop = async (sop) => {
+    if (!confirm(`Xóa SOP "${sop.title}"?`)) return;
+    try {
+      const r = await fetch("/api/sops", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete", id: sop.id }) });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error);
+      setSops(j.sops);
+      setSopMsg(`✓ Đã xóa "${sop.title}"`);
+      setTimeout(() => setSopMsg(null), 3000);
+    } catch (e) { setSopMsg(`⚠ ${e.message}`); }
+  };
+
+  const grouped = SOP_TYPES.map((t) => ({ type: t, items: (sops || []).filter((s) => s.materialType === t) })).filter((g) => g.items.length > 0);
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div style={{ ...small }}>Thư viện quy trình gia cố CCDC — mút EVA, nẹp góc PP, vách ngăn. Mỗi SOP mô tả cách dùng và bước thực hiện chuẩn.</div>
+        <button style={primary} onClick={() => setSopForm({ ...EMPTY_SOP })}>＋ Thêm SOP</button>
+      </div>
+
+      {sopMsg && <div style={{ fontSize: 12.5, marginBottom: 10, color: sopMsg.startsWith("✓") ? "var(--green)" : "var(--red)" }}>{sopMsg}</div>}
+      {sopErr && <div style={{ color: "var(--red)", fontSize: 13, marginBottom: 10 }}>⚠ {sopErr}</div>}
+
+      {!sops ? <div style={small}>Đang tải…</div> : !sops.length && !sopForm ? (
+        <div style={{ padding: "32px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+          Chưa có SOP nào — bấm "＋ Thêm SOP" để bắt đầu xây dựng thư viện.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {grouped.map(({ type, items }) => {
+            const tc = SOP_TYPE_COLOR[type] || SOP_TYPE_COLOR["khác"];
+            return (
+              <div key={type}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: tc.color, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ padding: "2px 8px", borderRadius: 10, background: tc.bg, color: tc.color }}>{type}</span>
+                  <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>({items.length})</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {items.map((sop) => {
+                    const open = expanded[sop.id];
+                    return (
+                      <div key={sop.id} style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: open ? "rgba(var(--brand-rgb),0.05)" : "var(--bg-panel)", cursor: "pointer" }}
+                          onClick={() => setExpanded((e) => ({ ...e, [sop.id]: !e[sop.id] }))}>
+                          <span style={{ fontWeight: 700, fontSize: 13.5, flex: 1, minWidth: 0 }}>{open ? "▾" : "▸"} {sop.title}</span>
+                          <span style={{ fontSize: 11.5, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                            {sop.updatedBy && `${sop.updatedBy} · `}{sop.updatedAt ? new Date(sop.updatedAt).toLocaleDateString("vi-VN") : ""}
+                          </span>
+                          <div style={{ display: "flex", gap: 4 }} onClick={(e) => e.stopPropagation()}>
+                            <button style={mini(ghost)} onClick={() => setSopForm({ ...sop })}>Sửa</button>
+                            <button style={mini(danger)} onClick={() => deleteSop(sop)}>Xóa</button>
+                          </div>
+                        </div>
+                        {open && (
+                          <div style={{ padding: "12px 16px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 10 }}>
+                            {sop.useCase && <div><span style={{ ...label }}>Trường hợp áp dụng</span><div style={{ fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{sop.useCase}</div></div>}
+                            {sop.steps && <div><span style={{ ...label }}>Các bước thực hiện</span><div style={{ fontSize: 13, lineHeight: 1.7, whiteSpace: "pre-wrap", fontFamily: "inherit" }}>{sop.steps}</div></div>}
+                            {sop.note && <div style={{ padding: "8px 12px", borderRadius: 6, background: "rgba(var(--brand-rgb),0.06)", fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.6 }}>📌 {sop.note}</div>}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {sopForm && (
+        <FormModal title={sopForm.id ? "Sửa SOP" : "Thêm SOP"} onCancel={() => setSopForm(null)}>
+          <div className="glass" style={{ padding: 20, maxWidth: 640, margin: "0 auto" }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>{sopForm.id ? "Sửa SOP" : "Thêm SOP mới"}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <span style={label}>Tên SOP *</span>
+                <input style={input} value={sopForm.title} onChange={(e) => setSopForm((f) => ({ ...f, title: e.target.value }))} placeholder="VD: Bọc góc mút EVA cho TV ≥ 65 inch" />
+              </div>
+              <div>
+                <span style={label}>Loại vật liệu</span>
+                <select style={input} value={sopForm.materialType} onChange={(e) => setSopForm((f) => ({ ...f, materialType: e.target.value }))}>
+                  {SOP_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <span style={label}>Trường hợp áp dụng</span>
+                <textarea style={{ ...input, height: 72, resize: "vertical" }} value={sopForm.useCase} onChange={(e) => setSopForm((f) => ({ ...f, useCase: e.target.value }))} placeholder="Mô tả khi nào dùng SOP này..." />
+              </div>
+              <div>
+                <span style={label}>Các bước thực hiện</span>
+                <textarea style={{ ...input, height: 140, resize: "vertical", fontFamily: "inherit" }} value={sopForm.steps} onChange={(e) => setSopForm((f) => ({ ...f, steps: e.target.value }))} placeholder={"1. Bước đầu tiên\n2. Bước tiếp theo\n..."} />
+              </div>
+              <div>
+                <span style={label}>Ghi chú thêm</span>
+                <textarea style={{ ...input, height: 64, resize: "vertical" }} value={sopForm.note} onChange={(e) => setSopForm((f) => ({ ...f, note: e.target.value }))} placeholder="Lưu ý, ngoại lệ..." />
+              </div>
+              {sopMsg && <div style={{ color: sopMsg.startsWith("✓") ? "var(--green)" : "var(--red)", fontSize: 12.5 }}>{sopMsg}</div>}
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+                <button style={ghost} onClick={() => setSopForm(null)}>Hủy</button>
+                <button style={primary} onClick={save} disabled={saving || !sopForm.title?.trim()}>{saving ? "Đang lưu…" : "Lưu SOP"}</button>
+              </div>
+            </div>
+          </div>
+        </FormModal>
+      )}
+    </div>
+  );
+}
+
 // Idle prefetch from the dashboard (Kế hoạch A · P4): the solution list.
 export function prefetch() {
   prefetchJSON("/api/trials").catch(() => {});
@@ -802,6 +1080,7 @@ export default function TabTrials() {
   const [filter, setFilter] = useState("all");
   const [q, setQ] = useState("");
   const [msg, setMsg] = useState(null);
+  const [activeView, setActiveView] = useState("giai-phap");
 
   // First load may use the idle-prefetched list; later loads (after a save,
   // "↻ Làm mới") always ask the server.
@@ -856,22 +1135,55 @@ export default function TabTrials() {
           </div>
         </div>
         {msg && <div style={{ fontSize: 12.5, marginTop: 8, color: msg.startsWith("✓") ? "var(--green)" : "var(--red)" }}>{msg}</div>}
+        <div style={{ display: "flex", gap: 4, marginTop: 14, flexWrap: "wrap" }}>
+          {[
+            { id: "giai-phap", label: "Giải pháp" },
+            { id: "kaizen", label: "Kaizen Board" },
+            { id: "impact", label: "Impact" },
+            { id: "sops", label: "SOPs CCDC" },
+          ].map(({ id, label: lbl }) => (
+            <button key={id} style={{ ...seg(activeView === id), padding: "5px 14px", fontSize: 12.5, borderRadius: 20 }} onClick={() => setActiveView(id)}>{lbl}</button>
+          ))}
+        </div>
       </div>
 
-      {form?.kind === "solution" && (
+      {form?.kind === "solution" && activeView === "giai-phap" && (
         <FormModal title={form.isNew ? "Thêm giải pháp" : "Sửa giải pháp"} onCancel={() => setForm(null)}>
           <SolutionForm key={form.initial.id || form.legacyPhase?.id || "new"} initial={form.initial} isNew={form.isNew} legacyPhase={form.legacyPhase} options={options} statuses={statuses}
             onCancel={() => setForm(null)} onSaved={(j) => afterSave(j, j.created ? `Đã thêm giải pháp "${j.solution.name}"` : `Đã lưu "${j.solution.name}"`, j.solution.id)} />
         </FormModal>
       )}
-      {form?.kind === "phase" && (
+      {form?.kind === "phase" && activeView === "giai-phap" && (
         <FormModal title={form.initial.id ? `Sửa ${form.initial.label || "giai đoạn"}` : "Giai đoạn tiếp"} onCancel={() => setForm(null)}>
           <PhaseForm key={form.initial.id || "next"} solution={form.solution} initial={form.initial} options={options} statuses={statuses}
             onCancel={() => setForm(null)} onSaved={(j) => afterSave(j, j.created ? `Đã thêm ${j.phase.label}` : `Đã lưu ${j.phase.label}`, form.solution.id)} />
         </FormModal>
       )}
 
-      <div className="glass" style={{ padding: 16 }}>
+      {activeView === "kaizen" && (
+        <div className="glass" style={{ padding: 16 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 4 }}>Kaizen Board</div>
+          <div style={{ ...small, marginBottom: 12 }}>Bảng tổng hợp toàn bộ cải tiến — tên, khách, chỉ số mục tiêu và trạng thái hiện tại.</div>
+          <KaizenBoard sols={sols} onOpen={(id) => { setActiveView("giai-phap"); setSelected(id); }} />
+        </div>
+      )}
+
+      {activeView === "impact" && (
+        <div className="glass" style={{ padding: 16 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 4 }}>Impact Summary</div>
+          <div style={{ ...small, marginBottom: 12 }}>Tóm tắt nhận định các cải tiến — đã thành công và đang chạy. Click dòng bất kỳ ở tab "Giải pháp" để xem số liệu chi tiết.</div>
+          <ImpactSummary sols={sols} />
+        </div>
+      )}
+
+      {activeView === "sops" && (
+        <div className="glass" style={{ padding: 16 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 4 }}>Thư viện SOPs CCDC</div>
+          <SopsSection />
+        </div>
+      )}
+
+      {activeView === "giai-phap" && <div className="glass" style={{ padding: 16 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm tên, khách, kho…" style={{ ...input, width: 220, maxWidth: "100%" }} />
           <button style={seg(filter === "all")} onClick={() => setFilter("all")}>Tất cả ({sols.length})</button>
@@ -920,9 +1232,9 @@ export default function TabTrials() {
             <div style={{ ...small, marginTop: 6 }}>✅ thành công · ⏳ đang trial · ⏹ dừng · 📈 đang theo dõi sau thành công · ⚠ kỳ mới xấu hơn kỳ trước.</div>
           </div>
         )}
-      </div>
+      </div>}
 
-      {sel && (
+      {activeView === "giai-phap" && sel && (
         <SolutionDetail sol={sel} version={version} canEdit canDelete={!!data?.canDelete} onClose={closeDetail}
           onEditSolution={() => editSolution(sel)} onNextPhase={() => nextPhase(sel)}
           onEditPhase={(p) => editPhase(sel, p)} onDeletePhase={(p) => removePhase(sel, p)}
