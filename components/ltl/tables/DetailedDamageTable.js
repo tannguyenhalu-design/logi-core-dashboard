@@ -87,6 +87,58 @@ function ImageGallery({ urls }) {
   );
 }
 
+function MediaCell({ c }) {
+  const [open, setOpen] = useState(false);
+  const raw = c.image_urls || c.evidence_links || c.links || c.hinh_anh || "";
+  const urls = Array.isArray(raw)
+    ? raw.filter(Boolean)
+    : String(raw).split(/[\n,]+/).map(u => u.trim()).filter(u => u.startsWith("http"));
+  const count = Number(c.photo_count) || 0;
+  const rillnetUrl = `https://rillnet.giaoangnhanh.vn/damage-cases?search=${encodeURIComponent(c.order_code || "")}`;
+
+  if (!urls.length && count === 0) return <span style={{ fontSize: 11, color: "var(--text-muted)" }}>—</span>;
+
+  return (
+    <span onClick={e => e.stopPropagation()} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+      {urls.length ? (
+        <>
+          <img
+            src={urls[0]} alt=""
+            onClick={() => setOpen(true)}
+            onError={e => { e.target.style.display = "none"; }}
+            style={{ width: 50, height: 50, objectFit: "cover", borderRadius: 4, cursor: "pointer", border: "1px solid var(--border)", flexShrink: 0 }}
+          />
+          {urls.length > 1 && <span style={{ fontSize: 10, color: "var(--text-muted)" }}>+{urls.length - 1}</span>}
+        </>
+      ) : (
+        <a href={rillnetUrl} target="_blank" rel="noreferrer"
+          style={{ fontSize: 11, color: "var(--cyan)", textDecoration: "none", whiteSpace: "nowrap" }}>
+          📷 {count} ↗
+        </a>
+      )}
+      {open && (
+        <div onClick={() => setOpen(false)} style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 10000,
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "zoom-out", gap: 12,
+        }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", maxWidth: "90vw", maxHeight: "80vh", overflow: "auto" }}>
+            {urls.map((url, i) => (
+              <img key={i} src={url} alt={`Ảnh ${i + 1}`}
+                style={{ maxWidth: 320, maxHeight: 320, objectFit: "contain", borderRadius: 6, border: "1px solid rgba(255,255,255,0.2)" }} />
+            ))}
+          </div>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>{urls.length} ảnh · click ngoài để đóng</div>
+          <button onClick={e => { e.stopPropagation(); setOpen(false); }} style={{
+            position: "absolute", top: 20, right: 20, background: "rgba(255,255,255,0.2)", border: "none",
+            color: "#fff", fontSize: 20, cursor: "pointer", borderRadius: "50%", width: 36, height: 36,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>✕</button>
+        </div>
+      )}
+    </span>
+  );
+}
+
 function ClaimDrawer({ c, claim, canEdit, onClose, onSave }) {
   const [status, setStatus] = useState(claim.status);
   const [assignee, setAssignee] = useState(claim.assignee || "");
@@ -169,9 +221,9 @@ function ClaimDrawer({ c, claim, canEdit, onClose, onSave }) {
           if (c.photo_count > 0) return (
             <div style={{ padding: "8px 0", fontSize: 13, color: "var(--text-secondary)" }}>
               📷 Có {c.photo_count} ảnh ·{" "}
-              <a href="https://rillnet.ghn.vn/" target="_blank" rel="noreferrer"
+              <a href={`https://rillnet.giaoangnhanh.vn/damage-cases?search=${encodeURIComponent(c.order_code || "")}`} target="_blank" rel="noreferrer"
                 style={{ color: "var(--cyan)", textDecoration: "underline" }}>
-                Xem trên Rillnet
+                Xem trên Rillnet ↗
               </a>
             </div>
           );
@@ -371,6 +423,7 @@ export default function DetailedDamageTable({ cases, filter, showClaimsWorkflow 
             <th title="Tuần và tháng lấy hàng thành công">Tuần lấy hàng</th>
             <th>{SHOW_TRUY_THU ? "Đền bù / Truy thu" : "Đền bù cho khách"}</th>
             {showAmount && <th style={{ textAlign: "right" }}>Số tiền</th>}
+            <th>Media Rillnet</th>
             {showClaimsWorkflow && <th>Trạng thái xử lý</th>}
             {showClaimsWorkflow && <th>Người phụ trách</th>}
           </tr>
@@ -389,13 +442,14 @@ export default function DetailedDamageTable({ cases, filter, showClaimsWorkflow 
               <td style={{ fontSize: 12 }}>{c.to_province}</td>
               <td><span className="badge bg-red" style={{ fontSize: 10, padding: "2px 6px" }}>{c.damage_type}</span></td>
               <td style={{ fontSize: 12, color: "var(--text-secondary)" }}>{c.damage_details || "—"}</td>
-              <td style={{ fontSize: 12, fontFamily: "monospace", color: "var(--text-muted)", whiteSpace: "nowrap" }}>{fmtPickupWeek(c.pickup_time)}</td>
+              <td style={{ fontSize: 12, fontFamily: "monospace", color: "var(--text-muted)", whiteSpace: "nowrap" }}>{fmtPickupWeek(c.pickup_time || c.case_date)}</td>
               <td><CompBadges c={c} /></td>
               {showAmount && (
                 <td style={{ textAlign: "right", fontFamily: "monospace", color: "var(--amber)", fontSize: 12, fontWeight: 600 }}>
                   {c.amount > 0 ? c.amount.toLocaleString("vi-VN") + " đ" : "—"}
                 </td>
               )}
+              <td style={{ padding: "4px 8px" }}><MediaCell c={c} /></td>
               {showClaimsWorkflow && <td><StatusBadge status={claim.status} /></td>}
               {showClaimsWorkflow && <td style={{ fontSize: 12, color: claim.assignee ? "var(--text-primary)" : "var(--text-muted)" }}>{claim.assignee || "Chưa gán"}</td>}
             </tr>
@@ -403,7 +457,7 @@ export default function DetailedDamageTable({ cases, filter, showClaimsWorkflow 
           })}
           {filteredCases.length === 0 && (
             <tr>
-              <td colSpan={11} style={{ textAlign: "center", color: "var(--text-muted)", padding: 30 }}>
+              <td colSpan={12} style={{ textAlign: "center", color: "var(--text-muted)", padding: 30 }}>
                 {cases.length === 0 ? "Không có dữ liệu ca hư hỏng chi tiết." : "Không có ca nào khớp bộ lọc hiện tại."}
               </td>
             </tr>

@@ -13,7 +13,7 @@ import { SHOW_TRUY_THU } from "../../lib/display-flags";
 import ProvinceMapPanel from "./cards/ProvinceMapPanel";
 import DetailedDamageTable from "./tables/DetailedDamageTable";
 import DamageMoneyPanel from "./damage/DamageMoneyPanel";
-import { OpenCasesPanel, RecurrencePanel, ProductGroupPanel, CompensationPanel } from "./damage/DamageAnalysis";
+import { OpenCasesPanel, RecurrencePanel, ProductGroupPanel } from "./damage/DamageAnalysis";
 import ExceptionsPanel from "./cards/ExceptionsPanel";
 import CampaignForecast from "./CampaignForecast";
 import VehicleCapacityPanel from "./VehicleCapacityPanel";
@@ -683,7 +683,6 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
             {damageSubTab === "financial" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 {damageMoney && <DamageMoneyPanel money={damageMoney} />}
-                <CompensationPanel cases={data.detailedDamageCases || []} />
               </div>
             )}
 
