@@ -50,6 +50,7 @@ const LTL_VIEWS = [
   { id: "damage", label: "Hư hỏng & Rủi ro", icon: "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" },
   { id: "events", label: "📅 Sự kiện", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z" },
   { id: "vehicles", label: "🚛 Ghép chuyến", icon: "M1 3h15v13H1zM16 8h4l3 3v5h-7V8zM5.5 21a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM18.5 21a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" },
+  { id: "pnl", label: "💼 P&L Dự án", icon: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8" },
 ];
 
 function DashboardSkeleton({ view }) {
@@ -82,6 +83,7 @@ export default function DashboardPage({ user: initialUser }) {
   const canSeeLTL    = isManager || userTabs.includes("ltl");
   const canSeeMap    = isManager || userTabs.includes("map");
   const canSeeDamage = isManager || userTabs.includes("damage");
+  const canSeePnL    = isManager;
   const canSeeEvents   = isManager || userTabs.includes("events");
   const canSeeVehicles = isManager || userTabs.includes("vehicles");
   const canSeeReport = isManager || userTabs.includes("report");
@@ -89,7 +91,7 @@ export default function DashboardPage({ user: initialUser }) {
   const canSeeTrials = isManager || userTabs.includes("trials");
   const canSeeDecision = isManager || user.role === "sd3";
   const firstTab = canSeeDecision ? "decision" : canSeeLTL ? "ltl" : canSeeMap ? "map" : canSeeDamage ? "damage" : canSeeEvents ? "events" : canSeeReport ? "report" : canSeeTrials ? "trials" : "none";
-  const VALID_TABS = ["ltl","map","damage","events","vehicles","decision","report","trials","users","auditlog","health","brain","teamreport"];
+  const VALID_TABS = ["ltl","map","damage","events","vehicles","pnl","decision","report","trials","users","auditlog","health","brain","teamreport"];
   const [activeTab, setActiveTab] = useState(firstTab); // LTL_VIEWS id | 'report' | 'trials' | 'users' | 'auditlog' | 'health' | 'brain' | 'none'
   const isLTLView = LTL_VIEWS.some((v) => v.id === activeTab);
   const [selectedMonths, setSelectedMonths] = useState(() => {
@@ -352,7 +354,7 @@ export default function DashboardPage({ user: initialUser }) {
   // Same qs-keyed pattern as the map tab (P6).
   useEffect(() => {
     const qs = lastQsRef.current;
-    if (activeTab !== "damage" || !dashData || loading || qs == null) return;
+    if (activeTab !== "damage" && activeTab !== "pnl" || !dashData || loading || qs == null) return;
     if (damageData?.qs === qs || damageReqRef.current === qs) return;
     damageReqRef.current = qs;
     getJSON(`/api/data?${qs}&part=damage`)
@@ -361,7 +363,7 @@ export default function DashboardPage({ user: initialUser }) {
         if (lastQsRef.current === qs) setDamageData({ qs, damageRisk: j.damageRisk ?? null, damageMoney: j.damageMoney ?? null, damageAnalysis: j.damageAnalysis ?? null });
       })
       .finally(() => { if (damageReqRef.current === qs) damageReqRef.current = null; });
-  }, [activeTab, dashData, loading, damageData]);
+  }, [activeTab, dashData, loading, damageData]); // eslint-disable-line react-hooks/exhaustive-deps
   const damageFields = damageData?.qs === lastQsRef.current ? damageData : null;
 
   // P4 idle prefetch: map fields + damage fields for the body on screen,
@@ -471,7 +473,8 @@ export default function DashboardPage({ user: initialUser }) {
               v.id === "map" ? canSeeMap :
               v.id === "damage" ? canSeeDamage :
               v.id === "events" ? canSeeEvents :
-              v.id === "vehicles" ? canSeeVehicles : false
+              v.id === "vehicles" ? canSeeVehicles :
+              v.id === "pnl" ? canSeePnL : false
             ).map((v) => (
               <div
                 key={v.id}

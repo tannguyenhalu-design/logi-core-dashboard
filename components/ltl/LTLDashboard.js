@@ -257,6 +257,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
   const showDamage    = view === "damage";
   const showEvents    = view === "events";
   const showVehicles  = view === "vehicles";
+  const showPnL       = view === "pnl";
   const todayMode = showOverview && viewMode === "today";
 
   const exportSummaryCSV = () => {
@@ -639,7 +640,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
           { label: "Tiền đền cho khách", value: moneyFmt, sub: damageMoney ? `${fmt(damageMoney.total.compensated)} ca đã chốt đền bù` : "", color: "var(--amber)" },
           { label: "Ca còn mở", value: fmt(damageAnalysis?.open?.total || 0), sub: damageAnalysis?.open ? `${fmt(damageAnalysis.open.over30)} ca > 30 ngày` : "", color: damageAnalysis?.open?.total ? "var(--red)" : "var(--text-muted)" },
         ];
-        const TABS = [["active", "🔥 Ca Đang Mở & Xử Lý"], ["financial", "💰 Tiền Đền Bù & Hồ Sơ Claim"], ["rootcause", "📊 Phân Tích Gốc Rễ Lỗi"], ["pnl", "💼 P&L Dự án"]];
+        const TABS = [["active", "🔥 Ca Đang Mở & Xử Lý"], ["financial", "💰 Tiền Đền Bù & Hồ Sơ Claim"], ["rootcause", "📊 Phân Tích Gốc Rễ Lỗi"]];
         return (
           <>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
@@ -694,12 +695,6 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
               </div>
             )}
 
-            {damageSubTab === "pnl" && (
-              <ProjectPnLPanel
-                cases={data.detailedDamageCases || []}
-                ordersByProject={data.ltl?.ordersByProject || {}}
-              />
-            )}
           </>
         );
       })()}
@@ -723,6 +718,13 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
       )}
       {showVehicles && (
         <VehicleCapacityPanel />
+      )}
+
+      {showPnL && (
+        <ProjectPnLPanel
+          cases={data.detailedDamageCases || []}
+          ordersByProject={data.ltl?.ordersByProject || {}}
+        />
       )}
 
       {pendingModalOpen && (
