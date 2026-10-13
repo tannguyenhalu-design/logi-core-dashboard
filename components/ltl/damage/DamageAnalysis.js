@@ -245,25 +245,25 @@ export function LegRoutesPanel({ legs }) {
   );
 }
 
-// â”€â”€ P2A + P2B: PhÃ¢n tÃ­ch nhÃ³m máº·t hÃ ng & % khÃ¢u â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── P2A + P2B: Phân tích nhóm mặt hàng & % khâu ────────────────────────
 const PRODUCT_GROUPS = [
-  { id: "tivi",       label: "Tivi / TV",        re: /tivi|tv\b|television|mÃ n hÃ¬nh/i,                      color: "var(--cyan)" },
-  { id: "tulanh",     label: "Tá»§ láº¡nh",          re: /tá»§ láº¡nh|tu lanh|\btl\b|refriger|tá»§ Ä‘Ã´ng|freezer/i,    color: "#60a5fa" },
-  { id: "mayGiat",    label: "MÃ¡y giáº·t / Sáº¥y",   re: /mÃ¡y giáº·t|may giat|\bmg\b|mÃ¡y sáº¥y|washer|dryer|sáº¥y/i, color: "var(--brand)" },
-  { id: "giaDung",    label: "Gia dá»¥ng",         re: /gia dá»¥ng|gia dung|báº¿p|lÃ² vi sÃ³ng|mÃ¡y lá»c|mÃ¡y xay|Ä‘iá»u hÃ²a|\bac\b|blender/i, color: "var(--amber)" },
+  { id: "tivi",       label: "Tivi / TV",        re: /tivi|tv\b|television|màn hình/i,                      color: "var(--cyan)" },
+  { id: "tulanh",     label: "Tủ lạnh",          re: /tủ lạnh|tu lanh|\btl\b|refriger|tủ đông|freezer/i,    color: "#60a5fa" },
+  { id: "mayGiat",    label: "Máy giặt / Sấy",   re: /máy giặt|may giat|\bmg\b|máy sấy|washer|dryer|sấy/i, color: "var(--brand)" },
+  { id: "giaDung",    label: "Gia dụng",         re: /gia dụng|gia dung|bếp|lò vi sóng|máy lọc|máy xay|điều hòa|\bac\b|blender/i, color: "var(--amber)" },
 ];
 const RESP_LEGS = [
-  { id: "kho_nguon",    label: "Kho Nguá»“n (CS / Pickup)", re: /\bcs\b|kho nguá»“n|pickup/i,                            color: "var(--cyan)" },
-  { id: "trung_chuyen", label: "Trung Chuyá»ƒn / FTL-LTL",  re: /ktc|kct|trung chuy[eÃª]n|\btc\b|ftl|truck/i,           color: "var(--amber)" },
-  { id: "kho_dich",     label: "Kho ÄÃ­ch / Lastmile",     re: /\bom\b|gxt|\blm\b|lastmile|giao h[Ã a]|kho Ä‘[Ã­i]ch/i, color: "var(--brand)" },
+  { id: "kho_nguon",    label: "Kho Nguồn (CS / Pickup)", re: /\bcs\b|kho nguồn|pickup/i,                            color: "var(--cyan)" },
+  { id: "trung_chuyen", label: "Trung Chuyển / FTL-LTL",  re: /ktc|kct|trung chuy[eê]n|\btc\b|ftl|truck/i,           color: "var(--amber)" },
+  { id: "kho_dich",     label: "Kho Đích / Lastmile",     re: /\bom\b|gxt|\blm\b|lastmile|giao h[àa]|kho đ[íi]ch/i, color: "var(--brand)" },
 ];
 const CLAIM_STATUS_COLOR_P2 = {
-  "Má»›i phÃ¡t sinh": "var(--red)",
-  "Äang xÃ¡c minh lá»—i": "var(--amber)",
-  "ÄÃ£ chá»‘t Ä‘á»n bÃ¹": "var(--cyan)",
-  "ÄÃ£ Ä‘Ã³ng": "var(--green)",
+  "Mới phát sinh": "var(--red)",
+  "Đang xác minh lỗi": "var(--amber)",
+  "Đã chốt đền bù": "var(--cyan)",
+  "Đã đóng": "var(--green)",
 };
-const DEFAULT_CLAIM_P2 = { status: "Má»›i phÃ¡t sinh", assignee: "", notes: "" };
+const DEFAULT_CLAIM_P2 = { status: "Mới phát sinh", assignee: "", notes: "" };
 
 function productGroupOf(c) {
   const hay = `${c.damage_type || ""} ${c.damage_details || ""} ${c.source || ""} ${c.client_name || ""}`;
@@ -285,7 +285,7 @@ function mediaOfCase(c) {
   return { type: "none" };
 }
 const dmOf = (s) => {
-  if (!s) return "â€”";
+  if (!s) return "—";
   const str = String(s);
   if (/^\d{4}-\d{2}-\d{2}/.test(str)) return `${str.slice(8, 10)}/${str.slice(5, 7)}`;
   return str.slice(0, 10);
@@ -297,13 +297,13 @@ export function ProductGroupPanel({ cases = [] }) {
     tulanh:  { ...PRODUCT_GROUPS[1], count: 0, comp: 0 },
     mayGiat: { ...PRODUCT_GROUPS[2], count: 0, comp: 0 },
     giaDung: { ...PRODUCT_GROUPS[3], count: 0, comp: 0 },
-    khac:    { label: "KhÃ¡c / Cá»“ng ká»nh", color: "var(--text-secondary)", count: 0, comp: 0 },
+    khac:    { label: "Khác / Cồng kềnh", color: "var(--text-secondary)", count: 0, comp: 0 },
   };
   const legs = {
     kho_nguon:    { ...RESP_LEGS[0], count: 0 },
     trung_chuyen: { ...RESP_LEGS[1], count: 0 },
     kho_dich:     { ...RESP_LEGS[2], count: 0 },
-    chua_xd:      { label: "ChÆ°a xÃ¡c Ä‘á»‹nh", color: "var(--text-muted)", count: 0 },
+    chua_xd:      { label: "Chưa xác định", color: "var(--text-muted)", count: 0 },
   };
   for (const c of cases) {
     const gKey = productGroupOf(c);
@@ -317,15 +317,15 @@ export function ProductGroupPanel({ cases = [] }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <Panel title="ðŸ“¦ PhÃ¢n tÃ­ch theo nhÃ³m máº·t hÃ ng" sub={`ká»³ Ä‘ang lá»c Â· ${fmt(cases.length)} ca`}>
+      <Panel title="📦 Phân tích theo nhóm mặt hàng" sub={`kỳ đang lọc · ${fmt(cases.length)} ca`}>
         <div style={{ overflowX: "auto" }}>
           <table className="data-table" style={{ fontSize: 12.5, minWidth: 480 }}>
             <thead><tr>
-              <th style={th}>NhÃ³m máº·t hÃ ng</th>
+              <th style={th}>Nhóm mặt hàng</th>
               <th style={{ ...th, textAlign: "right" }}>Ca</th>
-              <th style={{ ...th, textAlign: "right" }}>Tá»· lá»‡</th>
-              <th style={th}>Biá»ƒu Ä‘á»“</th>
-              <th style={{ ...th, textAlign: "right" }}>Tiá»n Ä‘á»n</th>
+              <th style={{ ...th, textAlign: "right" }}>Tỷ lệ</th>
+              <th style={th}>Biểu đồ</th>
+              <th style={{ ...th, textAlign: "right" }}>Tiền đền</th>
             </tr></thead>
             <tbody>
               {groupList.map(({ label, color, count, comp }) => (
@@ -338,7 +338,7 @@ export function ProductGroupPanel({ cases = [] }) {
                       <div style={{ height: "100%", width: pct(count / total), background: color || "var(--brand)", borderRadius: 4 }} />
                     </div>
                   </td>
-                  <td style={{ ...num, color: comp ? "var(--amber)" : "var(--text-muted)" }}>{comp ? vnd(comp) : "â€”"}</td>
+                  <td style={{ ...num, color: comp ? "var(--amber)" : "var(--text-muted)" }}>{comp ? vnd(comp) : "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -346,14 +346,14 @@ export function ProductGroupPanel({ cases = [] }) {
         </div>
       </Panel>
 
-      <Panel title="ðŸ­ % KhÃ¢u chá»‹u trÃ¡ch nhiá»‡m" sub={`theo cháº·ng nghi váº¥n Rillnet Â· ${fmt(cases.length)} ca`}>
+      <Panel title="🏭 % Khâu chịu trách nhiệm" sub={`theo chặng nghi vấn Rillnet · ${fmt(cases.length)} ca`}>
         <div style={{ overflowX: "auto" }}>
           <table className="data-table" style={{ fontSize: 12.5, minWidth: 380 }}>
             <thead><tr>
-              <th style={th}>KhÃ¢u</th>
+              <th style={th}>Khâu</th>
               <th style={{ ...th, textAlign: "right" }}>Ca</th>
               <th style={{ ...th, textAlign: "right" }}>%</th>
-              <th style={th}>Biá»ƒu Ä‘á»“</th>
+              <th style={th}>Biểu đồ</th>
             </tr></thead>
             <tbody>
               {legList.map(({ label, color, count }) => (
@@ -372,14 +372,14 @@ export function ProductGroupPanel({ cases = [] }) {
           </table>
         </div>
         <div style={{ ...small, marginTop: 6 }}>
-          KhÃ¢u = phÃ¢n loáº¡i tá»« cháº·ng nghi váº¥n Rillnet: CSâ†’Kho Nguá»“n Â· KTC/TCâ†’Trung Chuyá»ƒn Â· OM/GXT/LMâ†’Kho ÄÃ­ch/Lastmile. "ChÆ°a xÃ¡c Ä‘á»‹nh" = cháº·ng trá»‘ng.
+          Khâu = phân loại từ chặng nghi vấn Rillnet: CS→Kho Nguồn · KTC/TC→Trung Chuyển · OM/GXT/LM→Kho Đích/Lastmile. "Chưa xác định" = chặng trống.
         </div>
       </Panel>
     </div>
   );
 }
 
-// â”€â”€ P2C: Há»“ sÆ¡ Ä‘á»n bÃ¹ + Media Rillnet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── P2C: Hồ sơ đền bù + Media Rillnet ────────────────────────────────────
 export function CompensationPanel({ cases = [] }) {
   const [claims, setClaims] = useState(null);
   const [onlyMedia, setOnlyMedia] = useState(false);
@@ -405,23 +405,23 @@ export function CompensationPanel({ cases = [] }) {
 
   return (
     <Panel
-      title="ðŸ“‹ Há»“ sÆ¡ Ä‘á»n bÃ¹ & Media Rillnet"
-      sub={`${fmt(cases.length)} ca Â· ${fmt(withComp)} Ä‘Ã£ chá»‘t Ä‘á»n bÃ¹ Â· ${fmt(withMedia)} ca cÃ³ media`}
+      title="📋 Hồ sơ đền bù & Media Rillnet"
+      sub={`${fmt(cases.length)} ca · ${fmt(withComp)} đã chốt đền bù · ${fmt(withMedia)} ca có media`}
     >
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8, alignItems: "center" }}>
-        <button style={seg(onlyMedia)} onClick={() => setOnlyMedia((v) => !v)}>ðŸ“· CÃ³ media</button>
-        <button style={seg(onlyComp)} onClick={() => setOnlyComp((v) => !v)}>ðŸ’° CÃ³ Ä‘á»n bÃ¹</button>
+        <button style={seg(onlyMedia)} onClick={() => setOnlyMedia((v) => !v)}>📷 Có media</button>
+        <button style={seg(onlyComp)} onClick={() => setOnlyComp((v) => !v)}>💰 Có đền bù</button>
         {(onlyMedia || onlyComp) && (
-          <button style={seg(false)} onClick={() => { setOnlyMedia(false); setOnlyComp(false); }}>Bá» lá»c âœ•</button>
+          <button style={seg(false)} onClick={() => { setOnlyMedia(false); setOnlyComp(false); }}>Bỏ lọc ✕</button>
         )}
-        <span style={{ ...small, marginLeft: "auto" }}>Hiá»‡n {fmt(list.length)} ca</span>
+        <span style={{ ...small, marginLeft: "auto" }}>Hiện {fmt(list.length)} ca</span>
       </div>
       <div style={{ overflowX: "auto", maxHeight: 520, overflowY: "auto" }}>
         <table className="data-table" style={{ fontSize: 12, minWidth: 660 }}>
           <thead><tr>
-            <th style={th}>ÄÆ¡n / KhÃ¡ch</th>
-            <th style={th}>NgÃ y ca</th>
-            <th style={{ ...th, textAlign: "right" }}>Tiá»n Ä‘á»n</th>
+            <th style={th}>Đơn / Khách</th>
+            <th style={th}>Ngày ca</th>
+            <th style={{ ...th, textAlign: "right" }}>Tiền đền</th>
             <th style={th}>Claim</th>
             <th style={th}>Media Rillnet</th>
           </tr></thead>
@@ -438,7 +438,7 @@ export function CompensationPanel({ cases = [] }) {
                   </td>
                   <td style={td}>{dmOf(c.case_iso || c.case_date)}</td>
                   <td style={{ ...num, color: c.compensated ? "var(--amber)" : Number(c.comp_pending) > 0 ? "var(--text-secondary)" : "var(--text-muted)", fontWeight: c.compensated ? 700 : 400 }}>
-                    {c.compensated && Number(c.comp_amount) > 0 ? vnd(c.comp_amount) : Number(c.comp_pending) > 0 ? `~${vnd(c.comp_pending)}` : "â€”"}
+                    {c.compensated && Number(c.comp_amount) > 0 ? vnd(c.comp_amount) : Number(c.comp_pending) > 0 ? `~${vnd(c.comp_pending)}` : "—"}
                   </td>
                   <td style={td}>
                     <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 10, border: `1px solid ${clColor}`, color: clColor, whiteSpace: "nowrap" }}>
@@ -448,21 +448,21 @@ export function CompensationPanel({ cases = [] }) {
                   <td style={td}>
                     {m.type === "none" ? (
                       <span style={{ fontSize: 11, color: "var(--text-muted)", border: "1px dashed var(--border)", padding: "2px 7px", borderRadius: 10, whiteSpace: "nowrap" }}>
-                        ChÆ°a cÃ³ media Rillnet
+                        Chưa có media Rillnet
                       </span>
                     ) : m.type === "count" ? (
                       <a href="https://rillnet.ghn.vn/" target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "var(--cyan)", textDecoration: "none", whiteSpace: "nowrap" }}>
-                        ðŸ“· {m.count} áº£nh (Rillnet â†—)
+                        📷 {m.count} ảnh (Rillnet ↗)
                       </a>
                     ) : (
-                      <span style={{ fontSize: 12, color: "var(--cyan)", whiteSpace: "nowrap" }}>ðŸ“· {m.count} áº£nh</span>
+                      <span style={{ fontSize: 12, color: "var(--cyan)", whiteSpace: "nowrap" }}>📷 {m.count} ảnh</span>
                     )}
                   </td>
                 </tr>
               );
             })}
             {!list.length && (
-              <tr><td colSpan={5} style={{ ...td, textAlign: "center", color: "var(--text-muted)" }}>KhÃ´ng cÃ³ ca phÃ¹ há»£p.</td></tr>
+              <tr><td colSpan={5} style={{ ...td, textAlign: "center", color: "var(--text-muted)" }}>Không có ca phù hợp.</td></tr>
             )}
           </tbody>
         </table>
@@ -470,4 +470,3 @@ export function CompensationPanel({ cases = [] }) {
     </Panel>
   );
 }
-
