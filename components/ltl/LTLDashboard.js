@@ -14,7 +14,7 @@ import ProvinceMapPanel from "./cards/ProvinceMapPanel";
 import DetailedDamageTable from "./tables/DetailedDamageTable";
 import RouteRiskMatrix from "./damage/RouteRiskMatrix";
 import DamageMoneyPanel from "./damage/DamageMoneyPanel";
-import { OpenCasesPanel, RecurrencePanel, LegRoutesPanel } from "./damage/DamageAnalysis";
+import { OpenCasesPanel, RecurrencePanel, LegRoutesPanel, ProductGroupPanel, CompensationPanel } from "./damage/DamageAnalysis";
 import ExceptionsPanel from "./cards/ExceptionsPanel";
 import CampaignForecast from "./CampaignForecast";
 import VehicleCapacityPanel from "./VehicleCapacityPanel";
@@ -640,7 +640,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
           { label: "Tiền đền cho khách", value: moneyFmt, sub: damageMoney ? `${fmt(damageMoney.total.compensated)} ca đã chốt đền bù` : "", color: "var(--amber)" },
           { label: "Ca còn mở", value: fmt(damageAnalysis?.open?.total || 0), sub: damageAnalysis?.open ? `${fmt(damageAnalysis.open.over30)} ca > 30 ngày` : "", color: damageAnalysis?.open?.total ? "var(--red)" : "var(--text-muted)" },
         ];
-        const TABS = [["cases", "📂 Ca & xử lý"], ["finance", "💰 Tài chính"], ["risk", "📊 Phân tích rủi ro"], ["review", "📋 Review tuần"]];
+        const TABS = [["cases", "📂 Ca & xử lý"], ["product", "📦 Nhóm & Hồ sơ"], ["finance", "💰 Tài chính"], ["risk", "📊 Phân tích rủi ro"], ["review", "📋 Review tuần"]];
         return (
           <>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
@@ -680,6 +680,13 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
                   <DetailedDamageTable cases={data.detailedDamageCases || []} filter={damageFilter} showClaimsWorkflow={true} externalCase={drawerCase} onExternalClose={() => setDrawerCase(null)} />
                 </div>
               </>
+            )}
+
+            {damageSubTab === "product" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <ProductGroupPanel cases={data.detailedDamageCases || []} />
+                <CompensationPanel cases={data.detailedDamageCases || []} />
+              </div>
             )}
 
             {damageSubTab === "finance" && damageMoney && <DamageMoneyPanel money={damageMoney} />}
