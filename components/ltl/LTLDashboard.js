@@ -14,6 +14,7 @@ import ProvinceMapPanel from "./cards/ProvinceMapPanel";
 import DetailedDamageTable from "./tables/DetailedDamageTable";
 import DamageMoneyPanel from "./damage/DamageMoneyPanel";
 import { OpenCasesPanel, RecurrencePanel, ProductGroupPanel } from "./damage/DamageAnalysis";
+import ProjectPnLPanel from "./ProjectPnLPanel";
 import ExceptionsPanel from "./cards/ExceptionsPanel";
 import CampaignForecast from "./CampaignForecast";
 import VehicleCapacityPanel from "./VehicleCapacityPanel";
@@ -638,7 +639,7 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
           { label: "Tiền đền cho khách", value: moneyFmt, sub: damageMoney ? `${fmt(damageMoney.total.compensated)} ca đã chốt đền bù` : "", color: "var(--amber)" },
           { label: "Ca còn mở", value: fmt(damageAnalysis?.open?.total || 0), sub: damageAnalysis?.open ? `${fmt(damageAnalysis.open.over30)} ca > 30 ngày` : "", color: damageAnalysis?.open?.total ? "var(--red)" : "var(--text-muted)" },
         ];
-        const TABS = [["active", "🔥 Ca Đang Mở & Xử Lý"], ["financial", "💰 Tiền Đền Bù & Hồ Sơ Claim"], ["rootcause", "📊 Phân Tích Gốc Rễ Lỗi"]];
+        const TABS = [["active", "🔥 Ca Đang Mở & Xử Lý"], ["financial", "💰 Tiền Đền Bù & Hồ Sơ Claim"], ["rootcause", "📊 Phân Tích Gốc Rễ Lỗi"], ["pnl", "💼 P&L Dự án"]];
         return (
           <>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
@@ -691,6 +692,13 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
                 <ProductGroupPanel cases={data.detailedDamageCases || []} />
                 {damageAnalysis && <RecurrencePanel recurrence={damageAnalysis.recurrence} />}
               </div>
+            )}
+
+            {damageSubTab === "pnl" && (
+              <ProjectPnLPanel
+                cases={data.detailedDamageCases || []}
+                ordersByProject={data.ltl?.ordersByProject || {}}
+              />
             )}
           </>
         );
