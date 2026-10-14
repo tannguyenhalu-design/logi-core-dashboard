@@ -1,10 +1,12 @@
 /**
  * components/SOPKnowledgeHub.js
  * Tab "SOP & Điểm Giao" — Cards/Accordion per B2B client.
- * 3 section: Kho nguồn & Bốc xếp | Vận tải & Tài xế | Điểm giao & NVGH
- * Manager: inline-edit text + image URLs; viewer: thumbnails + lightbox.
+ * Sections: 4 bước chuẩn + custom steps do Manager tự cấu hình.
+ * Manager: thêm/xóa bước, inline-edit text + image URLs; viewer: thumbnails + lightbox.
  */
 import { useState, useEffect, useCallback, useRef } from "react";
+
+const DEFAULT_STEP_KEYS = ["pickup", "linehaul", "delivery", "epod_docs"];
 
 const SECTION_CFG = {
   pickup: {
@@ -36,6 +38,28 @@ const SECTION_CFG = {
     imgHint: "Mẫu POD, biên bản bàn giao, form chữ ký thủ kho…",
   },
 };
+
+const STEP_COLORS = [
+  { value: "#06b6d4", label: "Xanh cyan" },
+  { value: "#f59e0b", label: "Cam vàng" },
+  { value: "#10b981", label: "Xanh lá" },
+  { value: "#8b5cf6", label: "Tím" },
+  { value: "#ef4444", label: "Đỏ" },
+  { value: "#f97316", label: "Cam" },
+  { value: "#3b82f6", label: "Xanh biển" },
+  { value: "#ec4899", label: "Hồng" },
+];
+
+function hexToBg(hex) {
+  try {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},0.08)`;
+  } catch {
+    return "rgba(6,182,212,0.08)";
+  }
+}
 
 // ── Lightbox ──────────────────────────────────────────────────────────────────
 function Lightbox({ url, onClose }) {
@@ -114,16 +138,13 @@ function ThumbnailGrid({ urls, onOpen }) {
   );
 }
 
-// ── Wrap private blob URL qua proxy (relative, không phụ thuộc deployment URL) ─
+// ── Wrap private blob URL qua proxy ───────────────────────────────────────────
 function toDisplayUrl(url) {
   if (!url) return url;
-  // Đã là relative proxy → giữ nguyên
   if (url.startsWith("/api/sop/image")) return url;
-  // Blob private → wrap qua proxy
   if (url.includes("blob.vercel-storage.com")) {
     return `/api/sop/image?b=${encodeURIComponent(url)}`;
   }
-  // URL absolute chứa proxy cũ (deployment-specific) → extract blob URL rồi wrap lại
   if (url.includes("/api/sop/image?b=")) {
     try {
       const inner = decodeURIComponent(new URL(url).searchParams.get("b") || "");
@@ -133,7 +154,7 @@ function toDisplayUrl(url) {
   return url;
 }
 
-// ── Parse URL input (comma / newline separated) ────────────────────────────────
+// ── Parse URL input ────────────────────────────────────────────────────────────
 function parseUrlInput(text) {
   return text
     .split(/[\n,]+/)
@@ -141,7 +162,7 @@ function parseUrlInput(text) {
     .filter(u => u.startsWith("http"));
 }
 
-// ── Image upload area (drag & drop + file picker + paste URL) ─────────────────
+// ── Image upload area ──────────────────────────────────────────────────────────
 function ImageUploadArea({ urls, onChange, onOpenLightbox, color }) {
   const [dragging, setDragging]   = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -191,7 +212,6 @@ function ImageUploadArea({ urls, onChange, onOpenLightbox, color }) {
 
   return (
     <div>
-      {/* Thumbnails với nút xóa */}
       {urls.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
           {urls.map((url, i) => (
@@ -223,15 +243,12 @@ function ImageUploadArea({ urls, onChange, onOpenLightbox, color }) {
                   alignItems: "center", justifyContent: "center",
                   fontFamily: "inherit",
                 }}
-              >
-                ×
-              </button>
+              >×</button>
             </div>
           ))}
         </div>
       )}
 
-      {/* Drop zone */}
       <div
         onDrop={e => { e.preventDefault(); setDragging(false); doUpload(e.dataTransfer.files); }}
         onDragOver={e => { e.preventDefault(); setDragging(true); }}
@@ -246,21 +263,16 @@ function ImageUploadArea({ urls, onChange, onOpenLightbox, color }) {
           transition: "all 0.15s", marginBottom: 6, userSelect: "none",
         }}
       >
-        {uploading
-          ? "⏳ Đang upload…"
-          : "📁 Upload ảnh hoặc kéo thả vào đây (PNG, JPG, WebP)"}
+        {uploading ? "⏳ Đang upload…" : "📁 Upload ảnh hoặc kéo thả vào đây (PNG, JPG, WebP)"}
       </div>
       <input
         ref={fileRef} type="file" accept="image/*" multiple hidden
         onChange={e => { doUpload(e.target.files); e.target.value = ""; }}
       />
       {uploadErr && (
-        <div style={{ fontSize: 11, color: "var(--red)", marginTop: 4 }}>
-          ⚠️ {uploadErr}
-        </div>
+        <div style={{ fontSize: 11, color: "var(--red)", marginTop: 4 }}>⚠️ {uploadErr}</div>
       )}
 
-      {/* Paste URL toggle */}
       <button
         onClick={() => setShowPaste(v => !v)}
         style={{
@@ -293,9 +305,7 @@ function ImageUploadArea({ urls, onChange, onOpenLightbox, color }) {
               borderRadius: 5, padding: "3px 10px", fontSize: 11,
               cursor: "pointer", fontFamily: "inherit",
             }}
-          >
-            Thêm
-          </button>
+          >Thêm</button>
         </div>
       )}
     </div>
@@ -303,12 +313,19 @@ function ImageUploadArea({ urls, onChange, onOpenLightbox, color }) {
 }
 
 // ── Section block ──────────────────────────────────────────────────────────────
-function SectionBlock({ sectionKey, lines, manualNote, imageUrls, isManager, onSaveNote, onOpenLightbox }) {
-  const cfg = SECTION_CFG[sectionKey];
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft]     = useState(manualNote || "");
-  const [imgUrls, setImgUrls] = useState(imageUrls || []);
-  const [saving, setSaving]   = useState(false);
+// cfg prop: { label, color, bg, hint, imgHint? }
+// onDeleteStep: callback khi xóa custom step (undefined cho 4 bước mặc định)
+function SectionBlock({ sectionKey, cfg: cfgProp, lines, manualNote, imageUrls, isManager, onSaveNote, onOpenLightbox, onDeleteStep }) {
+  const cfg = cfgProp || SECTION_CFG[sectionKey] || {
+    label: sectionKey, color: "var(--cyan)",
+    bg: "rgba(var(--brand-rgb),0.08)", hint: "",
+  };
+
+  const [editing, setEditing]       = useState(false);
+  const [draft, setDraft]           = useState(manualNote || "");
+  const [imgUrls, setImgUrls]       = useState(imageUrls || []);
+  const [saving, setSaving]         = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
 
   const handleSave = async () => {
     setSaving(true);
@@ -343,23 +360,60 @@ function SectionBlock({ sectionKey, lines, manualNote, imageUrls, isManager, onS
         marginBottom: (displayItems.length > 0 || (imageUrls && imageUrls.length > 0)) ? 8 : 0,
       }}>
         <span style={{ fontWeight: 600, fontSize: 12.5, color: cfg.color }}>{cfg.label}</span>
-        {isManager && !editing && (
-          <button
-            onClick={handleEdit}
-            style={{
-              background: "none", border: "none", cursor: "pointer",
-              fontSize: 11, color: "var(--text-muted)", padding: "2px 6px", borderRadius: 4,
-            }}
-            title="Chỉnh sửa ghi chú và ảnh"
-          >
-            ✏️ Sửa
-          </button>
-        )}
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {isManager && !editing && (
+            <button
+              onClick={handleEdit}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                fontSize: 11, color: "var(--text-muted)", padding: "2px 6px", borderRadius: 4,
+              }}
+              title="Chỉnh sửa ghi chú và ảnh"
+            >✏️ Sửa</button>
+          )}
+          {isManager && onDeleteStep && !editing && (
+            <button
+              onClick={() => setConfirmDel(true)}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                fontSize: 11, color: "var(--red)", padding: "2px 4px", borderRadius: 4,
+              }}
+              title="Xóa bước này"
+            >🗑️</button>
+          )}
+        </div>
       </div>
+
+      {/* Confirm delete strip */}
+      {confirmDel && (
+        <div style={{
+          marginBottom: 8, padding: "8px 10px",
+          background: "rgba(244,63,94,0.06)", borderRadius: 6,
+          border: "1px solid rgba(244,63,94,0.25)",
+          display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
+        }}>
+          <span style={{ fontSize: 11.5, color: "var(--red)", flex: 1 }}>
+            Xóa bước <strong>{cfg.label}</strong>? Ghi chú + ảnh của bước này cũng sẽ mất.
+          </span>
+          <button
+            onClick={() => { setConfirmDel(false); onDeleteStep(); }}
+            style={{
+              background: "var(--red)", color: "#fff", border: "none", borderRadius: 5,
+              padding: "3px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer",
+            }}
+          >Xóa</button>
+          <button
+            onClick={() => setConfirmDel(false)}
+            style={{
+              background: "none", border: "1px solid var(--border)", borderRadius: 5,
+              padding: "3px 10px", fontSize: 11, cursor: "pointer", color: "var(--text-secondary)",
+            }}
+          >Hủy</button>
+        </div>
+      )}
 
       {editing ? (
         <div>
-          {/* Text note */}
           <textarea
             value={draft}
             onChange={e => setDraft(e.target.value)}
@@ -373,7 +427,6 @@ function SectionBlock({ sectionKey, lines, manualNote, imageUrls, isManager, onS
               resize: "vertical", marginBottom: 10,
             }}
           />
-          {/* Image upload area */}
           <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 6 }}>
             🖼️ Ảnh minh họa
           </label>
@@ -392,9 +445,7 @@ function SectionBlock({ sectionKey, lines, manualNote, imageUrls, isManager, onS
                 borderRadius: 5, padding: "4px 12px", fontSize: 12,
                 cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit",
               }}
-            >
-              {saving ? "Đang lưu…" : "Lưu"}
-            </button>
+            >{saving ? "Đang lưu…" : "Lưu"}</button>
             <button
               onClick={() => setEditing(false)}
               style={{
@@ -402,9 +453,7 @@ function SectionBlock({ sectionKey, lines, manualNote, imageUrls, isManager, onS
                 padding: "4px 12px", fontSize: 12, cursor: "pointer",
                 color: "var(--text-muted)", fontFamily: "inherit",
               }}
-            >
-              Hủy
-            </button>
+            >Hủy</button>
             {manualNote && (
               <button
                 onClick={() => { setDraft(""); setImgUrls([]); handleSave(); }}
@@ -413,9 +462,7 @@ function SectionBlock({ sectionKey, lines, manualNote, imageUrls, isManager, onS
                   color: "var(--red)", cursor: "pointer", marginLeft: "auto",
                   fontFamily: "inherit",
                 }}
-              >
-                Xóa ghi chú thủ công
-              </button>
+              >Xóa ghi chú thủ công</button>
             )}
           </div>
         </div>
@@ -442,8 +489,104 @@ function SectionBlock({ sectionKey, lines, manualNote, imageUrls, isManager, onS
   );
 }
 
+// ── Add Step Form (inline, inside ClientCard) ──────────────────────────────────
+function AddStepForm({ onSave, onCancel, saving }) {
+  const [draft, setDraft] = useState({ label: "", color: "#06b6d4", hint: "" });
+
+  const inputStyle = {
+    width: "100%", boxSizing: "border-box",
+    background: "var(--bg-main)", border: "1px solid var(--border)",
+    borderRadius: 6, padding: "6px 9px", fontSize: 12,
+    color: "var(--text-primary)", fontFamily: "inherit",
+  };
+
+  return (
+    <div style={{
+      marginTop: 8, padding: "12px 14px",
+      background: "rgba(var(--brand-rgb),0.04)",
+      border: "1px dashed rgba(var(--brand-rgb),0.3)",
+      borderRadius: 8,
+    }}>
+      <div style={{ fontWeight: 600, fontSize: 12, color: "var(--cyan)", marginBottom: 10 }}>
+        ➕ Bước mới
+      </div>
+
+      <div style={{ marginBottom: 8 }}>
+        <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 3 }}>
+          Tên bước <span style={{ color: "var(--red)" }}>*</span>
+        </label>
+        <input
+          type="text"
+          value={draft.label}
+          onChange={e => setDraft(d => ({ ...d, label: e.target.value }))}
+          placeholder="vd: Kiểm hàng đặc biệt, Xử lý hoàn hàng…"
+          style={inputStyle}
+          autoFocus
+        />
+      </div>
+
+      <div style={{ marginBottom: 8 }}>
+        <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 3 }}>
+          Màu badge
+        </label>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {STEP_COLORS.map(c => (
+            <button
+              key={c.value}
+              onClick={() => setDraft(d => ({ ...d, color: c.value }))}
+              title={c.label}
+              style={{
+                width: 26, height: 26, borderRadius: "50%",
+                background: c.value, cursor: "pointer", border: "none",
+                outline: draft.color === c.value ? `3px solid ${c.value}` : "3px solid transparent",
+                outlineOffset: 2,
+                transition: "outline 0.1s",
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 10 }}>
+        <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 3 }}>
+          Mô tả gợi ý (hint)
+        </label>
+        <input
+          type="text"
+          value={draft.hint}
+          onChange={e => setDraft(d => ({ ...d, hint: e.target.value }))}
+          placeholder="vd: Các thao tác cần làm ở bước này…"
+          style={inputStyle}
+        />
+      </div>
+
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <button
+          onClick={() => onSave(draft)}
+          disabled={saving || !draft.label.trim()}
+          style={{
+            background: draft.color || "var(--cyan)", color: "#fff", border: "none",
+            borderRadius: 6, padding: "5px 16px", fontSize: 12, fontWeight: 600,
+            cursor: (saving || !draft.label.trim()) ? "not-allowed" : "pointer",
+            opacity: (saving || !draft.label.trim()) ? 0.6 : 1,
+          }}
+        >{saving ? "Đang lưu…" : "Thêm bước"}</button>
+        <button
+          onClick={onCancel}
+          disabled={saving}
+          style={{
+            background: "none", border: "1px solid var(--border)", borderRadius: 6,
+            padding: "5px 12px", fontSize: 12, cursor: "pointer",
+            color: "var(--text-secondary)", fontFamily: "inherit",
+          }}
+        >Hủy</button>
+      </div>
+    </div>
+  );
+}
+
 // ── Client card ────────────────────────────────────────────────────────────────
-function ClientCard({ summary, isManager, onSaveNote, onEditEntry, onDeleteEntry }) {
+function ClientCard({ summary, isManager, onSaveNote, onEditEntry, onDeleteEntry, onAddStep, onDeleteStep }) {
   const [open, setOpen]             = useState(false);
   const [lightboxUrl, setLightbox]  = useState(null);
   const [editMode, setEditMode]     = useState(false);
@@ -451,6 +594,8 @@ function ClientCard({ summary, isManager, onSaveNote, onEditEntry, onDeleteEntry
   const [kbDraft, setKbDraft]       = useState(null);
   const [kbSaving, setKbSaving]     = useState(false);
   const [kbError, setKbError]       = useState("");
+  const [addingStep, setAddingStep] = useState(false);
+  const [stepSaving, setStepSaving] = useState(false);
 
   const openEdit = async (e) => {
     e.stopPropagation();
@@ -462,9 +607,9 @@ function ClientCard({ summary, isManager, onSaveNote, onEditEntry, onDeleteEntry
       const entry = (data.entries || []).find(en => en.id === summary.id);
       if (!entry) throw new Error("Không tìm thấy entry trong KB");
       setKbDraft({
-        title:   entry.title,
-        tags:    (entry.tags || []).join(", "),
-        content: entry.content,
+        title:    entry.title,
+        tags:     (entry.tags || []).join(", "),
+        content:  entry.content,
         category: entry.category || "khác",
       });
       setEditMode(true);
@@ -492,6 +637,7 @@ function ClientCard({ summary, isManager, onSaveNote, onEditEntry, onDeleteEntry
             tags:     tagsArr,
             content:  kbDraft.content,
             category: kbDraft.category || "khác",
+            // customSteps not passed → API preserves existing
           },
         }),
       });
@@ -524,6 +670,56 @@ function ClientCard({ summary, isManager, onSaveNote, onEditEntry, onDeleteEntry
     }
   };
 
+  const handleAddStep = async (stepDraft) => {
+    setStepSaving(true);
+    setKbError("");
+    try {
+      const res = await fetch("/api/sops-knowledge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action:   "add-step",
+          entry_id: summary.id,
+          step:     stepDraft,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Thêm bước thất bại");
+      onAddStep(summary.id, data.step);
+      setAddingStep(false);
+    } catch (err) {
+      setKbError(err.message);
+    } finally {
+      setStepSaving(false);
+    }
+  };
+
+  const handleDeleteStep = async (stepId) => {
+    setKbSaving(true);
+    setKbError("");
+    try {
+      const res = await fetch("/api/sops-knowledge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action:   "remove-step",
+          entry_id: summary.id,
+          step_id:  stepId,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Xóa bước thất bại");
+      onDeleteStep(summary.id, stepId);
+    } catch (err) {
+      setKbError(err.message);
+    } finally {
+      setKbSaving(false);
+    }
+  };
+
+  const customSteps = summary.customSteps || [];
+  const allStepIds  = [...DEFAULT_STEP_KEYS, ...customSteps.map(s => s.id)];
+
   return (
     <>
       {lightboxUrl && <Lightbox url={lightboxUrl} onClose={() => setLightbox(null)} />}
@@ -550,6 +746,14 @@ function ClientCard({ summary, isManager, onSaveNote, onEditEntry, onDeleteEntry
                   borderRadius: 4, padding: "1px 7px",
                 }}>
                   Client {summary.client_id}
+                </span>
+              )}
+              {customSteps.length > 0 && (
+                <span style={{
+                  fontSize: 10, color: "var(--text-muted)",
+                  background: "rgba(100,116,139,0.1)", borderRadius: 4, padding: "1px 6px",
+                }}>
+                  +{customSteps.length} bước
                 </span>
               )}
               {summary.tags?.slice(0, 3).map(t => (
@@ -710,18 +914,58 @@ function ClientCard({ summary, isManager, onSaveNote, onEditEntry, onDeleteEntry
               </div>
             ) : (
               <div style={{ padding: "12px 16px 14px" }}>
-                {["pickup", "linehaul", "delivery", "epod_docs"].map(sec => (
-                  <SectionBlock
-                    key={sec}
-                    sectionKey={sec}
-                    lines={summary[sec] || []}
-                    manualNote={summary.manualNote?.[sec] || ""}
-                    imageUrls={summary.imageUrls?.[sec] || []}
-                    isManager={isManager}
-                    onSaveNote={(section, content, imgs) => onSaveNote(summary.id, section, content, imgs)}
-                    onOpenLightbox={setLightbox}
+                {/* Render 4 bước chuẩn + custom steps */}
+                {allStepIds.map(secId => {
+                  const customStep = customSteps.find(s => s.id === secId);
+                  const cfg = customStep
+                    ? { label: customStep.label, color: customStep.color || "#06b6d4", bg: hexToBg(customStep.color || "#06b6d4"), hint: customStep.hint || "" }
+                    : SECTION_CFG[secId];
+                  return (
+                    <SectionBlock
+                      key={secId}
+                      sectionKey={secId}
+                      cfg={cfg}
+                      lines={summary[secId] || []}
+                      manualNote={summary.manualNote?.[secId] || ""}
+                      imageUrls={summary.imageUrls?.[secId] || []}
+                      isManager={isManager}
+                      onSaveNote={(section, content, imgs) => onSaveNote(summary.id, section, content, imgs)}
+                      onOpenLightbox={setLightbox}
+                      onDeleteStep={customStep ? () => handleDeleteStep(secId) : undefined}
+                    />
+                  );
+                })}
+
+                {/* Thêm bước mới (manager only) */}
+                {isManager && !addingStep && (
+                  <button
+                    onClick={() => setAddingStep(true)}
+                    style={{
+                      marginTop: 4, width: "100%", background: "none",
+                      border: "1px dashed var(--border)", borderRadius: 7,
+                      padding: "7px 0", fontSize: 12, color: "var(--text-muted)",
+                      cursor: "pointer", fontFamily: "inherit",
+                      transition: "border-color 0.15s, color 0.15s",
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--cyan)"; e.currentTarget.style.color = "var(--cyan)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text-muted)"; }}
+                  >
+                    ➕ Thêm bước SOP mới
+                  </button>
+                )}
+
+                {isManager && addingStep && (
+                  <AddStepForm
+                    onSave={handleAddStep}
+                    onCancel={() => { setAddingStep(false); setKbError(""); }}
+                    saving={stepSaving}
                   />
-                ))}
+                )}
+
+                {kbError && !editMode && !confirmDel && (
+                  <div style={{ fontSize: 11, color: "var(--red)", marginTop: 6 }}>⚠️ {kbError}</div>
+                )}
+
                 {summary.updatedAt && (
                   <div style={{ fontSize: 10.5, color: "var(--text-muted)", marginTop: 4 }}>
                     Cập nhật KB: {new Date(summary.updatedAt).toLocaleDateString("vi-VN")}
@@ -764,7 +1008,6 @@ function AddSOPPanel({ onAdded, onCancel }) {
       });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || "Lưu thất bại");
-      // Fetch fresh parsed summary for the new entry
       const sumRes = await fetch("/api/sop/summary");
       const sumData = await sumRes.json();
       onAdded(sumData.ok ? (sumData.summaries || []) : null);
@@ -930,9 +1173,7 @@ function GtalkTestPanel() {
             border: "none", borderRadius: 6, padding: "6px 16px", fontSize: 12,
             fontWeight: 600, cursor: sending ? "not-allowed" : "pointer", opacity: sending ? 0.6 : 1,
           }}
-        >
-          {sending ? "Đang gửi…" : "Gửi Test"}
-        </button>
+        >{sending ? "Đang gửi…" : "Gửi Test"}</button>
       </div>
       {result && (
         <pre style={{
@@ -1000,6 +1241,28 @@ export default function SOPKnowledgeHub({ role }) {
     }));
   }, []);
 
+  const handleAddStep = useCallback((id, step) => {
+    setSummaries(prev => prev.map(s => {
+      if (s.id !== id) return s;
+      return {
+        ...s,
+        customSteps: [...(s.customSteps || []), step],
+        manualNote:  { ...s.manualNote, [step.id]: "" },
+        imageUrls:   { ...s.imageUrls,  [step.id]: [] },
+      };
+    }));
+  }, []);
+
+  const handleDeleteStep = useCallback((id, stepId) => {
+    setSummaries(prev => prev.map(s => {
+      if (s.id !== id) return s;
+      return {
+        ...s,
+        customSteps: (s.customSteps || []).filter(step => step.id !== stepId),
+      };
+    }));
+  }, []);
+
   const filtered = summaries.filter(s => {
     if (!search) return true;
     const q = search.toLowerCase();
@@ -1017,7 +1280,7 @@ export default function SOPKnowledgeHub({ role }) {
         </h2>
         <p style={{ fontSize: 12.5, color: "var(--text-muted)", margin: 0 }}>
           Tóm tắt actionable cho từng khách hàng: yêu cầu kho nguồn, vận tải, và đặc thù điểm giao.
-          {isManager && " Manager có thể chỉnh sửa ghi chú và ảnh minh họa."}
+          {isManager && " Manager có thể chỉnh sửa ghi chú, ảnh minh họa và thêm bước tùy chỉnh."}
         </p>
       </div>
 
@@ -1102,6 +1365,8 @@ export default function SOPKnowledgeHub({ role }) {
           onSaveNote={handleSaveNote}
           onEditEntry={handleEditEntry}
           onDeleteEntry={handleDeleteEntry}
+          onAddStep={handleAddStep}
+          onDeleteStep={handleDeleteStep}
         />
       ))}
 
@@ -1113,8 +1378,8 @@ export default function SOPKnowledgeHub({ role }) {
           border: "1px solid var(--border)", fontSize: 11.5, color: "var(--text-muted)",
         }}>
           <strong style={{ color: "var(--text-secondary)" }}>Chú thích:</strong>{" "}
-          Nội dung auto-parse từ KB. ✏️ Sửa để thêm ghi chú + ảnh minh họa (Manager).
-          Bấm thumbnail để phóng to. Thêm SOP mới: chạy{" "}
+          Nội dung auto-parse từ KB. ✏️ Sửa để thêm ghi chú + ảnh minh họa.
+          Manager: ➕ Thêm bước SOP mới trong mỗi card. Thêm SOP mới: chạy{" "}
           <code style={{ background: "rgba(100,116,139,0.15)", padding: "1px 4px", borderRadius: 3 }}>
             node scripts/seed_sops_knowledge.mjs
           </code>.

@@ -1,7 +1,9 @@
 /**
- * GET  /api/sop/summary  — parse KB entries thành 3 section có cấu trúc + overlay manual notes
+ * GET  /api/sop/summary  — parse KB entries thành 4 section có cấu trúc + overlay manual notes
+ *                          + expose customSteps[] từ KB entry
  * POST /api/sop/summary  — upsert manual note cho 1 section của 1 client (manager only)
- *   { id: "sop_digiworld_bn", section: "diem_giao", content: "..." }
+ *   { id: "sop_digiworld_bn", section: "delivery", content: "..." }
+ *   section có thể là 4 bước chuẩn HOẶC custom step ID (step_xxx)
  */
 import { getSession } from "../../../lib/auth";
 import { put, get } from "@vercel/blob";
@@ -90,32 +92,42 @@ export default async function handler(req, res) {
     const notesMap = (notes && typeof notes === "object") ? notes : {};
 
     const summaries = entries.map((e) => {
-      const parsed = parseKBSections(e.content || "");
-      const manual = notesMap[e.id] || {};
-      const imgs   = manual.image_urls || {};
-      // Backward compat: old keys (kho_nguon/van_tai/diem_giao) → new 4-section keys
+      const parsed      = parseKBSections(e.content || "");
+      const manual      = notesMap[e.id] || {};
+      const imgs        = manual.image_urls || {};
+      const customSteps = Array.isArray(e.customSteps) ? e.customSteps : [];
+
+      // Build manualNote/imageUrls for default 4 sections + any custom steps
+      const manualNote = {
+        pickup:    manual.pickup    || manual.kho_nguon || "",
+        linehaul:  manual.linehaul  || manual.van_tai   || "",
+        delivery:  manual.delivery  || manual.diem_giao || "",
+        epod_docs: manual.epod_docs || "",
+      };
+      const imageUrls = {
+        pickup:    imgs.pickup    || imgs.kho_nguon || [],
+        linehaul:  imgs.linehaul  || imgs.van_tai   || [],
+        delivery:  imgs.delivery  || imgs.diem_giao || [],
+        epod_docs: imgs.epod_docs || [],
+      };
+      for (const step of customSteps) {
+        manualNote[step.id] = manual[step.id] || "";
+        imageUrls[step.id]  = imgs[step.id]   || [];
+      }
+
       return {
-        id:        e.id,
-        title:     e.title,
-        client_id: extractClientId(e.content || ""),
-        tags:      e.tags || [],
-        pickup:    parsed.pickup,
-        linehaul:  parsed.linehaul,
-        delivery:  parsed.delivery,
-        epod_docs: parsed.epod_docs,
-        manualNote: {
-          pickup:    manual.pickup    || manual.kho_nguon || "",
-          linehaul:  manual.linehaul  || manual.van_tai   || "",
-          delivery:  manual.delivery  || manual.diem_giao || "",
-          epod_docs: manual.epod_docs || "",
-        },
-        imageUrls: {
-          pickup:    imgs.pickup    || imgs.kho_nguon || [],
-          linehaul:  imgs.linehaul  || imgs.van_tai   || [],
-          delivery:  imgs.delivery  || imgs.diem_giao || [],
-          epod_docs: imgs.epod_docs || [],
-        },
-        updatedAt: e.updatedAt,
+        id:         e.id,
+        title:      e.title,
+        client_id:  extractClientId(e.content || ""),
+        tags:       e.tags || [],
+        customSteps,
+        pickup:     parsed.pickup,
+        linehaul:   parsed.linehaul,
+        delivery:   parsed.delivery,
+        epod_docs:  parsed.epod_docs,
+        manualNote,
+        imageUrls,
+        updatedAt:  e.updatedAt,
       };
     });
 
@@ -127,7 +139,8 @@ export default async function handler(req, res) {
       return res.status(403).json({ ok: false, error: "Chỉ Manager được chỉnh sửa" });
     }
     const { id, section, content: noteContent, image_urls } = req.body || {};
-    if (!id || !["pickup", "linehaul", "delivery", "epod_docs"].includes(section)) {
+    // Allow 4 default sections AND custom step IDs (step_xxx format)
+    if (!id || !section || !/^[\w-]{1,100}$/.test(section)) {
       return res.status(400).json({ ok: false, error: "Thiếu id hoặc section không hợp lệ" });
     }
     const notes = (await readBlob(NOTES_PATH)) || {};
