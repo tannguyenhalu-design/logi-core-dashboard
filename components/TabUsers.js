@@ -22,6 +22,7 @@ const TAB_OPTIONS = [
   { value: "report",     label: "Báo cáo công ty" },
   { value: "trials",     label: "Sổ tay cải tiến" },
   { value: "teamreport", label: "Báo cáo nội bộ ĐTĐM" },
+  { value: "sop",        label: "📋 SOP & Điểm Giao" },
 ];
 
 function defaultTabsForRole(role) {
@@ -275,6 +276,7 @@ export default function TabUsers() {
                 draft.name !== (u.name || "") ||
                 draft.role !== u.role ||
                 draft.pic !== (u.pic || "") ||
+                draft.project !== (u.project || "") ||
                 JSON.stringify(draft.tabs.sort()) !== JSON.stringify((u.tabs || []).sort());
 
               return (

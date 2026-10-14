@@ -104,6 +104,10 @@ export default async function handler(req, res) {
   const dateFrom = req.query.dateFrom ? String(req.query.dateFrom).trim() : null;
   const dateTo   = req.query.dateTo   ? String(req.query.dateTo).trim()   : null;
 
+  // Damage date field: "case_date" (Rillnet default) or "pickup_time" (legacy)
+  const rawDmField = req.query.damageDateField;
+  const damageDateField = rawDmField === "pickup_time" ? "pickup_time" : "case_date";
+
   if (req.query.months) {
     months = req.query.months
       .split(",")
@@ -139,7 +143,7 @@ export default async function handler(req, res) {
 
   const params = {
     role, userPic, months, projects, filterMode, viewAsType, viewAsValue,
-    dateFrom, dateTo, origin, periodWeeks,
+    dateFrom, dateTo, origin, periodWeeks, damageDateField,
     province: req.query.province ? String(req.query.province) : null,
     pendingList: req.query.pendingPickup === "1",
     stuckList: req.query.stuck === "1",

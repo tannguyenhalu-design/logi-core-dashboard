@@ -214,7 +214,7 @@ const STUCK_COLUMNS = [
 // view: "ltl" (Tổng quan) | "map" (Bản đồ tỉnh thành) | "damage" (Hư hỏng & Rủi ro)
 // — all 3 read the same already-fetched /api/data payload, so switching tabs
 // never refetches.
-export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders, pendingPickup, fetchPendingOrders, kpiDelta, stuck, fetchStuckOrders, anomalies, damageRisk, riskOnly: riskOnlyProp, onRiskOnlyChange, sparkline, dueToday, fetchDueTodayOrders, onQuickRiskRoutes, onQuickLowOntime, onOpenReport, onOpenCompanyReport, damageTrend, exceptions, mapState, damageMoney, damageAnalysis, dailyOrders }) {
+export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, selectedProjects = [], selectedMonths = [], userRole, periodWeeks = "mtd", onPeriodWeeksChange, selectedOrigin = null, onOriginChange, fetchProvinceOrders, pendingPickup, fetchPendingOrders, kpiDelta, stuck, fetchStuckOrders, anomalies, damageRisk, riskOnly: riskOnlyProp, onRiskOnlyChange, sparkline, dueToday, fetchDueTodayOrders, onQuickRiskRoutes, onQuickLowOntime, onOpenReport, onOpenCompanyReport, damageTrend, exceptions, mapState, damageMoney, damageAnalysis, dailyOrders, damageDateField = "case_date", onDamageDateFieldChange }) {
   const [damageFilter, setDamageFilter] = useState(null);
   const [drawerCase, setDrawerCase] = useState(null); // ca mở từ "Ca còn mở" (Kế hoạch E) // { type: 'type' | 'province' | 'warehouse', value: string }
   const [selectedProvinceOrders, setSelectedProvinceOrders] = useState(null);
@@ -641,8 +641,41 @@ export default function LTLDashboard({ view = "ltl", data, rawData, aiInsights, 
           { label: "Ca còn mở", value: fmt(damageAnalysis?.open?.total || 0), sub: damageAnalysis?.open ? `${fmt(damageAnalysis.open.over30)} ca > 30 ngày` : "", color: damageAnalysis?.open?.total ? "var(--red)" : "var(--text-muted)" },
         ];
         const TABS = [["active", "🔥 Ca Đang Mở & Xử Lý"], ["financial", "💰 Tiền Đền Bù & Hồ Sơ Claim"], ["rootcause", "📊 Phân Tích Gốc Rễ Lỗi"]];
+        // Rillnet reconcile badges (from damageMoney.reconcile, if available)
+        const rec = damageMoney?.reconcile;
+        const rillnetBadges = rec ? [
+          { label: "Đơn có ticket hư hỏng", value: rec.rillnet?.cases ?? rec.dashboardAll?.cases ?? "—", color: "var(--text-primary)", icon: "📋" },
+          { label: "Ca bể vỡ (DM tick CS)", value: rec.rillnet?.cases ?? data.totalBroken ?? "—", color: "var(--amber)", icon: "🔥" },
+          { label: "Đã chốt đền bù khách", value: `${rec.rillnet?.compensated ?? rec.dashboardDm?.compensated ?? "—"} ca`, color: "var(--green)", icon: "✅" },
+        ] : null;
+
         return (
           <>
+            {/* Toggle: lọc theo ngày ca Rillnet vs ngày lấy hàng */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Lọc ca theo:</span>
+              {[["case_date", "📅 Ngày Lập Ca Rillnet"], ["pickup_time", "📦 Ngày Lấy Hàng"]].map(([val, lbl]) => (
+                <button key={val} onClick={() => onDamageDateFieldChange?.(val)} style={{
+                  fontSize: 12, padding: "4px 12px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                  border: `1px solid ${damageDateField === val ? "var(--cyan)" : "var(--border)"}`,
+                  background: damageDateField === val ? "rgba(6,182,212,0.12)" : "transparent",
+                  color: damageDateField === val ? "var(--cyan)" : "var(--text-muted)",
+                  fontWeight: damageDateField === val ? 700 : 400,
+                }}>{lbl}</button>
+              ))}
+              {rillnetBadges && (
+                <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {rillnetBadges.map((b) => (
+                    <div key={b.label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, padding: "3px 10px", borderRadius: 16, border: "1px solid var(--border)", background: "var(--bg-panel)" }}>
+                      <span>{b.icon}</span>
+                      <span style={{ color: b.color, fontWeight: 700 }}>{b.value}</span>
+                      <span style={{ color: "var(--text-muted)" }}>{b.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
               {kpis.map((k) => (
                 <div key={k.label} style={{ flex: "1 1 140px", minWidth: 120, background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: 10, padding: "8px 12px" }}>

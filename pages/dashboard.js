@@ -22,6 +22,7 @@ const ExecutiveReport = dynamic(() => import("../components/ExecutiveReport"), {
 const TabBrain      = dynamic(() => import("../components/TabBrain"),      { ssr: false });
 const TabDecision   = dynamic(() => import("../components/TabDecision"),   { ssr: false });
 const TabInternalReport = dynamic(() => import("../components/TabInternalReport"), { ssr: false });
+const SOPKnowledgeHub = dynamic(() => import("../components/SOPKnowledgeHub"), { ssr: false });
 const AIChatDrawer  = dynamic(() => import("../components/AIChatDrawer"),  { ssr: false });
 
 // Kế hoạch A · P4: while the dashboard is idle, load the code of the tabs this
@@ -41,7 +42,7 @@ const tabsForRole = (role) => (role === "manager" ? ["decision", "report", "tria
 
 // Kế hoạch A · P3: tabs that stay mounted (hidden) once opened, so coming
 // back shows them at once with their data and state; each has a reload button.
-const KEEP_ALIVE_TABS = ["decision", "report", "trials", "users", "auditlog", "health", "teamreport"];
+const KEEP_ALIVE_TABS = ["decision", "report", "trials", "users", "auditlog", "health", "teamreport", "sop"];
 
 const LEGACY_TABS = ["ltl", "operations", "tachtrip", "ftl"];
 const LTL_VIEWS = [
@@ -89,9 +90,10 @@ export default function DashboardPage({ user: initialUser }) {
   const canSeeReport = isManager || userTabs.includes("report");
   const canSeeTeamReport = isManager || userTabs.includes("teamreport");
   const canSeeTrials = isManager || userTabs.includes("trials");
+  const canSeeSop = isManager || userTabs.includes("sop");
   const canSeeDecision = isManager || user.role === "sd3";
   const firstTab = canSeeDecision ? "decision" : canSeeLTL ? "ltl" : canSeeMap ? "map" : canSeeDamage ? "damage" : canSeeEvents ? "events" : canSeeReport ? "report" : canSeeTrials ? "trials" : "none";
-  const VALID_TABS = ["ltl","map","damage","events","vehicles","pnl","decision","report","trials","users","auditlog","health","brain","teamreport"];
+  const VALID_TABS = ["ltl","map","damage","events","vehicles","pnl","decision","report","trials","users","auditlog","health","brain","teamreport","sop"];
   const [activeTab, setActiveTab] = useState(firstTab); // LTL_VIEWS id | 'report' | 'trials' | 'users' | 'auditlog' | 'health' | 'brain' | 'none'
   const isLTLView = LTL_VIEWS.some((v) => v.id === activeTab);
   const [selectedMonths, setSelectedMonths] = useState(() => {
@@ -106,6 +108,8 @@ export default function DashboardPage({ user: initialUser }) {
   const [periodWeeks, setPeriodWeeks] = useState("mtd");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  // Damage date field: "case_date" (Rillnet default) | "pickup_time" (legacy)
+  const [damageDateField, setDamageDateField] = useState("case_date");
   // "Điểm Lấy Hàng" (pickup point) filter — only meaningful alongside a
   // single selected project, cleared whenever the project selection changes
   // so a stale origin from a previous client doesn't silently carry over.
@@ -206,6 +210,7 @@ export default function DashboardPage({ user: initialUser }) {
       if (selectedOrigin) params.append("origin", selectedOrigin);
       if (dFrom) params.append("dateFrom", dFrom);
       if (dTo)   params.append("dateTo", dTo);
+      if (damageDateField !== "case_date") params.append("damageDateField", damageDateField);
       const qs = params.toString();
 
       // SWR: if a cached body exists, serve it immediately (no loading spinner)
@@ -243,7 +248,7 @@ export default function DashboardPage({ user: initialUser }) {
     } finally {
       if (reqId === reqIdRef.current) setLoading(false);
     }
-  }, [viewAs, periodWeeks, selectedOrigin]);
+  }, [viewAs, periodWeeks, selectedOrigin, damageDateField]);
 
   // On-demand fetch for the "Chi tiết đơn hàng theo tỉnh" modal in
   // LTLDashboard — mirrors fetchDashboardData's own filter params exactly
@@ -325,7 +330,7 @@ export default function DashboardPage({ user: initialUser }) {
     if (!canSeeLTL) return;
     fetchDashboardData(selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks, dateFrom, dateTo);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks, selectedOrigin, dateFrom, dateTo, canSeeLTL]);
+  }, [selectedMonths, selectedProjects, filterMode, viewAs, periodWeeks, selectedOrigin, dateFrom, dateTo, canSeeLTL, damageDateField]);
 
   const allProjects = dashData
     ? (dashData.overview?.allProjectsLTL || []).sort()
@@ -561,6 +566,23 @@ export default function DashboardPage({ user: initialUser }) {
                 Sổ tay cải tiến
               </div>
             )}
+            {canSeeSop && (
+              <div
+                className={`nav-item ${activeTab === "sop" ? "active" : ""}`}
+                onClick={() => goTab("sop")}
+                style={{
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", borderRadius: 8,
+                  color: activeTab === "sop" ? "#fff" : "var(--text-muted)",
+                  background: activeTab === "sop" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>
+                </svg>
+                SOP & Điểm Giao
+              </div>
+            )}
             {user.role === "manager" && (
               <div
                 className={`nav-item ${activeTab === "users" ? "active" : ""}`}
@@ -766,6 +788,7 @@ export default function DashboardPage({ user: initialUser }) {
                   : activeTab === "health" ? "Trạng thái hệ thống"
                   : activeTab === "brain" ? "Bộ Não Tiểu Đệ"
                   : activeTab === "teamreport" ? "Báo cáo nội bộ ĐTĐM"
+                  : activeTab === "sop" ? "SOP & Đặc thù Điểm Giao B2B"
                   : "SD3- Dashboard Điện Máy")}
               </div>
               {isManager && viewAs.type !== "manager" && (
@@ -915,7 +938,7 @@ export default function DashboardPage({ user: initialUser }) {
 
                 {!dashData && loading && <DashboardSkeleton view={activeTab} />}
 
-                {dashData && !(error && !loading) && <div className={loading ? "refreshing" : "fade-in"}><LTLDashboard view={activeTab} data={ltlData} mapState={activeTab === "map" ? mapState : undefined} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} fetchProvinceOrders={fetchProvinceOrders} pendingPickup={dashData.pendingPickup} fetchPendingOrders={fetchPendingOrders} kpiDelta={dashData.kpiDelta} stuck={dashData.stuck} fetchStuckOrders={fetchStuckOrders} anomalies={dashData.anomalies} damageRisk={damageFields?.damageRisk ?? null} riskOnly={riskOnly} onRiskOnlyChange={setRiskOnly} sparkline={dashData.sparkline} dueToday={dashData.dueToday} fetchDueTodayOrders={fetchDueTodayOrders} onQuickRiskRoutes={() => { setRiskOnly(true); startTransition(() => setActiveTab("damage")); }} onQuickLowOntime={setSelectedProjects} onOpenReport={() => setReportOpen(true)} onOpenCompanyReport={() => startTransition(() => setActiveTab("report"))} damageTrend={dashData.damageTrend} exceptions={dashData.exceptions} damageMoney={damageFields?.damageMoney ?? null} damageAnalysis={damageFields?.damageAnalysis ?? null} dailyOrders={dashData.dailyOrders} /></div>}
+                {dashData && !(error && !loading) && <div className={loading ? "refreshing" : "fade-in"}><LTLDashboard view={activeTab} data={ltlData} mapState={activeTab === "map" ? mapState : undefined} rawData={dashData.raw} aiInsights={dashData.aiInsights} selectedProjects={selectedProjects} selectedMonths={selectedMonths} userRole={dashData.user?.role} periodWeeks={periodWeeks} onPeriodWeeksChange={setPeriodWeeks} selectedOrigin={selectedOrigin} onOriginChange={setSelectedOrigin} fetchProvinceOrders={fetchProvinceOrders} pendingPickup={dashData.pendingPickup} fetchPendingOrders={fetchPendingOrders} kpiDelta={dashData.kpiDelta} stuck={dashData.stuck} fetchStuckOrders={fetchStuckOrders} anomalies={dashData.anomalies} damageRisk={damageFields?.damageRisk ?? null} riskOnly={riskOnly} onRiskOnlyChange={setRiskOnly} sparkline={dashData.sparkline} dueToday={dashData.dueToday} fetchDueTodayOrders={fetchDueTodayOrders} onQuickRiskRoutes={() => { setRiskOnly(true); startTransition(() => setActiveTab("damage")); }} onQuickLowOntime={setSelectedProjects} onOpenReport={() => setReportOpen(true)} onOpenCompanyReport={() => startTransition(() => setActiveTab("report"))} damageTrend={dashData.damageTrend} exceptions={dashData.exceptions} damageMoney={damageFields?.damageMoney ?? null} damageAnalysis={damageFields?.damageAnalysis ?? null} dailyOrders={dashData.dailyOrders} damageDateField={damageDateField} onDamageDateFieldChange={setDamageDateField} /></div>}
               </>
             )}
             {/* Opened tabs stay mounted, hidden while another tab is shown. */}
@@ -927,6 +950,7 @@ export default function DashboardPage({ user: initialUser }) {
                   : id === "users" ? <TabUsers />
                   : id === "auditlog" ? <TabAuditLog />
                   : id === "teamreport" ? <TabInternalReport />
+                  : id === "sop" ? <SOPKnowledgeHub role={user.role} />
                   : <TabSystemHealth />}
               </div>
             ))}
