@@ -131,7 +131,9 @@ def fetch_cs_tick_cases(ws):
     EXTRACT_JS = """JSON.stringify((function() {
   if (!_LB || !_LB.bevo || !Array.isArray(_LB.bevo.rows)) return null;
   const rows = _LB.bevo.rows;
-  const dm = rows.filter(r => r.nganh_hang === 'DM');
+  const DM_KW = ['nguyễn kim', 'psd', 'samsung', 'aqua', 'digiworld', 'hisense', 'casper', 'elmich', 'dmx', 'lg ltl'];
+  const isDM = (r) => r.nganh_hang === 'DM' || DM_KW.some(k => (r.khach || '').toLowerCase().includes(k));
+  const dm = rows.filter(isDM);
   const dmCs = dm.filter(r => r.cs_denbu);
   return {
     totalRows: rows.length, dmTotal: dm.length, csTickCount: dmCs.length,
@@ -279,6 +281,7 @@ def parse_excel(content_bytes, date_str):
             "orderStatus": "",
             "caseDate": case_date,
             "photoCount": "1" if _cell(row, i_photo) else "0",
+            "counted": True,
         })
     return records
 
