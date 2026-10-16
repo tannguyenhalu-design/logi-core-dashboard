@@ -804,8 +804,8 @@ export default function DashboardPage({ user: initialUser }) {
 
           {/* Dashboard body */}
           <main className="dashboard-main" style={{ flex: 1, overflowY: "auto", position: "relative" }}>
-            {/* Proactive anomaly alert surface — only on the command tab */}
-            {activeTab === "command" && (user.role === "manager" || user.role === "sd3") && (
+            {/* Proactive anomaly alert surface — chỉ hiện trên command hoặc decision tab */}
+            {(activeTab === "command" || activeTab === "decision") && (user.role === "manager" || user.role === "sd3") && (
               <AlertSurface
                 role={user.role}
                 onGoTrials={(opts) => goTab("trials")}
