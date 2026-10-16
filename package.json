@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "node --test tests/kpi.test.mjs tests/damage.test.mjs tests/data-quality.test.mjs tests/data-validator.test.mjs tests/snapshot.test.mjs tests/anomaly.test.mjs tests/root-cause.test.mjs tests/experiment.test.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.16.0",

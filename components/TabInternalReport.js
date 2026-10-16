@@ -47,6 +47,25 @@ function prevBiweeklyPeriod(period) {
   return `${year}-W${String(prevOdd).padStart(2, "0")}`;
 }
 
+function listWeeklyPeriods(week, year) {
+  const out = [];
+  for (let i = 0; i < 16; i++) {
+    const w = week - i;
+    if (w < 1) break;
+    out.push({ value: `${year}-W${String(w).padStart(2, "0")}`, label: `W${w}` });
+  }
+  return out;
+}
+
+function prevWeeklyPeriod(period) {
+  const m = String(period).match(/^(\d{4})-W(\d+)$/);
+  if (!m) return null;
+  const year = parseInt(m[1], 10);
+  const w = parseInt(m[2], 10) - 1;
+  if (w < 1) return `${year - 1}-W52`;
+  return `${year}-W${String(w).padStart(2, "0")}`;
+}
+
 function biweeklyPeriodLabel(period) {
   const m = String(period).match(/^(\d{4})-W(\d+)$/);
   if (!m) return period;
@@ -280,9 +299,36 @@ function isImgUrl(url) {
 }
 
 function OpsIssuesTable({ ops, setOps, setLightbox, picMembers }) {
+  const [uploadingId, setUploadingId] = useState(null);
+  const fileRefs = useRef({});
   const upd = (id, field, val) => setOps((p) => p.map((r) => r.id !== id ? r : { ...r, [field]: val }));
   const del = (id) => setOps((p) => p.filter((r) => r.id !== id));
   const add = () => setOps((p) => [...p, { id: `oi_${Date.now()}`, problem: "", client: "", cause: "", solution: "", statusText: "", imageUrl: "", support: "", pic: "" }]);
+
+  async function handleFileUpload(id, file) {
+    if (!file) return;
+    setUploadingId(id);
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const res = await fetch("/api/upload-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dataUrl, filename: file.name }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      upd(id, "imageUrl", json.url);
+    } catch (e) {
+      alert("Upload ảnh thất bại: " + e.message);
+    } finally {
+      setUploadingId(null);
+    }
+  }
 
   const colStyle = (w) => ({ ...tdBase, textAlign: "left", padding: "4px 5px", minWidth: w, verticalAlign: "top" });
   const inp = (id, field, placeholder, val, w) => (
@@ -327,22 +373,40 @@ function OpsIssuesTable({ ops, setOps, setLightbox, picMembers }) {
                 {/* Giải pháp */}
                 <td style={colStyle(150)}>{inp(row.id, "solution", "Biện pháp khắc phục...", row.solution, 150)}</td>
                 {/* Status & Ảnh */}
-                <td style={colStyle(170)}>
+                <td style={colStyle(180)}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <select value={row.statusText} onChange={(e) => upd(row.id, "statusText", e.target.value)}
-                    style={{ ...cellInput, display: "block", color: OPS_STATUS_COLOR[row.statusText] || "var(--text-muted)", cursor: "pointer", fontSize: 11 }}>
-                    <option value="">-- Chọn status --</option>
-                    {OPS_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                  <input value={row.imageUrl} onChange={(e) => upd(row.id, "imageUrl", e.target.value)} placeholder="Dán URL hình ảnh/video..."
-                    style={{ ...cellInput, display: "block", fontSize: 10.5, borderBottom: "1px solid var(--border)", paddingBottom: 2 }} />
-                  {isImgUrl(row.imageUrl) && (
-                    <div>
-                      <img src={row.imageUrl} alt="thumb" onClick={() => setLightbox(row.imageUrl)}
-                        style={{ maxWidth: 80, maxHeight: 55, borderRadius: 4, cursor: "zoom-in", border: "1px solid var(--border)", objectFit: "cover" }}
-                        onError={(e) => { e.target.style.display = "none"; }} />
+                    <select value={row.statusText} onChange={(e) => upd(row.id, "statusText", e.target.value)}
+                      style={{ ...cellInput, display: "block", color: OPS_STATUS_COLOR[row.statusText] || "var(--text-muted)", cursor: "pointer", fontSize: 11 }}>
+                      <option value="">-- Chọn status --</option>
+                      {OPS_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    {/* Upload hoặc dán URL */}
+                    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                      <input value={row.imageUrl} onChange={(e) => upd(row.id, "imageUrl", e.target.value)}
+                        placeholder="Dán URL hoặc upload ảnh..."
+                        style={{ ...cellInput, flex: 1, fontSize: 10.5, borderBottom: "1px solid var(--border)", paddingBottom: 2 }} />
+                      <button
+                        type="button"
+                        title="Upload ảnh từ máy tính"
+                        disabled={uploadingId === row.id}
+                        onClick={() => fileRefs.current[row.id]?.click()}
+                        style={{ flexShrink: 0, fontSize: 12, padding: "2px 6px", borderRadius: 5, border: "1px solid var(--border)", background: "transparent", cursor: uploadingId === row.id ? "wait" : "pointer", color: uploadingId === row.id ? "var(--text-muted)" : "var(--cyan,#06b6d4)", lineHeight: 1 }}>
+                        {uploadingId === row.id ? "⏳" : "📷"}
+                      </button>
+                      <input
+                        ref={(el) => { fileRefs.current[row.id] = el; }}
+                        type="file" accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={(e) => { handleFileUpload(row.id, e.target.files?.[0]); e.target.value = ""; }}
+                      />
                     </div>
-                  )}
+                    {isImgUrl(row.imageUrl) && (
+                      <div>
+                        <img src={row.imageUrl} alt="thumb" onClick={() => setLightbox(row.imageUrl)}
+                          style={{ maxWidth: 80, maxHeight: 55, borderRadius: 4, cursor: "zoom-in", border: "1px solid var(--border)", objectFit: "cover" }}
+                          onError={(e) => { e.target.style.display = "none"; }} />
+                      </div>
+                    )}
                   </div>
                 </td>
                 {/* Support */}
@@ -644,8 +708,21 @@ async function buildExcel({ report, pipeline, tasks, insights, ops, periLabel, p
 export default function TabInternalReport() {
   const now = vnNow();
   const { week: thisWeek, year: thisYear } = getISOWeek(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())));
-  const periodOptions = listBiweeklyPeriods(thisWeek, thisYear);
+
+  const [viewMode, setViewMode] = useState("biweekly"); // "biweekly" | "weekly"
+  const periodOptions = viewMode === "biweekly"
+    ? listBiweeklyPeriods(thisWeek, thisYear)
+    : listWeeklyPeriods(thisWeek, thisYear);
   const [period, setPeriod] = useState(periodOptions[0]?.value ?? defaultBiweeklyPeriod(thisWeek, thisYear));
+
+  // Storage key distinguishes biweekly vs weekly for the same period string
+  const storageKey = viewMode === "biweekly" ? period : `${period}-1w`;
+
+  function switchViewMode(mode) {
+    const opts = mode === "biweekly" ? listBiweeklyPeriods(thisWeek, thisYear) : listWeeklyPeriods(thisWeek, thisYear);
+    setPeriod(opts[0]?.value ?? "");
+    setViewMode(mode);
+  }
 
   // API data
   const [report, setReport] = useState(null);
@@ -674,29 +751,30 @@ export default function TabInternalReport() {
   const [copied, setCopied] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  // ── Load API report when period changes ─────────────────────────────────────
+  // ── Load API report when period or viewMode changes ──────────────────────────
   useEffect(() => {
     setApiLoading(true);
     setReport(null);
-    fetch(`/api/report/biweekly?type=biweekly&period=${encodeURIComponent(period)}&format=json&lite=1`)
+    const apiType = viewMode === "weekly" ? "week" : "biweekly";
+    fetch(`/api/report/biweekly?type=${apiType}&period=${encodeURIComponent(period)}&format=json&lite=1`)
       .then((r) => r.json())
       .then((d) => { setReport(d.report || null); setApiLoading(false); })
       .catch(() => setApiLoading(false));
-  }, [period]);
+  }, [period, viewMode]);
 
-  // ── Load localStorage when period changes ───────────────────────────────────
+  // ── Load localStorage when period/viewMode changes ──────────────────────────
   useEffect(() => {
     try {
-      const t = localStorage.getItem(`teamreport_tasks_${period}`);
+      const t = localStorage.getItem(`teamreport_tasks_${storageKey}`);
       setTasks(t ? JSON.parse(t) : []);
-      const ins = localStorage.getItem(`teamreport_insights_${period}`);
+      const ins = localStorage.getItem(`teamreport_insights_${storageKey}`);
       setInsights(ins || "");
-      const o = localStorage.getItem(`teamreport_ops_${period}`);
+      const o = localStorage.getItem(`teamreport_ops_${storageKey}`);
       setOps(o ? JSON.parse(o) : []);
     } catch { setTasks([]); setInsights(""); setOps([]); }
     setBlobLoaded(false);
     // Load from Blob
-    fetch(`/api/team-notes?week=${encodeURIComponent(period)}`)
+    fetch(`/api/team-notes?week=${encodeURIComponent(storageKey)}`)
       .then((r) => r.json())
       .then(({ data }) => {
         if (!data) return;
@@ -707,12 +785,12 @@ export default function TabInternalReport() {
         if (Array.isArray(data.picMembers) && data.picMembers.length > 0) setPicMembers(data.picMembers);
         setBlobLoaded(true);
       }).catch(() => {});
-  }, [period]);
+  }, [storageKey]);
 
   // ── Persist localStorage ─────────────────────────────────────────────────────
-  useEffect(() => { try { localStorage.setItem(`teamreport_tasks_${period}`, JSON.stringify(tasks)); } catch {} }, [tasks, period]);
-  useEffect(() => { try { localStorage.setItem(`teamreport_insights_${period}`, insights); } catch {} }, [insights, period]);
-  useEffect(() => { try { localStorage.setItem(`teamreport_ops_${period}`, JSON.stringify(ops)); } catch {} }, [ops, period]);
+  useEffect(() => { try { localStorage.setItem(`teamreport_tasks_${storageKey}`, JSON.stringify(tasks)); } catch {} }, [tasks, storageKey]);
+  useEffect(() => { try { localStorage.setItem(`teamreport_insights_${storageKey}`, insights); } catch {} }, [insights, storageKey]);
+  useEffect(() => { try { localStorage.setItem(`teamreport_ops_${storageKey}`, JSON.stringify(ops)); } catch {} }, [ops, storageKey]);
   useEffect(() => { try { localStorage.setItem("teamreport_pipeline", JSON.stringify(pipeline)); } catch {} }, [pipeline]);
   useEffect(() => { try { localStorage.setItem("teamreport_pic_members", JSON.stringify(picMembers)); } catch {} }, [picMembers]);
 
@@ -723,22 +801,24 @@ export default function TabInternalReport() {
       await fetch("/api/team-notes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ week: period, tasks, insights, ops, pipeline, picMembers }),
+        body: JSON.stringify({ week: storageKey, tasks, insights, ops, pipeline, picMembers }),
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch {}
     setSaving(false);
-  }, [period, tasks, insights, pipeline, picMembers]);
+  }, [storageKey, tasks, insights, ops, pipeline, picMembers]);
 
   // ── Carryover tasks từ kỳ trước ─────────────────────────────────────────────
   const handleCarryover = useCallback(async () => {
-    const prev = prevBiweeklyPeriod(period);
-    if (!prev || carryLoading) return;
+    const prevPeriod = viewMode === "weekly" ? prevWeeklyPeriod(period) : prevBiweeklyPeriod(period);
+    const prevKey    = viewMode === "biweekly" ? prevPeriod : prevPeriod ? `${prevPeriod}-1w` : null;
+    const prev = prevPeriod;
+    if (!prev || !prevKey || carryLoading) return;
     setCarryLoading(true);
     setCarryMsg("");
     try {
-      const res = await fetch(`/api/team-notes?week=${encodeURIComponent(prev)}`);
+      const res = await fetch(`/api/team-notes?week=${encodeURIComponent(prevKey)}`);
       const { data } = await res.json();
       const prevTasks = Array.isArray(data?.tasks) ? data.tasks : [];
       const toCarry = prevTasks.filter((t) => t.status !== "done");
@@ -756,7 +836,8 @@ export default function TabInternalReport() {
         setCarryMsg("✓ Tất cả task đã tồn tại, không cần thêm");
       } else {
         setTasks((p) => [...p, ...newTasks]);
-        setCarryMsg(`✓ Đã thêm ${newTasks.length} task từ ${biweeklyPeriodLabel(prev)}`);
+        const prevLabel = viewMode === "weekly" ? prev.replace(/^\d{4}-/, "") : biweeklyPeriodLabel(prev);
+        setCarryMsg(`✓ Đã thêm ${newTasks.length} task từ ${prevLabel}`);
       }
       setTimeout(() => setCarryMsg(""), 4000);
     } catch {
@@ -764,7 +845,7 @@ export default function TabInternalReport() {
       setTimeout(() => setCarryMsg(""), 3000);
     }
     setCarryLoading(false);
-  }, [period, carryLoading, tasks]);
+  }, [period, viewMode, storageKey, carryLoading, tasks]);
 
   // ── Build Zalo text ──────────────────────────────────────────────────────────
   const copyZalo = useCallback(() => {
@@ -825,7 +906,7 @@ export default function TabInternalReport() {
 
     lines.push("━━━━━━━━━━━━━━━━━━━━");
     lines.push("✅ PHÂN CÔNG TUẦN MỚI");
-    for (const pic of PICS) {
+    for (const pic of picMembers) {
       const mine = tasks.filter((t) => t.pic === pic && t.status !== "done");
       if (!mine.length) continue;
       lines.push(`👤 ${pic}:`);
@@ -866,9 +947,18 @@ export default function TabInternalReport() {
           Báo cáo nội bộ ĐTĐM
         </h2>
 
+        {/* View mode toggle: 2 tuần / 1 tuần */}
+        <div style={{ display: "flex", border: "1px solid var(--border)", borderRadius: 7, overflow: "hidden", fontSize: 11.5 }}>
+          {[["biweekly", "2 tuần"], ["weekly", "1 tuần"]].map(([mode, label]) => (
+            <button key={mode} onClick={() => switchViewMode(mode)} style={{ padding: "4px 12px", border: "none", cursor: "pointer", fontWeight: 600, fontFamily: "inherit", background: viewMode === mode ? "rgba(15,124,123,0.85)" : "transparent", color: viewMode === mode ? "#fff" : "var(--text-secondary)" }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
         {/* Period selector */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-muted)" }}>
-          Kỳ báo cáo:
+          {viewMode === "biweekly" ? "Kỳ:" : "Tuần:"}
           <select value={period} onChange={(e) => setPeriod(e.target.value)} style={{ fontSize: 12, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg-panel)", color: "var(--amber)", fontWeight: 700, cursor: "pointer" }}>
             {periodOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -896,8 +986,8 @@ export default function TabInternalReport() {
       </div>
 
       {/* Status badge */}
-      {apiLoading && <div style={{ fontSize: 11.5, color: "var(--amber)", marginBottom: 10 }}>⏳ Đang tải dữ liệu từ Báo cáo Công ty ({period})...</div>}
-      {!apiLoading && report && <div style={{ fontSize: 11.5, color: "var(--green)", marginBottom: 10 }}>✓ Đã nạp số liệu kỳ {periLabel} từ Báo cáo Công ty · {blobLoaded ? "☁ Cloud sync OK" : "Lưu local"}</div>}
+      {apiLoading && <div style={{ fontSize: 11.5, color: "var(--amber)", marginBottom: 10 }}>⏳ Đang tải dữ liệu từ Báo cáo Công ty ({periLabel})...</div>}
+      {!apiLoading && report && <div style={{ fontSize: 11.5, color: "var(--green)", marginBottom: 10 }}>✓ Đã nạp số liệu {viewMode === "weekly" ? "tuần" : "kỳ"} {periLabel} từ Báo cáo Công ty · {blobLoaded ? "☁ Cloud sync OK" : "Lưu local"}</div>}
 
       {/* ── Bảng 1: On-time chi tiết ──────────────────────────────────── */}
       <div style={panel}>
@@ -944,10 +1034,13 @@ export default function TabInternalReport() {
               <button
                 onClick={handleCarryover}
                 disabled={carryLoading}
-                title={`Nhắc lại task chưa xong từ ${biweeklyPeriodLabel(prevBiweeklyPeriod(period))}`}
                 style={{ fontSize: 10.5, padding: "3px 10px", borderRadius: 5, border: "1px solid var(--border)", background: "transparent", cursor: carryLoading ? "wait" : "pointer", color: "var(--text-secondary)", opacity: carryLoading ? 0.5 : 1 }}
               >
-                {carryLoading ? "⏳" : "↩"} Nhắc lại từ {biweeklyPeriodLabel(prevBiweeklyPeriod(period))}
+                {(() => {
+                  const pp = viewMode === "weekly" ? prevWeeklyPeriod(period) : prevBiweeklyPeriod(period);
+                  const lbl = viewMode === "weekly" ? (pp || "").replace(/^\d{4}-/, "") : biweeklyPeriodLabel(pp);
+                  return <>{carryLoading ? "⏳" : "↩"} Nhắc lại từ {lbl}</>;
+                })()}
               </button>
             </div>
           }

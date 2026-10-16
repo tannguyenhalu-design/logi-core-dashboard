@@ -56,8 +56,9 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "POST") {
-    if (session.user.role !== "manager") {
-      return res.status(403).json({ ok: false, error: "Chỉ Manager được chỉnh sửa knowledge base" });
+    const role = session.user.role;
+    if (role !== "manager" && role !== "sd3") {
+      return res.status(403).json({ ok: false, error: "Chỉ Manager/SD được chỉnh sửa knowledge base" });
     }
 
     const { action, entry, id, entry_id, step, step_id } = req.body || {};

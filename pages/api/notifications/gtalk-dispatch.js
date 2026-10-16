@@ -1,193 +1,196 @@
 /**
+ * pages/api/notifications/gtalk-dispatch.js — Proactive GTalk card notifications.
+ *
  * POST /api/notifications/gtalk-dispatch
- * Nhận event đơn hàng → map client_id → SOP → format cảnh báo → bắn DM GTalk đến NVGH
+ *   Auth: x-snapshot-secret (internal cron only)
  *
- * Payload:
- *   { order_code, client_id, delivery_staff_gtalk_id, status }
+ * On call:
+ *   1. Scan anomalies via scanAnomalies(base, { minSeverity: "HIGH" })
+ *   2. Load cooldown state from Vercel Blob
+ *   3. Skip anomalies sent within last 4h (cooldown)
+ *   4. Group remaining by entity_id/project
+ *   5. Send Google Chat Card V2 to GTALK_OA_WEBHOOK_URL
+ *   6. Save updated cooldown
  *
- * Env required:
- *   GTALK_OA_ID    — Official Account ID của hệ thống
- *   GTALK_OA_TOKEN — "{username}:{password}" (GTalk OA credentials)
+ * Returns: { ok, dispatched, skipped, anomalies }
  */
-import { getSession } from "../../../lib/auth";
-import { get } from "@vercel/blob";
+import { loadLtlBase } from "../../../lib/ltl-snapshot";
+import { scanAnomalies } from "../../../lib/anomaly-detector";
+import { get, put } from "@vercel/blob";
 
-const KB_PATH    = "sops-knowledge.json";
-const NOTES_PATH = "sop-delivery-notes.json";
-const GTALK_BASE = "https://mbff.ghn.vn";
-
-const KHO_KW  = ["check-in", "tiếp nhận hàng", "chất xếp", "niêm phong", "ngoại quan",
-                  "tem seal", "mút eva", "nẹp góc", "quay video", "seal", "thùng",
-                  "móp", "rách", "băng keo", "nguyên vẹn", "nhận hàng", "kiểm đếm"];
-const VT_KW   = ["xe 1t9", "xe 5t", "xe 8t", "cbm", "cut-off", "điều xe", "tài xế",
-                  "bks", "cccd", "áo phản quang", "ftl", "ltl", "ghép chuyến",
-                  "xếp tầng", "trung chuyển", "xe tải"];
-const GIAO_KW = ["điểm giao", "booking giờ", "tttm", "siêu thị", "điện máy xanh", "đmx",
-                  "cao phong", "nguyễn kim", "epod", "pod ", "ký nhận", "đồng kiểm",
-                  "biên bản", "thu hồi chứng từ", "lệnh xuất", "phiếu xuất", "hóa đơn",
-                  "chứng từ", "hoàn tất", "upload ảnh"];
-
-function scoreKw(line, kw) {
-  const l = line.toLowerCase();
-  return kw.filter(k => l.includes(k)).length;
-}
-
-function parseGiaoLines(content) {
-  return content.split("\n")
-    .map(l => l.trim())
-    .filter(l => l.length > 15 && !/^#{1,3}\s/.test(l))
-    .map(l => l.replace(/^\d+\.\s*/, "").replace(/^[-*•]\s*/, ""))
-    .filter(l => scoreKw(l, GIAO_KW) > 0)
-    .slice(0, 4);
-}
-
-async function readBlob(path) {
-  try {
-    const res = await get(path, { access: "private", useCache: false });
-    if (!res) return null;
-    const text = await new Response(res.stream).text();
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
-// ── GTalk API helpers ──────────────────────────────────────────────────────────
-
-async function gtalkRequest(path, body) {
-  const res = await fetch(`${GTALK_BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    throw new Error(`GTalk HTTP ${res.status}: ${await res.text()}`);
-  }
-  const json = await res.json();
-  if (json.errorCode !== "success") {
-    throw new Error(`GTalk API error [${json.errorCode}]: ${json.error?.errorMessage || json.errorCode}`);
-  }
-  return json.data;
-}
-
-async function getDMChannelId(oaId, oaToken, employeeId) {
-  const data = await gtalkRequest("/api/gtalk/create-server-direct-channel", {
-    oaId,
-    oaToken,
-    identity: {
-      identityChannel: 1,
-      identityId: String(employeeId),
-    },
-  });
-  return data.channelId;
-}
-
-async function sendGtalkMessage(oaToken, channelId, text) {
-  return gtalkRequest("/api/gtalk/send-message", {
-    channelId,
-    clientMsgId: String(Date.now()),
-    content: { text, parseMode: "MARKDOWN" },
-    oaToken,
-  });
-}
-
-// ── Message builder ────────────────────────────────────────────────────────────
-
-function buildMessage(entry, manualNote, orderCode, imageUrls) {
-  const giaoLines = parseGiaoLines(entry.content || "");
-  const overrideNote = manualNote?.diem_giao || "";
-
-  const lines = [];
-  lines.push(`🚛 **Đơn ${orderCode}** — ${entry.title}`);
-  lines.push("");
-  lines.push("📋 **Lưu ý điểm giao:**");
-
-  if (overrideNote) {
-    lines.push(overrideNote);
-  } else if (giaoLines.length > 0) {
-    giaoLines.forEach(l => lines.push(`• ${l}`));
-  } else {
-    lines.push("(Chưa có ghi chú điểm giao cho khách hàng này)");
-  }
-
-  if (imageUrls && imageUrls.length > 0) {
-    lines.push("");
-    lines.push("🖼 **Ảnh hướng dẫn điểm giao:**");
-    imageUrls.slice(0, 4).forEach((url, i) => lines.push(`[Ảnh ${i + 1}](${url})`));
-  }
-
-  lines.push("");
-  lines.push("⚠️ _BẮT BUỘC quay video khi giao + upload POD ngay sau GTC._");
-
-  return lines.join("\n");
-}
-
-// ── Handler ────────────────────────────────────────────────────────────────────
+const COOLDOWN_MS  = 4 * 60 * 60 * 1000; // 4h
+const COOLDOWN_PATH = "alerts/gtalk-cooldown.json";
+const MAX_CARDS_PER_DISPATCH = 10;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
-  const session = await getSession(req, res);
-  if (!session?.user) return res.status(401).json({ ok: false, error: "Unauthorized" });
-
-  // delivery_staff_id: mã nhân viên GHN (identityId trong GTalk)
-  const { order_code, client_id, delivery_staff_id, status } = req.body || {};
-
-  if (!order_code || !client_id) {
-    return res.status(400).json({ ok: false, error: "Thiếu order_code hoặc client_id" });
+  const snapshotSecret = process.env.SNAPSHOT_SECRET;
+  const cronSecret = process.env.CRON_SECRET;
+  const auth = req.headers["x-snapshot-secret"] || req.headers.authorization?.replace("Bearer ", "");
+  if (!snapshotSecret && !cronSecret) {
+    return res.status(503).json({ error: "GTalk dispatch not configured" });
   }
+  const authorized = (snapshotSecret && auth === snapshotSecret) || (cronSecret && auth === cronSecret);
+  if (!authorized) return res.status(401).json({ error: "Unauthorized" });
 
-  if (status !== "delivering") {
-    return res.status(200).json({ ok: true, skipped: true, reason: "status không phải delivering" });
-  }
-
-  const oaId    = process.env.GTALK_OA_ID;
-  const oaToken = process.env.GTALK_OA_TOKEN;
-  if (!oaId || !oaToken) {
-    return res.status(503).json({ ok: false, error: "GTALK_OA_ID hoặc GTALK_OA_TOKEN chưa được cấu hình" });
-  }
-
-  if (!delivery_staff_id) {
-    return res.status(400).json({ ok: false, error: "Thiếu delivery_staff_id (mã nhân viên GHN)" });
-  }
-
-  const [kb, notes] = await Promise.all([readBlob(KB_PATH), readBlob(NOTES_PATH)]);
-  const entries  = Array.isArray(kb) ? kb : [];
-  const notesMap = (notes && typeof notes === "object") ? notes : {};
-
-  const match = entries.find(e => {
-    const m = (e.content || "").match(/Client\s*ID[:\s]+(\d+)/i);
-    return m && m[1] === String(client_id);
-  });
-
-  let msgText;
-  if (!match) {
-    msgText = `🚛 **Đơn ${order_code}** — Đang giao\n⚠️ Không tìm thấy SOP cho client ID ${client_id}. Vui lòng liên hệ CS kiểm tra.`;
-  } else {
-    const entryNotes  = notesMap[match.id] || {};
-    const giaoImgUrls = entryNotes.image_urls?.diem_giao || [];
-    msgText = buildMessage(match, entryNotes, order_code, giaoImgUrls);
+  const webhookUrl = process.env.GTALK_OA_WEBHOOK_URL;
+  if (!webhookUrl) {
+    return res.status(200).json({ ok: true, dispatched: 0, skipped: 0, reason: "GTALK_OA_WEBHOOK_URL not configured" });
   }
 
   try {
-    const channelId = await getDMChannelId(oaId, oaToken, delivery_staff_id);
-    const gtalkData = await sendGtalkMessage(oaToken, channelId, msgText);
+    const [base, cooldown] = await Promise.all([
+      loadLtlBase().catch(() => null),
+      loadCooldown(),
+    ]);
+
+    const allAnomalies = scanAnomalies(base, { minSeverity: "HIGH" });
+    const now = Date.now();
+
+    const toSend = [];
+    const skippedIds = [];
+
+    for (const a of allAnomalies) {
+      const lastSent = cooldown[a.anomaly_id];
+      if (lastSent && now - lastSent < COOLDOWN_MS) {
+        skippedIds.push(a.anomaly_id);
+      } else {
+        toSend.push(a);
+      }
+    }
+
+    if (toSend.length === 0) {
+      return res.status(200).json({ ok: true, dispatched: 0, skipped: skippedIds.length, anomalies: [] });
+    }
+
+    // Group by entity_id for card grouping
+    const grouped = groupByProject(toSend.slice(0, MAX_CARDS_PER_DISPATCH));
+    const card = buildCardV2(grouped, base?.builtAt);
+
+    const gtalkRes = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(card),
+    });
+
+    if (!gtalkRes.ok) {
+      const errText = await gtalkRes.text().catch(() => "");
+      console.error("[gtalk-dispatch] webhook failed:", gtalkRes.status, errText.slice(0, 200));
+      return res.status(502).json({ ok: false, error: `GTalk webhook error ${gtalkRes.status}` });
+    }
+
+    // Update cooldown
+    for (const a of toSend) {
+      cooldown[a.anomaly_id] = now;
+    }
+    // Prune old entries
+    for (const [id, ts] of Object.entries(cooldown)) {
+      if (now - ts > 7 * 24 * 3600_000) delete cooldown[id];
+    }
+    await saveCooldown(cooldown);
 
     return res.status(200).json({
       ok: true,
-      matched: !!match,
-      sop_id: match?.id || null,
-      gtalk_channel_id: channelId,
-      gtalk_msg_id: gtalkData?.globalMsgId || null,
-      message_preview: msgText.slice(0, 200),
+      dispatched: toSend.length,
+      skipped: skippedIds.length,
+      anomalies: toSend.map((a) => ({ anomaly_id: a.anomaly_id, severity: a.severity, title: a.title })),
     });
   } catch (err) {
-    return res.status(502).json({
-      ok: false,
-      error: `GTalk dispatch thất bại: ${err.message}`,
-      order_code,
-      client_id,
-      delivery_staff_id,
-    });
+    console.error("[gtalk-dispatch] error:", err);
+    return res.status(500).json({ ok: false, error: err.message });
   }
+}
+
+// ─── Cooldown persistence ────────────────────────────────────────────────────
+async function loadCooldown() {
+  try {
+    const res = await get(COOLDOWN_PATH, { access: "private", useCache: false });
+    if (!res) return {};
+    const text = await new Response(res.stream).text();
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
+}
+
+async function saveCooldown(cd) {
+  await put(COOLDOWN_PATH, JSON.stringify(cd), { access: "private", addRandomSuffix: false });
+}
+
+// ─── Card builders ────────────────────────────────────────────────────────────
+function groupByProject(anomalies) {
+  const groups = new Map();
+  for (const a of anomalies) {
+    const key = a.entity_type === "system" ? "system" : a.entity_id;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(a);
+  }
+  return groups;
+}
+
+const SEV_EMOJI = { CRITICAL: "🚨", HIGH: "⚠️", MEDIUM: "🟡", LOW: "🟢", INFO: "ℹ️" };
+const SEV_COLOR = { CRITICAL: "#D93025", HIGH: "#F57C00", MEDIUM: "#F9A825", LOW: "#388E3C", INFO: "#1A73E8" };
+
+function formatVal(metric, val) {
+  if (val === null || val === undefined) return "N/A";
+  if (metric === "ontime_rate") return `${val}%`;
+  if (metric === "damage_rate") return `${val}‰`;
+  if (metric === "comp_rate" || metric === "comp_per_order") return `${Number(val).toLocaleString("vi-VN")} VND`;
+  return String(val);
+}
+
+function buildCardV2(grouped, builtAt) {
+  const vnTime = new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
+  const dataLabel = builtAt
+    ? `Data tính đến: ${new Date(builtAt).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}`
+    : "Dữ liệu mới nhất";
+
+  const sections = [];
+
+  for (const [project, anomalies] of grouped) {
+    const headerEmoji = anomalies.some((a) => a.severity === "CRITICAL") ? "🚨" : "⚠️";
+    const widgets = anomalies.map((a) => ({
+      decoratedText: {
+        topLabel: `${SEV_EMOJI[a.severity]} ${a.severity}`,
+        text: `<b>${a.title}</b>`,
+        bottomLabel: `${formatVal(a.metric, a.current_value)} → ${a.baseline_value !== null ? formatVal(a.metric, a.baseline_value) : ""} | ${a.evidence?.window_label || a.detection_rule}`,
+        wrapText: true,
+      },
+    }));
+
+    // Add recommended action
+    const firstA = anomalies[0];
+    if (firstA?.recommendedAction) {
+      widgets.push({
+        textParagraph: { text: `💡 <i>${firstA.recommendedAction}</i>` },
+      });
+    }
+
+    sections.push({ header: `${headerEmoji} ${project}`, widgets });
+  }
+
+  // Footer
+  sections.push({
+    widgets: [{
+      textParagraph: {
+        text: `<font color="#888888"><i>${dataLabel} | SD3 Command Tower</i></font>`,
+      },
+    }],
+  });
+
+  return {
+    cardsV2: [{
+      cardId: `sd3-anomaly-${Date.now()}`,
+      card: {
+        header: {
+          title: `${SEV_EMOJI["CRITICAL"]} SD3 Cảnh báo bất thường`,
+          subtitle: vnTime,
+          imageUrl: "https://fonts.gstatic.com/s/i/googlematerialicons/warning/v11/24px.svg",
+          imageType: "CIRCLE",
+        },
+        sections,
+      },
+    }],
+  };
 }

@@ -74,6 +74,18 @@ export default function AIChatDrawer({ role }) {
     if (isOpen) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isOpen]);
 
+  // Listen for sd3:ai-prefill events from AlertSurface "Hỏi AI" button
+  useEffect(() => {
+    const handler = (e) => {
+      const msg = e.detail?.message;
+      if (!msg) return;
+      setIsOpen(true);
+      setInput(msg);
+    };
+    window.addEventListener("sd3:ai-prefill", handler);
+    return () => window.removeEventListener("sd3:ai-prefill", handler);
+  }, []);
+
   const addMsg = (m) => setMessages((prev) => {
     const next = [...prev, m];
     saveToSession(next);

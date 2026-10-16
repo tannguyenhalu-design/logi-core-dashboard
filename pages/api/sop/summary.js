@@ -135,8 +135,9 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "POST") {
-    if (session.user.role !== "manager") {
-      return res.status(403).json({ ok: false, error: "Chỉ Manager được chỉnh sửa" });
+    const role = session.user.role;
+    if (role !== "manager" && role !== "sd3") {
+      return res.status(403).json({ ok: false, error: "Chỉ Manager/SD được chỉnh sửa" });
     }
     const { id, section, content: noteContent, image_urls } = req.body || {};
     // Allow 4 default sections AND custom step IDs (step_xxx format)

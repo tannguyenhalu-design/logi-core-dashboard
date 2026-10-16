@@ -133,7 +133,22 @@ function parseSections(content) {
   return { pickup, linehaul, delivery, epod_docs };
 }
 
-function formatSOPReply(entry, notes) {
+// Detect khâu chính từ query để gắn vào deep-link
+function detectStep(query) {
+  const q = query.toLowerCase();
+  const d = DELIVERY_KW.filter(k => q.includes(k)).length;
+  const l = LINEHAUL_KW.filter(k => q.includes(k)).length;
+  const p = PICKUP_KW.filter(k => q.includes(k)).length;
+  const e = EPOD_KW.filter(k => q.includes(k)).length;
+  const best = Math.max(d, l, p, e);
+  if (best === 0) return null;
+  if (d === best) return "delivery";
+  if (l === best) return "linehaul";
+  if (p === best) return "pickup";
+  return "epod";
+}
+
+function formatSOPReply(entry, notes, queryStep) {
   const parsed = parseSections(entry.content || "");
   const clientIds = extractClientId(entry.content);
   const note = notes || {};
@@ -172,6 +187,14 @@ function formatSOPReply(entry, notes) {
   }
 
   lines.push("⚠️ _Quay video khi giao + upload POD ngay sau GTC._");
+
+  // Deep-link về Sổ tay SOP
+  const step    = queryStep || "delivery";
+  const clientQ = clientIds.length > 0 ? `&client=${clientIds[0]}` : "";
+  const deepUrl = `${CANONICAL_BASE}/dashboard?step=${step}${clientQ}`;
+  lines.push("");
+  lines.push(`[ 📱 Xem hướng dẫn riêng khâu này ](${deepUrl})`);
+
   return lines.join("\n");
 }
 
@@ -272,12 +295,14 @@ export default async function handler(req, res) {
   const result = findSOP(query, entries);
   let replyText;
 
+  const queryStep = detectStep(query);
+
   if (!result) {
     replyText = `❓ Không tìm thấy SOP cho "${query}".\nGõ tên khách hàng (Aqua, LG, Smartlink...) hoặc Client ID.`;
   } else if (result._multiple) {
     replyText = formatMultipleReply(result._multiple);
   } else {
-    replyText = formatSOPReply(result, notesMap[result.id]);
+    replyText = formatSOPReply(result, notesMap[result.id], queryStep);
   }
 
   // ?test=1 → skip GTalk send, trả preview để kiểm tra format

@@ -22,7 +22,7 @@ const TAB_OPTIONS = [
   { value: "report",     label: "Báo cáo công ty" },
   { value: "trials",     label: "Sổ tay cải tiến" },
   { value: "teamreport", label: "Báo cáo nội bộ ĐTĐM" },
-  { value: "sop",        label: "📋 SOP & Điểm Giao" },
+  { value: "sop",        label: "📋 Sổ tay SOP" },
 ];
 
 function defaultTabsForRole(role) {

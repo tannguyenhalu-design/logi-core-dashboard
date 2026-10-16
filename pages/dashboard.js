@@ -24,6 +24,8 @@ const TabDecision   = dynamic(() => import("../components/TabDecision"),   { ssr
 const TabInternalReport = dynamic(() => import("../components/TabInternalReport"), { ssr: false });
 const SOPKnowledgeHub = dynamic(() => import("../components/SOPKnowledgeHub"), { ssr: false });
 const AIChatDrawer  = dynamic(() => import("../components/AIChatDrawer"),  { ssr: false });
+const AlertSurface  = dynamic(() => import("../components/AlertSurface"),  { ssr: false });
+const CommandCenter = dynamic(() => import("../components/CommandCenter"), { ssr: false });
 
 // Kế hoạch A · P4: while the dashboard is idle, load the code of the tabs this
 // role can open, plus each tab's first small requests (the tab module's own
@@ -42,7 +44,7 @@ const tabsForRole = (role) => (role === "manager" ? ["decision", "report", "tria
 
 // Kế hoạch A · P3: tabs that stay mounted (hidden) once opened, so coming
 // back shows them at once with their data and state; each has a reload button.
-const KEEP_ALIVE_TABS = ["decision", "report", "trials", "users", "auditlog", "health", "teamreport", "sop"];
+const KEEP_ALIVE_TABS = ["command", "decision", "report", "trials", "users", "auditlog", "health", "teamreport", "sop"];
 
 const LEGACY_TABS = ["ltl", "operations", "tachtrip", "ftl"];
 const LTL_VIEWS = [
@@ -92,9 +94,11 @@ export default function DashboardPage({ user: initialUser }) {
   const canSeeTrials = isManager || userTabs.includes("trials");
   const canSeeSop = isManager || userTabs.includes("sop");
   const canSeeDecision = isManager || user.role === "sd3";
-  const firstTab = canSeeDecision ? "decision" : canSeeLTL ? "ltl" : canSeeMap ? "map" : canSeeDamage ? "damage" : canSeeEvents ? "events" : canSeeReport ? "report" : canSeeTrials ? "trials" : "none";
-  const VALID_TABS = ["ltl","map","damage","events","vehicles","pnl","decision","report","trials","users","auditlog","health","brain","teamreport","sop"];
+  const firstTab = canSeeDecision ? "command" : canSeeLTL ? "ltl" : canSeeMap ? "map" : canSeeDamage ? "damage" : canSeeEvents ? "events" : canSeeReport ? "report" : canSeeTrials ? "trials" : "none";
+  const VALID_TABS = ["command","ltl","map","damage","events","vehicles","pnl","decision","report","trials","users","auditlog","health","brain","teamreport","sop"];
   const [activeTab, setActiveTab] = useState(firstTab); // LTL_VIEWS id | 'report' | 'trials' | 'users' | 'auditlog' | 'health' | 'brain' | 'none'
+  const [sopStep, setSopStep]     = useState(null);   // deep-link: pickup|linehaul|delivery|epod
+  const [sopClient, setSopClient] = useState(null);   // deep-link: client ID string
   const isLTLView = LTL_VIEWS.some((v) => v.id === activeTab);
   const [selectedMonths, setSelectedMonths] = useState(() => {
     // Mặc định: tháng hiện tại (VN time). Chọn thêm tháng cũ qua FilterBar.
@@ -132,11 +136,18 @@ export default function DashboardPage({ user: initialUser }) {
   const activeFilterCount = (selectedMonths.length ? 1 : 0) + (selectedProjects.length ? 1 : 0) + (dateFrom || dateTo ? 1 : 0);
   const goTab = (id) => { startTransition(() => { setActiveTab(id); setNavOpen(false); }); };
   // ?t=tabId in URL → switch to that tab after client hydration (direct links / audit)
+  // ?step=delivery&client=5438335 → deep-link vào Sổ tay SOP, filter section + card
   useEffect(() => {
-    if (router.isReady && router.query.t && VALID_TABS.includes(router.query.t)) {
+    if (!router.isReady) return;
+    if (router.query.t && VALID_TABS.includes(router.query.t)) {
       setActiveTab(router.query.t);
     }
-  }, [router.isReady, router.query.t]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (router.query.step) {
+      setActiveTab("sop");
+      setSopStep(router.query.step || null);
+      setSopClient(router.query.client || null);
+    }
+  }, [router.isReady, router.query.t, router.query.step, router.query.client]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!navOpen) return;
     const onKey = (e) => { if (e.key === "Escape") setNavOpen(false); };
@@ -471,185 +482,80 @@ export default function DashboardPage({ user: initialUser }) {
             </div>
           </div>
 
-          {/* Active Navigation */}
-          <nav className="sidebar-nav" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {LTL_VIEWS.filter((v) =>
-              v.id === "ltl" ? canSeeLTL :
-              v.id === "map" ? canSeeMap :
-              v.id === "damage" ? canSeeDamage :
-              v.id === "events" ? canSeeEvents :
-              v.id === "vehicles" ? canSeeVehicles :
-              v.id === "pnl" ? canSeePnL : false
-            ).map((v) => (
-              <div
-                key={v.id}
-                className={`nav-item ${activeTab === v.id ? "active" : ""}`}
-                onClick={() => goTab(v.id)}
-                style={{
-                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8,
-                  color: activeTab === v.id ? "#fff" : "var(--text-muted)",
-                  background: activeTab === v.id ? "rgba(var(--brand-rgb),0.15)" : "transparent"
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d={v.icon}/>
-                </svg>
-                {v.label}
-              </div>
-            ))}
-            {canSeeDecision && (
-              <div
-                className={`nav-item ${activeTab === "decision" ? "active" : ""}`}
-                onClick={() => goTab("decision")}
-                style={{
-                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8,
-                  color: activeTab === "decision" ? "#fff" : "var(--text-muted)",
-                  background: activeTab === "decision" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-                </svg>
-                Quyết định hôm nay
-              </div>
-            )}
-            {canSeeReport && (
-              <div
-                className={`nav-item ${activeTab === "report" ? "active" : ""}`}
-                onClick={() => goTab("report")}
-                style={{
-                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8,
-                  color: activeTab === "report" ? "#fff" : "var(--text-muted)",
-                  background: activeTab === "report" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/>
-                </svg>
-                Báo cáo công ty
-              </div>
-            )}
-            {canSeeTeamReport && (
-              <div
-                className={`nav-item ${activeTab === "teamreport" ? "active" : ""}`}
-                onClick={() => goTab("teamreport")}
-                style={{
-                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8,
-                  color: activeTab === "teamreport" ? "#fff" : "var(--text-muted)",
-                  background: activeTab === "teamreport" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
-                </svg>
-                Báo cáo nội bộ ĐTĐM
-              </div>
-            )}
-            {canSeeTrials && (
-              <div
-                className={`nav-item ${activeTab === "trials" ? "active" : ""}`}
-                onClick={() => goTab("trials")}
-                style={{
-                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8,
-                  color: activeTab === "trials" ? "#fff" : "var(--text-muted)",
-                  background: activeTab === "trials" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 3h6"/><path d="M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"/><path d="M7.5 14h9"/>
-                </svg>
-                Sổ tay cải tiến
-              </div>
-            )}
-            {canSeeSop && (
-              <div
-                className={`nav-item ${activeTab === "sop" ? "active" : ""}`}
-                onClick={() => goTab("sop")}
-                style={{
-                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8,
-                  color: activeTab === "sop" ? "#fff" : "var(--text-muted)",
-                  background: activeTab === "sop" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>
-                </svg>
-                SOP & Điểm Giao
-              </div>
-            )}
-            {user.role === "manager" && (
-              <div
-                className={`nav-item ${activeTab === "users" ? "active" : ""}`}
-                onClick={() => goTab("users")}
-                style={{
-                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8,
-                  color: activeTab === "users" ? "#fff" : "var(--text-muted)",
-                  background: activeTab === "users" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                </svg>
-                Quản lý người dùng
-              </div>
-            )}
-            {user.role === "manager" && (
-              <div
-                className={`nav-item ${activeTab === "auditlog" ? "active" : ""}`}
-                onClick={() => goTab("auditlog")}
-                style={{
-                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8,
-                  color: activeTab === "auditlog" ? "#fff" : "var(--text-muted)",
-                  background: activeTab === "auditlog" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/>
-                </svg>
-                Nhật Ký Hoạt Động
-              </div>
-            )}
-            {user.role === "manager" && (
-              <div
-                className={`nav-item ${activeTab === "health" ? "active" : ""}`}
-                onClick={() => goTab("health")}
-                style={{
-                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8,
-                  color: activeTab === "health" ? "#fff" : "var(--text-muted)",
-                  background: activeTab === "health" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-                </svg>
-                Trạng thái hệ thống
-              </div>
-            )}
-            {user.role === "manager" && (
-              <div
-                className={`nav-item ${activeTab === "brain" ? "active" : ""}`}
-                onClick={() => goTab("brain")}
-                style={{
-                  cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8,
-                  color: activeTab === "brain" ? "#fff" : "var(--text-muted)",
-                  background: activeTab === "brain" ? "rgba(var(--brand-rgb),0.15)" : "transparent"
-                }}
-              >
-                <span style={{ fontSize: 16 }}>🧠</span>
-                Bộ Não Tiểu Đệ
-              </div>
-            )}
-          </nav>
+          {/* Active Navigation — 6 grouped sections */}
+          {(() => {
+            const ni = (id, svgContent, label) => {
+              const on = activeTab === id;
+              return (
+                <div key={id} className={`nav-item ${on ? "active" : ""}`} onClick={() => goTab(id)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 9, padding: "8px 12px", borderRadius: 8, fontSize: 13, color: on ? "#fff" : "var(--text-muted)", background: on ? "rgba(var(--brand-rgb),0.15)" : "transparent" }}>
+                  {svgContent}
+                  {label}
+                </div>
+              );
+            };
+            const iconSvg = (d, poly = false) => (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                {poly ? <polygon points={d}/> : <path d={d}/>}
+              </svg>
+            );
+            const grpLabel = (icon, text) => (
+              <div style={{ fontSize: 9, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", padding: "10px 12px 2px", opacity: 0.55 }}>{icon} {text}</div>
+            );
+            return (
+              <nav className="sidebar-nav" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                {/* 🎛️ Command Center */}
+                {canSeeDecision && <>
+                  {grpLabel("🎛️", "Command Center")}
+                  {ni("command", <span style={{ fontSize: 15 }}>🎛️</span>, "Trung Tâm Điều Hành")}
+                </>}
+
+                {/* 🚨 Vấn Đề */}
+                {canSeeDecision && <>
+                  {grpLabel("🚨", "Vấn Đề")}
+                  {ni("decision", iconSvg("13 2 3 14 12 14 11 22 21 10 12 10 13 2", true), "Quyết định hôm nay")}
+                </>}
+
+                {/* 🔍 Điều Tra */}
+                {(canSeeLTL || canSeeMap || canSeeDamage || canSeeEvents || canSeeVehicles || canSeePnL) && <>
+                  {grpLabel("🔍", "Điều Tra")}
+                  {canSeeLTL      && ni("ltl",      iconSvg("M3 3h18v18H3zM21 9H3M9 21V9"),                                                                    "Tổng quan LTL")}
+                  {canSeeMap      && ni("map",      iconSvg("M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-.553-.894L15 4m0 13V4m0 0L9 7"), "Performance cả nước")}
+                  {canSeeDamage   && ni("damage",   iconSvg("M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01"), "⚠️ Hư hỏng & Rủi ro")}
+                  {canSeeEvents   && ni("events",   iconSvg("M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"),  "📅 Sự kiện")}
+                  {canSeeVehicles && ni("vehicles", iconSvg("M1 3h15v13H1zM16 8h4l3 3v5h-7V8zM5.5 21a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM18.5 21a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"), "🚛 Ghép chuyến")}
+                  {canSeePnL      && ni("pnl",      iconSvg("M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8"),   "💼 P&L Dự án")}
+                </>}
+
+                {/* ⚡ Hành Động */}
+                {canSeeTrials && <>
+                  {grpLabel("⚡", "Hành Động")}
+                  {ni("trials", iconSvg("M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3M7.5 14h9"), "Sổ tay cải tiến")}
+                </>}
+
+                {/* 📚 Kiến Thức */}
+                {(canSeeSop || user.role === "manager") && <>
+                  {grpLabel("📚", "Kiến Thức")}
+                  {canSeeSop          && ni("sop",   iconSvg("M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h5"), "Sổ tay SOP")}
+                  {user.role === "manager" && ni("brain", <span style={{ fontSize: 15 }}>🧠</span>, "Bộ Não Tiểu Đệ")}
+                </>}
+
+                {/* 📊 Báo Cáo */}
+                {(canSeeReport || canSeeTeamReport) && <>
+                  {grpLabel("📊", "Báo Cáo")}
+                  {canSeeReport     && ni("report",     iconSvg("M3 3v18h18M7 12h3v6H7zM12 8h3v10h-3zM17 5h3v13h-3z"), "Báo cáo công ty")}
+                  {canSeeTeamReport && ni("teamreport", iconSvg("M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"), "Báo cáo nội bộ ĐTĐM")}
+                </>}
+
+                {/* ⚙️ Hệ Thống (manager only) */}
+                {user.role === "manager" && <>
+                  {grpLabel("⚙️", "Hệ Thống")}
+                  {ni("users",    iconSvg("M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"), "Quản lý người dùng")}
+                  {ni("auditlog", iconSvg("M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 13h6M9 17h6"), "Nhật Ký Hoạt Động")}
+                  {ni("health",   iconSvg("M22 12h-4l-3 9L9 3l-3 9H2"),                                                            "Trạng thái hệ thống")}
+                </>}
+              </nav>
+            );
+          })()}
 
           {/* ── Role Switcher (Manager only) ── */}
           {isManager && dashData && (
@@ -780,7 +686,8 @@ export default function DashboardPage({ user: initialUser }) {
               </button>
               <div className="header-title" style={{ fontWeight: 600, fontSize: 15, color: "var(--text-primary)" }}>
                 {LTL_VIEWS.find((v) => v.id === activeTab)?.label
-                  || (activeTab === "decision" ? "Quyết định hôm nay"
+                  || (activeTab === "command" ? "🎛️ Trung Tâm Điều Hành"
+                  : activeTab === "decision" ? "Quyết định hôm nay"
                   : activeTab === "report" ? "Báo cáo công ty"
                   : activeTab === "trials" ? "Sổ tay Cải tiến & Đo lường Giải pháp"
                   : activeTab === "users" ? "Quản lý người dùng"
@@ -788,7 +695,7 @@ export default function DashboardPage({ user: initialUser }) {
                   : activeTab === "health" ? "Trạng thái hệ thống"
                   : activeTab === "brain" ? "Bộ Não Tiểu Đệ"
                   : activeTab === "teamreport" ? "Báo cáo nội bộ ĐTĐM"
-                  : activeTab === "sop" ? "SOP & Đặc thù Điểm Giao B2B"
+                  : activeTab === "sop" ? "Sổ tay SOP — B2B Điện Máy"
                   : "SD3- Dashboard Điện Máy")}
               </div>
               {isManager && viewAs.type !== "manager" && (
@@ -897,6 +804,13 @@ export default function DashboardPage({ user: initialUser }) {
 
           {/* Dashboard body */}
           <main className="dashboard-main" style={{ flex: 1, overflowY: "auto", position: "relative" }}>
+            {/* Proactive anomaly alert surface (manager + sd3 only) */}
+            {(user.role === "manager" || user.role === "sd3") && (
+              <AlertSurface
+                role={user.role}
+                onGoTrials={(opts) => goTab("trials")}
+              />
+            )}
             {activeTab === "none" ? (
               <div style={{
                 background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)",
@@ -944,13 +858,14 @@ export default function DashboardPage({ user: initialUser }) {
             {/* Opened tabs stay mounted, hidden while another tab is shown. */}
             {KEEP_ALIVE_TABS.filter((id) => visited.has(id) || activeTab === id).map((id) => (
               <div key={id} style={activeTab === id ? undefined : { display: "none" }}>
-                {id === "decision" ? <TabDecision role={user.role} onNavigate={goTab} />
+                {id === "command" ? <CommandCenter role={user.role} onGoTab={goTab} dashData={dashData} />
+                  : id === "decision" ? <TabDecision role={user.role} onNavigate={goTab} />
                   : id === "report" ? <TabCompanyReport />
                   : id === "trials" ? <TabTrials />
                   : id === "users" ? <TabUsers />
                   : id === "auditlog" ? <TabAuditLog />
                   : id === "teamreport" ? <TabInternalReport />
-                  : id === "sop" ? <SOPKnowledgeHub role={user.role} />
+                  : id === "sop" ? <SOPKnowledgeHub role={user.role} stepFilter={sopStep} clientFilter={sopClient} />
                   : <TabSystemHealth />}
               </div>
             ))}

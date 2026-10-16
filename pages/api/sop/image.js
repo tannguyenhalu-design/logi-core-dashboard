@@ -4,9 +4,20 @@
  * Dùng BLOB_READ_WRITE_TOKEN server-side để fetch, rồi pipe về client.
  */
 export default async function handler(req, res) {
-  const blobUrl = req.query.b;
+  let blobUrl = (req.query.b || "").trim().replace(/ /g, "");
   if (!blobUrl || !blobUrl.startsWith("https://")) {
     return res.status(400).end();
+  }
+
+  // Unwrap nếu là proxy URL (deployment cũ / double-proxy):
+  //   https://xxx.vercel.app/api/sop/image?b=<encoded-blob>
+  // → lấy inner blob URL thật
+  while (blobUrl.includes("/api/sop/image?b=")) {
+    try {
+      const inner = decodeURIComponent(new URL(blobUrl.replace(/ /g, "")).searchParams.get("b") || "");
+      if (!inner || !inner.startsWith("https://") || inner.replace(/ /g, "") === blobUrl) break;
+      blobUrl = inner.trim().replace(/ /g, "");
+    } catch { break; }
   }
 
   const token = process.env.BLOB_READ_WRITE_TOKEN;

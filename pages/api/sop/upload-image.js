@@ -15,8 +15,9 @@ export default async function handler(req, res) {
 
   const session = await getSession(req, res);
   if (!session?.user) return res.status(401).json({ ok: false });
-  if (session.user.role !== "manager") {
-    return res.status(403).json({ ok: false, error: "Chỉ Manager được upload" });
+  const role = session.user.role;
+  if (role !== "manager" && role !== "sd3") {
+    return res.status(403).json({ ok: false, error: "Chỉ Manager/SD được upload" });
   }
 
   const ct = (req.headers["content-type"] || "").toLowerCase();

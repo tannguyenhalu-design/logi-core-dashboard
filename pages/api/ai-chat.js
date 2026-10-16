@@ -17,6 +17,7 @@ import { computeDashboard } from "../../lib/ltl-dashboard";
 import { extractInsightsFromChat, saveBrainInsights, loadBrain } from "../../lib/ai-brain";
 import { runAgentPipeline } from "../../lib/ai-agents";
 import { canSeeSolutions } from "../../lib/ai-agents/common";
+import { computeQualityScore } from "../../lib/data-health";
 
 // Planner + Aggregator = 2 lần gọi AI nối tiếp (nhà cung cấp dự phòng) — quan sát thực tế 10–15s;
 // đừng để Vercel cắt một câu trả lời đang chạy chậm.
@@ -33,6 +34,25 @@ export default async function handler(req, res) {
   // enforcement — block it here too so a direct API call can't bypass it.
   if (session.user.role === "cs") {
     return res.status(403).json({ error: "Vai trò CS không có quyền dùng Tiểu Đệ" });
+  }
+
+  // AI Data Gate (Phase 1 Step 6): block analysis when raw_ontime quality is RED.
+  // Fails open — if gate check itself errors, analysis proceeds normally.
+  try {
+    const gateBase = await loadLtlBase().catch(() => null);
+    if (gateBase) {
+      const qs = computeQualityScore(gateBase);
+      if (qs.status === "RED") {
+        return res.status(503).json({
+          ok: false,
+          error: "CHẤT LƯỢNG DỮ LIỆU KHÔNG ĐỦ — ĐÃ CHẶN PHÂN TÍCH",
+          qualityScore: qs.score,
+          breakdown: qs.breakdown,
+        });
+      }
+    }
+  } catch (gateErr) {
+    console.warn("[ai-chat] data gate check failed (fail-open):", gateErr.message);
   }
 
   const message = clean(req.body?.message, 1000).trim();

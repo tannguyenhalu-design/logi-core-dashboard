@@ -8,6 +8,21 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 const DEFAULT_STEP_KEYS = ["pickup", "linehaul", "delivery", "epod_docs"];
 
+// Deep-link: ?step=delivery → section key mapping
+const STEP_PARAM_MAP = {
+  pickup:    "pickup",
+  linehaul:  "linehaul",
+  delivery:  "delivery",
+  epod:      "epod_docs",
+  epod_docs: "epod_docs",
+};
+const STEP_LABEL = {
+  pickup:    "Lấy hàng",
+  linehaul:  "Trung chuyển",
+  delivery:  "Giao hàng",
+  epod_docs: "EPOD & Chứng từ",
+};
+
 const SECTION_CFG = {
   pickup: {
     label: "📦 Chặng 1 — Lấy Hàng (Pickup)",
@@ -141,17 +156,25 @@ function ThumbnailGrid({ urls, onOpen }) {
 // ── Wrap private blob URL qua proxy ───────────────────────────────────────────
 function toDisplayUrl(url) {
   if (!url) return url;
-  if (url.startsWith("/api/sop/image")) return url;
-  if (url.includes("blob.vercel-storage.com")) {
-    return `/api/sop/image?b=${encodeURIComponent(url)}`;
+  const clean = url.trim().replace(/ /g, ""); // strip spaces từ URL cũ bị corrupt
+  if (clean.startsWith("/api/sop/image")) return clean;
+  if (clean.includes("blob.vercel-storage.com")) {
+    return `/api/sop/image?b=${encodeURIComponent(clean)}`;
   }
-  if (url.includes("/api/sop/image?b=")) {
+  // URL proxy cũ (deployment-specific) → unwrap lấy blob URL thật
+  if (clean.includes("/api/sop/image?b=")) {
     try {
-      const inner = decodeURIComponent(new URL(url).searchParams.get("b") || "");
-      if (inner) return `/api/sop/image?b=${encodeURIComponent(inner)}`;
+      let inner = decodeURIComponent(new URL(clean).searchParams.get("b") || "").trim().replace(/ /g, "");
+      // Unwrap nhiều tầng nếu có
+      while (inner.includes("/api/sop/image?b=")) {
+        const deeper = decodeURIComponent(new URL(inner).searchParams.get("b") || "").trim().replace(/ /g, "");
+        if (!deeper || deeper === inner) break;
+        inner = deeper;
+      }
+      if (inner && inner.startsWith("https://")) return `/api/sop/image?b=${encodeURIComponent(inner)}`;
     } catch {}
   }
-  return url;
+  return clean;
 }
 
 // ── Parse URL input ────────────────────────────────────────────────────────────
@@ -315,7 +338,7 @@ function ImageUploadArea({ urls, onChange, onOpenLightbox, color }) {
 // ── Section block ──────────────────────────────────────────────────────────────
 // cfg prop: { label, color, bg, hint, imgHint? }
 // onDeleteStep: callback khi xóa custom step (undefined cho 4 bước mặc định)
-function SectionBlock({ sectionKey, cfg: cfgProp, lines, manualNote, imageUrls, isManager, onSaveNote, onOpenLightbox, onDeleteStep }) {
+function SectionBlock({ sectionKey, cfg: cfgProp, lines, manualNote, imageUrls, isManager, canEditKb, onSaveNote, onOpenLightbox, onDeleteStep }) {
   const cfg = cfgProp || SECTION_CFG[sectionKey] || {
     label: sectionKey, color: "var(--cyan)",
     bg: "rgba(var(--brand-rgb),0.08)", hint: "",
@@ -371,7 +394,7 @@ function SectionBlock({ sectionKey, cfg: cfgProp, lines, manualNote, imageUrls, 
               title="Chỉnh sửa ghi chú và ảnh"
             >✏️ Sửa</button>
           )}
-          {isManager && onDeleteStep && !editing && (
+          {canEditKb && onDeleteStep && !editing && (
             <button
               onClick={() => setConfirmDel(true)}
               style={{
@@ -586,7 +609,7 @@ function AddStepForm({ onSave, onCancel, saving }) {
 }
 
 // ── Client card ────────────────────────────────────────────────────────────────
-function ClientCard({ summary, isManager, onSaveNote, onEditEntry, onDeleteEntry, onAddStep, onDeleteStep }) {
+function ClientCard({ summary, isManager, canEditKb, onSaveNote, onEditEntry, onDeleteEntry, onAddStep, onDeleteStep, activeStepKey, autoOpen }) {
   const [open, setOpen]             = useState(false);
   const [lightboxUrl, setLightbox]  = useState(null);
   const [editMode, setEditMode]     = useState(false);
@@ -717,8 +740,14 @@ function ClientCard({ summary, isManager, onSaveNote, onEditEntry, onDeleteEntry
     }
   };
 
-  const customSteps = summary.customSteps || [];
-  const allStepIds  = [...DEFAULT_STEP_KEYS, ...customSteps.map(s => s.id)];
+  // Auto-open khi được deep-link đến
+  useEffect(() => { if (autoOpen) setOpen(true); }, [autoOpen]);
+
+  const customSteps   = summary.customSteps || [];
+  const allStepIds    = [...DEFAULT_STEP_KEYS, ...customSteps.map(s => s.id)];
+  const visibleStepIds = activeStepKey
+    ? allStepIds.filter(id => id === activeStepKey)
+    : allStepIds;
 
   return (
     <>
@@ -772,7 +801,7 @@ function ClientCard({ summary, isManager, onSaveNote, onEditEntry, onDeleteEntry
             </svg>
           </button>
 
-          {isManager && (
+          {canEditKb && (
             <div style={{ display: "flex", gap: 4, padding: "0 12px", flexShrink: 0 }}>
               <button
                 onClick={openEdit}
@@ -915,7 +944,7 @@ function ClientCard({ summary, isManager, onSaveNote, onEditEntry, onDeleteEntry
             ) : (
               <div style={{ padding: "12px 16px 14px" }}>
                 {/* Render 4 bước chuẩn + custom steps */}
-                {allStepIds.map(secId => {
+                {visibleStepIds.map(secId => {
                   const customStep = customSteps.find(s => s.id === secId);
                   const cfg = customStep
                     ? { label: customStep.label, color: customStep.color || "#06b6d4", bg: hexToBg(customStep.color || "#06b6d4"), hint: customStep.hint || "" }
@@ -929,6 +958,7 @@ function ClientCard({ summary, isManager, onSaveNote, onEditEntry, onDeleteEntry
                       manualNote={summary.manualNote?.[secId] || ""}
                       imageUrls={summary.imageUrls?.[secId] || []}
                       isManager={isManager}
+                      canEditKb={canEditKb}
                       onSaveNote={(section, content, imgs) => onSaveNote(summary.id, section, content, imgs)}
                       onOpenLightbox={setLightbox}
                       onDeleteStep={customStep ? () => handleDeleteStep(secId) : undefined}
@@ -937,7 +967,7 @@ function ClientCard({ summary, isManager, onSaveNote, onEditEntry, onDeleteEntry
                 })}
 
                 {/* Thêm bước mới (manager only) */}
-                {isManager && !addingStep && (
+                {canEditKb && !addingStep && (
                   <button
                     onClick={() => setAddingStep(true)}
                     style={{
@@ -954,7 +984,7 @@ function ClientCard({ summary, isManager, onSaveNote, onEditEntry, onDeleteEntry
                   </button>
                 )}
 
-                {isManager && addingStep && (
+                {canEditKb && addingStep && (
                   <AddStepForm
                     onSave={handleAddStep}
                     onCancel={() => { setAddingStep(false); setKbError(""); }}
@@ -1190,8 +1220,14 @@ function GtalkTestPanel() {
 }
 
 // ── Main export ────────────────────────────────────────────────────────────────
-export default function SOPKnowledgeHub({ role }) {
+export default function SOPKnowledgeHub({ role, stepFilter, clientFilter }) {
   const isManager = role === "manager" || role === "sd3";
+  const canEditKb = role === "manager" || role === "sd3";
+  // Deep-link step filter: map URL param → section key, allow user to clear
+  const mappedStep = stepFilter ? (STEP_PARAM_MAP[stepFilter] || null) : null;
+  const [localStepKey, setLocalStepKey] = useState(mappedStep);
+  // Update nếu prop thay đổi (URL navigate)
+  useEffect(() => { setLocalStepKey(mappedStep); }, [mappedStep]); // eslint-disable-line react-hooks/exhaustive-deps
   const [summaries, setSummaries] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
@@ -1276,7 +1312,7 @@ export default function SOPKnowledgeHub({ role }) {
       {/* Header */}
       <div style={{ marginBottom: 20 }}>
         <h2 style={{ fontWeight: 700, fontSize: 17, margin: 0, marginBottom: 4 }}>
-          SOP & Đặc thù điểm giao — B2B Điện Máy
+          Sổ tay SOP — B2B Điện Máy
         </h2>
         <p style={{ fontSize: 12.5, color: "var(--text-muted)", margin: 0 }}>
           Tóm tắt actionable cho từng khách hàng: yêu cầu kho nguồn, vận tải, và đặc thù điểm giao.
@@ -1303,7 +1339,7 @@ export default function SOPKnowledgeHub({ role }) {
             {filtered.length}/{summaries.length} khách hàng
           </span>
         )}
-        {isManager && !addMode && (
+        {canEditKb && !addMode && (
           <button
             onClick={() => setAddMode(true)}
             style={{
@@ -1315,7 +1351,7 @@ export default function SOPKnowledgeHub({ role }) {
         )}
       </div>
 
-      {isManager && addMode && (
+      {canEditKb && addMode && (
         <AddSOPPanel
           onAdded={(freshSummaries) => {
             if (freshSummaries) setSummaries(freshSummaries);
@@ -1325,7 +1361,7 @@ export default function SOPKnowledgeHub({ role }) {
         />
       )}
 
-      {isManager && !addMode && <GtalkTestPanel />}
+      {canEditKb && !addMode && <GtalkTestPanel />}
 
       {saveError && (
         <div style={{
@@ -1357,18 +1393,47 @@ export default function SOPKnowledgeHub({ role }) {
         </div>
       )}
 
-      {filtered.map(s => (
-        <ClientCard
-          key={s.id}
-          summary={s}
-          isManager={isManager}
-          onSaveNote={handleSaveNote}
-          onEditEntry={handleEditEntry}
-          onDeleteEntry={handleDeleteEntry}
-          onAddStep={handleAddStep}
-          onDeleteStep={handleDeleteStep}
-        />
-      ))}
+      {/* Badge deep-link filter */}
+      {localStepKey && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8, marginBottom: 10,
+          padding: "7px 12px", borderRadius: 8,
+          background: "rgba(var(--brand-rgb),0.1)", border: "1px solid rgba(var(--brand-rgb),0.3)",
+          fontSize: 12.5,
+        }}>
+          <span>🔍 Đang xem: <strong>{STEP_LABEL[localStepKey] || localStepKey}</strong></span>
+          <button
+            onClick={() => setLocalStepKey(null)}
+            style={{
+              background: "none", border: "1px solid var(--border)", borderRadius: 5,
+              padding: "2px 10px", fontSize: 11.5, cursor: "pointer",
+              color: "var(--text-secondary)", fontFamily: "inherit",
+            }}
+          >👁️ Xem tất cả</button>
+        </div>
+      )}
+
+      {filtered.map(s => {
+        const clientIds = (s.client_id ? [s.client_id] : []).concat(
+          [...(s.content || "").matchAll(/Client\s*ID[:\s]+(\d+)/gi)].map(m => m[1])
+        );
+        const autoOpen = clientFilter ? clientIds.includes(clientFilter) : false;
+        return (
+          <ClientCard
+            key={s.id}
+            summary={s}
+            isManager={isManager}
+            canEditKb={canEditKb}
+            onSaveNote={handleSaveNote}
+            onEditEntry={handleEditEntry}
+            onDeleteEntry={handleDeleteEntry}
+            onAddStep={handleAddStep}
+            onDeleteStep={handleDeleteStep}
+            activeStepKey={localStepKey}
+            autoOpen={autoOpen}
+          />
+        );
+      })}
 
       {/* Legend */}
       {!loading && filtered.length > 0 && (

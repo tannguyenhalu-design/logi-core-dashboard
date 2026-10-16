@@ -6,8 +6,9 @@
  *  - Vercel Cron 09:00 / 13:00 / 18:00 VN as a fallback (vercel.json).
  * Replaces the old /api/cron/cache-refresh (flush + warm in-memory cache).
  */
-import { buildLtlSnapshot } from "../../../lib/ltl-snapshot";
+import { buildLtlSnapshot, loadLtlBase } from "../../../lib/ltl-snapshot";
 import { logAction } from "../../../lib/audit-log";
+import { validateRows } from "../../../lib/data-validator";
 
 export const config = { maxDuration: 60 };
 
@@ -28,6 +29,22 @@ export default async function handler(req, res) {
   const started = Date.now();
   try {
     const stats = await buildLtlSnapshot();
+
+    // Validation hook (Phase 1 Step 2): LOG-only by default, never blocks cron.
+    try {
+      const freshBase = await loadLtlBase().catch(() => null);
+      if (freshBase?.ltlRows?.length) {
+        const vr = validateRows("raw_ontime", freshBase.ltlRows);
+        if (vr.tallies.invalid > 0 || vr.tallies.warningCount > 0) {
+          console.warn(
+            `[build-snapshot] data quality: ${vr.tallies.invalid} invalid rows, ${vr.tallies.warningCount} warnings`
+          );
+        }
+      }
+    } catch (valErr) {
+      console.warn("[build-snapshot] validation check failed (non-blocking):", valErr.message);
+    }
+
     const tookMs = Date.now() - started;
     await logAction({
       actor: req.headers["x-caller"] ? `snapshot:${req.headers["x-caller"]}` : "cron:build-snapshot",
@@ -35,6 +52,21 @@ export default async function handler(req, res) {
       target: "ltl",
       details: { ...stats, tookMs },
     }).catch(() => {});
+
+    // Fire-and-forget: dispatch anomaly notifications to GTalk after rebuild.
+    if (process.env.GTALK_OA_WEBHOOK_URL) {
+      const dispatchOrigin = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "https://logicore-app.vercel.app";
+      const dispatchSecret = process.env.SNAPSHOT_SECRET;
+      if (dispatchSecret) {
+        fetch(`${dispatchOrigin}/api/notifications/gtalk-dispatch`, {
+          method: "POST",
+          headers: { "x-snapshot-secret": dispatchSecret, "Content-Type": "application/json" },
+          body: "{}",
+        }).catch((e) => console.warn("[build-snapshot] gtalk-dispatch failed (non-blocking):", e.message));
+      }
+    }
 
     // Warm /api/data after build so the first dashboard load finds a hot
     // instance with the new snapshot already in memory. Fire-and-forget.
